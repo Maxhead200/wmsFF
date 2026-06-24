@@ -403,6 +403,22 @@ data class ImportPreviewResponse(
     val sample: List<Map<String, String>>
 )
 
+data class StockImportResponse(
+    val importId: String,
+    val clientId: String,
+    val clientName: String,
+    val fileName: String,
+    val rowsDetected: Int,
+    val validRows: Int,
+    val totalQuantity: Int,
+    val boxesDetected: Int,
+    val productsDetected: Int,
+    val stockRows: Int,
+    val errors: List<String>,
+    val sample: List<Map<String, String>>,
+    val applied: Boolean
+)
+
 data class ExportResponse(
     val fileName: String,
     val contentType: String,

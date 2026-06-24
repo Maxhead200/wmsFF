@@ -815,10 +815,39 @@ h3 {
   gap: 12px;
 }
 
+.import-preview input[type="file"] {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
 .import-preview textarea {
   min-height: 180px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
+}
+
+.import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.import-errors {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.import-errors span {
+  padding: 8px 10px;
+  border: 1px solid rgba(185, 28, 28, 0.28);
+  border-radius: 8px;
+  background: rgba(254, 226, 226, 0.68);
+  color: #991b1b;
+  font-size: 13px;
 }
 
 .loader-row {

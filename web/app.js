@@ -85,10 +85,11 @@
   }
 
   async function api(path, options = {}) {
+    const isFormData = options.body instanceof FormData;
     const response = await fetch(`${API_BASE}${path}`, {
       ...options,
       headers: {
-        "Content-Type": "application/json",
+        ...(isFormData ? {} : { "Content-Type": "application/json" }),
         ...(state.token ? { Authorization: `Bearer ${state.token}` } : {}),
         ...(options.headers || {})
       }
@@ -463,7 +464,7 @@
       users: () => Promise.all([api("/users"), api("/roles"), api("/audit").catch(() => [])])
         .then(([users, roles, audit]) => ({ users, roles, audit })),
       "ui-settings": () => api("/ui-settings").then((settings) => ({ settings })),
-      integrations: () => Promise.resolve({ preview: null })
+      integrations: () => api("/clients").then((clients) => ({ clients, preview: null })).catch(() => ({ clients: [], preview: null }))
     };
     const data = await (loaders[id] || (() => Promise.resolve({})))();
     state.moduleData[id] = data;
@@ -971,11 +972,35 @@
   }
 
   function renderIntegrationsModule(data) {
+    const clients = data.clients || [];
+    const selectedClientId = clients.find((client) => client.name.includes("Лукин"))?.id || state.user.clientId || clients[0]?.id || "";
     const sample = "sku;name;qty;barcode\nALF-SER-30;Сыворотка 30 мл;12;4607000000011\nALF-PTH-01;Патчи гидрогелевые;36;";
     return `
       <div class="module-layout">
         <section class="panel">
           <div class="import-preview">
+            <label>
+              <span>Клиент для остатков</span>
+              <select id="import-client">
+                ${clients.map((client) => `
+                  <option value="${escapeHtml(client.id)}" ${client.id === selectedClientId ? "selected" : ""}>
+                    ${escapeHtml(client.name)}
+                  </option>
+                `).join("")}
+              </select>
+            </label>
+            <label>
+              <span>XLSX остатков 1С</span>
+              <input id="stock-xlsx-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+            </label>
+            <div class="import-actions">
+              <button type="button" data-action="preview-import">
+                <i data-lucide="scan-search"></i><span>Проверить</span>
+              </button>
+              <button class="primary-action" type="button" data-action="apply-stock-import">
+                <i data-lucide="upload"></i><span>Загрузить остатки</span>
+              </button>
+            </div>
             <label>
               <span>Тип данных</span>
               <select id="import-entity">
@@ -994,7 +1019,7 @@
           </div>
         </section>
         <section id="import-result" class="panel">
-          <p class="section-note">Результат проверки появится после предпросмотра импорта.</p>
+          <p class="section-note">Результат проверки появится после выбора файла или предпросмотра CSV.</p>
         </section>
       </div>
     `;
@@ -1089,6 +1114,11 @@
 
     if (action === "preview-import") {
       await previewImport();
+      return;
+    }
+
+    if (action === "apply-stock-import") {
+      await applyStockImport();
     }
   }
 
@@ -1281,6 +1311,13 @@
   }
 
   async function previewImport() {
+    const file = $("#stock-xlsx-file")?.files?.[0];
+    if (file) {
+      const preview = await sendStockImport(file, false);
+      renderStockImportResult(preview);
+      return;
+    }
+
     const entity = $("#import-entity")?.value || "stock";
     const content = $("#import-content")?.value || "";
     const preview = await api("/integrations/1c/import/preview", {
@@ -1296,6 +1333,59 @@
         "Пример строк пуст"
       )}
     `;
+  }
+
+  async function applyStockImport() {
+    const file = $("#stock-xlsx-file")?.files?.[0];
+    if (!file) {
+      throw new Error("Выберите XLSX-файл остатков 1С");
+    }
+    const result = await sendStockImport(file, true);
+    renderStockImportResult(result);
+    toast(`Остатки загружены: ${result.totalQuantity} шт`);
+    await refresh(true);
+  }
+
+  async function sendStockImport(file, applyImport) {
+    const clientId = $("#import-client")?.value || state.user.clientId || "";
+    if (!clientId) {
+      throw new Error("Выберите клиента для загрузки остатков");
+    }
+    const form = new FormData();
+    form.append("clientId", clientId);
+    form.append("apply", String(applyImport));
+    form.append("file", file);
+    return api("/integrations/1c/import/stock-xlsx", {
+      method: "POST",
+      body: form
+    });
+  }
+
+  function renderStockImportResult(result) {
+    $("#import-result").innerHTML = `
+      ${metricStrip([
+        ["Строк в файле", result.rowsDetected],
+        ["Валидных", result.validRows],
+        ["Товаров", result.productsDetected],
+        ["Коробов", result.boxesDetected],
+        ["Остаток", `${result.totalQuantity} шт`],
+        ["Статус", result.applied ? "Загружено" : "Проверено"]
+      ])}
+      <p class="section-note">
+        ${escapeHtml(result.fileName)} · клиент ${escapeHtml(result.clientName)} · строк остатков после группировки: ${escapeHtml(result.stockRows)}
+      </p>
+      ${result.errors?.length ? `
+        <div class="import-errors">
+          ${result.errors.map((error) => `<span>${escapeHtml(error)}</span>`).join("")}
+        </div>
+      ` : ""}
+      ${createTable(
+        Object.keys(result.sample?.[0] || {}),
+        (result.sample || []).map((row) => Object.values(row).map(escapeHtml)),
+        "Пример строк пуст"
+      )}
+    `;
+    activateIcons();
   }
 
   function bindEvents() {

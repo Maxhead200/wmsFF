@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import org.springframework.web.multipart.MultipartFile
 import pro.logoff.wms.domain.*
 import pro.logoff.wms.service.WmsException
 import pro.logoff.wms.service.WmsService
@@ -138,6 +139,14 @@ class WmsApiController(
         http: HttpServletRequest,
         @RequestBody request: ImportPreviewRequest
     ): ImportPreviewResponse = service.importPreview(user(http), request)
+
+    @PostMapping("/integrations/1c/import/stock-xlsx")
+    fun importStockXlsx(
+        http: HttpServletRequest,
+        @RequestParam clientId: String,
+        @RequestParam(defaultValue = "false") apply: Boolean,
+        @RequestParam file: MultipartFile
+    ): StockImportResponse = service.importStockXlsx(user(http), clientId, file.originalFilename.orEmpty(), file.inputStream, apply)
 
     @GetMapping("/integrations/1c/export")
     fun exportData(

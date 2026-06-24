@@ -2,16 +2,23 @@ package pro.logoff.wms
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.hamcrest.Matchers.greaterThan
+import org.hamcrest.Matchers.hasItem
 import org.hamcrest.Matchers.hasSize
+import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
+import org.springframework.mock.web.MockMultipartFile
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.test.web.servlet.post
 import org.springframework.test.web.servlet.get
 import pro.logoff.wms.domain.AuthResponse
+import java.io.ByteArrayOutputStream
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -171,6 +178,41 @@ class WmsApiTests(
             .andExpect { jsonPath("$.amount") { value(1500.00) } }
     }
 
+    @Test
+    fun `admin can import Lukin stock from 1c xlsx`() {
+        val token = login("admin", "admin123")
+        val file = MockMultipartFile(
+            "file",
+            "остатки 24.06.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            lukinStockWorkbook()
+        )
+
+        mockMvc.perform(
+            multipart("/api/integrations/1c/import/stock-xlsx")
+                .file(file)
+                .param("clientId", "client-lukin")
+                .param("apply", "true")
+                .header("Authorization", "Bearer $token")
+        )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.rowsDetected").value(4))
+            .andExpect(jsonPath("$.validRows").value(3))
+            .andExpect(jsonPath("$.totalQuantity").value(9))
+            .andExpect(jsonPath("$.boxesDetected").value(2))
+            .andExpect(jsonPath("$.productsDetected").value(2))
+            .andExpect(jsonPath("$.stockRows").value(3))
+            .andExpect(jsonPath("$.errors", hasSize<Any>(1)))
+            .andExpect(jsonPath("$.applied").value(true))
+
+        mockMvc.get("/api/stock") {
+            header("Authorization", "Bearer $token")
+        }
+            .andExpect { status { isOk() } }
+            .andExpect { jsonPath("$[?(@.clientId == 'client-lukin')].available") { value(hasItem(4)) } }
+            .andExpect { jsonPath("$[?(@.clientId == 'client-lukin')].available") { value(hasItem(2)) } }
+    }
+
     private fun login(login: String, password: String): String {
         val result = mockMvc.post("/api/auth/login") {
             contentType = MediaType.APPLICATION_JSON
@@ -179,5 +221,54 @@ class WmsApiTests(
             .andExpect { status { isOk() } }
             .andReturn()
         return objectMapper.readValue(result.response.contentAsString, AuthResponse::class.java).token
+    }
+
+    private fun lukinStockWorkbook(): ByteArray {
+        val workbook = XSSFWorkbook()
+        val sheet = workbook.createSheet("TDSheet")
+        val header = sheet.createRow(2)
+        header.createCell(0).setCellValue("Короб")
+        header.createCell(3).setCellValue("Штрих код")
+        header.createCell(4).setCellValue("logo_Наименование")
+        header.createCell(6).setCellValue("Цвет")
+        header.createCell(7).setCellValue("Размер")
+        header.createCell(8).setCellValue("Количество Остаток")
+
+        sheet.createRow(3).createCell(0).setCellValue("FFL_LUKIN_001")
+        sheet.createRow(4).apply {
+            createCell(0).setCellValue("FFL_LUKIN_001")
+            createCell(3).setCellValue("2040000000001")
+            createCell(4).setCellValue("Костюм_тестовый")
+            createCell(6).setCellValue("черный")
+            createCell(7).setCellValue("M")
+            createCell(8).setCellValue(4.0)
+        }
+        sheet.createRow(5).apply {
+            createCell(0).setCellValue("FFL_LUKIN_001")
+            createCell(3).setCellValue("2040000000002")
+            createCell(4).setCellValue("Футболка_тестовая")
+            createCell(6).setCellValue("белый")
+            createCell(7).setCellValue("L")
+            createCell(8).setCellValue(3.0)
+        }
+
+        sheet.createRow(6).createCell(0).setCellValue("FFL_LUKIN_002")
+        sheet.createRow(7).apply {
+            createCell(0).setCellValue("FFL_LUKIN_002")
+            createCell(3).setCellValue("2040000000001")
+            createCell(6).setCellValue("черный")
+            createCell(7).setCellValue("M")
+            createCell(8).setCellValue(2.0)
+        }
+        sheet.createRow(8).apply {
+            createCell(0).setCellValue("FFL_LUKIN_002")
+            createCell(6).setCellValue("#N/A")
+            createCell(7).setCellValue("#N/A")
+            createCell(8).setCellValue(1.0)
+        }
+
+        val output = ByteArrayOutputStream()
+        workbook.use { it.write(output) }
+        return output.toByteArray()
     }
 }

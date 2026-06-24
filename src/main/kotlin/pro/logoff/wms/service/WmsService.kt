@@ -1,9 +1,13 @@
 package pro.logoff.wms.service
 
 import jakarta.servlet.http.HttpServletRequest
+import org.apache.poi.ss.usermodel.DataFormatter
+import org.apache.poi.ss.usermodel.Row
+import org.apache.poi.ss.usermodel.WorkbookFactory
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import pro.logoff.wms.domain.*
+import java.io.InputStream
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
@@ -444,6 +448,52 @@ class WmsService {
         )
     }
 
+    @Synchronized
+    fun importStockXlsx(
+        user: SessionUser,
+        clientId: String,
+        fileName: String,
+        content: InputStream,
+        apply: Boolean
+    ): StockImportResponse {
+        requirePermission(user, Permission.INTEGRATIONS_MANAGE)
+        checkClientScope(user, clientId)
+        val client = clientOrFail(clientId)
+        val parsed = parse1cStockWorkbook(content)
+        if (parsed.rows.isEmpty()) {
+            throw WmsException(HttpStatus.BAD_REQUEST, "import.stock.empty", "В файле не найдено валидных строк остатков")
+        }
+
+        val groupedStockRows = parsed.rows.groupBy { it.barcode to it.box }.size
+        if (apply) {
+            replaceClientStockFromImport(client, parsed.rows)
+        }
+
+        val importId = nextId("import")
+        val action = if (apply) "загружены" else "проверены"
+        appendAudit(
+            user.login,
+            if (apply) "integration.import.apply" else "integration.import.preview",
+            "import:$importId",
+            "Остатки 1С $action для ${client.name}: ${parsed.rows.size} строк, ${parsed.totalQuantity} шт"
+        )
+        return StockImportResponse(
+            importId = importId,
+            clientId = client.id,
+            clientName = client.name,
+            fileName = fileName.ifBlank { "1c-stock.xlsx" },
+            rowsDetected = parsed.rowsDetected,
+            validRows = parsed.rows.size,
+            totalQuantity = parsed.totalQuantity,
+            boxesDetected = parsed.rows.map { it.box }.distinct().size,
+            productsDetected = parsed.rows.map { it.barcode }.distinct().size,
+            stockRows = groupedStockRows,
+            errors = parsed.errors.take(30) + if (parsed.errors.size > 30) listOf("Еще ошибок: ${parsed.errors.size - 30}") else emptyList(),
+            sample = parsed.rows.take(6).map { it.toSampleMap() },
+            applied = apply
+        )
+    }
+
     fun exportData(user: SessionUser, entity: String): ExportResponse {
         requirePermission(user, Permission.INTEGRATIONS_MANAGE)
         val rows = when (entity) {
@@ -649,8 +699,21 @@ class WmsService {
             debt = BigDecimal("12900.00"),
             balanceLimit = BigDecimal("120000.00")
         )
+        val lukin = Client(
+            id = "client-lukin",
+            name = "ИП Лукин И.И.",
+            legalName = "ИП Лукин И.И.",
+            inn = "",
+            contactName = "Илья Лукин",
+            phone = "",
+            email = "lukin@example.com",
+            status = EntityStatus.ACTIVE,
+            debt = BigDecimal.ZERO,
+            balanceLimit = BigDecimal("120000.00")
+        )
         clients[alfa.id] = alfa
         clients[beta.id] = beta
+        clients[lukin.id] = lukin
 
         addUser("user-admin", "admin", "admin123", "Администратор LOGOff", RoleKey.ADMIN, null)
         addUser("user-sklad", "sklad", "sklad123", "Складская смена", RoleKey.WAREHOUSE, null)
@@ -658,6 +721,7 @@ class WmsService {
         addUser("user-buh", "buh", "buh123", "Бухгалтер", RoleKey.ACCOUNTANT, null)
         addUser("user-tax", "tax", "tax123", "Бухгалтер-таксировщик", RoleKey.TAX_ACCOUNTANT, null)
         addUser("user-client", "client", "client123", "Кабинет Альфа", RoleKey.CLIENT, alfa.id)
+        addUser("user-lukin", "lukin", "lukin123", "Кабинет Лукин", RoleKey.CLIENT, lukin.id)
 
         val serum = Product("prod-serum", alfa.id, alfa.name, "ALF-SER-30", "Сыворотка 30 мл", "4607000000011", EntityStatus.ACTIVE)
         val cream = Product("prod-cream", alfa.id, alfa.name, "ALF-CRM-50", "Крем 50 мл", "4607000000028", EntityStatus.ACTIVE)
@@ -862,6 +926,228 @@ class WmsService {
 
     private fun appendAudit(actor: String, action: String, entity: String, details: String) {
         audit += AuditEvent(nextId("audit"), Instant.now(), actor, action, entity, details)
+    }
+
+    private fun parse1cStockWorkbook(content: InputStream): ParsedStockImport {
+        content.use { stream ->
+            WorkbookFactory.create(stream).use { workbook ->
+                val formatter = DataFormatter()
+                val sheet = workbook.getSheet("TDSheet") ?: workbook.getSheetAt(0)
+                val headerRow = (sheet.firstRowNum..minOf(sheet.lastRowNum, sheet.firstRowNum + 30))
+                    .asSequence()
+                    .mapNotNull { sheet.getRow(it) }
+                    .firstOrNull { findStockHeaderRow(it, formatter) != null }
+                    ?: throw WmsException(HttpStatus.BAD_REQUEST, "import.stock.headers", "Не найдены заголовки остатков 1С")
+                val headers = findStockHeaderRow(headerRow, formatter)
+                    ?: throw WmsException(HttpStatus.BAD_REQUEST, "import.stock.headers", "Не найдены заголовки остатков 1С")
+
+                val candidates = mutableListOf<StockImportCandidate>()
+                var currentBox = ""
+                for (rowIndex in (headerRow.rowNum + 1)..sheet.lastRowNum) {
+                    val row = sheet.getRow(rowIndex)
+                    val boxFromCell = cellText(row, headers.box, formatter)
+                    if (boxFromCell.isNotBlank()) {
+                        currentBox = boxFromCell
+                    }
+                    val barcode = cellText(row, headers.barcode, formatter)
+                    val name = cellText(row, headers.name, formatter)
+                    val quantity = cellText(row, headers.quantity, formatter)
+                    val color = headers.color?.let { cellText(row, it, formatter) }.orEmpty()
+                    val size = headers.size?.let { cellText(row, it, formatter) }.orEmpty()
+
+                    if (barcode.isBlank() && name.isBlank() && quantity.isBlank()) {
+                        continue
+                    }
+
+                    candidates += StockImportCandidate(
+                        rowNumber = rowIndex + 1,
+                        box = boxFromCell.ifBlank { currentBox },
+                        barcode = barcode,
+                        name = name,
+                        color = cleanImportAttribute(color),
+                        size = cleanImportAttribute(size),
+                        quantity = quantity
+                    )
+                }
+
+                val nameByBarcode = candidates
+                    .filter { it.barcode.isNotBlank() && it.name.isNotBlank() }
+                    .groupBy { it.barcode }
+                    .mapValues { (_, rows) -> rows.first().name }
+                val rows = mutableListOf<StockImportRow>()
+                val errors = mutableListOf<String>()
+                candidates.forEach { candidate ->
+                    val name = candidate.name.ifBlank { nameByBarcode[candidate.barcode].orEmpty() }
+                    val quantity = parseImportQuantity(candidate.quantity)
+                    when {
+                        candidate.box.isBlank() -> errors += "Строка ${candidate.rowNumber}: не указан короб"
+                        candidate.barcode.isBlank() -> errors += "Строка ${candidate.rowNumber}: не указан штрихкод"
+                        name.isBlank() -> errors += "Строка ${candidate.rowNumber}: не указано наименование"
+                        quantity == null -> errors += "Строка ${candidate.rowNumber}: некорректное количество '${candidate.quantity}'"
+                        else -> rows += StockImportRow(
+                            rowNumber = candidate.rowNumber,
+                            box = candidate.box,
+                            barcode = candidate.barcode,
+                            name = name,
+                            color = candidate.color,
+                            size = candidate.size,
+                            quantity = quantity
+                        )
+                    }
+                }
+
+                return ParsedStockImport(candidates.size, rows, errors)
+            }
+        }
+    }
+
+    private fun findStockHeaderRow(row: Row?, formatter: DataFormatter): StockImportHeaders? {
+        if (row == null) return null
+        val maxColumn = row.lastCellNum.toInt().coerceAtLeast(0)
+        val headers = (0 until maxColumn).associateWith { column ->
+            normalizeHeader(cellText(row, column, formatter))
+        }
+        val box = headers.firstColumn { it == "короб" || it == "box" }
+        val barcode = headers.firstColumn { it.contains("штрих") || it.contains("barcode") }
+        val name = headers.firstColumn { it.contains("наименование") || it == "name" || it == "product" }
+        val quantity = headers.firstColumn { it.contains("количество") && (it.contains("остаток") || it.contains("остат")) }
+        if (box == null || barcode == null || name == null || quantity == null) {
+            return null
+        }
+        val color = headers.firstColumn { it == "цвет" || it == "color" }
+        val size = headers.firstColumn { it == "размер" || it == "size" }
+        return StockImportHeaders(box, barcode, name, color, size, quantity)
+    }
+
+    private fun cellText(row: Row?, column: Int, formatter: DataFormatter): String =
+        row?.getCell(column)
+            ?.let { formatter.formatCellValue(it) }
+            ?.replace('\u00A0', ' ')
+            ?.trim()
+            .orEmpty()
+
+    private fun normalizeHeader(value: String): String =
+        value.lowercase()
+            .replace('ё', 'е')
+            .replace(Regex("[^a-zа-я0-9]+"), " ")
+            .trim()
+
+    private fun cleanImportAttribute(value: String): String =
+        value.takeUnless { it.equals("#N/A", ignoreCase = true) || it.equals("N/A", ignoreCase = true) }.orEmpty()
+
+    private fun parseImportQuantity(value: String): Int? {
+        val normalized = value
+            .replace('\u00A0', ' ')
+            .replace(" ", "")
+            .replace(",", ".")
+            .trim()
+        if (normalized.isBlank()) return null
+        val decimal = normalized.toBigDecimalOrNull() ?: return null
+        if (decimal <= BigDecimal.ZERO) return null
+        val normalizedDecimal = decimal.stripTrailingZeros()
+        if (normalizedDecimal.scale() > 0) return null
+        return runCatching { decimal.intValueExact() }.getOrNull()
+    }
+
+    private fun replaceClientStockFromImport(client: Client, rows: List<StockImportRow>) {
+        stockItems.entries.removeIf { it.value.clientId == client.id }
+
+        val productsByBarcode = products.values
+            .filter { it.clientId == client.id && !it.barcode.isNullOrBlank() }
+            .associateBy { it.barcode.orEmpty() }
+        val importedProducts = rows.groupBy { it.barcode }.mapValues { (_, barcodeRows) ->
+            val first = barcodeRows.first()
+            val product = productsByBarcode[first.barcode]
+                ?: products.values.firstOrNull { it.clientId == client.id && it.sku.equals(first.barcode, ignoreCase = true) }
+                ?: Product(
+                    id = nextId("product"),
+                    clientId = client.id,
+                    clientName = client.name,
+                    sku = first.barcode,
+                    name = first.productDisplayName(),
+                    barcode = first.barcode,
+                    status = EntityStatus.ACTIVE
+                )
+            product.copy(
+                clientName = client.name,
+                sku = first.barcode,
+                name = first.productDisplayName(),
+                barcode = first.barcode,
+                status = EntityStatus.ACTIVE
+            ).also { products[it.id] = it }
+        }
+
+        rows.groupBy { it.barcode to it.box }.values.forEach { stockRows ->
+            val first = stockRows.first()
+            val product = importedProducts.getValue(first.barcode)
+            val id = nextId("stock")
+            stockItems[id] = StockItem(
+                id = id,
+                clientId = client.id,
+                clientName = client.name,
+                productId = product.id,
+                productName = product.name,
+                sku = product.sku,
+                barcode = product.barcode,
+                location = first.box,
+                available = stockRows.sumOf { it.quantity },
+                reserved = 0,
+                quarantine = 0
+            )
+        }
+    }
+
+    private fun StockImportRow.productDisplayName(): String {
+        val attributes = listOf(color, size).filter { it.isNotBlank() }.distinct()
+        return if (attributes.isEmpty()) name else "$name (${attributes.joinToString(", ")})"
+    }
+
+    private fun StockImportRow.toSampleMap(): Map<String, String> = mapOf(
+        "Строка" to rowNumber.toString(),
+        "Короб" to box,
+        "Штрих код" to barcode,
+        "Наименование" to productDisplayName(),
+        "Количество" to quantity.toString()
+    )
+
+    private fun Map<Int, String>.firstColumn(predicate: (String) -> Boolean): Int? =
+        entries.firstOrNull { predicate(it.value) }?.key
+
+    private data class StockImportHeaders(
+        val box: Int,
+        val barcode: Int,
+        val name: Int,
+        val color: Int?,
+        val size: Int?,
+        val quantity: Int
+    )
+
+    private data class StockImportCandidate(
+        val rowNumber: Int,
+        val box: String,
+        val barcode: String,
+        val name: String,
+        val color: String,
+        val size: String,
+        val quantity: String
+    )
+
+    private data class StockImportRow(
+        val rowNumber: Int,
+        val box: String,
+        val barcode: String,
+        val name: String,
+        val color: String,
+        val size: String,
+        val quantity: Int
+    )
+
+    private data class ParsedStockImport(
+        val rowsDetected: Int,
+        val rows: List<StockImportRow>,
+        val errors: List<String>
+    ) {
+        val totalQuantity: Int = rows.sumOf { it.quantity }
     }
 
     private fun nextId(prefix: String): String = "$prefix-${sequence.incrementAndGet()}"

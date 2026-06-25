@@ -387,6 +387,64 @@ data class DashboardResponse(
     val billingDocuments: List<BillingDocument>
 )
 
+data class FulfillmentKpis(
+    val orders: Int,
+    val openOrders: Int,
+    val inProgressOrders: Int,
+    val overdueOrders: Int,
+    val reservedUnits: Int,
+    val availableUnits: Int,
+    val quarantineUnits: Int,
+    val activeClients: Int,
+    val nextSlaAt: Instant?
+)
+
+data class FulfillmentQueueItem(
+    val id: String,
+    val number: String,
+    val clientId: String,
+    val clientName: String,
+    val marketplace: String,
+    val status: EntityStatus,
+    val reservedLines: Int,
+    val boxes: Int,
+    val createdAt: Instant,
+    val dueAt: Instant,
+    val slaMinutesLeft: Long,
+    val taskId: String?,
+    val taskStatus: EntityStatus?,
+    val taskAssignee: String?,
+    val priority: String,
+    val progress: Int,
+    val blockers: List<String>
+)
+
+data class FulfillmentStockSignal(
+    val clientId: String,
+    val clientName: String,
+    val availableUnits: Int,
+    val reservedUnits: Int,
+    val quarantineUnits: Int,
+    val skuCount: Int,
+    val lowStockSkus: Int,
+    val fillRate: Int
+)
+
+data class FulfillmentRecommendation(
+    val severity: String,
+    val title: String,
+    val details: String,
+    val actionModule: String
+)
+
+data class FulfillmentDashboardResponse(
+    val kpis: FulfillmentKpis,
+    val queue: List<FulfillmentQueueItem>,
+    val stockSignals: List<FulfillmentStockSignal>,
+    val recommendations: List<FulfillmentRecommendation>,
+    val channelLoad: Map<String, Int>
+)
+
 data class ImportPreviewRequest(
     val format: String,
     val entity: String,

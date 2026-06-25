@@ -110,6 +110,45 @@ class WmsApiTests(
     }
 
     @Test
+    fun `manager can use fulfillment cockpit and create marketplace supply`() {
+        val token = login("manager", "manager123")
+
+        mockMvc.get("/api/fulfillment/dashboard") {
+            header("Authorization", "Bearer $token")
+        }
+            .andExpect { status { isOk() } }
+            .andExpect { jsonPath("$.kpis.orders", greaterThan(0)) }
+            .andExpect { jsonPath("$.queue", hasSize<Any>(greaterThan(0))) }
+            .andExpect { jsonPath("$.stockSignals", hasSize<Any>(greaterThan(0))) }
+
+        mockMvc.post("/api/marketplace-supplies") {
+            header("Authorization", "Bearer $token")
+            contentType = MediaType.APPLICATION_JSON
+            content = """
+                {
+                  "clientId": "client-alfa",
+                  "marketplace": "Ozon",
+                  "lines": [
+                    {
+                      "productId": "prod-serum",
+                      "quantity": 2
+                    }
+                  ]
+                }
+            """.trimIndent()
+        }
+            .andExpect { status { isOk() } }
+            .andExpect { jsonPath("$.number") { exists() } }
+            .andExpect { jsonPath("$.marketplace") { value("Ozon") } }
+
+        mockMvc.get("/api/fulfillment/dashboard") {
+            header("Authorization", "Bearer $token")
+        }
+            .andExpect { status { isOk() } }
+            .andExpect { jsonPath("$.channelLoad.Ozon") { value(1) } }
+    }
+
+    @Test
     fun `receipt rejects empty lines`() {
         val token = login("sklad", "sklad123")
 

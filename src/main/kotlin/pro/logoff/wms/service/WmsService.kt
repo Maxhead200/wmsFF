@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service
 import pro.logoff.wms.domain.*
 import java.io.InputStream
 import java.math.BigDecimal
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
@@ -33,6 +34,7 @@ class WmsService(
     private val sequence = AtomicLong(1000)
     private val modules = listOf(
         "dashboard",
+        "fulfillment",
         "receipts",
         "quarantine",
         "stock",
@@ -169,6 +171,118 @@ class WmsService(
                 TimelineEvent(it.at, it.action, it.details)
             },
             billingDocuments = scopedDocs.sortedByDescending { it.date }.take(6)
+        )
+    }
+
+    fun fulfillmentDashboard(user: SessionUser): FulfillmentDashboardResponse {
+        requireAny(
+            user,
+            Permission.DASHBOARD_READ,
+            Permission.MARKETPLACE_SUPPLIES_MANAGE,
+            Permission.TASKS_MANAGE,
+            Permission.CLIENT_PORTAL
+        )
+        val clientScope = user.clientId
+        val now = Instant.now()
+        val scopedSupplies = supplies.values.filterByClient(clientScope)
+        val scopedTasks = tasks.values.filterByClient(clientScope)
+        val scopedStock = stockItems.values.filterByClient(clientScope)
+        val scopedQuarantine = quarantine.values.filterByClient(clientScope)
+
+        val queue = scopedSupplies
+            .map { supply ->
+                val task = scopedTasks.firstOrNull {
+                    it.kind == "PICK" && it.clientId == supply.clientId && it.title.contains(supply.number)
+                }
+                val dueAt = task?.dueAt ?: supply.createdAt.plusSeconds(4 * 3600)
+                val slaMinutesLeft = Duration.between(now, dueAt).toMinutes()
+                val clientQuarantine = scopedQuarantine
+                    .filter { it.clientId == supply.clientId && it.status == EntityStatus.QUARANTINE }
+                    .sumOf { it.quantity }
+                val clientReserved = scopedStock.filter { it.clientId == supply.clientId }.sumOf { it.reserved }
+                val blockers = buildList {
+                    if (clientQuarantine > 0) add("Карантин: $clientQuarantine шт")
+                    if (clientReserved == 0 && supply.status != EntityStatus.DONE) add("Нет активного резерва")
+                    if (slaMinutesLeft < 0 && supply.status != EntityStatus.DONE) add("SLA просрочен")
+                }
+                FulfillmentQueueItem(
+                    id = supply.id,
+                    number = supply.number,
+                    clientId = supply.clientId,
+                    clientName = supply.clientName,
+                    marketplace = supply.marketplace,
+                    status = supply.status,
+                    reservedLines = supply.reservedLines,
+                    boxes = supply.boxes,
+                    createdAt = supply.createdAt,
+                    dueAt = dueAt,
+                    slaMinutesLeft = slaMinutesLeft,
+                    taskId = task?.id,
+                    taskStatus = task?.status,
+                    taskAssignee = task?.assignee,
+                    priority = when {
+                        blockers.isNotEmpty() -> "Блок"
+                        slaMinutesLeft <= 60 -> "Срочно"
+                        else -> task?.priority ?: "Норма"
+                    },
+                    progress = fulfillmentProgress(supply.status, task?.status, blockers),
+                    blockers = blockers
+                )
+            }
+            .sortedWith(
+                compareBy<FulfillmentQueueItem> { it.status == EntityStatus.DONE }
+                    .thenBy { it.slaMinutesLeft }
+                    .thenByDescending { it.createdAt }
+            )
+
+        val stockSignals = scopedStock
+            .groupBy { it.clientId }
+            .map { (clientId, rows) ->
+                val clientName = rows.firstOrNull()?.clientName ?: clients[clientId]?.name ?: clientId
+                val productBalances = rows.groupBy { it.productId }.mapValues { (_, productRows) ->
+                    productRows.sumOf { it.available }
+                }
+                val available = rows.sumOf { it.available }
+                val reserved = rows.sumOf { it.reserved }
+                val total = available + reserved
+                FulfillmentStockSignal(
+                    clientId = clientId,
+                    clientName = clientName,
+                    availableUnits = available,
+                    reservedUnits = reserved,
+                    quarantineUnits = scopedQuarantine.filter { it.clientId == clientId }.sumOf { it.quantity },
+                    skuCount = productBalances.size,
+                    lowStockSkus = productBalances.values.count { it in 1..9 },
+                    fillRate = if (total == 0) 0 else (available * 100 / total)
+                )
+            }
+            .sortedByDescending { it.reservedUnits }
+
+        val recommendations = fulfillmentRecommendations(queue, stockSignals, scopedQuarantine)
+        val nextSlaAt = queue
+            .filter { it.status != EntityStatus.DONE }
+            .minByOrNull { it.dueAt }
+            ?.dueAt
+
+        return FulfillmentDashboardResponse(
+            kpis = FulfillmentKpis(
+                orders = scopedSupplies.size,
+                openOrders = queue.count { it.status == EntityStatus.OPEN },
+                inProgressOrders = queue.count { it.status == EntityStatus.IN_PROGRESS || it.taskStatus == EntityStatus.IN_PROGRESS },
+                overdueOrders = queue.count { it.slaMinutesLeft < 0 && it.status != EntityStatus.DONE },
+                reservedUnits = scopedStock.sumOf { it.reserved },
+                availableUnits = scopedStock.sumOf { it.available },
+                quarantineUnits = scopedQuarantine.filter { it.status == EntityStatus.QUARANTINE }.sumOf { it.quantity },
+                activeClients = scopedSupplies.map { it.clientId }.distinct().size,
+                nextSlaAt = nextSlaAt
+            ),
+            queue = queue,
+            stockSignals = stockSignals,
+            recommendations = recommendations,
+            channelLoad = scopedSupplies
+                .groupingBy { it.marketplace }
+                .eachCount()
+                .toSortedMap()
         )
     }
 
@@ -316,7 +430,36 @@ class WmsService(
         requireAny(user, Permission.MARKETPLACE_SUPPLIES_MANAGE, Permission.CLIENT_PORTAL)
         checkClientScope(user, request.clientId)
         val client = clientOrFail(request.clientId)
-        request.lines.forEach { line ->
+        val marketplace = request.marketplace.trim()
+        if (marketplace.isBlank()) {
+            throw WmsException(HttpStatus.BAD_REQUEST, "supply.marketplace", "Укажите маркетплейс")
+        }
+        if (request.lines.isEmpty()) {
+            throw WmsException(HttpStatus.BAD_REQUEST, "supply.lines", "Добавьте хотя бы одну строку заявки")
+        }
+        val normalizedLines = request.lines.mapIndexed { index, line ->
+            if (line.quantity <= 0) {
+                throw WmsException(HttpStatus.BAD_REQUEST, "supply.quantity", "Строка ${index + 1}: количество должно быть больше нуля")
+            }
+            val product = products[line.productId]
+                ?: throw WmsException(HttpStatus.NOT_FOUND, "product.not_found", "Строка ${index + 1}: товар не найден")
+            if (product.clientId != client.id) {
+                throw WmsException(HttpStatus.BAD_REQUEST, "supply.product_client", "Строка ${index + 1}: товар принадлежит другому клиенту")
+            }
+            line
+        }
+        normalizedLines
+            .groupBy { it.productId }
+            .forEach { (productId, lines) ->
+                val requested = lines.sumOf { it.quantity }
+                val available = stockItems.values
+                    .filter { it.clientId == client.id && it.productId == productId }
+                    .sumOf { it.available }
+                if (available < requested) {
+                    throw WmsException(HttpStatus.CONFLICT, "stock.reserve", "Недостаточно доступного остатка для резервирования")
+                }
+            }
+        normalizedLines.forEach { line ->
             reserveStock(client.id, line.productId, line.quantity)
         }
         val id = nextId("supply")
@@ -325,10 +468,10 @@ class WmsService(
             number = "MP-${sequence.incrementAndGet()}",
             clientId = client.id,
             clientName = client.name,
-            marketplace = request.marketplace,
+            marketplace = marketplace,
             status = EntityStatus.OPEN,
-            reservedLines = request.lines.size,
-            boxes = request.lines.sumOf { it.quantity }.coerceAtLeast(1) / 6 + 1,
+            reservedLines = normalizedLines.size,
+            boxes = normalizedLines.sumOf { it.quantity }.coerceAtLeast(1) / 6 + 1,
             createdAt = Instant.now()
         )
         supplies[id] = supply
@@ -558,9 +701,78 @@ class WmsService(
         return audit.reversed()
     }
 
+    private fun fulfillmentProgress(
+        supplyStatus: EntityStatus,
+        taskStatus: EntityStatus?,
+        blockers: List<String>
+    ): Int = when {
+        supplyStatus == EntityStatus.DONE || taskStatus == EntityStatus.DONE -> 100
+        blockers.any { it.contains("SLA") } -> 25
+        blockers.isNotEmpty() -> 35
+        taskStatus == EntityStatus.IN_PROGRESS || supplyStatus == EntityStatus.IN_PROGRESS -> 68
+        supplyStatus == EntityStatus.OPEN -> 38
+        else -> 15
+    }
+
+    private fun fulfillmentRecommendations(
+        queue: List<FulfillmentQueueItem>,
+        stockSignals: List<FulfillmentStockSignal>,
+        scopedQuarantine: List<QuarantineItem>
+    ): List<FulfillmentRecommendation> {
+        val recommendations = mutableListOf<FulfillmentRecommendation>()
+        val overdue = queue.filter { it.slaMinutesLeft < 0 && it.status != EntityStatus.DONE }
+        val blocked = queue.filter { it.blockers.isNotEmpty() }
+        val quarantineUnits = scopedQuarantine
+            .filter { it.status == EntityStatus.QUARANTINE }
+            .sumOf { it.quantity }
+        val lowStockClients = stockSignals.filter { it.lowStockSkus > 0 }
+
+        if (overdue.isNotEmpty()) {
+            recommendations += FulfillmentRecommendation(
+                severity = "bad",
+                title = "Просроченные SLA",
+                details = "В очереди ${overdue.size} поставок с просроченным сроком сборки. Сначала закройте ${overdue.first().number}.",
+                actionModule = "picking"
+            )
+        }
+        if (blocked.isNotEmpty()) {
+            recommendations += FulfillmentRecommendation(
+                severity = "warn",
+                title = "Есть блокирующие факторы",
+                details = "${blocked.size} поставок требуют внимания: карантин, отсутствие резерва или просрочка.",
+                actionModule = "fulfillment"
+            )
+        }
+        if (quarantineUnits > 0) {
+            recommendations += FulfillmentRecommendation(
+                severity = "warn",
+                title = "Разберите карантин",
+                details = "В карантине ${quarantineUnits} шт. Выпуск товара вернет позиции в доступный остаток для сборки.",
+                actionModule = "quarantine"
+            )
+        }
+        if (lowStockClients.isNotEmpty()) {
+            recommendations += FulfillmentRecommendation(
+                severity = "info",
+                title = "Контроль низких остатков",
+                details = lowStockClients.joinToString("; ") { "${it.clientName}: ${it.lowStockSkus} SKU" },
+                actionModule = "stock"
+            )
+        }
+        if (recommendations.isEmpty()) {
+            recommendations += FulfillmentRecommendation(
+                severity = "good",
+                title = "Очередь стабильна",
+                details = "Критичных блокировок нет. Можно запускать новые заявки на сборку.",
+                actionModule = "client-requests"
+            )
+        }
+        return recommendations
+    }
+
     private fun buildRoleDefinitions(): Map<RoleKey, RoleDefinition> {
         val allPermissions = Permission.entries.toSet()
-        val warehouseModules = listOf("dashboard", "receipts", "quarantine", "stock", "picking", "inventory")
+        val warehouseModules = listOf("dashboard", "fulfillment", "receipts", "quarantine", "stock", "picking", "inventory")
         val financeModules = listOf("dashboard", "clients", "services", "billing", "reports", "integrations")
         return mapOf(
             RoleKey.ADMIN to RoleDefinition(RoleKey.ADMIN, RoleKey.ADMIN.title, allPermissions, modules),
@@ -642,7 +854,7 @@ class WmsService(
                     Permission.INTEGRATIONS_MANAGE,
                     Permission.UI_SETTINGS_MANAGE
                 ),
-                listOf("dashboard", "clients", "receipts", "quarantine", "stock", "client-requests", "picking", "reports", "integrations")
+                listOf("dashboard", "fulfillment", "clients", "receipts", "quarantine", "stock", "client-requests", "picking", "reports", "integrations")
             ),
             RoleKey.TAX_ACCOUNTANT to RoleDefinition(
                 RoleKey.TAX_ACCOUNTANT,
@@ -668,7 +880,7 @@ class WmsService(
                     Permission.DOCUMENTS_READ,
                     Permission.UI_SETTINGS_MANAGE
                 ),
-                listOf("dashboard", "stock", "client-requests", "billing", "reports")
+                listOf("dashboard", "fulfillment", "stock", "client-requests", "billing", "reports")
             ),
             RoleKey.AUDITOR to RoleDefinition(
                 RoleKey.AUDITOR,
@@ -978,6 +1190,7 @@ class WmsService(
         val clientScope = user.clientId
         return when (id) {
             "dashboard" -> ModuleSummary(id, "Обзор", "layout-dashboard", "${stockItems.values.filterByClient(clientScope).sumOf { it.available }} шт", "online")
+            "fulfillment" -> ModuleSummary(id, "Фулфилмент", "package-check", "${supplies.values.filterByClient(clientScope).count { it.status != EntityStatus.DONE }} в очереди", "work")
             "receipts" -> ModuleSummary(id, "Приемка", "package-plus", "${receipts.values.filterByClient(clientScope).count()} ASN", "work")
             "quarantine" -> ModuleSummary(id, "Карантин", "shield-alert", "${quarantine.values.filterByClient(clientScope).sumOf { it.quantity }} шт", "attention")
             "stock" -> ModuleSummary(id, "Остатки", "boxes", "${stockItems.values.filterByClient(clientScope).size} строк", "online")

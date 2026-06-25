@@ -725,6 +725,145 @@ h3 {
   grid-template-columns: 1fr;
 }
 
+.fulfillment-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.38fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.fulfillment-queue {
+  min-width: 0;
+}
+
+.fulfillment-side {
+  display: grid;
+  gap: 18px;
+}
+
+.fulfillment-form {
+  display: grid;
+  gap: 12px;
+}
+
+.fulfillment-form button {
+  margin-top: 2px;
+}
+
+.progress-cell {
+  display: grid;
+  gap: 6px;
+  min-width: 110px;
+}
+
+.progress-track {
+  overflow: hidden;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.progress-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--teal);
+}
+
+.progress-cell small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.blocker-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  margin: 2px 4px 2px 0;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--red-soft);
+  color: var(--red);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.signal-list {
+  display: grid;
+  gap: 10px;
+}
+
+.signal-card,
+.recommendation-card {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: var(--ink);
+  text-align: left;
+}
+
+.recommendation-card {
+  cursor: pointer;
+}
+
+.recommendation-card.good {
+  border-color: #a7dfbd;
+  background: var(--green-soft);
+}
+
+.recommendation-card.warn,
+.recommendation-card.info {
+  border-color: #f0cb83;
+  background: var(--amber-soft);
+}
+
+.recommendation-card.bad {
+  border-color: #f2aaa6;
+  background: var(--red-soft);
+}
+
+.signal-card strong,
+.recommendation-card strong {
+  display: block;
+}
+
+.signal-card span,
+.recommendation-card span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.channel-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.channel-list span {
+  display: grid;
+  gap: 4px;
+  min-height: 72px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.channel-list b {
+  color: var(--ink);
+  font-size: 24px;
+  line-height: 1;
+}
+
 .metric-strip {
   display: grid;
   grid-template-columns: repeat(4, minmax(140px, 1fr));
@@ -1355,7 +1494,8 @@ td span {
     grid-template-columns: 1fr;
   }
 
-  .module-layout {
+  .module-layout,
+  .fulfillment-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1574,5 +1714,9 @@ td span {
   .list-item {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .channel-list {
+    grid-template-columns: 1fr;
   }
 }

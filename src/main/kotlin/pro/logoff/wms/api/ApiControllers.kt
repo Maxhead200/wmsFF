@@ -39,6 +39,9 @@ class WmsApiController(
     @GetMapping("/dashboard")
     fun dashboard(http: HttpServletRequest): DashboardResponse = service.dashboard(user(http))
 
+    @GetMapping("/fulfillment/dashboard")
+    fun fulfillmentDashboard(http: HttpServletRequest): FulfillmentDashboardResponse = service.fulfillmentDashboard(user(http))
+
     @GetMapping("/users")
     fun users(http: HttpServletRequest): List<WmsUser> = service.listUsers(user(http))
 

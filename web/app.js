@@ -3,6 +3,7 @@
   const STOCK_RENDER_LIMIT = 300;
   const moduleMeta = {
     dashboard: ["Обзор", "layout-dashboard", "Сводка по смене, очередям, зонам и финансам."],
+    fulfillment: ["Фулфилмент", "package-check", "Операционная очередь поставок, SLA, резервы, блокировки и запуск сборки."],
     receipts: ["Приемка", "package-plus", "ASN, приемка по ШК, расхождения и карантин товара без штрихкода."],
     quarantine: ["Карантин", "shield-alert", "Проверка карточек, печать внутреннего ШК LOGOff и выпуск в доступный остаток."],
     stock: ["Остатки", "boxes", "Доступность, резервы, ячейки, SKU и клиентские остатки."],
@@ -46,6 +47,7 @@
     activeModule: "dashboard",
     moduleData: {},
     renderToken: 0,
+    fulfillmentDraft: newFulfillmentDraft(),
     receiptDraft: {
       clientId: "",
       sourceDocument: "",
@@ -63,6 +65,15 @@
       barcode: product.barcode || "",
       expected: 1,
       accepted: 1
+    };
+  }
+
+  function newFulfillmentDraft() {
+    return {
+      clientId: "",
+      marketplace: "Wildberries",
+      productId: "",
+      quantity: 1
     };
   }
 
@@ -332,6 +343,32 @@
     return `<p class="section-note">Показано ${visibleRows.length} из ${rows.length}. Уточните поиск или используйте экспорт.</p>`;
   }
 
+  function stockOptionsForClient(stock, clientId) {
+    const byProduct = new Map();
+    stock
+      .filter((item) => item.clientId === clientId && item.available > 0)
+      .forEach((item) => {
+        const current = byProduct.get(item.productId) || {
+          productId: item.productId,
+          productName: item.productName,
+          sku: item.sku,
+          barcode: item.barcode,
+          available: 0
+        };
+        current.available += Number(item.available || 0);
+        byProduct.set(item.productId, current);
+      });
+    return Array.from(byProduct.values()).sort((a, b) => a.productName.localeCompare(b.productName, "ru"));
+  }
+
+  function slaLabel(minutes) {
+    const value = Number(minutes || 0);
+    if (value < 0) return `просрочено ${Math.abs(value)} мин`;
+    if (value < 120) return `${value} мин`;
+    if (value < 1440) return `${Math.round(value / 60)} ч`;
+    return `${Math.round(value / 1440)} д`;
+  }
+
   function renderQuarantine() {
     const rows = state.quarantine.filter((item) => item.status === "QUARANTINE");
     $("#quarantine-list").innerHTML = rows.length ? rows.map((item) => `
@@ -455,6 +492,11 @@
   async function loadModuleData(id, refresh = false) {
     if (!refresh && state.moduleData[id]) return state.moduleData[id];
     const loaders = {
+      fulfillment: () => Promise.all([
+        api("/fulfillment/dashboard"),
+        api("/clients").catch(() => []),
+        api("/stock").catch(() => [])
+      ]).then(([overview, clients, stock]) => ({ overview, clients, stock })),
       receipts: () => Promise.all([api("/receipts"), api("/clients").catch(() => []), api("/products").catch(() => [])])
         .then(([receipts, clients, products]) => ({ receipts, clients, products })),
       quarantine: () => api("/quarantine").then((quarantine) => ({ quarantine })),
@@ -481,6 +523,7 @@
   function renderModule(id, data) {
     const actions = moduleActions(id);
     const body = {
+      fulfillment: renderFulfillmentModule,
       receipts: renderReceiptsModule,
       quarantine: renderQuarantineModule,
       stock: renderStockModule,
@@ -500,6 +543,7 @@
 
   function moduleActions(id) {
     const buttons = {
+      fulfillment: '<button class="primary-action" type="button" data-action="create-supply"><i data-lucide="file-plus-2"></i><span>Новая заявка</span></button>',
       receipts: '<button class="primary-action" type="button" data-action="create-receipt"><i data-lucide="package-plus"></i><span>Новая приемка</span></button>',
       quarantine: '<button type="button" data-action="refresh-module"><i data-lucide="refresh-cw"></i><span>Обновить</span></button>',
       stock: '<button type="button" data-action="export-stock"><i data-lucide="download"></i><span>Экспорт</span></button>',
@@ -512,6 +556,189 @@
       integrations: '<button class="primary-action" type="button" data-action="preview-import"><i data-lucide="scan-search"></i><span>Проверить импорт</span></button>'
     };
     return buttons[id] || '<button type="button" data-action="refresh-module"><i data-lucide="refresh-cw"></i><span>Обновить</span></button>';
+  }
+
+  function renderFulfillmentModule(data) {
+    const overview = data.overview || { kpis: {}, queue: [], stockSignals: [], recommendations: [], channelLoad: {} };
+    const stock = data.stock || state.stock || [];
+    const clients = data.clients || [];
+    state.stock = stock;
+
+    const fallbackClients = Array.from(new Map(stock.map((item) => [
+      item.clientId,
+      { id: item.clientId, name: item.clientName }
+    ])).values());
+    const clientOptions = clients.length ? clients : fallbackClients;
+    const draft = state.fulfillmentDraft;
+    draft.clientId = draft.clientId || state.user.clientId || clientOptions[0]?.id || stock[0]?.clientId || "";
+
+    const productOptions = stockOptionsForClient(stock, draft.clientId);
+    if (!productOptions.some((item) => item.productId === draft.productId)) {
+      draft.productId = productOptions[0]?.productId || "";
+    }
+    const selectedProduct = productOptions.find((item) => item.productId === draft.productId);
+    const quantityLimit = selectedProduct?.available || 1;
+    draft.quantity = Math.min(Math.max(Number(draft.quantity || 1), 1), quantityLimit);
+
+    const kpis = overview.kpis || {};
+    const queue = (overview.queue || []).filter((item) =>
+      `${item.number} ${item.clientName} ${item.marketplace} ${item.priority} ${(item.blockers || []).join(" ")}`.toLowerCase().includes(state.query)
+    );
+
+    return `
+      ${metricStrip([
+        ["В очереди", kpis.openOrders ?? 0],
+        ["В работе", kpis.inProgressOrders ?? 0],
+        ["Резерв", `${kpis.reservedUnits ?? 0} шт`],
+        ["Карантин", `${kpis.quarantineUnits ?? 0} шт`]
+      ])}
+
+      <section class="fulfillment-grid">
+        <div class="panel fulfillment-queue">
+          <div class="panel-head">
+            <div>
+              <span class="label">Операции</span>
+              <h2>Очередь фулфилмента</h2>
+            </div>
+            <span class="status-pill">${escapeHtml(kpis.nextSlaAt ? `SLA ${fmtDate(kpis.nextSlaAt)}` : "SLA чисто")}</span>
+          </div>
+          ${createTable(
+            ["SLA", "Заявка", "Клиент", "Канал", "Прогресс", "Блокеры", "Действие"],
+            queue.map((item) => [
+              `<span class="status-chip ${item.slaMinutesLeft < 0 ? "bad" : item.priority === "Срочно" ? "warn" : "good"}">${escapeHtml(slaLabel(item.slaMinutesLeft))}</span>`,
+              `<strong>${escapeHtml(item.number)}</strong><span>${item.reservedLines} строк · ${item.boxes} коробов</span>`,
+              escapeHtml(item.clientName),
+              escapeHtml(item.marketplace),
+              `<div class="progress-cell"><div class="progress-track"><span style="width:${Math.max(0, Math.min(100, item.progress || 0))}%"></span></div><small>${item.progress || 0}%</small></div>`,
+              item.blockers?.length ? item.blockers.map((blocker) => `<span class="blocker-chip">${escapeHtml(blocker)}</span>`).join("") : '<span class="muted">нет</span>',
+              item.taskId && item.taskStatus !== "DONE" && state.user.permissions?.includes("TASKS_MANAGE")
+                ? `<button class="inline-action" type="button" data-task-status="${escapeHtml(item.taskId)}" data-next-status="DONE">Закрыть</button>`
+                : `<button class="inline-action" type="button" data-module="picking">Сборка</button>`
+            ]),
+            "Очередь фулфилмента пуста"
+          )}
+        </div>
+
+        <aside class="fulfillment-side">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <span class="label">Запуск</span>
+                <h2>Новая заявка</h2>
+              </div>
+            </div>
+            <form id="fulfillment-form" class="fulfillment-form">
+              <label>
+                <span>Клиент</span>
+                <select data-fulfillment-field="clientId" required>
+                  ${clientOptions.map((client) => `
+                    <option value="${escapeHtml(client.id)}" ${client.id === draft.clientId ? "selected" : ""}>${escapeHtml(client.name)}</option>
+                  `).join("")}
+                </select>
+              </label>
+              <label>
+                <span>Маркетплейс</span>
+                <select data-fulfillment-field="marketplace" required>
+                  ${["Wildberries", "Ozon", "Яндекс Маркет", "СберМегаМаркет", "Avito"].map((marketplace) => `
+                    <option value="${escapeHtml(marketplace)}" ${marketplace === draft.marketplace ? "selected" : ""}>${escapeHtml(marketplace)}</option>
+                  `).join("")}
+                </select>
+              </label>
+              <label>
+                <span>Товар из остатка</span>
+                <select id="fulfillment-product" data-fulfillment-field="productId" required ${productOptions.length ? "" : "disabled"}>
+                  ${productOptions.map((item) => `
+                    <option value="${escapeHtml(item.productId)}" ${item.productId === draft.productId ? "selected" : ""}>
+                      ${escapeHtml(item.productName)} · ${escapeHtml(item.sku)} · ${item.available} шт
+                    </option>
+                  `).join("")}
+                </select>
+              </label>
+              <label>
+                <span>Количество</span>
+                <input data-fulfillment-field="quantity" type="number" min="1" max="${escapeHtml(quantityLimit)}" step="1" value="${escapeHtml(draft.quantity)}" required>
+              </label>
+              <button class="primary-action" type="submit" ${productOptions.length ? "" : "disabled"}>
+                <i data-lucide="play" aria-hidden="true"></i>
+                <span>Поставить в сборку</span>
+              </button>
+              ${productOptions.length ? "" : '<p class="section-note">У выбранного клиента нет доступного остатка для сборки.</p>'}
+            </form>
+          </section>
+
+          ${renderFulfillmentRecommendations(overview.recommendations || [])}
+          ${renderFulfillmentChannels(overview.channelLoad || {})}
+          ${renderFulfillmentStockSignals(overview.stockSignals || [])}
+        </aside>
+      </section>
+    `;
+  }
+
+  function renderFulfillmentRecommendations(items) {
+    return `
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <span class="label">Контроль</span>
+            <h2>Рекомендации</h2>
+          </div>
+        </div>
+        <div class="signal-list">
+          ${items.map((item) => `
+            <button class="recommendation-card ${escapeHtml(item.severity)}" type="button" data-module="${escapeHtml(item.actionModule)}">
+              <strong>${escapeHtml(item.title)}</strong>
+              <span>${escapeHtml(item.details)}</span>
+            </button>
+          `).join("") || '<p class="empty-state">Рекомендаций пока нет</p>'}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderFulfillmentChannels(channelLoad) {
+    const channels = Object.entries(channelLoad);
+    return `
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <span class="label">Каналы</span>
+            <h2>Маркетплейсы</h2>
+          </div>
+        </div>
+        <div class="channel-list">
+          ${channels.map(([name, count]) => `
+            <span><b>${escapeHtml(count)}</b>${escapeHtml(name)}</span>
+          `).join("") || '<p class="empty-state">Каналы пока не загружены</p>'}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderFulfillmentStockSignals(items) {
+    return `
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <span class="label">Остатки</span>
+            <h2>Готовность клиентов</h2>
+          </div>
+        </div>
+        <div class="signal-list">
+          ${items.slice(0, 6).map((item) => `
+            <article class="signal-card">
+              <div>
+                <strong>${escapeHtml(item.clientName)}</strong>
+                <span>${item.skuCount} SKU · ${item.availableUnits} доступно · ${item.reservedUnits} резерв</span>
+              </div>
+              <div class="progress-cell">
+                <div class="progress-track"><span style="width:${Math.max(0, Math.min(100, item.fillRate || 0))}%"></span></div>
+                <small>${item.fillRate}%</small>
+              </div>
+            </article>
+          `).join("") || '<p class="empty-state">Остатков пока нет</p>'}
+        </div>
+      </section>
+    `;
   }
 
   function renderReceiptsModule(data) {
@@ -1081,12 +1308,8 @@
     }
 
     if (action === "create-supply") {
-      openDialog("Заявка на сборку", `
-        <div class="dialog-grid">
-          <p>Будет создана поставка Wildberries по первому доступному товару клиента.</p>
-          <button class="primary-action" type="button" data-confirm-supply>Создать заявку</button>
-        </div>
-      `);
+      setActiveModule("fulfillment");
+      window.setTimeout(() => $("#fulfillment-product")?.focus(), 220);
       return;
     }
 
@@ -1165,6 +1388,35 @@
     await refresh(true);
   }
 
+  async function createFulfillmentSupply() {
+    const draft = state.fulfillmentDraft;
+    const quantity = Number(draft.quantity || 0);
+    if (!draft.clientId) {
+      throw new Error("Выберите клиента");
+    }
+    if (!draft.productId) {
+      throw new Error("Выберите товар из доступного остатка");
+    }
+    if (!draft.marketplace) {
+      throw new Error("Выберите маркетплейс");
+    }
+    if (quantity <= 0) {
+      throw new Error("Количество должно быть больше нуля");
+    }
+
+    await api("/marketplace-supplies", {
+      method: "POST",
+      body: JSON.stringify({
+        clientId: draft.clientId,
+        marketplace: draft.marketplace,
+        lines: [{ productId: draft.productId, quantity }]
+      })
+    });
+    state.fulfillmentDraft.quantity = 1;
+    toast("Заявка поставлена в сборку");
+    await refresh(true);
+  }
+
   function resetReceiptDraft() {
     state.receiptDraft = {
       clientId: state.receiptDraft.clientId,
@@ -1188,6 +1440,16 @@
     line[lineField] = lineField === "expected" || lineField === "accepted"
       ? Number(control.value || 0)
       : control.value;
+  }
+
+  function updateFulfillmentDraft(control) {
+    const field = control.dataset.fulfillmentField;
+    if (!field) return;
+    state.fulfillmentDraft[field] = field === "quantity" ? Number(control.value || 0) : control.value;
+    if (field === "clientId") {
+      state.fulfillmentDraft.productId = "";
+      state.fulfillmentDraft.quantity = 1;
+    }
   }
 
   function applyProductSuggestion(index, value) {
@@ -1474,38 +1736,64 @@
 
     document.body.addEventListener("input", (event) => {
       const control = event.target.closest("[data-receipt-field], [data-line-field]");
-      if (!control) return;
-      updateReceiptDraft(control);
+      if (control) {
+        updateReceiptDraft(control);
+      }
+      const fulfillmentControl = event.target.closest("[data-fulfillment-field]");
+      if (fulfillmentControl) {
+        updateFulfillmentDraft(fulfillmentControl);
+      }
     });
 
     document.body.addEventListener("change", (event) => {
       const control = event.target.closest("[data-receipt-field], [data-line-field]");
-      if (!control) return;
-      updateReceiptDraft(control);
+      if (control) {
+        updateReceiptDraft(control);
+      }
 
-      const lineField = control.dataset.lineField;
+      const lineField = control?.dataset.lineField;
       if (lineField === "sku" || lineField === "barcode") {
         const index = Number(control.closest("[data-receipt-line]")?.dataset.receiptLine);
         applyProductSuggestion(index, control.value);
       }
 
-      if (control.dataset.receiptField === "clientId") {
+      if (control?.dataset.receiptField === "clientId") {
         state.receiptDraft.lines = [newReceiptLine()];
       }
 
-      if (state.activeModule === "receipts") {
+      if (control && state.activeModule === "receipts") {
         renderCurrentModule();
         activateIcons();
+      }
+
+      const fulfillmentControl = event.target.closest("[data-fulfillment-field]");
+      if (fulfillmentControl) {
+        updateFulfillmentDraft(fulfillmentControl);
+        if (state.activeModule === "fulfillment") {
+          renderCurrentModule();
+          activateIcons();
+        }
       }
     });
 
     document.body.addEventListener("submit", async (event) => {
-      if (event.target.id !== "receipt-form") return;
-      event.preventDefault();
-      try {
-        await createReceiptFromDraft();
-      } catch (error) {
-        toast(error.message);
+      if (event.target.id === "receipt-form") {
+        event.preventDefault();
+        try {
+          await createReceiptFromDraft();
+        } catch (error) {
+          toast(error.message);
+        }
+        return;
+      }
+
+      if (event.target.id === "fulfillment-form") {
+        event.preventDefault();
+        try {
+          await createFulfillmentSupply();
+        } catch (error) {
+          toast(error.message);
+        }
       }
     });
 

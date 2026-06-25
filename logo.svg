@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title desc">
+  <title id="title">LOGOff</title>
+  <desc id="desc">Красный логотип LOGOff</desc>
+  <rect width="96" height="96" rx="14" fill="#d71920"/>
+  <path d="M21 24h14v36h24v12H21V24Z" fill="#fff"/>
+  <path d="M63 24h12v48H63V24Z" fill="#fff"/>
+  <path d="M47 24h12v12H47V24Zm0 18h12v30H47V42Z" fill="#fff" opacity=".9"/>
+</svg>

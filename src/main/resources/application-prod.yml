@@ -1,8 +1,0 @@
-spring:
-  datasource:
-    url: ${WMS_DATABASE_URL:jdbc:postgresql://127.0.0.1:5432/wms}
-    username: ${WMS_DB_USER:wms}
-    password: ${WMS_DB_PASSWORD:}
-  data:
-    redis:
-      url: ${WMS_REDIS_URL:redis://127.0.0.1:6379/0}

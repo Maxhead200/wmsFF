@@ -1,9 +1,12 @@
 package pro.logoff.wms.service
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import jakarta.servlet.http.HttpServletRequest
 import org.apache.poi.ss.usermodel.DataFormatter
 import org.apache.poi.ss.usermodel.Row
 import org.apache.poi.ss.usermodel.WorkbookFactory
+import org.springframework.beans.factory.annotation.Value
+import org.springframework.core.io.Resource
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import pro.logoff.wms.domain.*
@@ -21,7 +24,11 @@ class WmsException(
 ) : RuntimeException(message)
 
 @Service
-class WmsService {
+class WmsService(
+    private val objectMapper: ObjectMapper,
+    @Value("\${wms.onec-snapshot.enabled:true}") private val oneCStockSnapshotEnabled: Boolean,
+    @Value("classpath:data/1c-x1-stock.json") private val oneCStockSnapshot: Resource
+) {
     private val sequence = AtomicLong(1000)
     private val modules = listOf(
         "dashboard",
@@ -61,6 +68,7 @@ class WmsService {
 
     init {
         seed()
+        loadOneCStockSnapshot()
     }
 
     fun roles(): List<RoleDefinition> = roleDefinitions.values.toList()
@@ -791,6 +799,84 @@ class WmsService {
         appendAudit("system", "seed.ready", "system", "Демо-данные WMS LOGOff загружены")
     }
 
+    private fun loadOneCStockSnapshot() {
+        if (!oneCStockSnapshotEnabled || !oneCStockSnapshot.exists()) {
+            return
+        }
+
+        val snapshot = oneCStockSnapshot.inputStream.use {
+            objectMapper.readValue(it, OneCStockSnapshot::class.java)
+        }
+        if (snapshot.clients.isEmpty() || snapshot.stockItems.isEmpty()) {
+            return
+        }
+
+        val snapshotClientIds = snapshot.clients.map { it.id }.toSet()
+        products.entries.removeIf { it.value.clientId in snapshotClientIds && it.value.id.startsWith("prod-1c-") }
+        stockItems.entries.removeIf { it.value.clientId in snapshotClientIds || it.value.id.startsWith("stock-1c-") }
+
+        snapshot.clients.forEach { source ->
+            clients[source.id] = Client(
+                id = source.id,
+                name = source.name,
+                legalName = source.legalName.ifBlank { source.name },
+                inn = source.inn,
+                contactName = source.contactName,
+                phone = source.phone,
+                email = source.email,
+                status = EntityStatus.ACTIVE,
+                debt = BigDecimal.ZERO,
+                balanceLimit = BigDecimal("120000.00")
+            )
+        }
+        snapshot.products.forEach { source ->
+            products[source.id] = Product(
+                id = source.id,
+                clientId = source.clientId,
+                clientName = source.clientName,
+                sku = source.sku,
+                name = source.name,
+                barcode = source.barcode.ifBlank { null },
+                status = EntityStatus.ACTIVE,
+                requiresMarking = source.requiresMarking
+            )
+        }
+        snapshot.stockItems.forEach { source ->
+            stockItems[source.id] = StockItem(
+                id = source.id,
+                clientId = source.clientId,
+                clientName = source.clientName,
+                productId = source.productId,
+                productName = source.productName,
+                sku = source.sku,
+                barcode = source.barcode.ifBlank { null },
+                location = source.location,
+                available = source.available,
+                reserved = source.reserved,
+                quarantine = source.quarantine,
+                unit = source.unit
+            )
+        }
+
+        users["user-lukin"] = users["user-lukin"]?.copy(clientId = "client-lukin") ?: WmsUser(
+            id = "user-lukin",
+            login = "lukin",
+            displayName = "Кабинет Лукин",
+            role = RoleKey.CLIENT,
+            clientId = "client-lukin",
+            status = EntityStatus.ACTIVE
+        ).also {
+            passwords[it.login] = "lukin123"
+        }
+
+        appendAudit(
+            "system",
+            "seed.1c_snapshot",
+            "integration:1c",
+            "Загружен слепок 1С: ${snapshot.clients.size} клиентов, ${snapshot.products.size} товаров, ${snapshot.stockItems.size} строк остатков"
+        )
+    }
+
     private fun addUser(id: String, login: String, password: String, displayName: String, role: RoleKey, clientId: String?) {
         users[id] = WmsUser(id, login, displayName, role, clientId, EntityStatus.ACTIVE)
         passwords[login] = password
@@ -1170,3 +1256,45 @@ class WmsService {
         }
     }
 }
+
+private data class OneCStockSnapshot(
+    val meta: Map<String, Any?> = emptyMap(),
+    val clients: List<OneCClientSnapshot> = emptyList(),
+    val products: List<OneCProductSnapshot> = emptyList(),
+    val stockItems: List<OneCStockItemSnapshot> = emptyList()
+)
+
+private data class OneCClientSnapshot(
+    val id: String,
+    val name: String,
+    val legalName: String = "",
+    val inn: String = "",
+    val contactName: String = "",
+    val phone: String = "",
+    val email: String = ""
+)
+
+private data class OneCProductSnapshot(
+    val id: String,
+    val clientId: String,
+    val clientName: String,
+    val sku: String,
+    val name: String,
+    val barcode: String = "",
+    val requiresMarking: Boolean = true
+)
+
+private data class OneCStockItemSnapshot(
+    val id: String,
+    val clientId: String,
+    val clientName: String,
+    val productId: String,
+    val productName: String,
+    val sku: String,
+    val barcode: String = "",
+    val location: String,
+    val available: Int,
+    val reserved: Int = 0,
+    val quarantine: Int = 0,
+    val unit: String = "шт"
+)

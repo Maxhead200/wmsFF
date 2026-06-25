@@ -16,3 +16,5 @@ management:
 wms:
   demo:
     enabled: ${WMS_DEMO_SEED:true}
+  onec-snapshot:
+    enabled: ${WMS_1C_SNAPSHOT_ENABLED:true}

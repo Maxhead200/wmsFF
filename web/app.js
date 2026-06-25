@@ -1,5 +1,6 @@
 (function () {
   const API_BASE = "/api";
+  const STOCK_RENDER_LIMIT = 300;
   const moduleMeta = {
     dashboard: ["Обзор", "layout-dashboard", "Сводка по смене, очередям, зонам и финансам."],
     receipts: ["Приемка", "package-plus", "ASN, приемка по ШК, расхождения и карантин товара без штрихкода."],
@@ -305,9 +306,10 @@
 
   function renderStock() {
     const rows = filteredStock(state.stock);
+    const visibleRows = rows.slice(0, STOCK_RENDER_LIMIT);
     $("#stock-table").innerHTML = createTable(
       ["Клиент", "Товар", "Ячейка", "Доступно", "Резерв"],
-      rows.map((item) => [
+      visibleRows.map((item) => [
         escapeHtml(item.clientName),
         `<strong>${escapeHtml(item.productName)}</strong><span>${escapeHtml(item.sku)} · ${escapeHtml(item.barcode || "без ШК")}</span>`,
         escapeHtml(item.location),
@@ -315,7 +317,7 @@
         `${item.reserved} ${escapeHtml(item.unit)}`
       ]),
       "Остатков по текущему фильтру нет"
-    );
+    ) + stockLimitNote(rows, visibleRows);
   }
 
   function filteredStock(rows) {
@@ -323,6 +325,11 @@
     return rows.filter((item) =>
       `${item.clientName} ${item.productName} ${item.sku} ${item.barcode} ${item.location}`.toLowerCase().includes(query)
     );
+  }
+
+  function stockLimitNote(rows, visibleRows) {
+    if (rows.length <= visibleRows.length) return "";
+    return `<p class="section-note">Показано ${visibleRows.length} из ${rows.length}. Уточните поиск или используйте экспорт.</p>`;
   }
 
   function renderQuarantine() {
@@ -676,6 +683,7 @@
 
   function renderStockModule(data) {
     const rows = filteredStock(data.stock || []);
+    const visibleRows = rows.slice(0, STOCK_RENDER_LIMIT);
     state.stock = data.stock || [];
     return `
       ${metricStrip([
@@ -687,7 +695,7 @@
       <section class="panel">
         ${createTable(
           ["Клиент", "Товар", "SKU / ШК", "Ячейка", "Доступно", "Резерв", "Карантин"],
-          rows.map((item) => [
+          visibleRows.map((item) => [
             escapeHtml(item.clientName),
             `<strong>${escapeHtml(item.productName)}</strong>`,
             `<span>${escapeHtml(item.sku)}</span><span>${escapeHtml(item.barcode || "без ШК")}</span>`,
@@ -698,6 +706,7 @@
           ]),
           "Остатков по текущему фильтру нет"
         )}
+        ${stockLimitNote(rows, visibleRows)}
       </section>
     `;
   }

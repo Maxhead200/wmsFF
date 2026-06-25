@@ -26,6 +26,7 @@ class WmsException(
 @Service
 class WmsService(
     private val objectMapper: ObjectMapper,
+    @Value("\${wms.demo.enabled:true}") private val demoSeedEnabled: Boolean,
     @Value("\${wms.onec-snapshot.enabled:true}") private val oneCStockSnapshotEnabled: Boolean,
     @Value("classpath:data/1c-x1-stock.json") private val oneCStockSnapshot: Resource
 ) {
@@ -68,6 +69,9 @@ class WmsService(
 
     init {
         seed()
+        if (!demoSeedEnabled) {
+            clearBusinessData()
+        }
         loadOneCStockSnapshot()
     }
 
@@ -797,6 +801,23 @@ class WmsService(
         }
 
         appendAudit("system", "seed.ready", "system", "Демо-данные WMS LOGOff загружены")
+    }
+
+    private fun clearBusinessData() {
+        clients.clear()
+        products.clear()
+        stockItems.clear()
+        receipts.clear()
+        quarantine.clear()
+        tasks.clear()
+        supplies.clear()
+        inventoryCounts.clear()
+        services.clear()
+        tariffs.clear()
+        accruals.clear()
+        documents.clear()
+        audit.clear()
+        appendAudit("system", "seed.clean", "system", "WMS started with empty operational data")
     }
 
     private fun loadOneCStockSnapshot() {

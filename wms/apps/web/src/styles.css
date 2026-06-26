@@ -38,6 +38,10 @@ input {
   font: inherit;
 }
 
+select {
+  font: inherit;
+}
+
 .app-shell {
   width: min(1180px, calc(100% - 32px));
   margin: 0 auto;
@@ -290,6 +294,299 @@ h1 {
   margin-bottom: 12px;
 }
 
+.import-panel {
+  margin-bottom: 28px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 18px;
+}
+
+.import-panel__heading {
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.import-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #eef2f7;
+}
+
+.import-tabs button {
+  display: inline-flex;
+  min-height: 38px;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.import-tabs button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-tabs button.active {
+  background: var(--surface);
+  color: var(--red-dark);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.12);
+}
+
+.import-form {
+  display: grid;
+  gap: 14px;
+}
+
+.import-fields {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) minmax(180px, 1fr) minmax(220px, 1.6fr);
+  gap: 12px;
+  align-items: end;
+}
+
+.import-fields--logistics {
+  grid-template-columns: minmax(180px, 1.2fr) minmax(140px, 0.8fr) minmax(140px, 0.8fr) minmax(220px, 1.6fr);
+}
+
+.import-fields label:not(.file-field) {
+  display: grid;
+  gap: 6px;
+}
+
+.import-fields label > span:first-child {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.import-fields input,
+.import-fields select {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfdff;
+  color: var(--ink);
+  padding: 0 11px;
+}
+
+.import-fields input:focus,
+.import-fields select:focus {
+  border-color: var(--red-dark);
+  outline: 3px solid rgb(215 25 32 / 0.14);
+}
+
+.file-field {
+  position: relative;
+  display: inline-flex;
+  min-height: 40px;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  border: 1px dashed var(--red-dark);
+  border-radius: 6px;
+  background: #fff7f7;
+  color: var(--red-dark);
+  padding: 0 12px;
+  font-weight: 800;
+}
+
+.file-field span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-field input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.date-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.date-input svg {
+  color: var(--red-dark);
+  flex: 0 0 auto;
+}
+
+.import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.secondary-action {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--red-dark);
+}
+
+.import-result {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.import-result__title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.import-result__title span,
+.import-note,
+.import-empty {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.import-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.import-metric {
+  min-height: 68px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdff;
+  padding: 12px;
+}
+
+.import-metric span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.import-metric strong {
+  display: block;
+  margin-top: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-issues {
+  display: grid;
+  gap: 6px;
+}
+
+.issue {
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  background: #fffbeb;
+  color: #92400e;
+  padding: 9px 10px;
+  font-size: 13px;
+}
+
+.issue--error {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: var(--danger);
+}
+
+.issue span {
+  margin-right: 8px;
+  font-weight: 800;
+}
+
+.import-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.import-table {
+  width: 100%;
+  min-width: 680px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.import-table th,
+.import-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.import-table th {
+  background: #f8fafc;
+  color: #334155;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.import-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.import-table td strong,
+.import-table td span {
+  display: block;
+}
+
+.import-table td span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.direction-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.direction-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdff;
+  padding: 11px;
+}
+
+.direction-item strong,
+.direction-item span {
+  display: block;
+}
+
+.direction-item div > span,
+.direction-item p {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .data-panel {
   margin-bottom: 28px;
   border: 1px solid var(--line);
@@ -502,8 +799,15 @@ h1 {
   }
 
   .data-tabs,
+  .import-fields,
+  .import-fields--logistics,
+  .import-metrics,
   .role-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .direction-list {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -531,7 +835,22 @@ h1 {
     padding: 14px;
   }
 
+  .import-panel {
+    padding: 14px;
+  }
+
   .data-tabs {
+    grid-template-columns: 1fr;
+  }
+
+  .import-tabs,
+  .import-fields,
+  .import-fields--logistics,
+  .import-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .direction-item {
     grid-template-columns: 1fr;
   }
 

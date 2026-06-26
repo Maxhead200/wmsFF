@@ -2,6 +2,7 @@ import { Boxes, Database, Printer, Smartphone, Upload, UsersRound } from 'lucide
 import { useEffect, useState } from 'react';
 import { AuthPanel } from './components/AuthPanel';
 import { DashboardDataPanel } from './components/DashboardDataPanel';
+import { ImportPanel } from './components/imports/ImportPanel';
 import { ModuleBoard } from './components/ModuleBoard';
 import { UserBar } from './components/UserBar';
 import { fetchMe, type AuthSession } from './lib/api';
@@ -104,6 +105,8 @@ export function App() {
           </article>
         ))}
       </section>
+
+      <ImportPanel session={session} />
 
       <DashboardDataPanel session={session} />
 

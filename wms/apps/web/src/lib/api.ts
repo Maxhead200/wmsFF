@@ -81,6 +81,87 @@ export type LogisticsTariffSetSummary = {
   };
 };
 
+export type StockImportIssue = {
+  row: number;
+  message: string;
+  severity: 'warning' | 'error';
+};
+
+export type StockImportSummary = {
+  rows: number;
+  boxes: number;
+  barcodes: number;
+  totalQuantity: number;
+};
+
+export type StockImportSampleItem = {
+  clientId: string;
+  boxCode: string;
+  barcode: string;
+  name: string;
+  color?: string;
+  size?: string;
+  quantity: number;
+  sourceRow: number;
+};
+
+export type StockImportPreview = {
+  clientId: string;
+  summary: StockImportSummary;
+  issues: StockImportIssue[];
+  sample: StockImportSampleItem[];
+};
+
+export type StockImportCommitResult = {
+  sourceDocument: string;
+  summary: StockImportSummary;
+  warnings: StockImportIssue[];
+  result: {
+    boxesTouched: number;
+    skusTouched: number;
+    movementsCreated: number;
+    balancesTouched: number;
+  };
+};
+
+export type LogisticsPricingMode = 'TOTAL' | 'PER_PALLET' | 'MANUAL_REVIEW';
+
+export type LogisticsImportTier = {
+  label: string;
+  priceRub: number;
+  minPallets?: number;
+  maxPallets?: number;
+  maxBoxes?: number;
+  pricingMode: LogisticsPricingMode;
+};
+
+export type LogisticsImportDirection = {
+  origin: string;
+  destination: string;
+  pricingMode: LogisticsPricingMode;
+  tiers: LogisticsImportTier[];
+};
+
+export type LogisticsImportIssue = {
+  row: number;
+  message: string;
+};
+
+export type LogisticsImportPreview = {
+  note: string;
+  directionsCount: number;
+  directions: LogisticsImportDirection[];
+  issues: LogisticsImportIssue[];
+};
+
+export type LogisticsImportCommitResult = {
+  tariffSetId: string;
+  name: string;
+  sourceFile: string | null;
+  directionsCount: number;
+  tiersCount: number;
+};
+
 type LoginPayload = {
   email: string;
   password: string;
@@ -137,6 +218,54 @@ export async function fetchLogisticsTariffSets(accessToken: string) {
   });
 }
 
+export async function previewStockImport(accessToken: string, payload: { file: File; clientId: string }) {
+  const form = new FormData();
+  form.append('file', payload.file);
+  form.append('clientId', payload.clientId);
+
+  return requestMultipart<StockImportPreview>('/imports/stocks/preview', form, accessToken);
+}
+
+export async function commitStockImport(
+  accessToken: string,
+  payload: { file: File; clientId: string; sourceDocument?: string },
+) {
+  const form = new FormData();
+  form.append('file', payload.file);
+  form.append('clientId', payload.clientId);
+  if (payload.sourceDocument) {
+    form.append('sourceDocument', payload.sourceDocument);
+  }
+
+  return requestMultipart<StockImportCommitResult>('/imports/stocks/commit', form, accessToken);
+}
+
+export async function previewLogisticsImport(accessToken: string, payload: { file: File }) {
+  const form = new FormData();
+  form.append('file', payload.file);
+
+  return requestMultipart<LogisticsImportPreview>('/imports/logistics/preview', form, accessToken);
+}
+
+export async function commitLogisticsImport(
+  accessToken: string,
+  payload: { file: File; name?: string; activeFrom?: string; activeTo?: string },
+) {
+  const form = new FormData();
+  form.append('file', payload.file);
+  if (payload.name) {
+    form.append('name', payload.name);
+  }
+  if (payload.activeFrom) {
+    form.append('activeFrom', payload.activeFrom);
+  }
+  if (payload.activeTo) {
+    form.append('activeTo', payload.activeTo);
+  }
+
+  return requestMultipart<LogisticsImportCommitResult>('/imports/logistics/commit', form, accessToken);
+}
+
 async function request<T>(
   path: string,
   options: { method?: 'GET' | 'POST'; body?: unknown; accessToken?: string } = {},
@@ -148,6 +277,22 @@ async function request<T>(
       ...(options.accessToken ? { Authorization: `Bearer ${options.accessToken}` } : {}),
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+
+  if (!response.ok) {
+    throw new Error(await responseError(response));
+  }
+
+  return (await response.json()) as T;
+}
+
+async function requestMultipart<T>(path: string, body: FormData, accessToken: string) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body,
   });
 
   if (!response.ok) {

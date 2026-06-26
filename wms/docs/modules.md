@@ -52,7 +52,7 @@
 - `GET /api/v1/billing/invoices/:id/act` - печатный HTML-акт оказанных услуг на основе снимка позиций счета.
 - `PATCH /api/v1/billing/invoices/:id/status` - выставление, отмена и закрытие счета.
 - `POST /api/v1/billing/payments` - фиксация оплаты по счету с пересчетом оплаченной суммы.
-- `POST /api/v1/print/box-label/preview` - preview TSPL-команды для коробной этикетки.
+- `POST /api/v1/print/box-label/preview`, `sku-label/preview`, `pallet-label/preview` - preview TSPL-команд для коробной, товарной и паллетной этикетки.
 - `GET/POST /api/v1/tsd/devices` - управление ТСД-устройствами и выдача одноразового device secret.
 - `POST /api/v1/tsd/login` - вход ТСД по коду и секрету с выдачей device access token.
 - `POST /api/v1/tsd/operations` - прием одной операции ТСД с идемпотентным ключом.

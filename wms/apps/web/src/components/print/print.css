@@ -15,6 +15,34 @@
   color: var(--red-dark);
 }
 
+.print-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 12px;
+}
+
+.print-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfdff;
+  color: var(--muted);
+  font-weight: 800;
+  padding: 0 12px;
+}
+
+.print-tabs button.active {
+  border-color: rgb(215 25 32 / 0.28);
+  background: #fff7f7;
+  color: var(--red-dark);
+}
+
 .print-form {
   display: grid;
   gap: 14px;
@@ -25,6 +53,11 @@
   grid-template-columns: minmax(210px, 1.3fr) minmax(170px, 1fr) minmax(120px, 0.55fr);
   gap: 12px;
   align-items: end;
+}
+
+.print-fields--sku,
+.print-fields--pallet {
+  grid-template-columns: minmax(210px, 1.2fr) minmax(170px, 1fr) minmax(220px, 1.2fr);
 }
 
 .print-fields label {
@@ -107,7 +140,9 @@
 }
 
 @media (max-width: 900px) {
-  .print-fields {
+  .print-fields,
+  .print-fields--sku,
+  .print-fields--pallet {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -117,7 +152,9 @@
     padding: 14px;
   }
 
-  .print-fields {
+  .print-fields,
+  .print-fields--sku,
+  .print-fields--pallet {
     grid-template-columns: 1fr;
   }
 }

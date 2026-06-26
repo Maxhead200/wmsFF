@@ -1,13 +1,26 @@
-import { Printer } from 'lucide-react';
+import { Boxes, Layers3, Package, Printer } from 'lucide-react';
+import { useState } from 'react';
 import type { AuthSession, AuthUser } from '../../lib/api';
 import { BoxLabelForm } from './BoxLabelForm';
+import { PalletLabelForm } from './PalletLabelForm';
 import './print.css';
+import { SkuLabelForm } from './SkuLabelForm';
 
 type PrintPanelProps = {
   session: AuthSession;
 };
 
+type PrintTab = 'box' | 'sku' | 'pallet';
+
+const printTabs: Array<{ id: PrintTab; label: string; icon: typeof Boxes }> = [
+  { id: 'box', label: 'Короб', icon: Boxes },
+  { id: 'sku', label: 'SKU', icon: Package },
+  { id: 'pallet', label: 'Паллета', icon: Layers3 },
+];
+
 export function PrintPanel({ session }: PrintPanelProps) {
+  const [activeTab, setActiveTab] = useState<PrintTab>('box');
+
   if (!canUse(session.user, 'print:write')) {
     return null;
   }
@@ -22,7 +35,27 @@ export function PrintPanel({ session }: PrintPanelProps) {
         <Printer size={20} aria-hidden="true" />
       </div>
 
-      <BoxLabelForm session={session} />
+      <div className="print-tabs" role="tablist" aria-label="Тип этикетки">
+        {printTabs.map((tab) => {
+          const Icon = tab.icon;
+
+          return (
+            <button
+              className={activeTab === tab.id ? 'active' : ''}
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+            >
+              <Icon size={16} aria-hidden="true" />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {activeTab === 'box' ? <BoxLabelForm session={session} /> : null}
+      {activeTab === 'sku' ? <SkuLabelForm session={session} /> : null}
+      {activeTab === 'pallet' ? <PalletLabelForm session={session} /> : null}
     </section>
   );
 }

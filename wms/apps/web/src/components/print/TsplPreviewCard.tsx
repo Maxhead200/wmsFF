@@ -1,8 +1,8 @@
 import { Download } from 'lucide-react';
-import type { BoxLabelPreview } from '../../lib/api';
+import type { LabelPreview } from '../../lib/api';
 
 type TsplPreviewCardProps = {
-  preview: BoxLabelPreview;
+  preview: LabelPreview;
   fileName: string;
 };
 

@@ -473,6 +473,28 @@ export type WarehouseBoxSummary = {
   };
 };
 
+export type WarehousePalletSummary = {
+  id: string;
+  clientId: string;
+  zoneId: string | null;
+  code: string;
+  status: string;
+  client: ClientSummary;
+  zone: {
+    id: string;
+    code: string;
+    name: string;
+  } | null;
+  boxes: Array<{
+    id: string;
+    code: string;
+    status: string;
+  }>;
+  _count: {
+    balances: number;
+  };
+};
+
 export type TransferBetweenBoxesPayload = {
   clientId: string;
   skuId?: string;
@@ -719,9 +741,28 @@ export type BoxLabelPreviewPayload = {
   quantity?: number;
 };
 
-export type BoxLabelPreview = {
+export type LabelPreview = {
   printerLanguage: 'TSPL';
   tspl: string;
+};
+
+export type BoxLabelPreview = LabelPreview;
+
+export type SkuLabelPreviewPayload = {
+  skuCode: string;
+  name: string;
+  barcode?: string;
+  clientName?: string;
+  article?: string;
+  color?: string;
+  size?: string;
+};
+
+export type PalletLabelPreviewPayload = {
+  palletCode: string;
+  clientName: string;
+  zoneCode?: string;
+  boxesCount?: number;
 };
 
 export type StockImportIssue = {
@@ -1125,6 +1166,12 @@ export async function fetchBoxes(accessToken: string, filter: { clientId?: strin
   });
 }
 
+export async function fetchPallets(accessToken: string, filter: { clientId?: string } = {}) {
+  return request<WarehousePalletSummary[]>(withQuery('/warehouse/pallets', filter), {
+    accessToken,
+  });
+}
+
 export async function fetchRoles(accessToken: string) {
   return request<RoleSummary[]>('/users/roles', {
     accessToken,
@@ -1316,6 +1363,22 @@ export async function assignLogisticsDeliveryTrip(accessToken: string, deliveryI
 
 export async function previewBoxLabel(accessToken: string, payload: BoxLabelPreviewPayload) {
   return request<BoxLabelPreview>('/print/box-label/preview', {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function previewSkuLabel(accessToken: string, payload: SkuLabelPreviewPayload) {
+  return request<LabelPreview>('/print/sku-label/preview', {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function previewPalletLabel(accessToken: string, payload: PalletLabelPreviewPayload) {
+  return request<LabelPreview>('/print/pallet-label/preview', {
     method: 'POST',
     body: payload,
     accessToken,

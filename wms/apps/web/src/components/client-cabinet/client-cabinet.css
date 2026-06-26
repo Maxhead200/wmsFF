@@ -136,6 +136,53 @@
   gap: 10px;
 }
 
+.client-notification-preferences {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.client-notification-preference {
+  display: grid;
+  min-height: 58px;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdff;
+  padding: 8px;
+}
+
+.client-notification-preference input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--red-dark);
+}
+
+.client-notification-preference span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.client-notification-preference strong,
+.client-notification-preference small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.client-notification-preference strong {
+  font-size: 13px;
+}
+
+.client-notification-preference small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .client-cabinet-notification-list {
   display: grid;
   gap: 8px;
@@ -425,6 +472,10 @@
     grid-template-columns: auto minmax(0, 1fr);
   }
 
+  .client-notification-preferences {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .client-cabinet-notification .icon-text-button,
   .client-cabinet-notification .status {
     grid-column: 2;
@@ -460,6 +511,10 @@
   }
 
   .client-cabinet-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .client-notification-preferences {
     grid-template-columns: 1fr;
   }
 }

@@ -173,6 +173,13 @@ enum ClientNotificationSeverity {
   ERROR
 }
 
+enum ClientNotificationEvent {
+  REQUEST_COMMENT
+  REQUEST_STATUS_CHANGED
+  REQUEST_FILE_UPLOADED
+  MANUAL
+}
+
 model User {
   id                     String           @id @default(uuid())
   email                  String           @unique
@@ -192,6 +199,7 @@ model User {
   createdDeliveries       LogisticsDeliveryRequest[] @relation("LogisticsDeliveryCreatedBy")
   uploadedRequestFiles   ClientRequestFile[] @relation("ClientRequestFileUploadedBy")
   createdNotifications   ClientNotification[] @relation("ClientNotificationCreatedBy")
+  updatedNotificationPreferences ClientNotificationPreference[] @relation("ClientNotificationPreferenceUpdatedBy")
   authoredRequestComments ClientRequestComment[] @relation("ClientRequestCommentAuthor")
   createdRequestEvents   ClientRequestEvent[] @relation("ClientRequestEventCreatedBy")
   auditLogs              AuditLog[]
@@ -268,6 +276,7 @@ model Client {
   deliveryRequests LogisticsDeliveryRequest[]
   requestFiles    ClientRequestFile[]
   notifications   ClientNotification[]
+  notificationPreferences ClientNotificationPreference[]
   requestComments ClientRequestComment[]
   requestEvents   ClientRequestEvent[]
   createdAt       DateTime         @default(now())
@@ -529,6 +538,22 @@ model ClientNotification {
   @@index([clientId, isRead, createdAt])
   @@index([requestId])
   @@index([createdByUserId])
+}
+
+model ClientNotificationPreference {
+  id              String                  @id @default(uuid())
+  clientId        String
+  eventType       ClientNotificationEvent
+  isEnabled       Boolean                 @default(true)
+  updatedByUserId String?
+  client          Client                  @relation(fields: [clientId], references: [id])
+  updatedBy       User?                   @relation("ClientNotificationPreferenceUpdatedBy", fields: [updatedByUserId], references: [id])
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+
+  @@unique([clientId, eventType])
+  @@index([clientId])
+  @@index([updatedByUserId])
 }
 
 model BillingService {

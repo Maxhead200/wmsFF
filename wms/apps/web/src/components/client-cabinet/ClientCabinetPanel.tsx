@@ -6,18 +6,21 @@ import {
   fetchBillingInvoices,
   downloadClientRequestFile,
   fetchClientNotifications,
+  fetchClientNotificationPreferences,
   fetchClientRequestDocument,
   fetchClientRequests,
   fetchClientRequestTimeline,
   fetchClients,
   fetchStockBalances,
   markClientNotificationRead,
+  updateClientNotificationPreference,
   uploadClientRequestFile,
   createClientRequestComment,
   type AuthSession,
   type BillingChargeSummary,
   type BillingInvoiceDocument,
   type BillingInvoiceSummary,
+  type ClientNotificationPreferenceSummary,
   type ClientNotificationSummary,
   type ClientRequestFileSummary,
   type ClientRequestDocument,
@@ -40,6 +43,7 @@ type CabinetData = {
   invoices: BillingInvoiceSummary[];
   charges: BillingChargeSummary[];
   notifications: ClientNotificationSummary[];
+  notificationPreferences: ClientNotificationPreferenceSummary[];
 };
 
 type CabinetState = {
@@ -59,6 +63,7 @@ const emptyData: CabinetData = {
   invoices: [],
   charges: [],
   notifications: [],
+  notificationPreferences: [],
 };
 
 export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
@@ -108,6 +113,9 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
         state.data.notifications.filter((notification) => !clientId || notification.clientId === clientId),
         (notification) => notification.createdAt,
       ),
+      notificationPreferences: state.data.notificationPreferences.filter(
+        (preference) => !clientId || preference.clientId === clientId,
+      ),
     };
   }, [selectedClientId, state.data]);
 
@@ -118,18 +126,19 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
     try {
       // Русский комментарий: кабинет клиента собирает read-only витрину из существующих API,
       // чтобы клиент видел только данные, отфильтрованные серверным client scope.
-      const [clients, stock, requests, invoices, charges, notifications] = await Promise.all([
+      const [clients, stock, requests, invoices, charges, notifications, notificationPreferences] = await Promise.all([
         fetchClients(session.accessToken),
         fetchStockBalances(session.accessToken),
         fetchClientRequests(session.accessToken),
         fetchBillingInvoices(session.accessToken),
         fetchBillingCharges(session.accessToken),
         fetchClientNotifications(session.accessToken),
+        fetchClientNotificationPreferences(session.accessToken),
       ]);
 
       setState({
         status: 'ready',
-        data: { clients, stock, requests, invoices, charges, notifications },
+        data: { clients, stock, requests, invoices, charges, notifications, notificationPreferences },
       });
     } catch (caught) {
       setState((current) => ({
@@ -208,6 +217,32 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
         notifications: current.data.notifications.map((item) => (item.id === updated.id ? updated : item)),
       },
     }));
+  }
+
+  async function toggleNotificationPreference(preference: ClientNotificationPreferenceSummary, isEnabled: boolean) {
+    const updated = await updateClientNotificationPreference(session.accessToken, {
+      clientId: preference.clientId,
+      eventType: preference.eventType,
+      isEnabled,
+    });
+
+    setState((current) => {
+      const replaced = current.data.notificationPreferences.some(
+        (item) => item.clientId === updated.clientId && item.eventType === updated.eventType,
+      );
+
+      return {
+        ...current,
+        data: {
+          ...current.data,
+          notificationPreferences: replaced
+            ? current.data.notificationPreferences.map((item) =>
+                item.clientId === updated.clientId && item.eventType === updated.eventType ? updated : item,
+              )
+            : [...current.data.notificationPreferences, updated],
+        },
+      };
+    });
   }
 
   async function addTimelineComment(body: string) {
@@ -294,12 +329,16 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
             invoices={view.invoices}
             charges={view.charges}
             notifications={view.notifications}
+            notificationPreferences={view.notificationPreferences}
             onOpenRequestDocument={(request) => void openRequestDocument(request)}
             onOpenRequestTimeline={(request) => void openRequestTimeline(request)}
             onOpenInvoiceDocument={(invoice) => void openInvoiceDocument(invoice)}
             onUploadRequestFile={uploadRequestFile}
             onDownloadRequestFile={downloadRequestFile}
             onMarkNotificationRead={(notification) => void markNotificationRead(notification)}
+            onToggleNotificationPreference={(preference, isEnabled) =>
+              void toggleNotificationPreference(preference, isEnabled)
+            }
           />
         </>
       ) : null}

@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { ClientNotificationEvent } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthUser } from '../src/modules/auth/auth.types';
 import { ClientScopeService } from '../src/modules/auth/client-scope.service';
@@ -60,6 +61,71 @@ describe('ClientNotificationsService', () => {
       expect.objectContaining({
         where: { id: 'notification-1' },
         data: expect.objectContaining({ isRead: true }),
+      }),
+    );
+  });
+  it('returns default notification preferences for a scoped client', async () => {
+    const prisma = {
+      client: {
+        findMany: vi.fn().mockResolvedValue([{ id: 'client-1', code: 'CLIENT', name: 'Client' }]),
+      },
+      clientNotificationPreference: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+    };
+    const service = new ClientNotificationsService(prisma as never, new ClientScopeService());
+
+    const preferences = await service.listPreferences(
+      { clientId: 'client-1' },
+      user({ clientIds: ['client-1'] }),
+    );
+
+    expect(preferences).toHaveLength(4);
+    expect(preferences).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          clientId: 'client-1',
+          eventType: ClientNotificationEvent.REQUEST_COMMENT,
+          isEnabled: true,
+        }),
+      ]),
+    );
+  });
+
+  it('saves a notification preference for a scoped client', async () => {
+    const prisma = {
+      client: {
+        findUnique: vi.fn().mockResolvedValue({ id: 'client-1' }),
+      },
+      clientNotificationPreference: {
+        upsert: vi.fn().mockResolvedValue({
+          id: 'preference-1',
+          clientId: 'client-1',
+          eventType: ClientNotificationEvent.REQUEST_FILE_UPLOADED,
+          isEnabled: false,
+        }),
+      },
+    };
+    const service = new ClientNotificationsService(prisma as never, new ClientScopeService());
+
+    await service.updatePreference(
+      {
+        clientId: 'client-1',
+        eventType: ClientNotificationEvent.REQUEST_FILE_UPLOADED,
+        isEnabled: false,
+      },
+      user({ clientIds: ['client-1'] }),
+    );
+
+    expect(prisma.clientNotificationPreference.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          clientId_eventType: {
+            clientId: 'client-1',
+            eventType: ClientNotificationEvent.REQUEST_FILE_UPLOADED,
+          },
+        },
+        update: expect.objectContaining({ isEnabled: false, updatedByUserId: 'user-1' }),
       }),
     );
   });

@@ -43,6 +43,12 @@ export type ClientRequestEventType = 'CREATED' | 'STATUS_CHANGED' | 'COMMENT' | 
 
 export type ClientNotificationSeverity = 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR';
 
+export type ClientNotificationEvent =
+  | 'REQUEST_COMMENT'
+  | 'REQUEST_STATUS_CHANGED'
+  | 'REQUEST_FILE_UPLOADED'
+  | 'MANUAL';
+
 export type BillingUnit = 'SERVICE' | 'PIECE' | 'BOX' | 'PALLET' | 'LITER' | 'LITER_DAY' | 'DAY' | 'HOUR';
 
 export type BillingChargeStatus = 'DRAFT' | 'APPROVED' | 'CANCELLED';
@@ -351,6 +357,21 @@ export type ClientNotificationSummary = {
   client: Pick<ClientSummary, 'id' | 'code' | 'name'>;
   request: Pick<ClientRequestSummary, 'id' | 'title' | 'type' | 'status'> | null;
   createdBy: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+};
+
+export type ClientNotificationPreferenceSummary = {
+  id: string | null;
+  clientId: string;
+  eventType: ClientNotificationEvent;
+  isEnabled: boolean;
+  createdAt: string | null;
+  updatedAt: string | null;
+  client: Pick<ClientSummary, 'id' | 'code' | 'name'>;
+  updatedBy: {
     id: string;
     email: string;
     name: string;
@@ -1201,6 +1222,31 @@ export async function fetchClientNotifications(
 export async function markClientNotificationRead(accessToken: string, notificationId: string) {
   return request<ClientNotificationSummary>(`/client-notifications/${notificationId}/read`, {
     method: 'PATCH',
+    accessToken,
+  });
+}
+
+export async function fetchClientNotificationPreferences(
+  accessToken: string,
+  filter: { clientId?: string } = {},
+) {
+  return request<ClientNotificationPreferenceSummary[]>(
+    withQuery('/client-notifications/preferences', {
+      clientId: filter.clientId,
+    }),
+    {
+      accessToken,
+    },
+  );
+}
+
+export async function updateClientNotificationPreference(
+  accessToken: string,
+  payload: { clientId: string; eventType: ClientNotificationEvent; isEnabled: boolean },
+) {
+  return request<ClientNotificationPreferenceSummary>('/client-notifications/preferences', {
+    method: 'PATCH',
+    body: payload,
     accessToken,
   });
 }

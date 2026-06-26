@@ -1,8 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { ClientRequestEventType, ClientRequestStatus, Prisma } from '@prisma/client';
+import { ClientNotificationEvent, ClientRequestEventType, ClientRequestStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
+import { isClientNotificationEnabled } from '../client-notifications/client-notification-preferences';
 import { clientRequestFileSummarySelect } from './client-request-files.service';
 import { CreateClientRequestDto } from './dto/create-client-request.dto';
 import { ListClientRequestsDto } from './dto/list-client-requests.dto';
@@ -132,16 +133,18 @@ export class ClientRequestsService {
           },
         });
 
-        await tx.clientNotification.create({
-          data: {
-            clientId: request.clientId,
-            requestId: id,
-            title: 'Статус заявки изменен',
-            body: `${request.title}: ${request.status} -> ${dto.status}`,
-            severity: 'INFO',
-            createdByUserId: user.id,
-          },
-        });
+        if (await isClientNotificationEnabled(tx, request.clientId, ClientNotificationEvent.REQUEST_STATUS_CHANGED)) {
+          await tx.clientNotification.create({
+            data: {
+              clientId: request.clientId,
+              requestId: id,
+              title: 'Статус заявки изменен',
+              body: `${request.title}: ${request.status} -> ${dto.status}`,
+              severity: 'INFO',
+              createdByUserId: user.id,
+            },
+          });
+        }
       }
 
       return updated;

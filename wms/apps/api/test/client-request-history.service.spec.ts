@@ -43,6 +43,9 @@ describe('ClientRequestHistoryService', () => {
       clientNotification: {
         create: vi.fn().mockResolvedValue({ id: 'notification-1' }),
       },
+      clientNotificationPreference: {
+        findUnique: vi.fn().mockResolvedValue(null),
+      },
     };
     const prisma = {
       clientRequest: {

@@ -1,8 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { ClientRequestEventType, Prisma } from '@prisma/client';
+import { ClientNotificationEvent, ClientRequestEventType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
+import { isClientNotificationEnabled } from '../client-notifications/client-notification-preferences';
 
 const maxFileSizeBytes = 10 * 1024 * 1024;
 
@@ -51,16 +52,18 @@ export class ClientRequestFilesService {
         select: clientRequestFileSummarySelect,
       });
 
-      await tx.clientNotification.create({
-        data: {
-          clientId: request.clientId,
-          requestId,
-          title: 'Добавлен файл к заявке',
-          body: `${savedFile.fileName} · ${request.title}`,
-          severity: 'INFO',
-          createdByUserId: user.id,
-        },
-      });
+      if (await isClientNotificationEnabled(tx, request.clientId, ClientNotificationEvent.REQUEST_FILE_UPLOADED)) {
+        await tx.clientNotification.create({
+          data: {
+            clientId: request.clientId,
+            requestId,
+            title: 'Добавлен файл к заявке',
+            body: `${savedFile.fileName} · ${request.title}`,
+            severity: 'INFO',
+            createdByUserId: user.id,
+          },
+        });
+      }
 
       await tx.clientRequestEvent.create({
         data: {

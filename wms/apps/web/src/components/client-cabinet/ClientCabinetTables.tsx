@@ -3,6 +3,7 @@ import { FileText, MessageSquareText, ReceiptText } from 'lucide-react';
 import type {
   BillingChargeSummary,
   BillingInvoiceSummary,
+  ClientNotificationPreferenceSummary,
   ClientNotificationSummary,
   ClientRequestFileSummary,
   ClientRequestSummary,
@@ -25,12 +26,14 @@ type ClientCabinetTablesProps = {
   invoices: BillingInvoiceSummary[];
   charges: BillingChargeSummary[];
   notifications: ClientNotificationSummary[];
+  notificationPreferences: ClientNotificationPreferenceSummary[];
   onOpenRequestDocument: (request: ClientRequestSummary) => void;
   onOpenRequestTimeline: (request: ClientRequestSummary) => void;
   onOpenInvoiceDocument: (invoice: BillingInvoiceSummary) => void;
   onUploadRequestFile: (request: ClientRequestSummary, file: File) => Promise<void>;
   onDownloadRequestFile: (request: ClientRequestSummary, file: ClientRequestFileSummary) => Promise<void>;
   onMarkNotificationRead: (notification: ClientNotificationSummary) => void;
+  onToggleNotificationPreference: (preference: ClientNotificationPreferenceSummary, isEnabled: boolean) => void;
 };
 
 export function ClientCabinetTables({
@@ -39,16 +42,23 @@ export function ClientCabinetTables({
   invoices,
   charges,
   notifications,
+  notificationPreferences,
   onOpenRequestDocument,
   onOpenRequestTimeline,
   onOpenInvoiceDocument,
   onUploadRequestFile,
   onDownloadRequestFile,
   onMarkNotificationRead,
+  onToggleNotificationPreference,
 }: ClientCabinetTablesProps) {
   return (
     <div className="client-cabinet-sections">
-      <ClientCabinetNotifications notifications={notifications} onMarkRead={onMarkNotificationRead} />
+      <ClientCabinetNotifications
+        notifications={notifications}
+        preferences={notificationPreferences}
+        onMarkRead={onMarkNotificationRead}
+        onTogglePreference={onToggleNotificationPreference}
+      />
 
       <CabinetSection title="Остатки" emptyText="Остатков пока нет." hasItems={stock.length > 0}>
         {renderStockTable(stock)}

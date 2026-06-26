@@ -5,7 +5,9 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { ClientNotificationsService } from './client-notifications.service';
 import { CreateClientNotificationDto } from './dto/create-client-notification.dto';
+import { ListClientNotificationPreferencesDto } from './dto/list-client-notification-preferences.dto';
 import { ListClientNotificationsDto } from './dto/list-client-notifications.dto';
+import { UpdateClientNotificationPreferenceDto } from './dto/update-client-notification-preference.dto';
 
 @ApiTags('client-notifications')
 @RequirePermissions('client-notifications:read')
@@ -16,6 +18,16 @@ export class ClientNotificationsController {
   @Get()
   list(@Query() query: ListClientNotificationsDto, @CurrentUser() user: AuthUser) {
     return this.notifications.list(query, user);
+  }
+
+  @Get('preferences')
+  listPreferences(@Query() query: ListClientNotificationPreferencesDto, @CurrentUser() user: AuthUser) {
+    return this.notifications.listPreferences(query, user);
+  }
+
+  @Patch('preferences')
+  updatePreference(@Body() dto: UpdateClientNotificationPreferenceDto, @CurrentUser() user: AuthUser) {
+    return this.notifications.updatePreference(dto, user);
   }
 
   @Post()

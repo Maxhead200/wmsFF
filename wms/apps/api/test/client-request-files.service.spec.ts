@@ -20,6 +20,9 @@ describe('ClientRequestFilesService', () => {
       clientNotification: {
         create: vi.fn().mockResolvedValue({ id: 'notification-1' }),
       },
+      clientNotificationPreference: {
+        findUnique: vi.fn().mockResolvedValue(null),
+      },
       clientRequestEvent: {
         create: vi.fn().mockResolvedValue({ id: 'event-1' }),
       },

@@ -1,8 +1,9 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { ClientRequestEventType, Prisma } from '@prisma/client';
+import { ClientNotificationEvent, ClientRequestEventType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
+import { isClientNotificationEnabled } from '../client-notifications/client-notification-preferences';
 import { CreateClientRequestCommentDto } from './dto/create-client-request-comment.dto';
 
 @Injectable()
@@ -78,7 +79,11 @@ export class ClientRequestHistoryService {
         },
       });
 
-      if (!isInternal && shouldNotifyClient(user)) {
+      if (
+        !isInternal &&
+        shouldNotifyClient(user) &&
+        (await isClientNotificationEnabled(tx, request.clientId, ClientNotificationEvent.REQUEST_COMMENT))
+      ) {
         await tx.clientNotification.create({
           data: {
             clientId: request.clientId,

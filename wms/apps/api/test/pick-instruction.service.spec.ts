@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { ClientRequestPriority, ClientRequestStatus, ClientRequestType, StockStatus } from '@prisma/client';
+import * as XLSX from 'xlsx';
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthUser } from '../src/modules/auth/auth.types';
 import { ClientScopeService } from '../src/modules/auth/client-scope.service';
@@ -74,6 +75,41 @@ describe('PickInstructionService', () => {
       statusLabel: 'Дефицит',
       comment: 'Не хватает 4 шт. в AVAILABLE.',
     });
+  });
+
+  it('экспортирует складскую инструкцию в XLSX', async () => {
+    const prisma = {
+      clientRequest: {
+        findUnique: vi.fn().mockResolvedValue(requestFixture()),
+      },
+      barcode: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      stockBalance: {
+        findMany: vi.fn().mockResolvedValue([
+          balanceFixture({ id: 'balance-1', boxId: 'box-1', boxCode: 'BOX-1', quantity: 2 }),
+          balanceFixture({ id: 'balance-2', boxId: 'box-2', boxCode: 'BOX-2', quantity: 5 }),
+        ]),
+        groupBy: vi.fn().mockResolvedValue([
+          { boxId: 'box-1', _sum: { quantity: 2 } },
+          { boxId: 'box-2', _sum: { quantity: 5 } },
+        ]),
+      },
+    };
+    const service = new PickInstructionService(prisma as never, new ClientScopeService());
+
+    const file = await service.getRequestInstructionXlsx('request-1', user({ clientIds: ['client-1'] }));
+    const workbook = XLSX.read(file.content, { type: 'buffer' });
+
+    expect(file.fileName).toMatch(/\.xlsx$/);
+    expect(file.mimeType).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    expect(workbook.SheetNames).toEqual(['Сводка', 'Инструкция', 'Короба', 'Дефицит']);
+    const instructionRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['Инструкция'], { defval: '' });
+    const boxRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['Короба'], { defval: '' });
+
+    expect(instructionRows[0]).toMatchObject({ Короб: 'BOX-1', Взять: 2 });
+    expect(instructionRows[1]).toMatchObject({ Короб: 'BOX-2', Взять: 2 });
+    expect(boxRows[0]).toMatchObject({ Короб: 'BOX-1', 'Целый короб': 'Да' });
   });
 
   it('отклоняет инструкцию для не outbound-заявки', async () => {

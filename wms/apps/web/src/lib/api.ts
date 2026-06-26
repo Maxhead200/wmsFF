@@ -2127,6 +2127,10 @@ export async function fetchPickInstruction(accessToken: string, requestId: strin
   });
 }
 
+export async function downloadPickInstructionXlsx(accessToken: string, requestId: string) {
+  return requestBlob(`/stock/fulfillment/requests/${requestId}/instruction.xlsx`, accessToken);
+}
+
 export async function packageClientRequest(
   accessToken: string,
   payload: { requestId: string; idempotencyKey?: string; comment?: string; packages?: unknown[] },

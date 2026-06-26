@@ -17,6 +17,7 @@ import type {
   PickInstructionRow,
   PickInstructionRowStatus,
 } from './pick-instruction.types';
+import { buildPickInstructionWorkbook, pickInstructionXlsxMimeType } from './pick-instruction-xlsx';
 
 type RequestForInstruction = Prisma.ClientRequestGetPayload<typeof pickInstructionRequestArgs>;
 type RequestItemForInstruction = RequestForInstruction['items'][number];
@@ -80,6 +81,16 @@ export class PickInstructionService {
     return {
       ...document,
       html: renderPickInstructionHtml(document),
+    };
+  }
+
+  async getRequestInstructionXlsx(requestId: string, user: AuthUser) {
+    const document = await this.getRequestInstruction(requestId, user);
+
+    return {
+      fileName: document.fileName.replace(/\.html$/i, '.xlsx'),
+      mimeType: pickInstructionXlsxMimeType(),
+      content: buildPickInstructionWorkbook(document),
     };
   }
 

@@ -1,6 +1,7 @@
 import { ClipboardList, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  downloadPickInstructionXlsx,
   fetchClientRequestDocument,
   fetchClientRequests,
   fetchClients,
@@ -128,6 +129,17 @@ export function ClientRequestsPanel({ session }: ClientRequestsPanelProps) {
     }
   }
 
+  async function downloadPickInstruction(request: ClientRequestSummary) {
+    setError(null);
+
+    try {
+      const blob = await downloadPickInstructionXlsx(session.accessToken, request.id);
+      downloadBlob(blob, `pick-instruction-${safeDownloadName(request.title)}-${request.id.slice(0, 8)}.xlsx`);
+    } catch (caught) {
+      setError(errorMessage(caught));
+    }
+  }
+
   async function packageOutboundRequest(request: ClientRequestSummary) {
     setError(null);
 
@@ -208,6 +220,7 @@ export function ClientRequestsPanel({ session }: ClientRequestsPanelProps) {
           (requestId, status) => void changeStatus(requestId, status),
           (request) => void openRequestDocument(request),
           (request) => void openPickInstruction(request),
+          (request) => void downloadPickInstruction(request),
           (request) => void pickOutboundRequest(request),
           (request) => void packageOutboundRequest(request),
           (request) => void shipOutboundRequest(request),
@@ -237,6 +250,7 @@ function renderRequests(
   onStatusChange: (requestId: string, status: ClientRequestStatus) => void,
   onOpenDocument: (request: ClientRequestSummary) => void,
   onOpenPickInstruction: (request: ClientRequestSummary) => void,
+  onDownloadPickInstruction: (request: ClientRequestSummary) => void,
   onPickOutbound: (request: ClientRequestSummary) => void,
   onPackageOutbound: (request: ClientRequestSummary) => void,
   onShipOutbound: (request: ClientRequestSummary) => void,
@@ -268,6 +282,7 @@ function renderRequests(
         onStatusChange={onStatusChange}
         onOpenDocument={onOpenDocument}
         onOpenPickInstruction={onOpenPickInstruction}
+        onDownloadPickInstruction={onDownloadPickInstruction}
         onPickOutbound={onPickOutbound}
         onPackageOutbound={onPackageOutbound}
         onShipOutbound={onShipOutbound}
@@ -278,6 +293,21 @@ function renderRequests(
 
 function canUse(user: AuthUser, permission: string) {
   return user.permissionCodes.includes('system:admin') || user.permissionCodes.includes(permission);
+}
+
+function downloadBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function safeDownloadName(value: string) {
+  return value.replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^_+|_+$/g, '') || 'request';
 }
 
 function errorMessage(caught: unknown) {

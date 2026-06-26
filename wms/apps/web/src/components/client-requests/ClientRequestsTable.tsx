@@ -1,4 +1,4 @@
-import { CheckCircle2, ClipboardList, FileText, PackageCheck, Send, Truck } from 'lucide-react';
+import { CheckCircle2, ClipboardList, FileDown, FileText, PackageCheck, Send, Truck } from 'lucide-react';
 import { type ClientRequestStatus, type ClientRequestSummary } from '../../lib/api';
 import {
   requestPriorityLabel,
@@ -15,6 +15,7 @@ type ClientRequestsTableProps = {
   onStatusChange: (requestId: string, status: ClientRequestStatus) => void;
   onOpenDocument?: (request: ClientRequestSummary) => void;
   onOpenPickInstruction?: (request: ClientRequestSummary) => void;
+  onDownloadPickInstruction?: (request: ClientRequestSummary) => void;
   onPickOutbound: (request: ClientRequestSummary) => void;
   onPackageOutbound: (request: ClientRequestSummary) => void;
   onShipOutbound: (request: ClientRequestSummary) => void;
@@ -33,6 +34,7 @@ export function ClientRequestsTable({
   onStatusChange,
   onOpenDocument,
   onOpenPickInstruction,
+  onDownloadPickInstruction,
   onPickOutbound,
   onPackageOutbound,
   onShipOutbound,
@@ -102,6 +104,17 @@ export function ClientRequestsTable({
                         >
                           <ClipboardList size={15} aria-hidden="true" />
                           <span>Инструкция</span>
+                        </button>
+                      ) : null}
+                      {onDownloadPickInstruction && request.type === 'OUTBOUND' ? (
+                        <button
+                          className="client-request-action-button client-request-action-button--xlsx"
+                          type="button"
+                          onClick={() => onDownloadPickInstruction(request)}
+                          title="Скачать Excel-инструкцию сборки"
+                        >
+                          <FileDown size={15} aria-hidden="true" />
+                          <span>Excel</span>
                         </button>
                       ) : null}
                       {canPickRequest(request) ? (

@@ -779,6 +779,24 @@ export type PreviewLabelTemplatePayload = {
   variables?: Record<string, string | number | boolean | null>;
 };
 
+export type PrintJobStatus = 'queued' | 'sent' | 'printed' | 'failed' | 'cancelled';
+
+export type PrintJobSummary = {
+  id: string;
+  printerCode: string;
+  labelType: string;
+  payload: Record<string, unknown>;
+  tspl: string;
+  status: PrintJobStatus;
+  createdAt: string;
+};
+
+export type CreatePrintJobFromTemplatePayload = {
+  printerCode: string;
+  variables?: Record<string, string | number | boolean | null>;
+  copies?: number;
+};
+
 export type SkuLabelPreviewPayload = {
   skuCode: string;
   name: string;
@@ -1433,6 +1451,36 @@ export async function createLabelTemplate(accessToken: string, payload: CreateLa
 export async function previewLabelTemplate(accessToken: string, templateId: string, payload: PreviewLabelTemplatePayload) {
   return request<LabelPreview>(`/print/templates/${templateId}/preview`, {
     method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function fetchPrintJobs(accessToken: string, filter: { status?: PrintJobStatus; limit?: string } = {}) {
+  return request<PrintJobSummary[]>(withQuery('/print/jobs', filter), {
+    accessToken,
+  });
+}
+
+export async function createPrintJobFromTemplate(
+  accessToken: string,
+  templateId: string,
+  payload: CreatePrintJobFromTemplatePayload,
+) {
+  return request<PrintJobSummary>(`/print/templates/${templateId}/jobs`, {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function updatePrintJobStatus(
+  accessToken: string,
+  jobId: string,
+  payload: { status: PrintJobStatus; message?: string },
+) {
+  return request<PrintJobSummary>(`/print/jobs/${jobId}/status`, {
+    method: 'PATCH',
     body: payload,
     accessToken,
   });

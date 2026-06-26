@@ -39,6 +39,17 @@ export class LabelTemplateService {
   }
 
   async previewTemplate(templateId: string, dto: PreviewLabelTemplateDto) {
+    const template = await this.getTemplateOrThrow(templateId);
+
+    return {
+      printerLanguage: 'TSPL',
+      tspl: this.renderTspl(template.tspl, dto.variables ?? {}),
+      templateId: template.id,
+      templateCode: template.code,
+    };
+  }
+
+  async getTemplateOrThrow(templateId: string) {
     const template = await this.prisma.labelTemplate.findUnique({
       where: { id: templateId },
     });
@@ -47,12 +58,7 @@ export class LabelTemplateService {
       throw new NotFoundException('Шаблон этикетки не найден.');
     }
 
-    return {
-      printerLanguage: 'TSPL',
-      tspl: this.renderTspl(template.tspl, dto.variables ?? {}),
-      templateId: template.id,
-      templateCode: template.code,
-    };
+    return template;
   }
 
   renderTspl(tspl: string, variables: Record<string, TemplateVariable>) {

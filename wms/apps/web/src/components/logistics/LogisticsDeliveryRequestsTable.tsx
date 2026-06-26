@@ -1,9 +1,10 @@
-import { CalendarClock, Check, ReceiptText } from 'lucide-react';
+import { CalendarClock, Check, ReceiptText, Route } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 import type {
   FinalizeLogisticsDeliveryQuotePayload,
   LogisticsDeliveryRequestSummary,
   LogisticsDeliveryStatus,
+  LogisticsTripSummary,
 } from '../../lib/api';
 import {
   logisticsDeliveryStatusLabel,
@@ -13,11 +14,13 @@ import {
 
 type LogisticsDeliveryRequestsTableProps = {
   items: LogisticsDeliveryRequestSummary[];
+  trips: LogisticsTripSummary[];
   canWrite: boolean;
   canCreateBillingCharge: boolean;
   onBillingChargeCreate: (deliveryId: string) => void;
   onQuoteFinalize: (deliveryId: string, payload: FinalizeLogisticsDeliveryQuotePayload) => Promise<void>;
   onStatusChange: (deliveryId: string, status: LogisticsDeliveryStatus) => void;
+  onTripAssign: (deliveryId: string, tripId: string | null) => void;
 };
 
 type QuoteDraft = {
@@ -31,11 +34,13 @@ const moneyFormatter = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2
 
 export function LogisticsDeliveryRequestsTable({
   items,
+  trips,
   canWrite,
   canCreateBillingCharge,
   onBillingChargeCreate,
   onQuoteFinalize,
   onStatusChange,
+  onTripAssign,
 }: LogisticsDeliveryRequestsTableProps) {
   const [quoteDrafts, setQuoteDrafts] = useState<Record<string, QuoteDraft>>({});
 
@@ -93,6 +98,7 @@ export function LogisticsDeliveryRequestsTable({
             <th>Расчет</th>
             <th>Биллинг</th>
             <th>Статус</th>
+            <th>Рейс</th>
             {canWrite ? <th>Workflow</th> : null}
           </tr>
         </thead>
@@ -102,6 +108,9 @@ export function LogisticsDeliveryRequestsTable({
             const canFinalize = canWrite && canFinalizeQuote(request);
             const draftAmount = Number(draft.estimatedTotalRub);
             const canSubmitDraft = Number.isFinite(draftAmount) && draftAmount > 0 && !draft.isSaving;
+            const assignableTrips = trips.filter(
+              (trip) => trip.id === request.tripId || (trip.status !== 'COMPLETED' && trip.status !== 'CANCELLED'),
+            );
 
             return (
               <tr key={request.id}>
@@ -166,6 +175,32 @@ export function LogisticsDeliveryRequestsTable({
                   ) : (
                     <span className="delivery-billing-muted">{billingHint(request)}</span>
                   )}
+                </td>
+                <td>
+                  {canWrite ? (
+                    <label className="delivery-trip-select">
+                      <Route size={15} aria-hidden="true" />
+                      <select
+                        value={request.tripId ?? ''}
+                        onChange={(event) => onTripAssign(request.id, event.target.value || null)}
+                      >
+                        <option value="">Без рейса</option>
+                        {assignableTrips.map((trip) => (
+                          <option key={trip.id} value={trip.id}>
+                            {formatTripOption(trip)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : (
+                    <strong>{request.trip?.code ?? '-'}</strong>
+                  )}
+                  {request.trip ? (
+                    <span>
+                      {request.trip.carrier?.name ?? 'Без перевозчика'}
+                      {request.trip.plannedDate ? ` · ${formatDate(request.trip.plannedDate)}` : ''}
+                    </span>
+                  ) : null}
                 </td>
                 <td>
                   <span className={`status status--${logisticsDeliveryStatusTone(request.status)}`}>
@@ -233,6 +268,10 @@ function formatQuantity(request: LogisticsDeliveryRequestSummary) {
 
 function formatDate(value: string | null) {
   return value ? dateFormatter.format(new Date(value)) : '-';
+}
+
+function formatTripOption(trip: LogisticsTripSummary) {
+  return `${trip.code}${trip.plannedDate ? ` · ${formatDate(trip.plannedDate)}` : ''}`;
 }
 
 function formatMoney(value: string | number | null) {

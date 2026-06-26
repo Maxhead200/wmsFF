@@ -5,17 +5,23 @@ import {
   BillingUnit,
   LogisticsDeliveryStatus,
   LogisticsPricingMode,
+  LogisticsTripStatus,
   Prisma,
 } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
 import type { LogisticsDirection as ParsedLogisticsDirection } from '../imports/parsers/logistics-xlsx.parser';
+import { AssignDeliveryTripDto } from './dto/assign-delivery-trip.dto';
 import { CreateDeliveryRequestDto } from './dto/create-delivery-request.dto';
+import { CreateLogisticsCarrierDto } from './dto/create-logistics-carrier.dto';
+import { CreateLogisticsTripDto } from './dto/create-logistics-trip.dto';
 import { FinalizeDeliveryQuoteDto } from './dto/finalize-delivery-quote.dto';
 import { ListDeliveryRequestsDto } from './dto/list-delivery-requests.dto';
+import { ListLogisticsTripsDto } from './dto/list-logistics-trips.dto';
 import { QuoteLogisticsDto } from './dto/quote-logistics.dto';
 import { UpdateDeliveryStatusDto } from './dto/update-delivery-status.dto';
+import { UpdateLogisticsTripStatusDto } from './dto/update-logistics-trip-status.dto';
 
 type ParsedLogisticsTariffSet = {
   note: string;
@@ -167,6 +173,93 @@ export class LogisticsService {
     };
   }
 
+  listCarriers() {
+    return this.prisma.logisticsCarrier.findMany({
+      where: { isActive: true },
+      include: {
+        _count: { select: { trips: true } },
+      },
+      orderBy: [{ name: 'asc' }],
+    });
+  }
+
+  createCarrier(dto: CreateLogisticsCarrierDto) {
+    const name = normalizeRequiredText(dto.name, 'Название перевозчика обязательно.');
+
+    return this.prisma.logisticsCarrier.create({
+      data: {
+        name,
+        phone: normalizeText(dto.phone),
+        contactName: normalizeText(dto.contactName),
+        comment: normalizeText(dto.comment),
+      },
+      include: {
+        _count: { select: { trips: true } },
+      },
+    });
+  }
+
+  listTrips(query: ListLogisticsTripsDto) {
+    return this.prisma.logisticsTrip.findMany({
+      where: {
+        carrierId: query.carrierId,
+        status: query.status,
+      },
+      include: logisticsTripInclude,
+      orderBy: [{ plannedDate: 'desc' }, { createdAt: 'desc' }],
+      take: 200,
+    });
+  }
+
+  async createTrip(dto: CreateLogisticsTripDto) {
+    const carrierId = normalizeText(dto.carrierId);
+    const plannedDate = this.parseDate(dto.plannedDate);
+
+    if (carrierId) {
+      const carrier = await this.prisma.logisticsCarrier.findFirst({
+        where: { id: carrierId, isActive: true },
+        select: { id: true },
+      });
+
+      if (!carrier) {
+        throw new BadRequestException('Перевозчик не найден или отключен.');
+      }
+    }
+
+    return this.prisma.logisticsTrip.create({
+      data: {
+        code: normalizeText(dto.code) ?? (await this.generateTripCode(plannedDate)),
+        carrierId,
+        plannedDate,
+        vehicleNumber: normalizeText(dto.vehicleNumber),
+        driverName: normalizeText(dto.driverName),
+        driverPhone: normalizeText(dto.driverPhone),
+        comment: normalizeText(dto.comment),
+      },
+      include: logisticsTripInclude,
+    });
+  }
+
+  async updateTripStatus(id: string, dto: UpdateLogisticsTripStatusDto) {
+    const trip = await this.prisma.logisticsTrip.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+
+    if (!trip) {
+      throw new NotFoundException('Рейс доставки не найден.');
+    }
+
+    return this.prisma.logisticsTrip.update({
+      where: { id },
+      data: {
+        status: dto.status,
+        comment: normalizeText(dto.comment),
+      },
+      include: logisticsTripInclude,
+    });
+  }
+
   listDeliveryRequests(query: ListDeliveryRequestsDto, user: AuthUser) {
     return this.prisma.logisticsDeliveryRequest.findMany({
       where: {
@@ -219,6 +312,71 @@ export class LogisticsService {
         managerComment: quote.note,
         createdByUserId: user.id,
       },
+      include: deliveryRequestInclude,
+    });
+  }
+
+  async assignDeliveryTrip(id: string, dto: AssignDeliveryTripDto, user: AuthUser) {
+    const request = await this.prisma.logisticsDeliveryRequest.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        clientId: true,
+        status: true,
+        plannedShipDate: true,
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException('Заявка на доставку не найдена.');
+    }
+
+    this.clientScopes.requireClientAccess(user, request.clientId, 'write');
+
+    const tripId = normalizeText(dto.tripId ?? undefined);
+    if (!tripId) {
+      return this.prisma.logisticsDeliveryRequest.update({
+        where: { id },
+        data: { tripId: null },
+        include: deliveryRequestInclude,
+      });
+    }
+
+    const trip = await this.prisma.logisticsTrip.findUnique({
+      where: { id: tripId },
+      select: {
+        id: true,
+        status: true,
+        plannedDate: true,
+      },
+    });
+
+    if (!trip) {
+      throw new NotFoundException('Рейс доставки не найден.');
+    }
+
+    if (trip.status === LogisticsTripStatus.COMPLETED || trip.status === LogisticsTripStatus.CANCELLED) {
+      throw new BadRequestException('Нельзя назначить доставку в завершенный или отмененный рейс.');
+    }
+
+    const nextStatus =
+      request.status === LogisticsDeliveryStatus.REQUESTED || request.status === LogisticsDeliveryStatus.QUOTED
+        ? LogisticsDeliveryStatus.PLANNED
+        : request.status;
+
+    const data: Prisma.LogisticsDeliveryRequestUpdateInput = {
+      trip: { connect: { id: trip.id } },
+      status: nextStatus,
+    };
+
+    if (!request.plannedShipDate && trip.plannedDate) {
+      data.plannedShipDate = trip.plannedDate;
+    }
+
+    // Русский комментарий: назначение на рейс переводит заявку в операционный план без ручной смены статуса менеджером.
+    return this.prisma.logisticsDeliveryRequest.update({
+      where: { id },
+      data,
       include: deliveryRequestInclude,
     });
   }
@@ -500,9 +658,52 @@ export class LogisticsService {
 
     return date;
   }
+
+  private async generateTripCode(plannedDate?: Date) {
+    const baseDate = plannedDate ?? new Date();
+    const prefix = `TRIP-${baseDate.toISOString().slice(0, 10).replace(/-/g, '')}`;
+    const sequence = await this.prisma.logisticsTrip.count({
+      where: { code: { startsWith: prefix } },
+    });
+
+    return `${prefix}-${String(sequence + 1).padStart(3, '0')}`;
+  }
 }
 
 const DELIVERY_SERVICE_CODE = 'LOGISTICS_DELIVERY';
+
+const logisticsTripInclude = {
+  carrier: {
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      contactName: true,
+      isActive: true,
+    },
+  },
+  deliveries: {
+    select: {
+      id: true,
+      clientId: true,
+      origin: true,
+      destination: true,
+      boxes: true,
+      pallets: true,
+      desiredShipDate: true,
+      plannedShipDate: true,
+      status: true,
+      client: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+        },
+      },
+    },
+    orderBy: [{ updatedAt: 'desc' }],
+  },
+} satisfies Prisma.LogisticsTripInclude;
 
 const deliveryRequestInclude = {
   client: {
@@ -532,6 +733,23 @@ const deliveryRequestInclude = {
       description: true,
       status: true,
       totalRub: true,
+    },
+  },
+  trip: {
+    select: {
+      id: true,
+      code: true,
+      plannedDate: true,
+      status: true,
+      vehicleNumber: true,
+      driverName: true,
+      carrier: {
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+        },
+      },
     },
   },
   createdBy: {
@@ -567,4 +785,13 @@ function deliverySourceKey(deliveryRequestId: string) {
 function normalizeText(value?: string) {
   const normalized = value?.trim();
   return normalized ? normalized : undefined;
+}
+
+function normalizeRequiredText(value: string, message: string) {
+  const normalized = normalizeText(value);
+  if (!normalized) {
+    throw new BadRequestException(message);
+  }
+
+  return normalized;
 }

@@ -51,7 +51,11 @@
 .delivery-fields select,
 .delivery-footer input,
 .delivery-quote-form input,
-.delivery-status-select select {
+.delivery-status-select select,
+.delivery-trip-select select,
+.trip-fields input,
+.trip-fields select,
+.trip-status-select select {
   width: 100%;
   min-height: 40px;
   border: 1px solid var(--line);
@@ -68,7 +72,11 @@
 .delivery-fields select:focus,
 .delivery-footer input:focus,
 .delivery-quote-form input:focus,
-.delivery-status-select select:focus {
+.delivery-status-select select:focus,
+.delivery-trip-select select:focus,
+.trip-fields input:focus,
+.trip-fields select:focus,
+.trip-status-select select:focus {
   border-color: var(--red-dark);
   outline: 3px solid rgb(215 25 32 / 0.14);
 }
@@ -242,7 +250,7 @@
 }
 
 .delivery-table {
-  min-width: 1080px;
+  min-width: 1220px;
 }
 
 .delivery-status-select {
@@ -252,8 +260,17 @@
   color: var(--red-dark);
 }
 
-.delivery-status-select svg {
+.delivery-status-select svg,
+.delivery-trip-select svg {
   flex: 0 0 auto;
+}
+
+.delivery-trip-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 190px;
+  color: var(--red-dark);
 }
 
 .delivery-quote-form {
@@ -315,12 +332,126 @@
   background: #ffecec;
 }
 
+.logistics-trips {
+  display: grid;
+  gap: 14px;
+}
+
+.logistics-ops-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.8fr) minmax(360px, 1.2fr);
+  gap: 12px;
+}
+
+.carrier-form,
+.trip-form {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdff;
+  padding: 14px;
+}
+
+.logistics-form-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--red-dark);
+}
+
+.trip-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.trip-fields--carrier {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.trip-fields label,
+.trip-status-select {
+  display: grid;
+  gap: 6px;
+}
+
+.trip-fields span,
+.trip-status-select span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.trip-submit {
+  justify-self: end;
+  min-width: 138px;
+}
+
+.trip-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 10px;
+}
+
+.trip-card {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 12px;
+}
+
+.trip-card__main {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.trip-card__main div,
+.trip-deliveries {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.trip-card__main span,
+.trip-card__details,
+.trip-deliveries {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.trip-card__details {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.trip-card__details span {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (max-width: 980px) {
   .quote-fields,
   .quote-result__grid,
   .delivery-fields,
-  .delivery-fields--route {
+  .delivery-fields--route,
+  .trip-fields,
+  .trip-fields--carrier {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .logistics-ops-grid {
+    grid-template-columns: 1fr;
   }
 
   .quote-quantity-row,
@@ -344,7 +475,10 @@
   .quote-result__grid,
   .delivery-fields,
   .delivery-fields--route,
-  .delivery-footer {
+  .delivery-footer,
+  .trip-fields,
+  .trip-fields--carrier,
+  .trip-card__details {
     grid-template-columns: 1fr;
   }
 }

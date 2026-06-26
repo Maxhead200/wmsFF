@@ -39,6 +39,8 @@
 - `GET /api/v1/logistics/tariff-sets` - список загруженных наборов тарифов.
 - `GET /api/v1/logistics/tariff-sets/:id` - набор тарифов с направлениями и ступенями.
 - `POST /api/v1/logistics/quote` - предварительный расчет доставки по направлению и количеству коробов/паллет.
+- `GET/POST /api/v1/logistics/carriers` - справочник активных перевозчиков для рейсов доставки.
+- `GET/POST /api/v1/logistics/trips` - рейсы доставки с перевозчиком, датой, машиной, водителем и списком назначенных доставок.
 - `GET/POST /api/v1/logistics/delivery-requests` - заявки на доставку с фильтрацией по client scope и авторасчетом тарифа, если маршрут найден.
 - `PATCH /api/v1/logistics/delivery-requests/:id/status` - управление статусами доставки: запрос, расчет, план, в пути, доставлено или отменено.
 - `GET/POST /api/v1/billing/services` - справочник услуг биллинга с единицей и ценой по умолчанию.
@@ -86,5 +88,7 @@
 
 - `POST /api/v1/logistics/delivery-requests/:id/billing-charge` создает утвержденное начисление доставки в биллинге после статуса `DELIVERED`.
 - `PATCH /api/v1/logistics/delivery-requests/:id/quote` фиксирует ручной финальный расчет доставки, снимает `requiresManualReview` и переводит новую заявку в `QUOTED`.
+- `PATCH /api/v1/logistics/delivery-requests/:id/trip` назначает доставку в рейс, сохраняет `tripId`, подставляет плановую дату рейса и переводит новую заявку в `PLANNED`.
+- `PATCH /api/v1/logistics/trips/:id/status` ведет операционный статус рейса: `PLANNED`, `LOADING`, `IN_TRANSIT`, `COMPLETED`, `CANCELLED`.
 - Начисление получает источник `LOGISTICS`, уникальный `sourceKey=logistics-delivery:<deliveryRequestId>` и привязку обратно к заявке доставки.
 - Повторный вызов не дублирует деньги: система возвращает уже связанную заявку с существующим начислением.

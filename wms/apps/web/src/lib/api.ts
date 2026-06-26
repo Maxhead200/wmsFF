@@ -769,12 +769,56 @@ export type LogisticsPricingMode = 'TOTAL' | 'PER_PALLET' | 'MANUAL_REVIEW';
 
 export type LogisticsDeliveryStatus = 'REQUESTED' | 'QUOTED' | 'PLANNED' | 'IN_TRANSIT' | 'DELIVERED' | 'CANCELLED';
 
+export type LogisticsTripStatus = 'PLANNED' | 'LOADING' | 'IN_TRANSIT' | 'COMPLETED' | 'CANCELLED';
+
+export type LogisticsCarrierSummary = {
+  id: string;
+  name: string;
+  phone: string | null;
+  contactName: string | null;
+  comment: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  _count?: {
+    trips: number;
+  };
+};
+
+export type LogisticsTripSummary = {
+  id: string;
+  code: string;
+  carrierId: string | null;
+  plannedDate: string | null;
+  vehicleNumber: string | null;
+  driverName: string | null;
+  driverPhone: string | null;
+  status: LogisticsTripStatus;
+  comment: string | null;
+  createdAt: string;
+  updatedAt: string;
+  carrier: Pick<LogisticsCarrierSummary, 'id' | 'name' | 'phone' | 'contactName' | 'isActive'> | null;
+  deliveries: Array<{
+    id: string;
+    clientId: string;
+    origin: string;
+    destination: string;
+    boxes: number | null;
+    pallets: number | null;
+    desiredShipDate: string | null;
+    plannedShipDate: string | null;
+    status: LogisticsDeliveryStatus;
+    client: Pick<ClientSummary, 'id' | 'code' | 'name'>;
+  }>;
+};
+
 export type LogisticsDeliveryRequestSummary = {
   id: string;
   clientId: string;
   requestId: string | null;
   tariffSetId: string | null;
   billingChargeId: string | null;
+  tripId: string | null;
   origin: string;
   destination: string;
   boxes: number | null;
@@ -792,6 +836,9 @@ export type LogisticsDeliveryRequestSummary = {
   request: Pick<ClientRequestSummary, 'id' | 'title' | 'type' | 'status'> | null;
   tariffSet: Pick<LogisticsTariffSetSummary, 'id' | 'name'> | null;
   billingCharge: Pick<BillingChargeSummary, 'id' | 'description' | 'status' | 'totalRub'> | null;
+  trip: Pick<LogisticsTripSummary, 'id' | 'code' | 'plannedDate' | 'status' | 'vehicleNumber' | 'driverName'> & {
+    carrier: Pick<LogisticsCarrierSummary, 'id' | 'name' | 'phone'> | null;
+  } | null;
   createdBy: {
     id: string;
     email: string;
@@ -814,6 +861,23 @@ export type CreateLogisticsDeliveryRequestPayload = {
 export type FinalizeLogisticsDeliveryQuotePayload = {
   estimatedTotalRub: number;
   managerComment?: string;
+};
+
+export type CreateLogisticsCarrierPayload = {
+  name: string;
+  phone?: string;
+  contactName?: string;
+  comment?: string;
+};
+
+export type CreateLogisticsTripPayload = {
+  code?: string;
+  carrierId?: string;
+  plannedDate?: string;
+  vehicleNumber?: string;
+  driverName?: string;
+  driverPhone?: string;
+  comment?: string;
 };
 
 export type LogisticsImportTier = {
@@ -1132,6 +1196,49 @@ export async function fetchLogisticsTariffSets(accessToken: string) {
   });
 }
 
+export async function fetchLogisticsCarriers(accessToken: string) {
+  return request<LogisticsCarrierSummary[]>('/logistics/carriers', {
+    accessToken,
+  });
+}
+
+export async function createLogisticsCarrier(accessToken: string, payload: CreateLogisticsCarrierPayload) {
+  return request<LogisticsCarrierSummary>('/logistics/carriers', {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function fetchLogisticsTrips(
+  accessToken: string,
+  filter: { carrierId?: string; status?: LogisticsTripStatus } = {},
+) {
+  return request<LogisticsTripSummary[]>(withQuery('/logistics/trips', filter), {
+    accessToken,
+  });
+}
+
+export async function createLogisticsTrip(accessToken: string, payload: CreateLogisticsTripPayload) {
+  return request<LogisticsTripSummary>('/logistics/trips', {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function updateLogisticsTripStatus(
+  accessToken: string,
+  tripId: string,
+  payload: { status: LogisticsTripStatus; comment?: string },
+) {
+  return request<LogisticsTripSummary>(`/logistics/trips/${tripId}/status`, {
+    method: 'PATCH',
+    body: payload,
+    accessToken,
+  });
+}
+
 export async function fetchLogisticsDeliveryRequests(
   accessToken: string,
   filter: { clientId?: string; status?: LogisticsDeliveryStatus } = {},
@@ -1187,6 +1294,14 @@ export async function finalizeLogisticsDeliveryQuote(
 export async function generateLogisticsDeliveryBillingCharge(accessToken: string, deliveryId: string) {
   return request<LogisticsDeliveryRequestSummary>(`/logistics/delivery-requests/${deliveryId}/billing-charge`, {
     method: 'POST',
+    accessToken,
+  });
+}
+
+export async function assignLogisticsDeliveryTrip(accessToken: string, deliveryId: string, payload: { tripId?: string | null }) {
+  return request<LogisticsDeliveryRequestSummary>(`/logistics/delivery-requests/${deliveryId}/trip`, {
+    method: 'PATCH',
+    body: payload,
     accessToken,
   });
 }

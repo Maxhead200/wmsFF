@@ -1,5 +1,12 @@
 import { BadRequestException } from '@nestjs/common';
-import { BillingChargeSource, BillingChargeStatus, BillingUnit, LogisticsDeliveryStatus, LogisticsPricingMode } from '@prisma/client';
+import {
+  BillingChargeSource,
+  BillingChargeStatus,
+  BillingUnit,
+  LogisticsDeliveryStatus,
+  LogisticsPricingMode,
+  LogisticsTripStatus,
+} from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthUser } from '../src/modules/auth/auth.types';
 import { LogisticsService } from '../src/modules/logistics/logistics.service';
@@ -268,6 +275,80 @@ describe('LogisticsService', () => {
       expect.objectContaining({
         where: { id: 'delivery-1' },
         data: { billingChargeId: 'charge-delivery' },
+      }),
+    );
+  });
+
+  it('создает рейс с автонумерацией по плановой дате', async () => {
+    const prisma = {
+      logisticsCarrier: {
+        findFirst: vi.fn().mockResolvedValue({ id: 'carrier-1' }),
+      },
+      logisticsTrip: {
+        count: vi.fn().mockResolvedValue(2),
+        create: vi.fn().mockResolvedValue({ id: 'trip-1' }),
+      },
+    };
+    const deliveryService = new LogisticsService(prisma as never, { requireClientAccess: vi.fn() } as never);
+
+    await deliveryService.createTrip({
+      carrierId: 'carrier-1',
+      plannedDate: '2026-06-28',
+      vehicleNumber: 'A123BC',
+      driverName: 'Иван',
+    });
+
+    expect(prisma.logisticsTrip.count).toHaveBeenCalledWith({
+      where: { code: { startsWith: 'TRIP-20260628' } },
+    });
+    expect(prisma.logisticsTrip.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          code: 'TRIP-20260628-003',
+          carrierId: 'carrier-1',
+          vehicleNumber: 'A123BC',
+          driverName: 'Иван',
+        }),
+      }),
+    );
+  });
+
+  it('назначает доставку в рейс и переводит заявку в план', async () => {
+    const tripDate = new Date('2026-06-28T00:00:00.000Z');
+    const prisma = {
+      logisticsDeliveryRequest: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'delivery-1',
+          clientId: 'client-1',
+          status: LogisticsDeliveryStatus.QUOTED,
+          plannedShipDate: null,
+        }),
+        update: vi.fn().mockResolvedValue({
+          id: 'delivery-1',
+          tripId: 'trip-1',
+          status: LogisticsDeliveryStatus.PLANNED,
+        }),
+      },
+      logisticsTrip: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'trip-1',
+          status: LogisticsTripStatus.PLANNED,
+          plannedDate: tripDate,
+        }),
+      },
+    };
+    const deliveryService = new LogisticsService(prisma as never, { requireClientAccess: vi.fn() } as never);
+
+    await deliveryService.assignDeliveryTrip('delivery-1', { tripId: 'trip-1' }, user());
+
+    expect(prisma.logisticsDeliveryRequest.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'delivery-1' },
+        data: expect.objectContaining({
+          trip: { connect: { id: 'trip-1' } },
+          status: LogisticsDeliveryStatus.PLANNED,
+          plannedShipDate: tripDate,
+        }),
       }),
     );
   });

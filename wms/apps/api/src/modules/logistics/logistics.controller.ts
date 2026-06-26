@@ -3,11 +3,16 @@ import { ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { AssignDeliveryTripDto } from './dto/assign-delivery-trip.dto';
 import { CreateDeliveryRequestDto } from './dto/create-delivery-request.dto';
+import { CreateLogisticsCarrierDto } from './dto/create-logistics-carrier.dto';
+import { CreateLogisticsTripDto } from './dto/create-logistics-trip.dto';
 import { FinalizeDeliveryQuoteDto } from './dto/finalize-delivery-quote.dto';
 import { ListDeliveryRequestsDto } from './dto/list-delivery-requests.dto';
+import { ListLogisticsTripsDto } from './dto/list-logistics-trips.dto';
 import { QuoteLogisticsDto } from './dto/quote-logistics.dto';
 import { UpdateDeliveryStatusDto } from './dto/update-delivery-status.dto';
+import { UpdateLogisticsTripStatusDto } from './dto/update-logistics-trip-status.dto';
 import { LogisticsService } from './logistics.service';
 
 @ApiTags('logistics')
@@ -29,6 +34,34 @@ export class LogisticsController {
   @Post('quote')
   quote(@Body() dto: QuoteLogisticsDto) {
     return this.logistics.quote(dto);
+  }
+
+  @Get('carriers')
+  listCarriers() {
+    return this.logistics.listCarriers();
+  }
+
+  @Post('carriers')
+  @RequirePermissions('logistics:write')
+  createCarrier(@Body() dto: CreateLogisticsCarrierDto) {
+    return this.logistics.createCarrier(dto);
+  }
+
+  @Get('trips')
+  listTrips(@Query() query: ListLogisticsTripsDto) {
+    return this.logistics.listTrips(query);
+  }
+
+  @Post('trips')
+  @RequirePermissions('logistics:write')
+  createTrip(@Body() dto: CreateLogisticsTripDto) {
+    return this.logistics.createTrip(dto);
+  }
+
+  @Patch('trips/:id/status')
+  @RequirePermissions('logistics:write')
+  updateTripStatus(@Param('id') id: string, @Body() dto: UpdateLogisticsTripStatusDto) {
+    return this.logistics.updateTripStatus(id, dto);
   }
 
   @Get('delivery-requests')
@@ -66,5 +99,15 @@ export class LogisticsController {
   @RequirePermissions('logistics:write', 'billing:write')
   generateDeliveryBillingCharge(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.logistics.generateDeliveryBillingCharge(id, user);
+  }
+
+  @Patch('delivery-requests/:id/trip')
+  @RequirePermissions('logistics:write')
+  assignDeliveryTrip(
+    @Param('id') id: string,
+    @Body() dto: AssignDeliveryTripDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.logistics.assignDeliveryTrip(id, dto, user);
   }
 }

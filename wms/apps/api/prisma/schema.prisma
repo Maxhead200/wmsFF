@@ -109,6 +109,14 @@ enum LogisticsDeliveryStatus {
   CANCELLED
 }
 
+enum LogisticsTripStatus {
+  PLANNED
+  LOADING
+  IN_TRANSIT
+  COMPLETED
+  CANCELLED
+}
+
 enum BillingUnit {
   SERVICE
   PIECE
@@ -565,12 +573,46 @@ model LogisticsRateTier {
   @@index([directionId])
 }
 
+model LogisticsCarrier {
+  id          String          @id @default(uuid())
+  name        String
+  phone       String?
+  contactName String?
+  comment     String?
+  isActive    Boolean         @default(true)
+  trips       LogisticsTrip[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([isActive, name])
+}
+
+model LogisticsTrip {
+  id            String                    @id @default(uuid())
+  code          String                    @unique
+  carrierId     String?
+  plannedDate   DateTime?
+  vehicleNumber String?
+  driverName    String?
+  driverPhone   String?
+  status        LogisticsTripStatus       @default(PLANNED)
+  comment       String?
+  carrier       LogisticsCarrier?         @relation(fields: [carrierId], references: [id])
+  deliveries    LogisticsDeliveryRequest[]
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+
+  @@index([status, plannedDate])
+  @@index([carrierId])
+}
+
 model LogisticsDeliveryRequest {
   id                   String                  @id @default(uuid())
   clientId             String
   requestId            String?
   tariffSetId          String?
   billingChargeId      String?
+  tripId               String?
   origin               String
   destination          String
   boxes                Int?
@@ -587,6 +629,7 @@ model LogisticsDeliveryRequest {
   request              ClientRequest?          @relation(fields: [requestId], references: [id])
   tariffSet            LogisticsTariffSet?     @relation(fields: [tariffSetId], references: [id])
   billingCharge        BillingCharge?          @relation(fields: [billingChargeId], references: [id])
+  trip                 LogisticsTrip?          @relation(fields: [tripId], references: [id])
   createdBy            User?                   @relation("LogisticsDeliveryCreatedBy", fields: [createdByUserId], references: [id])
   createdAt            DateTime                @default(now())
   updatedAt            DateTime                @updatedAt
@@ -595,6 +638,7 @@ model LogisticsDeliveryRequest {
   @@index([requestId])
   @@index([billingChargeId])
   @@index([tariffSetId])
+  @@index([tripId])
 }
 
 model TsdOperation {

@@ -1,10 +1,13 @@
 import { Calculator, RefreshCw } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 import {
+  assignLogisticsDeliveryTrip,
   fetchClientRequests,
   fetchClients,
+  fetchLogisticsCarriers,
   fetchLogisticsDeliveryRequests,
   fetchLogisticsTariffSets,
+  fetchLogisticsTrips,
   finalizeLogisticsDeliveryQuote,
   generateLogisticsDeliveryBillingCharge,
   quoteLogistics,
@@ -13,16 +16,19 @@ import {
   type AuthUser,
   type ClientRequestSummary,
   type ClientSummary,
+  type LogisticsCarrierSummary,
   type LogisticsDeliveryRequestSummary,
   type LogisticsDeliveryStatus,
   type LogisticsQuoteResult,
   type LogisticsTariffSetSummary,
+  type LogisticsTripSummary,
   type FinalizeLogisticsDeliveryQuotePayload,
 } from '../../lib/api';
 import './logistics.css';
 import { LogisticsDeliveryForm } from './LogisticsDeliveryForm';
 import { LogisticsDeliveryRequestsTable } from './LogisticsDeliveryRequestsTable';
 import { LogisticsQuoteResultCard } from './LogisticsQuoteResultCard';
+import { LogisticsTripsPanel } from './LogisticsTripsPanel';
 
 type LogisticsQuotePanelProps = {
   session: AuthSession;
@@ -37,6 +43,8 @@ export function LogisticsQuotePanel({ session }: LogisticsQuotePanelProps) {
   const [clients, setClients] = useState<ClientSummary[]>([]);
   const [clientRequests, setClientRequests] = useState<ClientRequestSummary[]>([]);
   const [deliveryRequests, setDeliveryRequests] = useState<LogisticsDeliveryRequestSummary[]>([]);
+  const [carriers, setCarriers] = useState<LogisticsCarrierSummary[]>([]);
+  const [trips, setTrips] = useState<LogisticsTripSummary[]>([]);
   const [tariffSetId, setTariffSetId] = useState('');
   const [origin, setOrigin] = useState('МОСКВА');
   const [destination, setDestination] = useState('');
@@ -61,16 +69,20 @@ export function LogisticsQuotePanel({ session }: LogisticsQuotePanelProps) {
     setError('');
 
     try {
-      const [nextTariffs, nextClients, nextClientRequests, nextDeliveryRequests] = await Promise.all([
+      const [nextTariffs, nextClients, nextClientRequests, nextDeliveryRequests, nextCarriers, nextTrips] = await Promise.all([
         fetchLogisticsTariffSets(session.accessToken),
         fetchClients(session.accessToken),
         fetchClientRequests(session.accessToken),
         fetchLogisticsDeliveryRequests(session.accessToken),
+        fetchLogisticsCarriers(session.accessToken),
+        fetchLogisticsTrips(session.accessToken),
       ]);
       setTariffs(nextTariffs);
       setClients(nextClients);
       setClientRequests(nextClientRequests);
       setDeliveryRequests(nextDeliveryRequests);
+      setCarriers(nextCarriers);
+      setTrips(nextTrips);
       setTariffSetId((current) => current || nextTariffs[0]?.id || '');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Не удалось загрузить логистику.');
@@ -113,6 +125,18 @@ export function LogisticsQuotePanel({ session }: LogisticsQuotePanelProps) {
       setDeliveryRequests((current) => current.map((item) => (item.id === updated.id ? updated : item)));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Не удалось зафиксировать расчет доставки.');
+    }
+  }
+
+  async function assignDeliveryTrip(deliveryId: string, tripId: string | null) {
+    setError('');
+
+    try {
+      const updated = await assignLogisticsDeliveryTrip(session.accessToken, deliveryId, { tripId });
+      setDeliveryRequests((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      setTrips(await fetchLogisticsTrips(session.accessToken));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Не удалось назначить рейс доставки.');
     }
   }
 
@@ -232,6 +256,23 @@ export function LogisticsQuotePanel({ session }: LogisticsQuotePanelProps) {
         </>
       ) : null}
 
+      {canUse(session.user, 'logistics:write') || trips.length > 0 ? (
+        <>
+          <div className="logistics-panel__subheading">
+            <h3>Рейсы</h3>
+          </div>
+          <LogisticsTripsPanel
+            session={session}
+            carriers={carriers}
+            trips={trips}
+            canWrite={canUse(session.user, 'logistics:write')}
+            onCarrierCreated={(carrier) => setCarriers((current) => [carrier, ...current])}
+            onTripCreated={(trip) => setTrips((current) => [trip, ...current])}
+            onTripUpdated={(trip) => setTrips((current) => current.map((item) => (item.id === trip.id ? trip : item)))}
+          />
+        </>
+      ) : null}
+
       <div className="logistics-panel__subheading">
         <h3>Заявки доставки</h3>
       </div>
@@ -241,11 +282,13 @@ export function LogisticsQuotePanel({ session }: LogisticsQuotePanelProps) {
         {deliveryRequests.length > 0 ? (
           <LogisticsDeliveryRequestsTable
             items={deliveryRequests}
+            trips={trips}
             canWrite={canUse(session.user, 'logistics:write')}
             canCreateBillingCharge={canUse(session.user, 'logistics:write') && canUse(session.user, 'billing:write')}
             onBillingChargeCreate={(deliveryId) => void generateBillingCharge(deliveryId)}
             onQuoteFinalize={finalizeQuote}
             onStatusChange={(deliveryId, status) => void changeDeliveryStatus(deliveryId, status)}
+            onTripAssign={(deliveryId, tripId) => void assignDeliveryTrip(deliveryId, tripId)}
           />
         ) : null}
       </div>

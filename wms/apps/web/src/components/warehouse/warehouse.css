@@ -140,9 +140,90 @@
   font-size: 13px;
 }
 
+.pick-wave-panel {
+  display: grid;
+  gap: 14px;
+  margin-top: 22px;
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+}
+
+.warehouse-subheading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.warehouse-subheading h3 {
+  font-size: 18px;
+}
+
+.pick-wave-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(280px, 0.95fr);
+  gap: 14px;
+}
+
+.pick-wave-candidates,
+.pick-wave-history {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdff;
+  padding: 12px;
+}
+
+.pick-wave-list {
+  display: grid;
+  gap: 8px;
+}
+
+.pick-wave-request,
+.pick-wave-card {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 10px;
+}
+
+.pick-wave-request {
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+}
+
+.pick-wave-request input {
+  margin-top: 3px;
+}
+
+.pick-wave-request b,
+.pick-wave-request small,
+.pick-wave-card b,
+.pick-wave-card p {
+  display: block;
+}
+
+.pick-wave-request small,
+.pick-wave-card p {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.pick-wave-card > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 @media (max-width: 980px) {
   .warehouse-fields,
-  .transfer-preview {
+  .transfer-preview,
+  .pick-wave-layout {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -153,7 +234,8 @@
   }
 
   .warehouse-fields,
-  .transfer-preview {
+  .transfer-preview,
+  .pick-wave-layout {
     grid-template-columns: 1fr;
   }
 }

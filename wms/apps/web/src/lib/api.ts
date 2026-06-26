@@ -37,6 +37,10 @@ export type ClientRequestStatus =
   | 'CANCELLED'
   | 'REJECTED';
 
+export type PickWaveStatus = 'PLANNED' | 'PICKING' | 'DONE' | 'FAILED' | 'CANCELLED';
+
+export type PickWaveRequestStatus = 'PLANNED' | 'PICKED' | 'FAILED';
+
 export type ClientRequestPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
 
 export type ClientRequestEventType = 'CREATED' | 'STATUS_CHANGED' | 'COMMENT' | 'FILE_UPLOADED';
@@ -530,6 +534,42 @@ export type ClientRequestPackage = {
     name: string;
   } | null;
   items: ClientRequestPackageItem[];
+};
+
+export type PickWaveRequestSummary = {
+  waveId: string;
+  requestId: string;
+  status: PickWaveRequestStatus;
+  result: Record<string, unknown> | null;
+  pickedAt: string | null;
+  request: Pick<ClientRequestSummary, 'id' | 'clientId' | 'title' | 'type' | 'status' | 'priority' | 'items'> & {
+    client: Pick<ClientSummary, 'id' | 'code' | 'name'>;
+  };
+};
+
+export type PickWaveSummary = {
+  id: string;
+  waveNumber: string;
+  status: PickWaveStatus;
+  comment: string | null;
+  createdByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+  requests: PickWaveRequestSummary[];
+};
+
+export type PickWaveRunResult = {
+  wave: PickWaveSummary;
+  results: Array<{
+    requestId: string;
+    status: string;
+    message?: string;
+  }>;
 };
 
 export type CreateClientRequestPayload = {
@@ -1837,6 +1877,35 @@ export async function pickClientRequest(
   payload: { requestId: string; idempotencyKey?: string; comment?: string },
 ) {
   return request<PickClientRequestResult>('/stock/fulfillment/pick-request', {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function fetchPickWaves(accessToken: string, filter: { status?: PickWaveStatus } = {}) {
+  return request<PickWaveSummary[]>(withQuery('/stock/fulfillment/waves', filter), {
+    accessToken,
+  });
+}
+
+export async function createPickWave(
+  accessToken: string,
+  payload: { requestIds: string[]; comment?: string },
+) {
+  return request<PickWaveSummary>('/stock/fulfillment/waves', {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function runPickWave(
+  accessToken: string,
+  waveId: string,
+  payload: { idempotencyKey?: string; comment?: string } = {},
+) {
+  return request<PickWaveRunResult>(`/stock/fulfillment/waves/${waveId}/pick`, {
     method: 'POST',
     body: payload,
     accessToken,

@@ -85,6 +85,20 @@ enum MovementType {
   INVENTORY_ADJUSTMENT
 }
 
+enum PickWaveStatus {
+  PLANNED
+  PICKING
+  DONE
+  FAILED
+  CANCELLED
+}
+
+enum PickWaveRequestStatus {
+  PLANNED
+  PICKED
+  FAILED
+}
+
 enum TsdOperationStatus {
   ACCEPTED
   NEEDS_REVIEW
@@ -210,6 +224,7 @@ model User {
   createdDeliveries       LogisticsDeliveryRequest[] @relation("LogisticsDeliveryCreatedBy")
   uploadedRequestFiles   ClientRequestFile[] @relation("ClientRequestFileUploadedBy")
   createdRequestPackages ClientRequestPackage[] @relation("ClientRequestPackageCreatedBy")
+  createdPickWaves       PickWave[] @relation("PickWaveCreatedBy")
   createdNotifications   ClientNotification[] @relation("ClientNotificationCreatedBy")
   updatedNotificationPreferences ClientNotificationPreference[] @relation("ClientNotificationPreferenceUpdatedBy")
   authoredRequestComments ClientRequestComment[] @relation("ClientRequestCommentAuthor")
@@ -452,6 +467,7 @@ model ClientRequest {
   comments         ClientRequestComment[]
   events           ClientRequestEvent[]
   packages         ClientRequestPackage[]
+  pickWaveRequests PickWaveRequest[]
   billingCharges   BillingCharge[]
   deliveryRequests LogisticsDeliveryRequest[]
   createdAt        DateTime              @default(now())
@@ -477,6 +493,35 @@ model ClientRequestItem {
 
   @@index([requestId])
   @@index([skuId])
+}
+
+model PickWave {
+  id              String            @id @default(uuid())
+  waveNumber      String            @unique
+  status          PickWaveStatus    @default(PLANNED)
+  comment         String?
+  createdByUserId String?
+  createdBy       User?             @relation("PickWaveCreatedBy", fields: [createdByUserId], references: [id])
+  requests        PickWaveRequest[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([status, createdAt])
+  @@index([createdByUserId])
+}
+
+model PickWaveRequest {
+  waveId    String
+  requestId String
+  status    PickWaveRequestStatus @default(PLANNED)
+  result    Json?
+  pickedAt  DateTime?
+  wave      PickWave              @relation(fields: [waveId], references: [id], onDelete: Cascade)
+  request   ClientRequest         @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@id([waveId, requestId])
+  @@index([requestId])
+  @@index([status])
 }
 
 model ClientRequestPackage {

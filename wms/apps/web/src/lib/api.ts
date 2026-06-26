@@ -58,6 +58,62 @@ export type StockBalance = {
   } | null;
 };
 
+export type WarehouseBoxSummary = {
+  id: string;
+  clientId: string;
+  zoneId: string | null;
+  palletId: string | null;
+  code: string;
+  status: string;
+  client: ClientSummary;
+  zone: {
+    id: string;
+    code: string;
+    name: string;
+  } | null;
+  pallet: {
+    id: string;
+    code: string;
+    status: string;
+  } | null;
+  _count: {
+    balances: number;
+    movements: number;
+  };
+};
+
+export type TransferBetweenBoxesPayload = {
+  clientId: string;
+  skuId?: string;
+  barcode?: string;
+  fromBoxCode: string;
+  toBoxCode: string;
+  quantity: number;
+  status?: string;
+  idempotencyKey: string;
+  comment?: string;
+};
+
+export type TransferBetweenBoxesResult = {
+  idempotencyKey: string;
+  status: 'APPLIED' | 'ALREADY_APPLIED';
+  skuId?: string;
+  fromBox?: string;
+  toBox?: string;
+  quantity?: number;
+  targetBalance?: {
+    id: string;
+    balanceKey: string;
+    clientId: string;
+    skuId: string;
+    boxId: string | null;
+    palletId: string | null;
+    status: string;
+    quantity: number;
+    updatedAt: string;
+  };
+};
+
 export type RoleSummary = {
   id: string;
   code: string;
@@ -200,8 +256,14 @@ export async function fetchClients(accessToken: string) {
   });
 }
 
-export async function fetchStockBalances(accessToken: string) {
-  return request<StockBalance[]>('/stock/balances', {
+export async function fetchStockBalances(accessToken: string, filter: { clientId?: string } = {}) {
+  return request<StockBalance[]>(withQuery('/stock/balances', filter), {
+    accessToken,
+  });
+}
+
+export async function fetchBoxes(accessToken: string, filter: { clientId?: string; code?: string } = {}) {
+  return request<WarehouseBoxSummary[]>(withQuery('/warehouse/boxes', filter), {
     accessToken,
   });
 }
@@ -266,6 +328,14 @@ export async function commitLogisticsImport(
   return requestMultipart<LogisticsImportCommitResult>('/imports/logistics/commit', form, accessToken);
 }
 
+export async function transferBetweenBoxes(accessToken: string, payload: TransferBetweenBoxesPayload) {
+  return request<TransferBetweenBoxesResult>('/stock/transfers/box-to-box', {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
 async function request<T>(
   path: string,
   options: { method?: 'GET' | 'POST'; body?: unknown; accessToken?: string } = {},
@@ -284,6 +354,18 @@ async function request<T>(
   }
 
   return (await response.json()) as T;
+}
+
+function withQuery(path: string, params: Record<string, string | undefined>) {
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value) {
+      search.set(key, value);
+    }
+  });
+
+  const query = search.toString();
+  return query ? `${path}?${query}` : path;
 }
 
 async function requestMultipart<T>(path: string, body: FormData, accessToken: string) {

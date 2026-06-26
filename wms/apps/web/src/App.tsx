@@ -5,6 +5,7 @@ import { DashboardDataPanel } from './components/DashboardDataPanel';
 import { ImportPanel } from './components/imports/ImportPanel';
 import { ModuleBoard } from './components/ModuleBoard';
 import { UserBar } from './components/UserBar';
+import { WarehouseOpsPanel } from './components/warehouse/WarehouseOpsPanel';
 import { fetchMe, type AuthSession } from './lib/api';
 import { mvpModules } from './lib/modules';
 import { clearStoredSession, loadStoredSession, storeSession } from './lib/session';
@@ -107,6 +108,8 @@ export function App() {
       </section>
 
       <ImportPanel session={session} />
+
+      <WarehouseOpsPanel session={session} />
 
       <DashboardDataPanel session={session} />
 

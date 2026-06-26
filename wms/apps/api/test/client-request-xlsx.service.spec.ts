@@ -173,6 +173,65 @@ describe('ClientRequestXlsxService', () => {
     });
   });
 
+  it('учитывает размер одежды при сопоставлении SKU по наименованию', async () => {
+    const prisma = {
+      barcode: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      sku: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: 'sku-s',
+            internalSku: 'Костюм_реглан_синий',
+            clientSku: null,
+            article: null,
+            name: 'Костюм реглан синий',
+            size: 'S',
+            needsRelabel: false,
+          },
+          {
+            id: 'sku-l',
+            internalSku: 'Костюм_реглан_синий',
+            clientSku: null,
+            article: null,
+            name: 'Костюм реглан синий',
+            size: 'L',
+            needsRelabel: false,
+          },
+        ]),
+      },
+    };
+    const previewAvailability = vi.fn().mockResolvedValue({
+      lines: [availabilityLine({ index: 0, skuId: 'sku-l', requestedQuantity: 4, stockQuantity: 8, availableQuantity: 8 })],
+    });
+    const service = new ClientRequestXlsxService(
+      prisma as never,
+      new ClientScopeService(),
+      {
+        create: vi.fn(),
+        previewAvailability,
+      } as never,
+    );
+
+    const preview = await service.previewOutboundRequest(
+      fileFixture([
+        ['Наименование товара', 'Размер', 'Количество'],
+        ['Костюм_реглан_синий', 'L', 4],
+      ]),
+      { clientId: 'client-1', title: 'Excel сборка' },
+      user({ writableClientIds: ['client-1'], clientIds: ['client-1'] }),
+    );
+
+    expect(preview.issues).toEqual([]);
+    expect(preview.lines[0]).toMatchObject({ skuId: 'sku-l', size: 'L', requestedQuantity: 4 });
+    expect(previewAvailability).toHaveBeenCalledWith(
+      expect.objectContaining({
+        items: [expect.objectContaining({ skuId: 'sku-l', quantity: 4 })],
+      }),
+      expect.anything(),
+    );
+  });
+
   it('проверяет, что баркод и наименование относятся к одному SKU', async () => {
     const prisma = {
       barcode: {

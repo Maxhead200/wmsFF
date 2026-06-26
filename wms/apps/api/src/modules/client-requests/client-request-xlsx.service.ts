@@ -54,6 +54,7 @@ type ResolvedSku = {
   clientSku?: string | null;
   article?: string | null;
   name: string;
+  size?: string | null;
   needsRelabel: boolean;
 };
 
@@ -145,6 +146,7 @@ export class ClientRequestXlsxService {
                 id: true,
                 internalSku: true,
                 name: true,
+                size: true,
                 needsRelabel: true,
               },
             },
@@ -168,6 +170,7 @@ export class ClientRequestXlsxService {
             clientSku: true,
             article: true,
             name: true,
+            size: true,
             needsRelabel: true,
           },
         })
@@ -308,17 +311,33 @@ export class ClientRequestXlsxService {
       }
 
       const skuByBarcode = uniqueMatches[0];
+      if (line.size && !sizesMatch(skuByBarcode.size, line.size)) {
+        return {
+          line,
+          match: null,
+          issueMessage: 'Размер в файле не совпадает с размером SKU по баркоду.',
+        };
+      }
+
       const productName = normalizeText(line.name || line.artSeller);
       if (productName) {
-        const matchesByName = skuMatches.get(normalizeLookupKey(productName)) ?? [];
+        const matchesByName = filterSkusBySize(skuMatches.get(normalizeLookupKey(productName)) ?? [], line.size);
         if (matchesByName.length === 0) {
-          return { line, match: null, issueMessage: 'Баркод найден, но наименование товара не найдено в SKU клиента.' };
+          return {
+            line,
+            match: null,
+            issueMessage: line.size
+              ? 'Баркод найден, но наименование и размер не найдены в SKU клиента.'
+              : 'Баркод найден, но наименование товара не найдено в SKU клиента.',
+          };
         }
         if (!matchesByName.some((sku) => sku.id === skuByBarcode.id)) {
           return {
             line,
             match: null,
-            issueMessage: 'Баркод и наименование товара относятся к разным SKU клиента.',
+            issueMessage: line.size
+              ? 'Баркод, наименование и размер относятся к разным SKU клиента.'
+              : 'Баркод и наименование товара относятся к разным SKU клиента.',
           };
         }
       }
@@ -331,9 +350,17 @@ export class ClientRequestXlsxService {
       return { line, match: null, issueMessage: 'Не заполнен товар или баркод.' };
     }
 
-    const matches = skuMatches.get(normalizeLookupKey(productName)) ?? [];
+    const allMatches = skuMatches.get(normalizeLookupKey(productName)) ?? [];
+    const matches = filterSkusBySize(allMatches, line.size);
     if (matches.length === 0) {
-      return { line, match: null, issueMessage: 'Наименование товара не найдено в SKU клиента.' };
+      return {
+        line,
+        match: null,
+        issueMessage:
+          allMatches.length > 0 && line.size
+            ? 'Наименование найдено, но размер не совпал ни с одним SKU клиента.'
+            : 'Наименование товара не найдено в SKU клиента.',
+      };
     }
 
     return matches.length === 1
@@ -455,6 +482,26 @@ function uniqueSkus(skus: ResolvedSku[]) {
   const byId = new Map<string, ResolvedSku>();
   skus.forEach((sku) => byId.set(sku.id, sku));
   return [...byId.values()];
+}
+
+function filterSkusBySize(skus: ResolvedSku[], size?: string) {
+  if (!size) {
+    return skus;
+  }
+
+  return skus.filter((sku) => sizesMatch(sku.size, size));
+}
+
+function sizesMatch(skuSize?: string | null, requestedSize?: string | null) {
+  const left = normalizeSize(skuSize);
+  const right = normalizeSize(requestedSize);
+  return !right || Boolean(left && left === right);
+}
+
+function normalizeSize(value?: string | null) {
+  const raw = normalizeText(value)?.toUpperCase().replace(/М/g, 'M').replace(/Х/g, 'X') ?? '';
+  const match = raw.match(/\(([^)]+)\)/);
+  return (match?.[1] ?? raw).replace(/\s+/g, '');
 }
 
 function normalizeLookupKey(value?: string | null) {

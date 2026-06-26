@@ -52,6 +52,7 @@ export function parseOutboundRequestXlsxRows(rows: SheetMatrix) {
     const barcode = columns.barcodeColumn >= 0 ? normalizeBarcode(row[columns.barcodeColumn]) : '';
     const artSeller = columns.articleColumn >= 0 ? text(row[columns.articleColumn]) : '';
     const name = columns.nameColumn >= 0 ? text(row[columns.nameColumn]) : '';
+    const size = columns.sizeColumn >= 0 ? normalizeSize(row[columns.sizeColumn]) : '';
     const quantity = numberValue(row[columns.quantityColumn]);
 
     if (!barcode && !name && !artSeller) {
@@ -69,7 +70,7 @@ export function parseOutboundRequestXlsxRows(rows: SheetMatrix) {
       return;
     }
 
-    const key = [barcode, name, artSeller].join('\u0001');
+    const key = [barcode, name, artSeller, size].join('\u0001');
     const existing = lineByBarcode.get(key);
     if (existing) {
       existing.quantity += quantity;
@@ -81,6 +82,7 @@ export function parseOutboundRequestXlsxRows(rows: SheetMatrix) {
       ...(barcode ? { barcode } : {}),
       ...(name ? { name } : {}),
       ...(artSeller ? { artSeller } : {}),
+      ...(size ? { size } : {}),
       quantity,
       sourceRows: [sourceRow],
     });
@@ -119,15 +121,12 @@ function detectColumns(row: SheetCell[]) {
   const nameColumn = findColumn(row, (value) => isNameHeader(value) && !isBarcodeHeader(value) && !isArticleHeader(value));
   const sizeColumn = findColumn(row, isSizeHeader);
   const productColumn = articleColumn !== -1 ? articleColumn : nameColumn;
+  const cityStartColumn = Math.max(barcodeColumn, productColumn, sizeColumn);
   const cityColumns =
-    barcodeColumn !== -1 && articleColumn !== -1 && sizeColumn !== -1
+    productColumn !== -1 && quantityColumn === -1
       ? row
           .map((cell, index) => ({ title: text(cell), index }))
-          .filter((column) => column.index > Math.max(barcodeColumn, articleColumn, sizeColumn) && column.title)
-      : productColumn !== -1 && quantityColumn === -1
-        ? row
-            .map((cell, index) => ({ title: text(cell), index }))
-            .filter((column) => column.index > productColumn && column.title)
+          .filter((column) => column.index > cityStartColumn && column.title)
       : [];
 
   if ((barcodeColumn !== -1 || productColumn !== -1) && quantityColumn !== -1) {

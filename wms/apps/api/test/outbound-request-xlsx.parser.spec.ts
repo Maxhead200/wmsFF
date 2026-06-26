@@ -93,14 +93,15 @@ describe('parseOutboundRequestXlsxRows', () => {
 
   it('читает файл с наименованием товара и общей колонкой количества', () => {
     const parsed = parseOutboundRequestXlsxRows([
-      ['Наименование товара', 'Количество'],
-      ['Костюм_реглан_синий', 4],
+      ['Наименование товара', 'Размер', 'Количество'],
+      ['Костюм_реглан_синий', 'L', 4],
     ]);
 
     expect(parsed.issues).toEqual([]);
     expect(parsed.lines).toEqual([
       {
         name: 'Костюм_реглан_синий',
+        size: 'L',
         quantity: 4,
         sourceRows: [2],
       },

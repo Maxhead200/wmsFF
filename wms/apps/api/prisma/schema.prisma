@@ -209,6 +209,7 @@ model User {
   createdBillingPayments BillingPayment[] @relation("BillingPaymentCreatedBy")
   createdDeliveries       LogisticsDeliveryRequest[] @relation("LogisticsDeliveryCreatedBy")
   uploadedRequestFiles   ClientRequestFile[] @relation("ClientRequestFileUploadedBy")
+  createdRequestPackages ClientRequestPackage[] @relation("ClientRequestPackageCreatedBy")
   createdNotifications   ClientNotification[] @relation("ClientNotificationCreatedBy")
   updatedNotificationPreferences ClientNotificationPreference[] @relation("ClientNotificationPreferenceUpdatedBy")
   authoredRequestComments ClientRequestComment[] @relation("ClientRequestCommentAuthor")
@@ -286,6 +287,7 @@ model Client {
   billingPayments BillingPayment[]
   deliveryRequests LogisticsDeliveryRequest[]
   requestFiles    ClientRequestFile[]
+  requestPackages ClientRequestPackage[]
   notifications   ClientNotification[]
   notificationPreferences ClientNotificationPreference[]
   requestComments ClientRequestComment[]
@@ -340,6 +342,7 @@ model Sku {
   movements          StockMovement[]
   balances           StockBalance[]
   clientRequestItems ClientRequestItem[]
+  packageItems       ClientRequestPackageItem[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
@@ -448,6 +451,7 @@ model ClientRequest {
   notifications    ClientNotification[]
   comments         ClientRequestComment[]
   events           ClientRequestEvent[]
+  packages         ClientRequestPackage[]
   billingCharges   BillingCharge[]
   deliveryRequests LogisticsDeliveryRequest[]
   createdAt        DateTime              @default(now())
@@ -469,8 +473,49 @@ model ClientRequestItem {
   comment   String?
   request   ClientRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
   sku       Sku?          @relation(fields: [skuId], references: [id])
+  packageItems ClientRequestPackageItem[]
 
   @@index([requestId])
+  @@index([skuId])
+}
+
+model ClientRequestPackage {
+  id              String                     @id @default(uuid())
+  requestId       String
+  clientId        String
+  packageCode     String
+  packageType     String?
+  weightGrams     Int?
+  lengthCm        Decimal?                   @db.Decimal(10, 2)
+  widthCm         Decimal?                   @db.Decimal(10, 2)
+  heightCm        Decimal?                   @db.Decimal(10, 2)
+  comment         String?
+  createdByUserId String?
+  request         ClientRequest              @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  client          Client                     @relation(fields: [clientId], references: [id])
+  createdBy       User?                      @relation("ClientRequestPackageCreatedBy", fields: [createdByUserId], references: [id])
+  items           ClientRequestPackageItem[]
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+
+  @@unique([requestId, packageCode])
+  @@index([clientId, createdAt])
+  @@index([createdByUserId])
+}
+
+model ClientRequestPackageItem {
+  id            String               @id @default(uuid())
+  packageId     String
+  requestItemId String
+  skuId         String?
+  barcode       String?
+  quantity      Int
+  package       ClientRequestPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  requestItem   ClientRequestItem    @relation(fields: [requestItemId], references: [id], onDelete: Cascade)
+  sku           Sku?                 @relation(fields: [skuId], references: [id])
+
+  @@index([packageId])
+  @@index([requestItemId])
   @@index([skuId])
 }
 

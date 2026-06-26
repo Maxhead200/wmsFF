@@ -184,6 +184,11 @@
   min-width: 900px;
 }
 
+.request-package-summary {
+  color: #0369a1;
+  font-weight: 800;
+}
+
 .client-request-status-select {
   display: flex;
   align-items: center;

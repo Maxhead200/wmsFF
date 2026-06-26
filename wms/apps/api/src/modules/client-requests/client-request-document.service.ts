@@ -3,6 +3,7 @@ import { ClientRequestPriority, ClientRequestStatus, ClientRequestType, Prisma }
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
+import { clientRequestPackageInclude } from './client-request-packages.include';
 
 @Injectable()
 export class ClientRequestDocumentService {
@@ -66,6 +67,24 @@ export class ClientRequestDocumentService {
         phone: request.client.phone,
       },
       rows,
+      packages: request.packages.map((packagePlace) => ({
+        id: packagePlace.id,
+        packageCode: packagePlace.packageCode,
+        packageType: packagePlace.packageType,
+        weightGrams: packagePlace.weightGrams,
+        lengthCm: packagePlace.lengthCm == null ? null : Number(packagePlace.lengthCm),
+        widthCm: packagePlace.widthCm == null ? null : Number(packagePlace.widthCm),
+        heightCm: packagePlace.heightCm == null ? null : Number(packagePlace.heightCm),
+        comment: packagePlace.comment,
+        items: packagePlace.items.map((item) => ({
+          requestItemId: item.requestItemId,
+          skuId: item.skuId,
+          internalSku: item.sku?.internalSku ?? item.requestItem.sku?.internalSku ?? null,
+          name: item.requestItem.name ?? item.sku?.name ?? item.requestItem.sku?.name ?? null,
+          barcode: item.barcode ?? item.requestItem.barcode,
+          quantity: item.quantity,
+        })),
+      })),
       createdBy: request.createdBy
         ? {
             id: request.createdBy.id,
@@ -131,6 +150,24 @@ type ClientRequestDocumentPayload = {
     quantity: number;
     comment: string | null;
   }>;
+  packages: Array<{
+    id: string;
+    packageCode: string;
+    packageType: string | null;
+    weightGrams: number | null;
+    lengthCm: number | null;
+    widthCm: number | null;
+    heightCm: number | null;
+    comment: string | null;
+    items: Array<{
+      requestItemId: string;
+      skuId: string | null;
+      internalSku: string | null;
+      name: string | null;
+      barcode: string | null;
+      quantity: number;
+    }>;
+  }>;
   createdBy: {
     id: string;
     email: string;
@@ -185,6 +222,12 @@ const requestDocumentInclude = {
     },
     orderBy: {
       id: 'asc',
+    },
+  },
+  packages: {
+    include: clientRequestPackageInclude,
+    orderBy: {
+      createdAt: 'asc',
     },
   },
 } satisfies Prisma.ClientRequestInclude;
@@ -271,8 +314,50 @@ function renderRequestHtml(document: ClientRequestDocumentPayload) {
     </tbody>
   </table>
   <p class="right total">Позиций: ${formatNumber(document.rowsCount)} · Количество: ${formatNumber(document.totalQuantity)}</p>
+  ${
+    document.packages.length
+      ? `<h2>Упаковочные места</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Место</th>
+        <th>Параметры</th>
+        <th>Состав</th>
+        <th>Комментарий</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${document.packages
+        .map(
+          (packagePlace) => `<tr>
+        <td>${escapeHtml(packagePlace.packageCode)}</td>
+        <td>${escapeHtml(packageDimensions(packagePlace))}</td>
+        <td>${escapeHtml(packageItemsSummary(packagePlace))}</td>
+        <td>${escapeHtml(packagePlace.comment ?? '-')}</td>
+      </tr>`,
+        )
+        .join('')}
+    </tbody>
+  </table>`
+      : ''
+  }
 </body>
 </html>`;
+}
+
+function packageDimensions(packagePlace: ClientRequestDocumentPayload['packages'][number]) {
+  const dimensions =
+    packagePlace.lengthCm && packagePlace.widthCm && packagePlace.heightCm
+      ? `${formatNumber(packagePlace.lengthCm)}x${formatNumber(packagePlace.widthCm)}x${formatNumber(packagePlace.heightCm)} см`
+      : null;
+  const weight = packagePlace.weightGrams ? `${formatNumber(packagePlace.weightGrams)} г` : null;
+  return [packagePlace.packageType, dimensions, weight].filter(Boolean).join(' · ') || '-';
+}
+
+function packageItemsSummary(packagePlace: ClientRequestDocumentPayload['packages'][number]) {
+  return packagePlace.items
+    .map((item) => `${item.internalSku ?? item.name ?? item.barcode ?? item.requestItemId} x ${formatNumber(item.quantity)}`)
+    .join(', ');
 }
 
 function requestTypeLabel(value: ClientRequestType) {

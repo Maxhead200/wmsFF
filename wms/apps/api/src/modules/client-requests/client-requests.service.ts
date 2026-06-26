@@ -5,6 +5,7 @@ import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
 import { isClientNotificationEnabled } from '../client-notifications/client-notification-preferences';
 import { clientRequestFileSummarySelect } from './client-request-files.service';
+import { clientRequestPackageInclude } from './client-request-packages.include';
 import { CreateClientRequestDto } from './dto/create-client-request.dto';
 import { ListClientRequestsDto } from './dto/list-client-requests.dto';
 import { UpdateClientRequestStatusDto } from './dto/update-client-request-status.dto';
@@ -211,6 +212,12 @@ const clientRequestInclude = {
     select: clientRequestFileSummarySelect,
     orderBy: {
       createdAt: 'desc',
+    },
+  },
+  packages: {
+    include: clientRequestPackageInclude,
+    orderBy: {
+      createdAt: 'asc',
     },
   },
 } satisfies Prisma.ClientRequestInclude;

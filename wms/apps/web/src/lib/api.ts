@@ -487,6 +487,49 @@ export type ClientRequestSummary = {
   } | null;
   items: ClientRequestItem[];
   files: ClientRequestFileSummary[];
+  packages: ClientRequestPackage[];
+};
+
+export type ClientRequestPackageItem = {
+  id: string;
+  packageId: string;
+  requestItemId: string;
+  skuId: string | null;
+  barcode: string | null;
+  quantity: number;
+  requestItem: Pick<ClientRequestItem, 'id' | 'barcode' | 'name' | 'quantity'> & {
+    sku: {
+      id: string;
+      internalSku: string;
+      name: string;
+    } | null;
+  };
+  sku: {
+    id: string;
+    internalSku: string;
+    name: string;
+  } | null;
+};
+
+export type ClientRequestPackage = {
+  id: string;
+  requestId: string;
+  clientId: string;
+  packageCode: string;
+  packageType: string | null;
+  weightGrams: number | null;
+  lengthCm: string | number | null;
+  widthCm: string | number | null;
+  heightCm: string | number | null;
+  comment: string | null;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+  items: ClientRequestPackageItem[];
 };
 
 export type CreateClientRequestPayload = {
@@ -704,6 +747,7 @@ export type FulfillClientRequestResult = {
       packedQuantity: number;
     }
   >;
+  packages?: ClientRequestPackage[];
   shippedLines?: Array<
     FulfillmentLineBase & {
       shippedQuantity: number;
@@ -1801,7 +1845,7 @@ export async function pickClientRequest(
 
 export async function packageClientRequest(
   accessToken: string,
-  payload: { requestId: string; idempotencyKey?: string; comment?: string },
+  payload: { requestId: string; idempotencyKey?: string; comment?: string; packages?: unknown[] },
 ) {
   return request<FulfillClientRequestResult>('/stock/fulfillment/package-request', {
     method: 'POST',

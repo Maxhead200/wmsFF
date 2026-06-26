@@ -259,6 +259,16 @@ describe('StockOperationsService', () => {
         delete: vi.fn().mockResolvedValue(undefined),
         upsert: vi.fn().mockResolvedValue({ id: 'shipping-balance' }),
       },
+      clientRequestPackage: {
+        create: vi.fn().mockResolvedValue({
+          id: 'package-1',
+          requestId: 'request-1',
+          clientId: 'client-1',
+          packageCode: 'PKG-request--1',
+          items: [],
+        }),
+        findMany: vi.fn().mockResolvedValue([]),
+      },
     };
     const packService = new StockOperationsService(
       { $transaction: (callback: (tx: typeof tx) => unknown) => callback(tx) } as never,
@@ -283,6 +293,11 @@ describe('StockOperationsService', () => {
           skuId: 'sku-1',
           requestedQuantity: 2,
           packedQuantity: 2,
+        },
+      ],
+      packages: [
+        {
+          packageCode: 'PKG-request--1',
         },
       ],
     });
@@ -321,6 +336,124 @@ describe('StockOperationsService', () => {
         data: expect.objectContaining({
           status: 'PACKED',
           assignedToUserId: 'user-1',
+        }),
+      }),
+    );
+    expect(tx.clientRequestPackage.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          requestId: 'request-1',
+          clientId: 'client-1',
+          packageCode: 'PKG-request--1',
+          packageType: 'BOX',
+          createdByUserId: 'user-1',
+          items: {
+            create: [
+              expect.objectContaining({
+                requestItemId: 'item-1',
+                skuId: 'sku-1',
+                quantity: 2,
+              }),
+            ],
+          },
+        }),
+      }),
+    );
+  });
+
+  it('проверяет ручную детализацию упаковочных мест по количеству заявки', async () => {
+    const tx = {
+      stockMovement: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue(undefined),
+      },
+      clientRequest: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'request-1',
+          clientId: 'client-1',
+          type: 'OUTBOUND',
+          status: 'IN_WORK',
+          title: 'Отгрузка',
+          items: [{ id: 'item-1', skuId: 'sku-1', barcode: null, quantity: 3 }],
+        }),
+        update: vi.fn().mockResolvedValue(undefined),
+      },
+      sku: {
+        findFirst: vi.fn().mockResolvedValue({ id: 'sku-1', internalSku: 'SKU-1' }),
+      },
+      stockBalance: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: 'packing-balance',
+            balanceKey: 'client-1:sku-1:box-1:PACKING',
+            clientId: 'client-1',
+            skuId: 'sku-1',
+            boxId: 'box-1',
+            palletId: null,
+            status: 'PACKING',
+            quantity: 3,
+          },
+        ]),
+        update: vi.fn().mockResolvedValue({ id: 'packing-balance', quantity: 0 }),
+        delete: vi.fn().mockResolvedValue(undefined),
+        upsert: vi.fn().mockResolvedValue({ id: 'shipping-balance' }),
+      },
+      clientRequestPackage: {
+        create: vi.fn().mockResolvedValue({
+          id: 'package-1',
+          requestId: 'request-1',
+          clientId: 'client-1',
+          packageCode: 'PLACE-1',
+          items: [],
+        }),
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+    };
+    const packService = new StockOperationsService(
+      { $transaction: (callback: (tx: typeof tx) => unknown) => callback(tx) } as never,
+      { requireClientAccess: vi.fn() } as never,
+      { balanceKey: vi.fn().mockReturnValue('client-1:sku-1:box-1:SHIPPING') } as never,
+    );
+
+    await expect(
+      packService.packageClientRequest(
+        {
+          requestId: 'request-1',
+          idempotencyKey: 'pack-places',
+          packages: [
+            {
+              packageCode: 'PLACE-1',
+              packageType: 'BOX',
+              weightGrams: 1200,
+              items: [{ requestItemId: 'item-1', quantity: 2 }],
+            },
+            {
+              packageCode: 'PLACE-2',
+              packageType: 'BOX',
+              items: [{ requestItemId: 'item-1', quantity: 1 }],
+            },
+          ],
+        },
+        user(),
+      ),
+    ).resolves.toMatchObject({
+      status: 'APPLIED',
+    });
+
+    expect(tx.clientRequestPackage.create).toHaveBeenCalledTimes(2);
+    expect(tx.clientRequestPackage.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          packageCode: 'PLACE-1',
+          weightGrams: 1200,
+          items: {
+            create: [
+              expect.objectContaining({
+                requestItemId: 'item-1',
+                quantity: 2,
+              }),
+            ],
+          },
         }),
       }),
     );

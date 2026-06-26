@@ -10,6 +10,7 @@ import {
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
+import { clientRequestPackageInclude } from '../client-requests/client-request-packages.include';
 import { FulfillClientRequestDto } from './dto/fulfill-client-request.dto';
 import { PickClientRequestDto } from './dto/pick-client-request.dto';
 import { TransferBetweenBoxesDto } from './dto/transfer-between-boxes.dto';
@@ -49,8 +50,25 @@ type RequestAllocationPlan = {
   lines: Array<{
     itemId: string;
     skuId: string;
+    barcode: string | null;
     requestedQuantity: number;
     allocations: Array<{ balance: StockBalance; quantity: number }>;
+  }>;
+};
+
+type RequestPackageInput = {
+  packageCode: string;
+  packageType?: string;
+  weightGrams?: number;
+  lengthCm?: number;
+  widthCm?: number;
+  heightCm?: number;
+  comment?: string;
+  items: Array<{
+    requestItemId: string;
+    skuId: string;
+    barcode: string | null;
+    quantity: number;
   }>;
 };
 
@@ -155,10 +173,12 @@ export class StockOperationsService {
       });
 
       if (existingMovement) {
+        const packages = await this.listRequestPackages(tx, dto.requestId);
         return {
           idempotencyKey: baseKey,
           status: 'ALREADY_APPLIED',
           requestId: dto.requestId,
+          packages,
         };
       }
 
@@ -300,6 +320,13 @@ export class StockOperationsService {
         targetComment: dto.comment ?? `Передано в отгрузку по заявке ${request.title}`,
       });
 
+      const packages = await this.createRequestPackages(tx, {
+        request,
+        plan,
+        dto,
+        user,
+      });
+
       await tx.clientRequest.update({
         where: { id: request.id },
         data: {
@@ -315,6 +342,7 @@ export class StockOperationsService {
         requestId: request.id,
         clientId: request.clientId,
         packedLines: this.formatFulfillmentLines(plan, 'packedQuantity'),
+        packages,
       };
     });
   }
@@ -591,6 +619,7 @@ export class StockOperationsService {
       lines.push({
         itemId: item.id,
         skuId: sku.id,
+        barcode: item.barcode,
         requestedQuantity: item.quantity,
         allocations,
       });
@@ -639,6 +668,128 @@ export class StockOperationsService {
     if (request.items.length === 0) {
       throw new BadRequestException('В заявке нет товарных позиций для складской операции.');
     }
+  }
+
+  private listRequestPackages(tx: Prisma.TransactionClient, requestId: string) {
+    return tx.clientRequestPackage.findMany({
+      where: { requestId },
+      include: clientRequestPackageInclude,
+      orderBy: [{ createdAt: 'asc' }],
+    });
+  }
+
+  private async createRequestPackages(
+    tx: Prisma.TransactionClient,
+    input: {
+      request: { id: string; clientId: string };
+      plan: RequestAllocationPlan;
+      dto: FulfillClientRequestDto;
+      user: AuthUser;
+    },
+  ) {
+    const packages = this.buildPackageInputs(input.request.id, input.plan, input.dto);
+    const createdPackages = [];
+
+    for (const packageInput of packages) {
+      createdPackages.push(
+        await tx.clientRequestPackage.create({
+          data: {
+            requestId: input.request.id,
+            clientId: input.request.clientId,
+            packageCode: packageInput.packageCode,
+            packageType: packageInput.packageType,
+            weightGrams: packageInput.weightGrams,
+            lengthCm: packageInput.lengthCm,
+            widthCm: packageInput.widthCm,
+            heightCm: packageInput.heightCm,
+            comment: packageInput.comment,
+            createdByUserId: input.user.id,
+            items: {
+              create: packageInput.items.map((item) => ({
+                requestItemId: item.requestItemId,
+                skuId: item.skuId,
+                barcode: item.barcode,
+                quantity: item.quantity,
+              })),
+            },
+          },
+          include: clientRequestPackageInclude,
+        }),
+      );
+    }
+
+    return createdPackages;
+  }
+
+  private buildPackageInputs(
+    requestId: string,
+    plan: RequestAllocationPlan,
+    dto: FulfillClientRequestDto,
+  ): RequestPackageInput[] {
+    const lineByItemId = new Map(plan.lines.map((line) => [line.itemId, line]));
+
+    if (!dto.packages?.length) {
+      return [
+        {
+          packageCode: `PKG-${requestId.slice(0, 8)}-1`,
+          packageType: 'BOX',
+          comment: dto.comment?.trim() || undefined,
+          items: plan.lines.map((line) => ({
+            requestItemId: line.itemId,
+            skuId: line.skuId,
+            barcode: line.barcode,
+            quantity: line.requestedQuantity,
+          })),
+        },
+      ];
+    }
+
+    const seenCodes = new Set<string>();
+    const totalsByItemId = new Map<string, number>();
+    const packages = dto.packages.map((packageDto, index) => {
+      const packageCode = packageDto.packageCode?.trim() || `PKG-${requestId.slice(0, 8)}-${index + 1}`;
+      if (seenCodes.has(packageCode)) {
+        throw new BadRequestException(`Упаковочное место ${packageCode} указано повторно.`);
+      }
+      seenCodes.add(packageCode);
+
+      if (!packageDto.items?.length) {
+        throw new BadRequestException(`В упаковочном месте ${packageCode} нет товарных строк.`);
+      }
+
+      return {
+        packageCode,
+        packageType: packageDto.packageType?.trim() || undefined,
+        weightGrams: packageDto.weightGrams,
+        lengthCm: packageDto.lengthCm,
+        widthCm: packageDto.widthCm,
+        heightCm: packageDto.heightCm,
+        comment: packageDto.comment?.trim() || undefined,
+        items: packageDto.items.map((item) => {
+          const line = lineByItemId.get(item.requestItemId);
+          if (!line) {
+            throw new BadRequestException(`Позиция ${item.requestItemId} не найдена в заявке.`);
+          }
+
+          totalsByItemId.set(item.requestItemId, (totalsByItemId.get(item.requestItemId) ?? 0) + item.quantity);
+
+          return {
+            requestItemId: item.requestItemId,
+            skuId: line.skuId,
+            barcode: line.barcode,
+            quantity: item.quantity,
+          };
+        }),
+      };
+    });
+
+    for (const line of plan.lines) {
+      if ((totalsByItemId.get(line.itemId) ?? 0) !== line.requestedQuantity) {
+        throw new BadRequestException('Состав упаковочных мест должен совпадать с количеством в заявке.');
+      }
+    }
+
+    return packages;
   }
 
   private async applyStatusMove(

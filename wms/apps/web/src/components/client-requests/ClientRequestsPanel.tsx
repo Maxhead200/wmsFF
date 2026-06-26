@@ -117,14 +117,16 @@ export function ClientRequestsPanel({ session }: ClientRequestsPanelProps) {
     setError(null);
 
     try {
-      await packageClientRequest(session.accessToken, {
+      const result = await packageClientRequest(session.accessToken, {
         requestId: request.id,
         idempotencyKey: `web-pack:${request.id}`,
         comment: 'Упаковка выполнена из web-интерфейса.',
       });
       setRequests((current) => ({
         ...current,
-        data: current.data.map((item) => (item.id === request.id ? { ...item, status: 'PACKED' } : item)),
+        data: current.data.map((item) =>
+          item.id === request.id ? { ...item, status: 'PACKED', packages: result.packages ?? item.packages } : item,
+        ),
       }));
     } catch (caught) {
       setError(errorMessage(caught));

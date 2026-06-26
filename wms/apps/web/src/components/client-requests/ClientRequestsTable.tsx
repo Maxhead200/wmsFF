@@ -65,6 +65,9 @@ export function ClientRequestsTable({
               </td>
               <td>
                 <span>{itemsSummary(request)}</span>
+                {request.packages.length ? (
+                  <span className="request-package-summary">{packagesSummary(request)}</span>
+                ) : null}
                 {onOpenDocument ? (
                   <button
                     className="document-open-button"
@@ -179,6 +182,15 @@ function itemsSummary(request: ClientRequestSummary) {
       return `${itemName} x ${item.quantity}`;
     })
     .join(', ');
+}
+
+function packagesSummary(request: ClientRequestSummary) {
+  const totalQuantity = request.packages.reduce(
+    (sum, packagePlace) => sum + packagePlace.items.reduce((itemSum, item) => itemSum + item.quantity, 0),
+    0,
+  );
+  const codes = request.packages.map((packagePlace) => packagePlace.packageCode).join(', ');
+  return `Места: ${codes} · ${totalQuantity} шт.`;
 }
 
 function formatDate(value: string | null) {

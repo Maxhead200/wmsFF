@@ -23,8 +23,10 @@ describe('ClientRequestDocumentService', () => {
     expect(document.statusLabel).toBe('Упакована');
     expect(document.rows).toHaveLength(2);
     expect(document.totalQuantity).toBe(7);
+    expect(document.packages).toHaveLength(1);
     expect(document.html).toContain('Заявка Отгрузка &quot;WB&quot;');
     expect(document.html).toContain('SKU-1');
+    expect(document.html).toContain('PKG-1');
     expect(document.html).not.toContain('<script>');
   });
 
@@ -103,6 +105,52 @@ function requestFixture() {
         quantity: 4,
         comment: null,
         sku: null,
+      },
+    ],
+    packages: [
+      {
+        id: 'package-1',
+        requestId: 'request-1',
+        clientId: 'client-1',
+        packageCode: 'PKG-1',
+        packageType: 'BOX',
+        weightGrams: 1200,
+        lengthCm: 40,
+        widthCm: 30,
+        heightCm: 20,
+        comment: 'Основное место',
+        createdByUserId: 'user-operator',
+        createdBy: {
+          id: 'user-operator',
+          email: 'operator@example.com',
+          name: 'Оператор',
+        },
+        items: [
+          {
+            id: 'package-item-1',
+            packageId: 'package-1',
+            requestItemId: 'item-1',
+            skuId: 'sku-1',
+            barcode: '4600001',
+            quantity: 3,
+            requestItem: {
+              id: 'item-1',
+              barcode: '4600001',
+              name: null,
+              quantity: 3,
+              sku: {
+                id: 'sku-1',
+                internalSku: 'SKU-1',
+                name: 'Товар 1',
+              },
+            },
+            sku: {
+              id: 'sku-1',
+              internalSku: 'SKU-1',
+              name: 'Товар 1',
+            },
+          },
+        ],
       },
     ],
   };

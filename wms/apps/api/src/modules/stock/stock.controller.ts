@@ -70,6 +70,21 @@ export class StockController {
     return this.waveDocuments.getWaveDocument(id, user);
   }
 
+  @Get('fulfillment/waves/:id/document.xlsx')
+  @RequirePermissions('stock:write')
+  async downloadPickWaveDocumentXlsx(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthUser,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const file = await this.waveDocuments.getWaveDocumentXlsx(id, user);
+    response.setHeader('Content-Type', file.mimeType);
+    response.setHeader('Content-Length', String(file.content.length));
+    response.setHeader('Content-Disposition', contentDisposition(file.fileName));
+
+    return new StreamableFile(file.content);
+  }
+
   @Get('fulfillment/requests/:id/instruction')
   @RequirePermissions('stock:write')
   getPickInstruction(@Param('id') id: string, @CurrentUser() user: AuthUser) {

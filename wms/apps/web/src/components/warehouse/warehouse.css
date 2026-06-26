@@ -228,6 +228,12 @@
   gap: 6px;
 }
 
+.review-action--xlsx {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
 @media (max-width: 980px) {
   .warehouse-fields,
   .transfer-preview,

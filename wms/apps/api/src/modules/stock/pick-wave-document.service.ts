@@ -1,58 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PickWaveRequestStatus, PickWaveStatus, Prisma, StockStatus } from '@prisma/client';
+import { Prisma, StockStatus, type PickWaveStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
-
-type WaveAllocation = {
-  boxId: string | null;
-  boxCode: string | null;
-  palletId: string | null;
-  palletCode: string | null;
-  quantity: number;
-  source: 'planned' | 'picked';
-};
-
-type PickWaveDocumentRow = {
-  position: number;
-  requestId: string;
-  requestTitle: string;
-  requestStatus: string;
-  waveRequestStatus: PickWaveRequestStatus;
-  clientCode: string;
-  clientName: string;
-  itemId: string;
-  skuId: string | null;
-  internalSku: string | null;
-  name: string | null;
-  barcode: string | null;
-  requestedQuantity: number;
-  pickedQuantity: number;
-  allocations: WaveAllocation[];
-};
-
-type PickWaveDocumentPayload = {
-  waveId: string;
-  waveNumber: string;
-  title: string;
-  fileName: string;
-  status: PickWaveStatus;
-  statusLabel: string;
-  comment: string | null;
-  createdAt: string;
-  updatedAt: string;
-  generatedAt: string;
-  createdBy: {
-    id: string;
-    email: string;
-    name: string;
-  } | null;
-  requestsCount: number;
-  rowsCount: number;
-  totalRequested: number;
-  totalPicked: number;
-  rows: PickWaveDocumentRow[];
-};
+import type { PickWaveDocumentPayload, PickWaveDocumentRow, WaveAllocation } from './pick-wave-document.types';
+import { buildPickWaveWorkbook, pickWaveXlsxMimeType } from './pick-wave-document-xlsx';
 
 type ResultLine = {
   itemId: string;
@@ -161,6 +113,16 @@ export class PickWaveDocumentService {
     return {
       ...payload,
       html: renderWaveHtml(payload),
+    };
+  }
+
+  async getWaveDocumentXlsx(waveId: string, user: AuthUser) {
+    const document = await this.getWaveDocument(waveId, user);
+
+    return {
+      fileName: document.fileName.replace(/\.html$/i, '.xlsx'),
+      mimeType: pickWaveXlsxMimeType(),
+      content: buildPickWaveWorkbook(document),
     };
   }
 

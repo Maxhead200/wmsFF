@@ -1,7 +1,8 @@
-import { Boxes, FileText, Play, RefreshCw } from 'lucide-react';
+import { Boxes, FileDown, FileText, Play, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
   createPickWave,
+  downloadPickWaveDocumentXlsx,
   fetchClientRequests,
   fetchPickWaveDocument,
   fetchPickWaves,
@@ -34,6 +35,7 @@ export function PickWavePanel({ session }: PickWavePanelProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [isSubmitting, setSubmitting] = useState(false);
   const [isLoadingDocumentId, setLoadingDocumentId] = useState('');
+  const [isDownloadingXlsxId, setDownloadingXlsxId] = useState('');
   const [documentPreview, setDocumentPreview] = useState<PickWaveDocument | null>(null);
 
   const eligibleRequests = useMemo(
@@ -117,6 +119,19 @@ export function PickWavePanel({ session }: PickWavePanelProps) {
       setMessage(errorMessage(caught));
     } finally {
       setLoadingDocumentId('');
+    }
+  }
+
+  async function downloadWaveDocument(wave: PickWaveSummary) {
+    setDownloadingXlsxId(wave.id);
+    setMessage(null);
+    try {
+      const blob = await downloadPickWaveDocumentXlsx(session.accessToken, wave.id);
+      downloadBlob(blob, `pick-wave-${safeDownloadName(wave.waveNumber)}.xlsx`);
+    } catch (caught) {
+      setMessage(errorMessage(caught));
+    } finally {
+      setDownloadingXlsxId('');
     }
   }
 
@@ -204,6 +219,15 @@ export function PickWavePanel({ session }: PickWavePanelProps) {
                       <FileText size={14} aria-hidden="true" />
                       <span>{isLoadingDocumentId === wave.id ? 'Готовлю' : 'Лист'}</span>
                     </button>
+                    <button
+                      className="review-action review-action--xlsx"
+                      type="button"
+                      onClick={() => void downloadWaveDocument(wave)}
+                      disabled={isDownloadingXlsxId === wave.id}
+                    >
+                      <FileDown size={14} aria-hidden="true" />
+                      <span>{isDownloadingXlsxId === wave.id ? 'Готовлю' : 'Excel'}</span>
+                    </button>
                     {canRunWave(wave) ? (
                       <button
                         className="review-action review-action--accept"
@@ -272,6 +296,21 @@ function waveStatusTone(status: PickWaveSummary['status']) {
     return 'planned';
   }
   return 'in-progress';
+}
+
+function downloadBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function safeDownloadName(value: string) {
+  return value.replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^_+|_+$/g, '') || 'wave';
 }
 
 function errorMessage(caught: unknown) {

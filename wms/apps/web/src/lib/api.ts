@@ -2121,6 +2121,10 @@ export async function fetchPickWaveDocument(accessToken: string, waveId: string)
   });
 }
 
+export async function downloadPickWaveDocumentXlsx(accessToken: string, waveId: string) {
+  return requestBlob(`/stock/fulfillment/waves/${waveId}/document.xlsx`, accessToken);
+}
+
 export async function fetchPickInstruction(accessToken: string, requestId: string) {
   return request<PickInstructionDocument>(`/stock/fulfillment/requests/${requestId}/instruction`, {
     accessToken,

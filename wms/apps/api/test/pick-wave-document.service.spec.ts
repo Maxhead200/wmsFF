@@ -1,5 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import { ClientRequestStatus, PickWaveRequestStatus, PickWaveStatus, StockStatus } from '@prisma/client';
+import * as XLSX from 'xlsx';
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthUser } from '../src/modules/auth/auth.types';
 import { PickWaveDocumentService } from '../src/modules/stock/pick-wave-document.service';
@@ -104,6 +105,49 @@ describe('PickWaveDocumentService', () => {
       }),
     ]);
     expect(document.html).toContain('BOX-DONE / PAL-DONE');
+  });
+
+  it('экспортирует лист волны в XLSX', async () => {
+    const prisma = {
+      pickWave: {
+        findUnique: vi.fn().mockResolvedValue(waveFixture()),
+      },
+      stockBalance: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: 'balance-1',
+            clientId: 'client-1',
+            skuId: 'sku-1',
+            boxId: 'box-1',
+            palletId: 'pallet-1',
+            status: StockStatus.AVAILABLE,
+            quantity: 5,
+            updatedAt: new Date('2026-06-26T09:00:00.000Z'),
+            box: { id: 'box-1', code: 'BOX-A1' },
+            pallet: { id: 'pallet-1', code: 'PAL-01' },
+          },
+        ]),
+      },
+      box: {
+        findMany: vi.fn(),
+      },
+      pallet: {
+        findMany: vi.fn(),
+      },
+    };
+    const service = new PickWaveDocumentService(prisma as never, { requireClientAccess: vi.fn() } as never);
+
+    const file = await service.getWaveDocumentXlsx('wave-1', user());
+    const workbook = XLSX.read(file.content, { type: 'buffer' });
+
+    expect(file.fileName).toBe('pick-wave-WAVE-1.xlsx');
+    expect(file.mimeType).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    expect(workbook.SheetNames).toEqual(['Сводка', 'Маршрут', 'Короба', 'Проблемы']);
+    const routeRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['Маршрут'], { defval: '' });
+    const boxRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['Короба'], { defval: '' });
+
+    expect(routeRows[0]).toMatchObject({ Волна: 'WAVE-1', Заявка: 'Отгрузка', Взять: 3 });
+    expect(boxRows[0]).toMatchObject({ Короб: 'BOX-A1', Паллета: 'PAL-01', Количество: 3 });
   });
 
   it('возвращает 404 для неизвестной волны', async () => {

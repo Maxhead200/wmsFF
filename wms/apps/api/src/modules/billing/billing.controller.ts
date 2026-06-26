@@ -72,6 +72,11 @@ export class BillingController {
     return this.documents.getInvoiceDocument(id, user);
   }
 
+  @Get('invoices/:id/act')
+  getInvoiceActDocument(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.documents.getInvoiceActDocument(id, user);
+  }
+
   @Post('invoices')
   @RequirePermissions('billing:write')
   createInvoice(@Body() dto: CreateBillingInvoiceDto, @CurrentUser() user: AuthUser) {

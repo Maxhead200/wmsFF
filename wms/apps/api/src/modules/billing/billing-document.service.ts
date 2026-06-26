@@ -87,11 +87,36 @@ export class BillingDocumentService {
       html: renderInvoiceHtml(payload),
     };
   }
+
+  async getInvoiceActDocument(invoiceId: string, user: AuthUser) {
+    const invoiceDocument = await this.getInvoiceDocument(invoiceId, user);
+    const actNumber = actNumberForInvoice(invoiceDocument.number);
+    const title = `Акт оказанных услуг ${actNumber}`;
+    const fileName = `${safeFileName(actNumber)}.html`;
+
+    // Русский комментарий: акт строится из того же снимка счета, чтобы суммы и состав услуг не расходились между документами.
+    return {
+      ...invoiceDocument,
+      documentKind: 'act' as const,
+      actNumber,
+      title,
+      fileName,
+      html: renderActHtml({
+        ...invoiceDocument,
+        documentKind: 'act',
+        actNumber,
+        title,
+        fileName,
+      }),
+    };
+  }
 }
 
 type InvoiceDocumentPayload = {
   invoiceId: string;
   number: string;
+  documentKind?: 'invoice' | 'act';
+  actNumber?: string;
   title: string;
   fileName: string;
   status: BillingInvoiceStatus;
@@ -259,6 +284,90 @@ function renderInvoiceHtml(document: InvoiceDocumentPayload) {
 </html>`;
 }
 
+function renderActHtml(document: InvoiceDocumentPayload) {
+  return `<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(document.title)}</title>
+  <style>
+    body { color: #111827; font-family: Arial, sans-serif; margin: 32px; }
+    h1 { font-size: 24px; margin: 0 0 8px; }
+    h2 { font-size: 16px; margin: 24px 0 10px; }
+    .muted { color: #64748b; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 20px; }
+    .box { border: 1px solid #d7dde5; border-radius: 6px; padding: 12px; }
+    table { border-collapse: collapse; margin-top: 14px; width: 100%; }
+    th, td { border-bottom: 1px solid #d7dde5; font-size: 13px; padding: 8px; text-align: left; vertical-align: top; }
+    th { background: #f8fafc; color: #334155; text-transform: uppercase; }
+    .right { text-align: right; }
+    .total { font-size: 16px; font-weight: 700; }
+    .statement { line-height: 1.55; margin-top: 20px; }
+    .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-top: 42px; }
+    .signature-line { border-top: 1px solid #111827; margin-top: 42px; padding-top: 6px; }
+    @media print { body { margin: 16mm; } button { display: none; } }
+  </style>
+</head>
+<body>
+  <h1>${escapeHtml(document.title)}</h1>
+  <p class="muted">Основание: счет ${escapeHtml(document.number)} · период ${formatDate(document.periodFrom)} - ${formatDate(document.periodTo)}</p>
+  <div class="grid">
+    <section class="box">
+      <strong>Заказчик</strong>
+      <p>${escapeHtml(document.client.name)} (${escapeHtml(document.client.code)})</p>
+      <p>ИНН: ${escapeHtml(document.client.inn ?? '-')} · КПП: ${escapeHtml(document.client.kpp ?? '-')}</p>
+      <p>${escapeHtml(document.client.legalAddress ?? document.client.actualAddress ?? '-')}</p>
+    </section>
+    <section class="box">
+      <strong>Исполнитель</strong>
+      <p>LOGOFF Fulfillment WMS</p>
+      <p>Дата акта: ${formatDate(document.issuedAt ?? new Date().toISOString())}</p>
+      <p>Ответственный: ${escapeHtml(document.createdBy?.name ?? '-')}</p>
+    </section>
+  </div>
+  <h2>Оказанные услуги</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>№</th>
+        <th>Услуга</th>
+        <th>Дата</th>
+        <th class="right">Кол-во</th>
+        <th class="right">Цена</th>
+        <th class="right">Сумма</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${document.rows
+        .map(
+          (row) => `<tr>
+        <td>${row.position}</td>
+        <td>${escapeHtml(row.description)}</td>
+        <td>${formatDate(row.serviceDate)}</td>
+        <td class="right">${formatNumber(row.quantity)}</td>
+        <td class="right">${formatMoney(row.unitPriceRub)} руб.</td>
+        <td class="right">${formatMoney(row.totalRub)} руб.</td>
+      </tr>`,
+        )
+        .join('')}
+    </tbody>
+  </table>
+  <p class="right total">Итого оказано услуг на сумму: ${formatMoney(document.totalRub)} руб.</p>
+  <p class="statement">Услуги оказаны в полном объеме за указанный период. Стороны подтверждают состав и стоимость услуг по настоящему акту.</p>
+  <div class="signatures">
+    <section>
+      <strong>Исполнитель</strong>
+      <div class="signature-line">Подпись / расшифровка</div>
+    </section>
+    <section>
+      <strong>Заказчик</strong>
+      <div class="signature-line">Подпись / расшифровка</div>
+    </section>
+  </div>
+</body>
+</html>`;
+}
+
 function invoiceStatusLabel(status: BillingInvoiceStatus) {
   const labels: Record<BillingInvoiceStatus, string> = {
     DRAFT: 'Черновик',
@@ -296,6 +405,10 @@ function formatNumber(value: number) {
 
 function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function actNumberForInvoice(invoiceNumber: string) {
+  return invoiceNumber.startsWith('INV-') ? `ACT-${invoiceNumber.slice(4)}` : `ACT-${invoiceNumber}`;
 }
 
 function safeFileName(value: string) {

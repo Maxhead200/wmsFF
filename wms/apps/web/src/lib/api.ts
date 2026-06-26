@@ -150,6 +150,8 @@ export type BillingInvoiceSummary = {
 export type BillingInvoiceDocument = {
   invoiceId: string;
   number: string;
+  documentKind?: 'invoice' | 'act';
+  actNumber?: string;
   title: string;
   fileName: string;
   status: BillingInvoiceStatus;
@@ -1031,6 +1033,12 @@ export async function fetchBillingInvoices(
 
 export async function fetchBillingInvoiceDocument(accessToken: string, invoiceId: string) {
   return request<BillingInvoiceDocument>(`/billing/invoices/${invoiceId}/document`, {
+    accessToken,
+  });
+}
+
+export async function fetchBillingInvoiceActDocument(accessToken: string, invoiceId: string) {
+  return request<BillingInvoiceDocument>(`/billing/invoices/${invoiceId}/act`, {
     accessToken,
   });
 }

@@ -1,11 +1,11 @@
-import { FileCheck2, ReceiptText } from 'lucide-react';
+import { ClipboardCheck, FileCheck2, ReceiptText } from 'lucide-react';
 import type { BillingInvoiceStatus, BillingInvoiceSummary } from '../../lib/api';
 import { billingInvoiceStatusLabel, billingInvoiceStatusOptions, billingInvoiceStatusTone } from './billingMeta';
 
 type BillingInvoicesTableProps = {
   invoices: BillingInvoiceSummary[];
   canWrite: boolean;
-  onOpenDocument?: (invoice: BillingInvoiceSummary) => void;
+  onOpenDocument?: (invoice: BillingInvoiceSummary, kind: 'invoice' | 'act') => void;
   onStatusChange: (invoiceId: string, status: BillingInvoiceStatus) => void;
 };
 
@@ -33,7 +33,7 @@ export function BillingInvoicesTable({ invoices, canWrite, onOpenDocument, onSta
             <th>Оплачено</th>
             <th>Статус</th>
             <th>Состав</th>
-            {onOpenDocument ? <th>Документ</th> : null}
+            {onOpenDocument ? <th>Документы</th> : null}
             {canWrite ? <th>Workflow</th> : null}
           </tr>
         </thead>
@@ -75,15 +75,26 @@ export function BillingInvoicesTable({ invoices, canWrite, onOpenDocument, onSta
                 </td>
                 {onOpenDocument ? (
                   <td>
-                    <button
-                      className="document-open-button"
-                      type="button"
-                      onClick={() => onOpenDocument(invoice)}
-                      title="Открыть документ"
-                    >
-                      <ReceiptText size={15} aria-hidden="true" />
-                      <span>Счет</span>
-                    </button>
+                    <div className="billing-document-actions">
+                      <button
+                        className="document-open-button"
+                        type="button"
+                        onClick={() => onOpenDocument(invoice, 'invoice')}
+                        title="Открыть счет"
+                      >
+                        <ReceiptText size={15} aria-hidden="true" />
+                        <span>Счет</span>
+                      </button>
+                      <button
+                        className="document-open-button"
+                        type="button"
+                        onClick={() => onOpenDocument(invoice, 'act')}
+                        title="Открыть акт"
+                      >
+                        <ClipboardCheck size={15} aria-hidden="true" />
+                        <span>Акт</span>
+                      </button>
+                    </div>
                   </td>
                 ) : null}
                 {canWrite ? (

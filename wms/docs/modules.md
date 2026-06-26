@@ -49,6 +49,7 @@
 - `PATCH /api/v1/billing/charges/:id/status` - перевод начисления в черновик, утверждение или отмену.
 - `GET/POST /api/v1/billing/invoices` - счета по утвержденным начислениям клиента за период.
 - `GET /api/v1/billing/invoices/:id/document` - печатный HTML-документ счета с позициями, оплатами и проверкой client scope на чтение.
+- `GET /api/v1/billing/invoices/:id/act` - печатный HTML-акт оказанных услуг на основе снимка позиций счета.
 - `PATCH /api/v1/billing/invoices/:id/status` - выставление, отмена и закрытие счета.
 - `POST /api/v1/billing/payments` - фиксация оплаты по счету с пересчетом оплаченной суммы.
 - `POST /api/v1/print/box-label/preview` - preview TSPL-команды для коробной этикетки.

@@ -40,6 +40,29 @@ describe('BillingDocumentService', () => {
 
     await expect(service.getInvoiceDocument('missing', user())).rejects.toThrow(NotFoundException);
   });
+
+  it('формирует акт оказанных услуг из снимка счета', async () => {
+    const prisma = {
+      billingInvoice: {
+        findUnique: vi.fn().mockResolvedValue(invoiceFixture()),
+      },
+    };
+    const scopes = {
+      requireClientAccess: vi.fn(),
+    };
+    const service = new BillingDocumentService(prisma as never, scopes as never);
+
+    const document = await service.getInvoiceActDocument('invoice-1', user());
+
+    expect(scopes.requireClientAccess).toHaveBeenCalledWith(expect.any(Object), 'client-1', 'read');
+    expect(document.documentKind).toBe('act');
+    expect(document.actNumber).toBe('ACT-202606-0001');
+    expect(document.fileName).toBe('ACT-202606-0001.html');
+    expect(document.html).toContain('Акт оказанных услуг ACT-202606-0001');
+    expect(document.html).toContain('Основание: счет INV-202606-0001');
+    expect(document.html).toContain('Итого оказано услуг на сумму');
+    expect(document.html).not.toContain('Оплаты');
+  });
 });
 
 function invoiceFixture() {

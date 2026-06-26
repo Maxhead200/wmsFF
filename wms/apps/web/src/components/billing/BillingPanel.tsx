@@ -2,6 +2,7 @@ import { Calculator, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
   fetchBillingCharges,
+  fetchBillingInvoiceActDocument,
   fetchBillingInvoiceDocument,
   fetchBillingInvoices,
   fetchBillingServices,
@@ -140,11 +141,15 @@ export function BillingPanel({ session }: BillingPanelProps) {
     }
   }
 
-  async function openInvoiceDocument(invoice: BillingInvoiceSummary) {
+  async function openInvoiceDocument(invoice: BillingInvoiceSummary, kind: 'invoice' | 'act') {
     setError(null);
 
     try {
-      setDocumentPreview(await fetchBillingInvoiceDocument(session.accessToken, invoice.id));
+      setDocumentPreview(
+        kind === 'act'
+          ? await fetchBillingInvoiceActDocument(session.accessToken, invoice.id)
+          : await fetchBillingInvoiceDocument(session.accessToken, invoice.id),
+      );
     } catch (caught) {
       setError(errorMessage(caught));
     }
@@ -198,7 +203,7 @@ export function BillingPanel({ session }: BillingPanelProps) {
         <h3>Счета</h3>
       </div>
       <div className="billing-panel__list">
-        {renderInvoices(invoices, canWrite, (invoice) => void openInvoiceDocument(invoice), changeInvoiceStatus)}
+        {renderInvoices(invoices, canWrite, (invoice, kind) => void openInvoiceDocument(invoice, kind), changeInvoiceStatus)}
       </div>
 
       <div className="billing-panel__subheading">
@@ -216,7 +221,7 @@ export function BillingPanel({ session }: BillingPanelProps) {
 function renderInvoices(
   state: LoadState<BillingInvoiceSummary>,
   canWrite: boolean,
-  onOpenDocument: (invoice: BillingInvoiceSummary) => void,
+  onOpenDocument: (invoice: BillingInvoiceSummary, kind: 'invoice' | 'act') => void,
   onStatusChange: (invoiceId: string, status: BillingInvoiceStatus) => void,
 ) {
   if (state.status === 'idle' || (state.status === 'loading' && state.data.length === 0)) {

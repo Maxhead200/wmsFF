@@ -320,6 +320,27 @@ export type TsdReviewOperation = {
   updatedAt: string;
 };
 
+export type ResolveTsdReviewPayload = {
+  action: 'APPLY_INVENTORY_ADJUSTMENT' | 'REJECT';
+  comment?: string;
+};
+
+export type ResolveTsdReviewResult = {
+  operation: TsdReviewOperation;
+  resolution: {
+    action: ResolveTsdReviewPayload['action'];
+    adjustment?: {
+      idempotencyKey: string;
+      status: 'APPLIED' | 'ALREADY_APPLIED' | 'NO_CHANGE';
+      skuId?: string;
+      box?: string;
+      previousQuantity?: number;
+      countedQuantity?: number;
+      delta?: number;
+    };
+  };
+};
+
 export type LogisticsTariffSetSummary = {
   id: string;
   name: string;
@@ -613,6 +634,18 @@ export async function createTsdDevice(accessToken: string, payload: CreateTsdDev
 
 export async function fetchTsdReviewQueue(accessToken: string) {
   return request<TsdReviewOperation[]>('/tsd/review', {
+    accessToken,
+  });
+}
+
+export async function resolveTsdReviewOperation(
+  accessToken: string,
+  operationId: string,
+  payload: ResolveTsdReviewPayload,
+) {
+  return request<ResolveTsdReviewResult>(`/tsd/review/${operationId}`, {
+    method: 'PATCH',
+    body: payload,
     accessToken,
   });
 }

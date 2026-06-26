@@ -712,6 +712,36 @@ h1 {
   gap: 12px;
 }
 
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.review-action {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  padding: 0 9px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.review-action--accept {
+  border-color: #bbf7d0;
+  color: var(--ok);
+}
+
+.review-action--reject {
+  border-color: #fecaca;
+  color: var(--danger);
+}
+
 .role-item {
   display: grid;
   gap: 14px;

@@ -54,7 +54,7 @@ export class TsdPayloadParser {
   parseInventoryPayload(payload: Record<string, unknown>): InventoryScanPayload {
     const clientId = this.stringValue(payload.clientId, 'clientId');
     const boxCode = this.stringValue(payload.boxCode, 'boxCode');
-    const countedQuantity = this.numberValue(payload.countedQuantity ?? payload.quantity, 'countedQuantity');
+    const countedQuantity = this.nonNegativeNumberValue(payload.countedQuantity ?? payload.quantity, 'countedQuantity');
     const barcode = this.optionalStringValue(payload.barcode);
     const skuId = this.optionalStringValue(payload.skuId);
 
@@ -100,6 +100,15 @@ export class TsdPayloadParser {
     const parsed = typeof value === 'number' ? value : Number(value);
     if (!Number.isInteger(parsed) || parsed <= 0) {
       throw new BadRequestException(`Поле ${field} должно быть положительным целым числом.`);
+    }
+
+    return parsed;
+  }
+
+  private nonNegativeNumberValue(value: unknown, field: string) {
+    const parsed = typeof value === 'number' ? value : Number(value);
+    if (!Number.isInteger(parsed) || parsed < 0) {
+      throw new BadRequestException(`Поле ${field} должно быть целым числом от 0.`);
     }
 
     return parsed;

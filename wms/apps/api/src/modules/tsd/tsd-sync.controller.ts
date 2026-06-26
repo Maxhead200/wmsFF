@@ -1,16 +1,21 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { ResolveTsdReviewDto } from './dto/resolve-tsd-review.dto';
 import { ScanOperationDto, SyncTsdOperationsDto } from './dto/scan-operation.dto';
+import { TsdReviewService } from './tsd-review.service';
 import { TsdSyncService } from './tsd-sync.service';
 
 @ApiTags('tsd')
 @RequirePermissions('stock:write')
 @Controller('tsd')
 export class TsdSyncController {
-  constructor(private readonly sync: TsdSyncService) {}
+  constructor(
+    private readonly sync: TsdSyncService,
+    private readonly review: TsdReviewService,
+  ) {}
 
   @Get('review')
   @RequirePermissions('stock:write')
@@ -26,5 +31,15 @@ export class TsdSyncController {
   @Post('sync')
   syncOperations(@Body() dto: SyncTsdOperationsDto, @CurrentUser() user: AuthUser) {
     return this.sync.syncOperations(dto, user);
+  }
+
+  @Patch('review/:id')
+  @RequirePermissions('stock:write')
+  resolveReviewOperation(
+    @Param('id') id: string,
+    @Body() dto: ResolveTsdReviewDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.review.resolveReviewOperation(id, dto, user);
   }
 }

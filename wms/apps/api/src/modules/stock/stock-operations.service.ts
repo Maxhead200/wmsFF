@@ -18,6 +18,17 @@ export type ReceiveIntoBoxInput = {
   comment?: string;
 };
 
+export type AdjustInventoryInput = {
+  clientId: string;
+  skuId?: string;
+  barcode?: string;
+  boxCode: string;
+  countedQuantity: number;
+  status?: StockStatus;
+  idempotencyKey: string;
+  comment?: string;
+};
+
 @Injectable()
 export class StockOperationsService {
   constructor(
@@ -161,6 +172,79 @@ export class StockOperationsService {
         box: box.code,
         quantity: dto.quantity,
         targetBalance,
+      };
+    });
+  }
+
+  adjustInventoryToCounted(dto: AdjustInventoryInput, user: AuthUser) {
+    this.clientScopes.requireClientAccess(user, dto.clientId, 'write');
+
+    return this.prisma.$transaction(async (tx) => {
+      const existingMovement = await tx.stockMovement.findUnique({
+        where: { idempotencyKey: dto.idempotencyKey },
+      });
+
+      if (existingMovement) {
+        // Русский комментарий: повтор подтверждения разбора ТСД не создает вторую корректировку.
+        return {
+          idempotencyKey: dto.idempotencyKey,
+          status: 'ALREADY_APPLIED',
+        };
+      }
+
+      const sku = await this.resolveSku(tx, dto);
+      const box = await this.resolveBox(tx, dto.clientId, dto.boxCode);
+      const status = dto.status ?? StockStatus.AVAILABLE;
+      const balance = await tx.stockBalance.findFirst({
+        where: {
+          clientId: dto.clientId,
+          skuId: sku.id,
+          boxId: box.id,
+          status,
+        },
+      });
+      const currentQuantity = balance?.quantity ?? 0;
+      const delta = dto.countedQuantity - currentQuantity;
+
+      if (delta > 0) {
+        await this.incrementTargetBalance(tx, {
+          clientId: dto.clientId,
+          skuId: sku.id,
+          boxId: box.id,
+          palletId: box.palletId,
+          status,
+          quantity: delta,
+        });
+      }
+
+      if (delta < 0 && balance) {
+        await this.decrementSourceBalance(tx, balance, Math.abs(delta));
+      }
+
+      if (delta !== 0) {
+        await tx.stockMovement.create({
+          data: {
+            clientId: dto.clientId,
+            skuId: sku.id,
+            boxId: box.id,
+            palletId: box.palletId,
+            type: 'INVENTORY_ADJUSTMENT',
+            status,
+            quantity: delta,
+            idempotencyKey: dto.idempotencyKey,
+            comment: dto.comment ?? `Корректировка инвентаризации ТСД в коробе ${box.code}`,
+          },
+        });
+      }
+
+      return {
+        idempotencyKey: dto.idempotencyKey,
+        status: delta === 0 ? 'NO_CHANGE' : 'APPLIED',
+        skuId: sku.id,
+        box: box.code,
+        previousQuantity: currentQuantity,
+        countedQuantity: dto.countedQuantity,
+        delta,
       };
     });
   }

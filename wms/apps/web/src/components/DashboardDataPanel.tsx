@@ -1,4 +1,4 @@
-import { AlertTriangle, Database, RefreshCw, ShieldCheck, Truck, UsersRound } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Database, RefreshCw, ShieldCheck, Truck, UsersRound, XCircle } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   fetchClients,
@@ -6,10 +6,12 @@ import {
   fetchRoles,
   fetchStockBalances,
   fetchTsdReviewQueue,
+  resolveTsdReviewOperation,
   type AuthSession,
   type AuthUser,
   type ClientSummary,
   type LogisticsTariffSetSummary,
+  type ResolveTsdReviewPayload,
   type RoleSummary,
   type StockBalance,
   type TsdReviewOperation,
@@ -134,6 +136,26 @@ export function DashboardDataPanel({ session }: DashboardDataPanelProps) {
     }
   }
 
+  async function resolveReview(operation: TsdReviewOperation, action: ResolveTsdReviewPayload['action']) {
+    setTsdReview((current) => ({ ...current, status: 'loading', error: undefined }));
+
+    try {
+      await resolveTsdReviewOperation(session.accessToken, operation.id, {
+        action,
+        comment:
+          action === 'APPLY_INVENTORY_ADJUSTMENT'
+            ? 'Подтверждено оператором WMS.'
+            : 'Отклонено оператором WMS.',
+      });
+      setTsdReview((current) => ({
+        status: 'ready',
+        data: current.data.filter((item) => item.id !== operation.id),
+      }));
+    } catch (caught) {
+      setTsdReview((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
+    }
+  }
+
   function renderActiveTab() {
     if (!activeTabMeta) {
       return <PanelMessage text="У текущего пользователя нет доступных разделов операционной панели." />;
@@ -148,7 +170,9 @@ export function DashboardDataPanel({ session }: DashboardDataPanelProps) {
     }
 
     if (activeTab === 'tsdReview') {
-      return renderLoadState(tsdReview, 'Операций ТСД на разборе нет.', renderTsdReview);
+      return renderLoadState(tsdReview, 'Операций ТСД на разборе нет.', (items) =>
+        renderTsdReview(items, (operation, action) => void resolveReview(operation, action)),
+      );
     }
 
     if (activeTab === 'roles') {
@@ -347,7 +371,10 @@ function renderTariffs(items: LogisticsTariffSetSummary[]) {
   );
 }
 
-function renderTsdReview(items: TsdReviewOperation[]) {
+function renderTsdReview(
+  items: TsdReviewOperation[],
+  onResolve: (operation: TsdReviewOperation, action: ResolveTsdReviewPayload['action']) => void,
+) {
   return (
     <div className="data-table-wrap">
       <table className="data-table">
@@ -358,6 +385,7 @@ function renderTsdReview(items: TsdReviewOperation[]) {
             <th>Payload</th>
             <th>Причина</th>
             <th>Создана</th>
+            <th>Решение</th>
           </tr>
         </thead>
         <tbody>
@@ -371,6 +399,28 @@ function renderTsdReview(items: TsdReviewOperation[]) {
               <td>{payloadSummary(operation.payload)}</td>
               <td>{operation.serverMessage ?? '-'}</td>
               <td>{formatDate(operation.createdAt)}</td>
+              <td>
+                <div className="review-actions">
+                  {operation.operationType === 'inventory_scan' ? (
+                    <button
+                      className="review-action review-action--accept"
+                      type="button"
+                      onClick={() => onResolve(operation, 'APPLY_INVENTORY_ADJUSTMENT')}
+                    >
+                      <CheckCircle2 size={15} aria-hidden="true" />
+                      <span>Принять</span>
+                    </button>
+                  ) : null}
+                  <button
+                    className="review-action review-action--reject"
+                    type="button"
+                    onClick={() => onResolve(operation, 'REJECT')}
+                  >
+                    <XCircle size={15} aria-hidden="true" />
+                    <span>Отклонить</span>
+                  </button>
+                </div>
+              </td>
             </tr>
           ))}
         </tbody>

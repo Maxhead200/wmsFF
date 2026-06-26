@@ -1,0 +1,124 @@
+import { TsdOperationStatus } from '@prisma/client';
+import { describe, expect, it, vi } from 'vitest';
+import type { AuthUser } from '../src/modules/auth/auth.types';
+import { TsdPayloadParser } from '../src/modules/tsd/tsd-payload.parser';
+import { TsdReviewService } from '../src/modules/tsd/tsd-review.service';
+
+describe('TsdReviewService', () => {
+  it('подтверждает inventory_scan и закрывает операцию после ledger adjustment', async () => {
+    const prisma = {
+      tsdOperation: {
+        findUnique: vi.fn().mockResolvedValue(reviewOperation()),
+        update: vi.fn().mockResolvedValue({ ...reviewOperation(), status: TsdOperationStatus.ACCEPTED }),
+      },
+    };
+    const stockOperations = {
+      adjustInventoryToCounted: vi.fn().mockResolvedValue({
+        status: 'APPLIED',
+        previousQuantity: 5,
+        countedQuantity: 3,
+        delta: -2,
+      }),
+    };
+    const service = new TsdReviewService(
+      prisma as never,
+      { requireClientAccess: vi.fn() } as never,
+      stockOperations as never,
+      new TsdPayloadParser(),
+    );
+
+    await expect(
+      service.resolveReviewOperation(
+        'operation-1',
+        { action: 'APPLY_INVENTORY_ADJUSTMENT', comment: 'Факт подтвержден' },
+        user(),
+      ),
+    ).resolves.toMatchObject({
+      operation: {
+        status: TsdOperationStatus.ACCEPTED,
+      },
+      resolution: {
+        action: 'APPLY_INVENTORY_ADJUSTMENT',
+        adjustment: {
+          delta: -2,
+        },
+      },
+    });
+    expect(stockOperations.adjustInventoryToCounted).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clientId: 'client-1',
+        barcode: '4600001',
+        boxCode: 'BOX-1',
+        countedQuantity: 3,
+        idempotencyKey: 'inventory-1:inventory-adjustment',
+      }),
+      expect.objectContaining({ id: 'user-1' }),
+    );
+  });
+
+  it('отклоняет операцию без изменения stock ledger', async () => {
+    const prisma = {
+      tsdOperation: {
+        findUnique: vi.fn().mockResolvedValue(reviewOperation()),
+        update: vi.fn().mockResolvedValue({ ...reviewOperation(), status: TsdOperationStatus.REJECTED }),
+      },
+    };
+    const stockOperations = {
+      adjustInventoryToCounted: vi.fn(),
+    };
+    const clientScopes = {
+      requireClientAccess: vi.fn(),
+    };
+    const service = new TsdReviewService(
+      prisma as never,
+      clientScopes as never,
+      stockOperations as never,
+      new TsdPayloadParser(),
+    );
+
+    await expect(
+      service.resolveReviewOperation('operation-1', { action: 'REJECT', comment: 'Пересчитать повторно' }, user()),
+    ).resolves.toMatchObject({
+      operation: {
+        status: TsdOperationStatus.REJECTED,
+      },
+      resolution: {
+        action: 'REJECT',
+      },
+    });
+    expect(stockOperations.adjustInventoryToCounted).not.toHaveBeenCalled();
+    expect(clientScopes.requireClientAccess).toHaveBeenCalledWith(expect.objectContaining({ id: 'user-1' }), 'client-1', 'write');
+  });
+});
+
+function reviewOperation() {
+  return {
+    id: 'operation-1',
+    deviceId: 'tsd-1',
+    operationKey: 'inventory-1',
+    operationType: 'inventory_scan',
+    payload: {
+      clientId: 'client-1',
+      barcode: '4600001',
+      boxCode: 'BOX-1',
+      countedQuantity: 3,
+    },
+    status: TsdOperationStatus.NEEDS_REVIEW,
+    serverMessage: 'Расхождение инвентаризации: в WMS 5, на ТСД 3.',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+}
+
+function user(): AuthUser {
+  return {
+    id: 'user-1',
+    email: 'operator@example.com',
+    name: 'Operator',
+    roleCodes: ['OPERATOR'],
+    permissionCodes: ['stock:write'],
+    clientScopeMode: 'ALL',
+    clientIds: [],
+    writableClientIds: [],
+  };
+}

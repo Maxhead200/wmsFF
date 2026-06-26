@@ -1504,6 +1504,10 @@ export async function fetchClientRequestDocument(accessToken: string, requestId:
   });
 }
 
+export async function downloadClientRequestPdf(accessToken: string, requestId: string) {
+  return requestBlob(`/client-requests/${requestId}/document.pdf`, accessToken);
+}
+
 export async function fetchClientRequestFiles(accessToken: string, requestId: string) {
   return request<ClientRequestFileSummary[]>(`/client-requests/${requestId}/files`, {
     accessToken,

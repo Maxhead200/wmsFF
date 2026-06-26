@@ -20,6 +20,7 @@ import { RequirePermissions } from '../auth/decorators/require-permissions.decor
 import { ClientRequestFilesService } from './client-request-files.service';
 import { ClientRequestHistoryService } from './client-request-history.service';
 import { ClientRequestDocumentService } from './client-request-document.service';
+import { ClientRequestPdfService } from './client-request-pdf.service';
 import { ClientRequestXlsxService } from './client-request-xlsx.service';
 import { ClientRequestsService } from './client-requests.service';
 import { CreateClientRequestCommentDto } from './dto/create-client-request-comment.dto';
@@ -35,6 +36,7 @@ export class ClientRequestsController {
   constructor(
     private readonly clientRequests: ClientRequestsService,
     private readonly documents: ClientRequestDocumentService,
+    private readonly pdf: ClientRequestPdfService,
     private readonly files: ClientRequestFilesService,
     private readonly history: ClientRequestHistoryService,
     private readonly xlsx: ClientRequestXlsxService,
@@ -53,6 +55,20 @@ export class ClientRequestsController {
   @Get(':id/document')
   getDocument(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.documents.getRequestDocument(id, user);
+  }
+
+  @Get(':id/document.pdf')
+  async getDocumentPdf(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthUser,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const file = await this.pdf.getRequestPdf(id, user);
+    response.setHeader('Content-Type', file.contentType);
+    response.setHeader('Content-Length', String(file.buffer.length));
+    response.setHeader('Content-Disposition', contentDisposition(file.fileName));
+
+    return new StreamableFile(file.buffer);
   }
 
   @Get(':id/files')

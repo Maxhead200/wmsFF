@@ -1,4 +1,4 @@
-import { FileDown, Files, ReceiptText } from 'lucide-react';
+import { FileArchive, FileDown, Files, ReceiptText } from 'lucide-react';
 import { useState } from 'react';
 import type {
   BillingChargeSummary,
@@ -14,6 +14,7 @@ import {
   type ClientCabinetExportData,
 } from './clientCabinetCsvExport';
 import { downloadClientCabinetHtmlPackage, type ClientCabinetHtmlPackageData } from './clientCabinetHtmlPackage';
+import { downloadClientCabinetPdfPackage, type ClientCabinetPdfPackageData } from './clientCabinetPdfPackage';
 
 type ClientCabinetExportsProps = {
   accessToken: string;
@@ -34,15 +35,17 @@ export function ClientCabinetExports({
   charges,
   serviceHistory,
 }: ClientCabinetExportsProps) {
-  const [isPackaging, setPackaging] = useState(false);
+  const [isHtmlPackaging, setHtmlPackaging] = useState(false);
+  const [isPdfPackaging, setPdfPackaging] = useState(false);
   const [message, setMessage] = useState('');
   const exportData: ClientCabinetExportData = { client, filters, requests, invoices, charges, serviceHistory };
   const htmlPackageData: ClientCabinetHtmlPackageData = { client, filters, requests, invoices };
+  const pdfPackageData: ClientCabinetPdfPackageData = { client, filters, requests, invoices };
   const documentsCount = requests.length + invoices.length * 2;
   const financeRowsCount = charges.length + invoices.length + invoices.reduce((total, invoice) => total + invoice.payments.length, 0);
 
   async function downloadHtmlPackage() {
-    setPackaging(true);
+    setHtmlPackaging(true);
     setMessage('');
 
     try {
@@ -51,7 +54,21 @@ export function ClientCabinetExports({
     } catch (caught) {
       setMessage(caught instanceof Error ? caught.message : 'Не удалось подготовить HTML-пакет.');
     } finally {
-      setPackaging(false);
+      setHtmlPackaging(false);
+    }
+  }
+
+  async function downloadPdfPackage() {
+    setPdfPackaging(true);
+    setMessage('');
+
+    try {
+      const count = await downloadClientCabinetPdfPackage(accessToken, pdfPackageData);
+      setMessage(`PDF-пакет готов: ${count} документов.`);
+    } catch (caught) {
+      setMessage(caught instanceof Error ? caught.message : 'Не удалось подготовить PDF-пакет.');
+    } finally {
+      setPdfPackaging(false);
     }
   }
 
@@ -84,10 +101,19 @@ export function ClientCabinetExports({
           className="icon-text-button"
           type="button"
           onClick={() => void downloadHtmlPackage()}
-          disabled={documentsCount === 0 || isPackaging}
+          disabled={documentsCount === 0 || isHtmlPackaging}
         >
           <Files size={15} aria-hidden="true" />
-          <span>{isPackaging ? 'Готовлю HTML' : 'Пакет HTML'}</span>
+          <span>{isHtmlPackaging ? 'Готовлю HTML' : 'Пакет HTML'}</span>
+        </button>
+        <button
+          className="icon-text-button"
+          type="button"
+          onClick={() => void downloadPdfPackage()}
+          disabled={documentsCount === 0 || isPdfPackaging}
+        >
+          <FileArchive size={15} aria-hidden="true" />
+          <span>{isPdfPackaging ? 'Готовлю PDF' : 'Пакет PDF'}</span>
         </button>
         <button
           className="icon-text-button"

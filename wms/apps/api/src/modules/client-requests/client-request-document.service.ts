@@ -12,7 +12,7 @@ export class ClientRequestDocumentService {
     private readonly clientScopes: ClientScopeService,
   ) {}
 
-  async getRequestDocument(requestId: string, user: AuthUser) {
+  async getRequestDocument(requestId: string, user: AuthUser): Promise<ClientRequestPrintableDocument> {
     const request = await this.prisma.clientRequest.findUnique({
       where: { id: requestId },
       include: requestDocumentInclude,
@@ -178,6 +178,10 @@ type ClientRequestDocumentPayload = {
     email: string;
     name: string;
   } | null;
+};
+
+export type ClientRequestPrintableDocument = ClientRequestDocumentPayload & {
+  html: string;
 };
 
 const requestDocumentInclude = {

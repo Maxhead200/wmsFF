@@ -1,0 +1,123 @@
+.print-panel {
+  margin-bottom: 28px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 18px;
+}
+
+.print-panel__heading {
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.print-panel__heading svg {
+  color: var(--red-dark);
+}
+
+.print-form {
+  display: grid;
+  gap: 14px;
+}
+
+.print-fields {
+  display: grid;
+  grid-template-columns: minmax(210px, 1.3fr) minmax(170px, 1fr) minmax(120px, 0.55fr);
+  gap: 12px;
+  align-items: end;
+}
+
+.print-fields label {
+  display: grid;
+  gap: 6px;
+}
+
+.print-fields span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.print-fields input,
+.print-fields select {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfdff;
+  color: var(--ink);
+  padding: 0 11px;
+}
+
+.print-fields input:focus,
+.print-fields select:focus {
+  border-color: var(--red-dark);
+  outline: 3px solid rgb(215 25 32 / 0.14);
+}
+
+.print-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.print-secondary {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--red-dark);
+}
+
+.print-preview {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdff;
+  padding: 12px;
+}
+
+.print-preview__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.print-preview__header strong,
+.print-preview__header span {
+  display: block;
+}
+
+.print-preview__header span {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.print-preview textarea {
+  width: 100%;
+  min-height: 210px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font: 13px/1.5 "Cascadia Mono", Consolas, monospace;
+  padding: 12px;
+}
+
+@media (max-width: 900px) {
+  .print-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .print-panel {
+    padding: 14px;
+  }
+
+  .print-fields {
+    grid-template-columns: 1fr;
+  }
+}

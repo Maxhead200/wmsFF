@@ -7,6 +7,7 @@ import { DirectoryPanel } from './components/directories/DirectoryPanel';
 import { ImportPanel } from './components/imports/ImportPanel';
 import { LogisticsQuotePanel } from './components/logistics/LogisticsQuotePanel';
 import { ModuleBoard } from './components/ModuleBoard';
+import { PrintPanel } from './components/print/PrintPanel';
 import { UserBar } from './components/UserBar';
 import { WarehouseOpsPanel } from './components/warehouse/WarehouseOpsPanel';
 import { fetchMe, type AuthSession } from './lib/api';
@@ -119,6 +120,8 @@ export function App() {
       <LogisticsQuotePanel session={session} />
 
       <WarehouseOpsPanel session={session} />
+
+      <PrintPanel session={session} />
 
       <DashboardDataPanel session={session} />
 

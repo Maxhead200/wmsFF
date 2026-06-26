@@ -261,6 +261,17 @@ export type LogisticsQuoteResult = {
   note: string | null;
 };
 
+export type BoxLabelPreviewPayload = {
+  boxCode: string;
+  clientName: string;
+  quantity?: number;
+};
+
+export type BoxLabelPreview = {
+  printerLanguage: 'TSPL';
+  tspl: string;
+};
+
 export type StockImportIssue = {
   row: number;
   message: string;
@@ -457,6 +468,14 @@ export async function fetchLogisticsTariffSets(accessToken: string) {
 
 export async function quoteLogistics(accessToken: string, payload: LogisticsQuotePayload) {
   return request<LogisticsQuoteResult>('/logistics/quote', {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function previewBoxLabel(accessToken: string, payload: BoxLabelPreviewPayload) {
+  return request<BoxLabelPreview>('/print/box-label/preview', {
     method: 'POST',
     body: payload,
     accessToken,

@@ -87,6 +87,7 @@ docker compose --env-file ../.env --profile compose-nginx rm -sf nginx >/dev/nul
 
 # Русский комментарий: для первого bootstrap используем db push; после появления миграций заменим на migrate deploy.
 docker compose --env-file ../.env exec -T api pnpm --filter @logoff/wms-api prisma:push
+docker compose --env-file ../.env exec -T api pnpm --filter @logoff/wms-api ensure:admin
 
 if [ -f "$HOST_NGINX_AVAILABLE" ]; then
   cp "$HOST_NGINX_AVAILABLE" "$HOST_NGINX_AVAILABLE.bak.$(date +%Y%m%d-%H%M%S)"

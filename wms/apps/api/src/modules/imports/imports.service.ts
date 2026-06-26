@@ -22,6 +22,11 @@ type CommitLogisticsOptions = {
   activeTo?: string;
 };
 
+const STOCK_IMPORT_TRANSACTION_OPTIONS = {
+  maxWait: 10_000,
+  timeout: 180_000,
+};
+
 @Injectable()
 export class ImportsService {
   constructor(
@@ -86,30 +91,33 @@ export class ImportsService {
       });
     }
 
-    const result = await this.prisma.$transaction(async (tx) => {
-      const counters = {
-        boxesTouched: 0,
-        skusTouched: 0,
-        movementsCreated: 0,
-        balancesTouched: 0,
-      };
+    const result = await this.prisma.$transaction(
+      async (tx) => {
+        const counters = {
+          boxesTouched: 0,
+          skusTouched: 0,
+          movementsCreated: 0,
+          balancesTouched: 0,
+        };
 
-      for (const item of parsed.items) {
-        const box = await this.ensureBox(tx, item);
-        const sku = await this.ensureSku(tx, item);
+        for (const item of parsed.items) {
+          const box = await this.ensureBox(tx, item);
+          const sku = await this.ensureSku(tx, item);
 
-        await this.ensureBarcode(tx, sku.id, item.barcode);
-        const movementCreated = await this.createInitialMovement(tx, item, sku.id, box.id, options.sourceDocument);
-        await this.addToBalance(tx, item, sku.id, box.id, 'AVAILABLE');
+          await this.ensureBarcode(tx, sku.id, item.barcode);
+          const movementCreated = await this.createInitialMovement(tx, item, sku.id, box.id, options.sourceDocument);
+          await this.addToBalance(tx, item, sku.id, box.id, 'AVAILABLE');
 
-        counters.boxesTouched += 1;
-        counters.skusTouched += 1;
-        counters.movementsCreated += movementCreated ? 1 : 0;
-        counters.balancesTouched += 1;
-      }
+          counters.boxesTouched += 1;
+          counters.skusTouched += 1;
+          counters.movementsCreated += movementCreated ? 1 : 0;
+          counters.balancesTouched += 1;
+        }
 
-      return counters;
-    });
+        return counters;
+      },
+      STOCK_IMPORT_TRANSACTION_OPTIONS,
+    );
 
     return {
       sourceDocument: options.sourceDocument,

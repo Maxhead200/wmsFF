@@ -651,7 +651,6 @@ export class LogisticsService {
     try {
       const quote = await this.quote({
         tariffSetId: dto.tariffSetId,
-        origin: DEFAULT_LOGISTICS_ORIGIN,
         destination: dto.destination,
         boxes: dto.boxes,
         pallets: dto.pallets,

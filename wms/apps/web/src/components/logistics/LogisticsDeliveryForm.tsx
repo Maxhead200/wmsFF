@@ -51,7 +51,6 @@ export function LogisticsDeliveryForm({ clients, requests, tariffs, session, onC
         clientId,
         requestId: requestId || undefined,
         tariffSetId: tariffSetId || undefined,
-        origin: DEFAULT_LOGISTICS_ORIGIN,
         destination: destination.trim(),
         desiredShipDate: desiredShipDate || undefined,
         comment: comment.trim() || undefined,

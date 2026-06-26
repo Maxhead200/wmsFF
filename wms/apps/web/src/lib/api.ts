@@ -1164,7 +1164,6 @@ export type LogisticsTariffSetSummary = {
 
 export type LogisticsQuotePayload = {
   tariffSetId?: string;
-  origin?: string;
   destination: string;
   pallets?: number;
   boxes?: number;
@@ -1469,7 +1468,6 @@ export type CreateLogisticsDeliveryRequestPayload = {
   clientId: string;
   requestId?: string;
   tariffSetId?: string;
-  origin?: string;
   destination: string;
   boxes?: number;
   pallets?: number;

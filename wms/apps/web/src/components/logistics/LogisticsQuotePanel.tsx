@@ -150,7 +150,6 @@ export function LogisticsQuotePanel({ session }: LogisticsQuotePanelProps) {
       const parsedQuantity = Number(quantity);
       // Русский комментарий: backend принимает ровно один параметр количества, поэтому режим формы разворачиваем в boxes или pallets.
       const quote = await quoteLogistics(session.accessToken, {
-        origin: DEFAULT_LOGISTICS_ORIGIN,
         destination: destination.trim(),
         quoteDate: quoteDate || undefined,
         tariffSetId: tariffSetId || undefined,

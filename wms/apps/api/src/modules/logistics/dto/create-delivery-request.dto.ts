@@ -13,10 +13,6 @@ export class CreateDeliveryRequestDto {
   @IsString()
   tariffSetId?: string;
 
-  @IsOptional()
-  @IsString()
-  origin?: string;
-
   @IsString()
   destination!: string;
 

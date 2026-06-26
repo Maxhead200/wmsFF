@@ -73,6 +73,68 @@ describe('LogisticsService', () => {
     expect(total).toBeNull();
   });
 
+  it('считает маршрут только из Москвы даже при лишнем поле отправления', async () => {
+    const prisma = {
+      logisticsTariffSet: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'tariff-1',
+          name: 'Тариф',
+          sourceFile: null,
+        }),
+      },
+      logisticsDirection: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: 'direction-moscow',
+            tariffSetId: 'tariff-1',
+            origin: 'Москва',
+            destination: 'Казань',
+            note: null,
+            tiers: [
+              {
+                label: 'до 10 коробов',
+                minPallets: null,
+                maxPallets: null,
+                maxBoxes: 10,
+                pricingMode: LogisticsPricingMode.TOTAL,
+                priceRub: 5000,
+              },
+            ],
+          },
+          {
+            id: 'direction-spb',
+            tariffSetId: 'tariff-1',
+            origin: 'Санкт-Петербург',
+            destination: 'Казань',
+            note: null,
+            tiers: [
+              {
+                label: 'до 10 коробов',
+                minPallets: null,
+                maxPallets: null,
+                maxBoxes: 10,
+                pricingMode: LogisticsPricingMode.TOTAL,
+                priceRub: 9000,
+              },
+            ],
+          },
+        ]),
+      },
+    };
+    const deliveryService = new LogisticsService(prisma as never, {} as never);
+    const payload = {
+      tariffSetId: 'tariff-1',
+      origin: 'Санкт-Петербург',
+      destination: 'Казань',
+      boxes: 4,
+    };
+
+    const quote = await deliveryService.quote(payload);
+
+    expect(quote.route.origin).toBe('Москва');
+    expect(quote.estimatedTotalRub).toBe(5000);
+  });
+
   it('возвращает ошибку, когда подходящей ступени нет', () => {
     expect(() => service.selectRateTier([], { boxes: 2 })).toThrow(BadRequestException);
   });
@@ -121,7 +183,6 @@ describe('LogisticsService', () => {
         clientId: 'client-1',
         requestId: 'request-1',
         tariffSetId: 'tariff-1',
-        origin: 'Санкт-Петербург',
         destination: 'КАЗАНЬ',
         boxes: 4,
       },
@@ -156,7 +217,6 @@ describe('LogisticsService', () => {
         {
           clientId: 'client-1',
           requestId: 'foreign-request',
-          origin: 'МОСКВА',
           destination: 'КАЗАНЬ',
           boxes: 4,
         },

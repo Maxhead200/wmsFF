@@ -3,6 +3,7 @@ import { ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { ClientRequestDocumentService } from './client-request-document.service';
 import { ClientRequestsService } from './client-requests.service';
 import { CreateClientRequestDto } from './dto/create-client-request.dto';
 import { ListClientRequestsDto } from './dto/list-client-requests.dto';
@@ -12,7 +13,10 @@ import { UpdateClientRequestStatusDto } from './dto/update-client-request-status
 @RequirePermissions('client-requests:read')
 @Controller('client-requests')
 export class ClientRequestsController {
-  constructor(private readonly clientRequests: ClientRequestsService) {}
+  constructor(
+    private readonly clientRequests: ClientRequestsService,
+    private readonly documents: ClientRequestDocumentService,
+  ) {}
 
   @Get()
   list(@Query() query: ListClientRequestsDto, @CurrentUser() user: AuthUser) {
@@ -22,6 +26,11 @@ export class ClientRequestsController {
   @Get(':id')
   get(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.clientRequests.get(id, user);
+  }
+
+  @Get(':id/document')
+  getDocument(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.documents.getRequestDocument(id, user);
   }
 
   @Post()

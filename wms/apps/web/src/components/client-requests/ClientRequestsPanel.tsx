@@ -1,6 +1,7 @@
 import { ClipboardList, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  fetchClientRequestDocument,
   fetchClientRequests,
   fetchClients,
   packageClientRequest,
@@ -9,11 +10,13 @@ import {
   updateClientRequestStatus,
   type AuthSession,
   type AuthUser,
+  type ClientRequestDocument,
   type ClientRequestStatus,
   type ClientRequestSummary,
   type ClientSummary,
 } from '../../lib/api';
 import { ClientRequestCreateForm } from './ClientRequestCreateForm';
+import { ClientRequestDocumentPreview } from './ClientRequestDocumentPreview';
 import './client-requests.css';
 import { ClientRequestsTable } from './ClientRequestsTable';
 
@@ -35,6 +38,7 @@ export function ClientRequestsPanel({ session }: ClientRequestsPanelProps) {
   const [requests, setRequests] = useState<LoadState<ClientRequestSummary>>({ status: 'idle', data: [] });
   const [clients, setClients] = useState<LoadState<ClientSummary>>({ status: 'idle', data: [] });
   const [error, setError] = useState<string | null>(null);
+  const [documentPreview, setDocumentPreview] = useState<ClientRequestDocument | null>(null);
 
   const visibleClients = useMemo(() => clients.data, [clients.data]);
 
@@ -94,6 +98,16 @@ export function ClientRequestsPanel({ session }: ClientRequestsPanelProps) {
         ...current,
         data: current.data.map((item) => (item.id === request.id ? { ...item, status: 'IN_WORK' } : item)),
       }));
+    } catch (caught) {
+      setError(errorMessage(caught));
+    }
+  }
+
+  async function openRequestDocument(request: ClientRequestSummary) {
+    setError(null);
+
+    try {
+      setDocumentPreview(await fetchClientRequestDocument(session.accessToken, request.id));
     } catch (caught) {
       setError(errorMessage(caught));
     }
@@ -172,11 +186,16 @@ export function ClientRequestsPanel({ session }: ClientRequestsPanelProps) {
           canChangeStatus,
           canPickOutbound,
           (requestId, status) => void changeStatus(requestId, status),
+          (request) => void openRequestDocument(request),
           (request) => void pickOutboundRequest(request),
           (request) => void packageOutboundRequest(request),
           (request) => void shipOutboundRequest(request),
         )}
       </div>
+
+      {documentPreview ? (
+        <ClientRequestDocumentPreview document={documentPreview} onClose={() => setDocumentPreview(null)} />
+      ) : null}
     </section>
   );
 }
@@ -186,6 +205,7 @@ function renderRequests(
   canChangeStatus: boolean,
   canPickOutbound: boolean,
   onStatusChange: (requestId: string, status: ClientRequestStatus) => void,
+  onOpenDocument: (request: ClientRequestSummary) => void,
   onPickOutbound: (request: ClientRequestSummary) => void,
   onPackageOutbound: (request: ClientRequestSummary) => void,
   onShipOutbound: (request: ClientRequestSummary) => void,
@@ -215,6 +235,7 @@ function renderRequests(
         canChangeStatus={canChangeStatus}
         canPickOutbound={canPickOutbound}
         onStatusChange={onStatusChange}
+        onOpenDocument={onOpenDocument}
         onPickOutbound={onPickOutbound}
         onPackageOutbound={onPackageOutbound}
         onShipOutbound={onShipOutbound}

@@ -1,4 +1,4 @@
-import { CheckCircle2, PackageCheck, Send, Truck } from 'lucide-react';
+import { CheckCircle2, FileText, PackageCheck, Send, Truck } from 'lucide-react';
 import { type ClientRequestStatus, type ClientRequestSummary } from '../../lib/api';
 import {
   requestPriorityLabel,
@@ -13,6 +13,7 @@ type ClientRequestsTableProps = {
   canChangeStatus: boolean;
   canPickOutbound: boolean;
   onStatusChange: (requestId: string, status: ClientRequestStatus) => void;
+  onOpenDocument?: (request: ClientRequestSummary) => void;
   onPickOutbound: (request: ClientRequestSummary) => void;
   onPackageOutbound: (request: ClientRequestSummary) => void;
   onShipOutbound: (request: ClientRequestSummary) => void;
@@ -29,6 +30,7 @@ export function ClientRequestsTable({
   canChangeStatus,
   canPickOutbound,
   onStatusChange,
+  onOpenDocument,
   onPickOutbound,
   onPackageOutbound,
   onShipOutbound,
@@ -61,7 +63,20 @@ export function ClientRequestsTable({
                 <strong>{request.client.code}</strong>
                 <span>{request.client.name}</span>
               </td>
-              <td>{itemsSummary(request)}</td>
+              <td>
+                <span>{itemsSummary(request)}</span>
+                {onOpenDocument ? (
+                  <button
+                    className="document-open-button"
+                    type="button"
+                    onClick={() => onOpenDocument(request)}
+                    title="Открыть состав заявки"
+                  >
+                    <FileText size={15} aria-hidden="true" />
+                    <span>Состав</span>
+                  </button>
+                ) : null}
+              </td>
               <td>{formatDate(request.desiredDate)}</td>
               <td>
                 <span className={`status status--${requestStatusTone(request.status)}`}>

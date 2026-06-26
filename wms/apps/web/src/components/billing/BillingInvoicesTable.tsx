@@ -76,7 +76,7 @@ export function BillingInvoicesTable({ invoices, canWrite, onOpenDocument, onSta
                 {onOpenDocument ? (
                   <td>
                     <button
-                      className="billing-document-button"
+                      className="document-open-button"
                       type="button"
                       onClick={() => onOpenDocument(invoice)}
                       title="Открыть документ"

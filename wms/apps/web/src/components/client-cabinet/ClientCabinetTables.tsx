@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { ReceiptText } from 'lucide-react';
+import { FileText, ReceiptText } from 'lucide-react';
 import type { BillingChargeSummary, BillingInvoiceSummary, ClientRequestSummary, StockBalance } from '../../lib/api';
 import { billingInvoiceStatusLabel, billingInvoiceStatusTone, billingStatusLabel, billingStatusTone } from '../billing/billingMeta';
 import { requestStatusLabel, requestStatusTone, requestTypeLabel } from '../client-requests/clientRequestMeta';
@@ -15,6 +15,7 @@ type ClientCabinetTablesProps = {
   requests: ClientRequestSummary[];
   invoices: BillingInvoiceSummary[];
   charges: BillingChargeSummary[];
+  onOpenRequestDocument: (request: ClientRequestSummary) => void;
   onOpenInvoiceDocument: (invoice: BillingInvoiceSummary) => void;
 };
 
@@ -23,6 +24,7 @@ export function ClientCabinetTables({
   requests,
   invoices,
   charges,
+  onOpenRequestDocument,
   onOpenInvoiceDocument,
 }: ClientCabinetTablesProps) {
   return (
@@ -32,7 +34,7 @@ export function ClientCabinetTables({
       </CabinetSection>
 
       <CabinetSection title="Заявки" emptyText="Заявок пока нет." hasItems={requests.length > 0}>
-        {renderRequestTable(requests)}
+        {renderRequestTable(requests, onOpenRequestDocument)}
       </CabinetSection>
 
       <CabinetSection title="Счета" emptyText="Счетов пока нет." hasItems={invoices.length > 0}>
@@ -105,7 +107,7 @@ function renderStockTable(items: StockBalance[]) {
   );
 }
 
-function renderRequestTable(items: ClientRequestSummary[]) {
+function renderRequestTable(items: ClientRequestSummary[], onOpenRequestDocument: (request: ClientRequestSummary) => void) {
   return (
     <div className="client-cabinet-table-wrap">
       <table className="data-table client-cabinet-table">
@@ -116,6 +118,7 @@ function renderRequestTable(items: ClientRequestSummary[]) {
             <th>Состав</th>
             <th>Срок</th>
             <th>Статус</th>
+            <th>Документ</th>
           </tr>
         </thead>
         <tbody>
@@ -133,6 +136,17 @@ function renderRequestTable(items: ClientRequestSummary[]) {
                   {requestStatusLabel(request.status)}
                 </span>
                 {request.managerComment ? <span>{request.managerComment}</span> : null}
+              </td>
+              <td>
+                <button
+                  className="document-open-button"
+                  type="button"
+                  onClick={() => onOpenRequestDocument(request)}
+                  title="Открыть состав заявки"
+                >
+                  <FileText size={15} aria-hidden="true" />
+                  <span>Заявка</span>
+                </button>
               </td>
             </tr>
           ))}
@@ -190,7 +204,7 @@ function renderInvoiceTable(items: BillingInvoiceSummary[], onOpenInvoiceDocumen
                 </td>
                 <td>
                   <button
-                    className="billing-document-button"
+                    className="document-open-button"
                     type="button"
                     onClick={() => onOpenInvoiceDocument(invoice)}
                     title="Открыть документ"

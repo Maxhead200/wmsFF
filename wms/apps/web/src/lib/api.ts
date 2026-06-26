@@ -198,6 +198,61 @@ export type BillingInvoiceDocument = {
   html: string;
 };
 
+export type ClientRequestDocument = {
+  requestId: string;
+  title: string;
+  fileName: string;
+  type: ClientRequestType;
+  typeLabel: string;
+  status: ClientRequestStatus;
+  statusLabel: string;
+  priority: ClientRequestPriority;
+  priorityLabel: string;
+  createdAt: string;
+  updatedAt: string;
+  desiredDate: string | null;
+  comment: string | null;
+  managerComment: string | null;
+  contactName: string | null;
+  contactPhone: string | null;
+  deliveryAddress: string | null;
+  rowsCount: number;
+  totalQuantity: number;
+  client: {
+    id: string;
+    code: string;
+    name: string;
+    inn: string | null;
+    kpp: string | null;
+    legalAddress: string | null;
+    actualAddress: string | null;
+    email: string | null;
+    phone: string | null;
+  };
+  rows: Array<{
+    position: number;
+    skuId: string | null;
+    internalSku: string | null;
+    clientSku: string | null;
+    article: string | null;
+    barcode: string | null;
+    name: string | null;
+    quantity: number;
+    comment: string | null;
+  }>;
+  createdBy: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+  assignedTo: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+  html: string;
+};
+
 export type CreateBillingServicePayload = {
   code: string;
   name: string;
@@ -791,6 +846,12 @@ export async function fetchClientRequests(
   filter: { clientId?: string; status?: ClientRequestStatus; type?: ClientRequestType } = {},
 ) {
   return request<ClientRequestSummary[]>(withQuery('/client-requests', filter), {
+    accessToken,
+  });
+}
+
+export async function fetchClientRequestDocument(accessToken: string, requestId: string) {
+  return request<ClientRequestDocument>(`/client-requests/${requestId}/document`, {
     accessToken,
   });
 }

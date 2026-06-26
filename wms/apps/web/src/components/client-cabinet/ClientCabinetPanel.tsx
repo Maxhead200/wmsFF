@@ -4,6 +4,7 @@ import {
   fetchBillingCharges,
   fetchBillingInvoiceDocument,
   fetchBillingInvoices,
+  fetchClientRequestDocument,
   fetchClientRequests,
   fetchClients,
   fetchStockBalances,
@@ -11,11 +12,13 @@ import {
   type BillingChargeSummary,
   type BillingInvoiceDocument,
   type BillingInvoiceSummary,
+  type ClientRequestDocument,
   type ClientRequestSummary,
   type ClientSummary,
   type StockBalance,
 } from '../../lib/api';
 import { BillingInvoiceDocumentPreview } from '../billing/BillingInvoiceDocumentPreview';
+import { ClientRequestDocumentPreview } from '../client-requests/ClientRequestDocumentPreview';
 import './client-cabinet.css';
 import { ClientCabinetMetrics } from './ClientCabinetMetrics';
 import { ClientCabinetTables } from './ClientCabinetTables';
@@ -50,6 +53,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
   const [state, setState] = useState<CabinetState>({ status: 'idle', data: emptyData });
   const [selectedClientId, setSelectedClientId] = useState('');
   const [documentPreview, setDocumentPreview] = useState<BillingInvoiceDocument | null>(null);
+  const [requestDocumentPreview, setRequestDocumentPreview] = useState<ClientRequestDocument | null>(null);
   const [documentError, setDocumentError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -128,6 +132,16 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
     }
   }
 
+  async function openRequestDocument(request: ClientRequestSummary) {
+    setDocumentError(null);
+
+    try {
+      setRequestDocumentPreview(await fetchClientRequestDocument(session.accessToken, request.id));
+    } catch (caught) {
+      setDocumentError(caught instanceof Error ? caught.message : 'Не удалось открыть документ заявки.');
+    }
+  }
+
   return (
     <section className="client-cabinet-panel" aria-label="Кабинет клиента">
       <div className="section-heading client-cabinet-panel__heading">
@@ -189,6 +203,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
             requests={view.requests}
             invoices={view.invoices}
             charges={view.charges}
+            onOpenRequestDocument={(request) => void openRequestDocument(request)}
             onOpenInvoiceDocument={(invoice) => void openInvoiceDocument(invoice)}
           />
         </>
@@ -196,6 +211,10 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
 
       {documentPreview ? (
         <BillingInvoiceDocumentPreview document={documentPreview} onClose={() => setDocumentPreview(null)} />
+      ) : null}
+
+      {requestDocumentPreview ? (
+        <ClientRequestDocumentPreview document={requestDocumentPreview} onClose={() => setRequestDocumentPreview(null)} />
       ) : null}
     </section>
   );

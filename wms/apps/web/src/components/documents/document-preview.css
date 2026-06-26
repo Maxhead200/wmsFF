@@ -1,4 +1,4 @@
-.billing-document-backdrop {
+.document-preview-backdrop {
   position: fixed;
   inset: 0;
   z-index: 30;
@@ -8,7 +8,7 @@
   padding: 24px;
 }
 
-.billing-document-modal {
+.document-preview-modal {
   display: grid;
   width: min(1040px, 100%);
   max-height: min(860px, calc(100vh - 48px));
@@ -20,7 +20,7 @@
   box-shadow: 0 24px 60px rgb(15 23 42 / 0.24);
 }
 
-.billing-document-modal__header {
+.document-preview-modal__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -29,24 +29,24 @@
   padding: 14px 16px;
 }
 
-.billing-document-modal__header h2 {
+.document-preview-modal__header h2 {
   font-size: 20px;
 }
 
-.billing-document-modal__actions {
+.document-preview-modal__actions {
   display: flex;
   flex: 0 0 auto;
   gap: 8px;
 }
 
-.billing-document-frame {
+.document-preview-frame {
   width: 100%;
   min-height: 620px;
   border: 0;
   background: #ffffff;
 }
 
-.billing-document-button {
+.document-open-button {
   display: inline-flex;
   min-height: 32px;
   align-items: center;
@@ -61,21 +61,25 @@
   font-weight: 800;
 }
 
+.document-open-button svg {
+  flex: 0 0 auto;
+}
+
 @media (max-width: 620px) {
-  .billing-document-backdrop {
+  .document-preview-backdrop {
     padding: 10px;
   }
 
-  .billing-document-modal {
+  .document-preview-modal {
     max-height: calc(100vh - 20px);
   }
 
-  .billing-document-modal__header {
+  .document-preview-modal__header {
     align-items: flex-start;
     flex-direction: column;
   }
 
-  .billing-document-frame {
+  .document-preview-frame {
     min-height: 520px;
   }
 }

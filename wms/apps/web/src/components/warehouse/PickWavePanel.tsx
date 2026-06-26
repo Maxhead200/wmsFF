@@ -1,15 +1,18 @@
-import { Boxes, Play, RefreshCw } from 'lucide-react';
+import { Boxes, FileText, Play, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
   createPickWave,
   fetchClientRequests,
+  fetchPickWaveDocument,
   fetchPickWaves,
   runPickWave,
   type AuthSession,
   type ClientRequestSummary,
+  type PickWaveDocument,
   type PickWaveSummary,
 } from '../../lib/api';
 import { requestPriorityLabel, requestStatusLabel } from '../client-requests/clientRequestMeta';
+import { HtmlDocumentPreview } from '../documents/HtmlDocumentPreview';
 
 type PickWavePanelProps = {
   session: AuthSession;
@@ -30,6 +33,8 @@ export function PickWavePanel({ session }: PickWavePanelProps) {
   const [comment, setComment] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [isSubmitting, setSubmitting] = useState(false);
+  const [isLoadingDocumentId, setLoadingDocumentId] = useState('');
+  const [documentPreview, setDocumentPreview] = useState<PickWaveDocument | null>(null);
 
   const eligibleRequests = useMemo(
     () => requests.data.filter((request) => request.type === 'OUTBOUND' && eligibleStatuses.includes(request.status)),
@@ -99,6 +104,19 @@ export function PickWavePanel({ session }: PickWavePanelProps) {
       setMessage(errorMessage(caught));
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function openWaveDocument(wave: PickWaveSummary) {
+    setLoadingDocumentId(wave.id);
+    setMessage(null);
+    try {
+      const document = await fetchPickWaveDocument(session.accessToken, wave.id);
+      setDocumentPreview(document);
+    } catch (caught) {
+      setMessage(errorMessage(caught));
+    } finally {
+      setLoadingDocumentId('');
     }
   }
 
@@ -176,12 +194,28 @@ export function PickWavePanel({ session }: PickWavePanelProps) {
                     <span className={`status status--${waveStatusTone(wave.status)}`}>{waveStatusLabel(wave.status)}</span>
                   </div>
                   <p>{wave.requests.length} заявок · {wavePickedCount(wave)} собрано · {waveFailedCount(wave)} ошибок</p>
-                  {canRunWave(wave) ? (
-                    <button className="review-action review-action--accept" type="button" onClick={() => void startWave(wave)} disabled={isSubmitting}>
-                      <Play size={14} aria-hidden="true" />
-                      <span>Запустить</span>
+                  <div className="pick-wave-actions">
+                    <button
+                      className="review-action"
+                      type="button"
+                      onClick={() => void openWaveDocument(wave)}
+                      disabled={isLoadingDocumentId === wave.id}
+                    >
+                      <FileText size={14} aria-hidden="true" />
+                      <span>{isLoadingDocumentId === wave.id ? 'Готовлю' : 'Лист'}</span>
                     </button>
-                  ) : null}
+                    {canRunWave(wave) ? (
+                      <button
+                        className="review-action review-action--accept"
+                        type="button"
+                        onClick={() => void startWave(wave)}
+                        disabled={isSubmitting}
+                      >
+                        <Play size={14} aria-hidden="true" />
+                        <span>Запустить</span>
+                      </button>
+                    ) : null}
+                  </div>
                 </article>
               ))}
             </div>
@@ -190,6 +224,15 @@ export function PickWavePanel({ session }: PickWavePanelProps) {
           )}
         </div>
       </div>
+
+      {documentPreview ? (
+        <HtmlDocumentPreview
+          title={documentPreview.title}
+          fileName={documentPreview.fileName}
+          html={documentPreview.html}
+          onClose={() => setDocumentPreview(null)}
+        />
+      ) : null}
     </section>
   );
 }
@@ -234,4 +277,3 @@ function waveStatusTone(status: PickWaveSummary['status']) {
 function errorMessage(caught: unknown) {
   return caught instanceof Error ? caught.message : 'Не удалось выполнить операцию с волной.';
 }
-

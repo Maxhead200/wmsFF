@@ -12,6 +12,7 @@ import { PickClientRequestDto } from './dto/pick-client-request.dto';
 import { RunPickWaveDto } from './dto/run-pick-wave.dto';
 import { TransferBetweenBoxesDto } from './dto/transfer-between-boxes.dto';
 import { FulfillmentWaveService } from './fulfillment-wave.service';
+import { PickWaveDocumentService } from './pick-wave-document.service';
 import { StockBalancesService } from './stock-balances.service';
 import { StockOperationsService } from './stock-operations.service';
 
@@ -23,6 +24,7 @@ export class StockController {
     private readonly balances: StockBalancesService,
     private readonly operations: StockOperationsService,
     private readonly waves: FulfillmentWaveService,
+    private readonly waveDocuments: PickWaveDocumentService,
   ) {}
 
   @Get('balances')
@@ -58,6 +60,12 @@ export class StockController {
   @RequirePermissions('stock:write')
   runPickWave(@Param('id') id: string, @Body() dto: RunPickWaveDto, @CurrentUser() user: AuthUser) {
     return this.waves.runWave(id, dto, user);
+  }
+
+  @Get('fulfillment/waves/:id/document')
+  @RequirePermissions('stock:write')
+  getPickWaveDocument(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.waveDocuments.getWaveDocument(id, user);
   }
 
   @Post('fulfillment/package-request')

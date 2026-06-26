@@ -220,6 +220,14 @@
   gap: 8px;
 }
 
+.pick-wave-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+}
+
 @media (max-width: 980px) {
   .warehouse-fields,
   .transfer-preview,

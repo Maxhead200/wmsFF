@@ -64,6 +64,112 @@
   width: fit-content;
 }
 
+.client-request-items-editor {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdff;
+  padding: 12px;
+}
+
+.client-request-items-editor__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.client-request-items-editor__heading h3 {
+  font-size: 16px;
+}
+
+.client-request-items-editor__heading p {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.client-request-small-button {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.client-request-items-grid {
+  display: grid;
+  gap: 6px;
+  overflow-x: auto;
+}
+
+.client-request-items-grid__header,
+.client-request-items-grid__row {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) minmax(180px, 1.4fr) 96px minmax(160px, 1.2fr) 40px;
+  min-width: 820px;
+  gap: 8px;
+  align-items: center;
+}
+
+.client-request-items-grid__header {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.client-request-items-grid__row input,
+.client-request-paste textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--ink);
+  font: inherit;
+}
+
+.client-request-items-grid__row input {
+  min-height: 36px;
+  padding: 0 9px;
+}
+
+.client-request-row-remove {
+  width: 36px;
+  height: 36px;
+}
+
+.client-request-paste {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.client-request-paste label {
+  display: grid;
+  gap: 6px;
+}
+
+.client-request-paste label span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.client-request-paste textarea {
+  min-height: 74px;
+  resize: vertical;
+  padding: 9px 10px;
+}
+
 .client-requests-panel__list {
   min-height: 140px;
 }
@@ -109,6 +215,16 @@
   }
 
   .client-request-submit {
+    width: 100%;
+  }
+
+  .client-request-items-editor__heading,
+  .client-request-paste {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .client-request-small-button {
     width: 100%;
   }
 }

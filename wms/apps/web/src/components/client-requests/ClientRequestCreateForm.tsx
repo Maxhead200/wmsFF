@@ -8,6 +8,8 @@ import {
   type ClientRequestType,
   type ClientSummary,
 } from '../../lib/api';
+import { ClientRequestItemsEditor } from './ClientRequestItemsEditor';
+import { emptyClientRequestItem, normalizeClientRequestItems, type ClientRequestDraftItem } from './clientRequestItems';
 import { requestPriorityOptions, requestTypeOptions } from './clientRequestMeta';
 
 type ClientRequestCreateFormProps = {
@@ -33,9 +35,7 @@ export function ClientRequestCreateForm({ clients, session, onCreated }: ClientR
   const [desiredDate, setDesiredDate] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [deliveryAddress, setDeliveryAddress] = useState('');
-  const [itemName, setItemName] = useState('');
-  const [itemBarcode, setItemBarcode] = useState('');
-  const [itemQuantity, setItemQuantity] = useState('1');
+  const [items, setItems] = useState<ClientRequestDraftItem[]>([emptyClientRequestItem()]);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setSubmitting] = useState(false);
 
@@ -49,6 +49,7 @@ export function ClientRequestCreateForm({ clients, session, onCreated }: ClientR
     setError(null);
 
     try {
+      const requestItems = normalizeClientRequestItems(items);
       const request = await createClientRequest(session.accessToken, {
         clientId,
         type,
@@ -58,16 +59,7 @@ export function ClientRequestCreateForm({ clients, session, onCreated }: ClientR
         contactPhone: contactPhone || undefined,
         deliveryAddress: deliveryAddress || undefined,
         desiredDate: desiredDate || undefined,
-        items:
-          itemName || itemBarcode
-            ? [
-                {
-                  name: itemName || undefined,
-                  barcode: itemBarcode || undefined,
-                  quantity: Number(itemQuantity) || 1,
-                },
-              ]
-            : undefined,
+        items: requestItems.length > 0 ? requestItems : undefined,
       });
 
       onCreated(request);
@@ -76,9 +68,7 @@ export function ClientRequestCreateForm({ clients, session, onCreated }: ClientR
       setDesiredDate('');
       setContactPhone('');
       setDeliveryAddress('');
-      setItemName('');
-      setItemBarcode('');
-      setItemQuantity('1');
+      setItems([emptyClientRequestItem()]);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Не удалось создать заявку.');
     } finally {
@@ -142,31 +132,13 @@ export function ClientRequestCreateForm({ clients, session, onCreated }: ClientR
           <input value={deliveryAddress} onChange={(event) => setDeliveryAddress(event.target.value)} />
         </label>
 
-        <label>
-          <span>Товар</span>
-          <input value={itemName} onChange={(event) => setItemName(event.target.value)} />
-        </label>
-
-        <label>
-          <span>Штрихкод</span>
-          <input value={itemBarcode} onChange={(event) => setItemBarcode(event.target.value)} />
-        </label>
-
-        <label>
-          <span>Кол-во</span>
-          <input
-            min="1"
-            type="number"
-            value={itemQuantity}
-            onChange={(event) => setItemQuantity(event.target.value)}
-          />
-        </label>
-
         <label className="client-request-fields__wide">
           <span>Комментарий</span>
           <input value={comment} onChange={(event) => setComment(event.target.value)} />
         </label>
       </div>
+
+      <ClientRequestItemsEditor items={items} onChange={setItems} onError={setError} />
 
       {error ? <p className="form-error">{error}</p> : null}
 

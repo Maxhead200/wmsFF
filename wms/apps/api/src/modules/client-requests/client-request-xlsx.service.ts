@@ -18,6 +18,7 @@ type HydratedOutboundLine = {
   city?: string;
   artSeller?: string;
   size?: string;
+  needsRelabel: boolean;
   stockQuantity: number;
   reservedQuantity: number;
   availableQuantity: number;
@@ -119,6 +120,7 @@ export class ClientRequestXlsxService {
                 id: true,
                 internalSku: true,
                 name: true,
+                needsRelabel: true,
               },
             },
           },
@@ -193,6 +195,7 @@ export class ClientRequestXlsxService {
         city: line.city,
         artSeller: line.artSeller,
         size: line.size,
+        needsRelabel: match.sku.needsRelabel,
         stockQuantity,
         reservedQuantity,
         availableQuantity,
@@ -246,6 +249,7 @@ export class ClientRequestXlsxService {
       city: line.city,
       artSeller: line.artSeller,
       size: line.size,
+      needsRelabel: false,
       stockQuantity: 0,
       reservedQuantity: 0,
       availableQuantity: 0,
@@ -273,6 +277,7 @@ export class ClientRequestXlsxService {
       line.city ? `Город: ${line.city}` : null,
       line.artSeller ? `Артикул продавца: ${line.artSeller}` : null,
       line.size ? `Размер: ${line.size}` : null,
+      line.needsRelabel ? 'Перемаркировка: да' : null,
       `Excel rows: ${line.sourceRows.join(', ')}`,
     ]
       .filter(Boolean)

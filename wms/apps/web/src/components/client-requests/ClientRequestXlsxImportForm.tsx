@@ -64,7 +64,7 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
         desiredDate: desiredDate || undefined,
       });
       setPreview(nextPreview);
-      setEditableLines(nextPreview.lines.map((line, index) => ({ ...line, key: `${line.barcode}-${index}` })));
+      setEditableLines(nextPreview.lines.map((line, index) => ({ ...line, needsRelabel: Boolean(line.needsRelabel), key: `${line.barcode}-${index}` })));
       setMessage(nextPreview.canCommit ? 'Файл готов к созданию заявки.' : 'Файл требует исправлений.');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Не удалось проверить файл.');
@@ -97,7 +97,7 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
           barcode: line.barcode,
           name: line.name ?? undefined,
           quantity: line.requestedQuantity,
-          comment: `Excel rows: ${line.sourceRows.join(', ')}`,
+          comment: xlsxLineComment(line),
         })),
       });
       onCreated(request);
@@ -208,6 +208,14 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
                   aria-label={`Количество ${line.internalSku ?? line.barcode}`}
                 />
                 <small>{xlsxLineText(line)}</small>
+                <label className="client-request-xlsx-relabel">
+                  <input
+                    checked={line.needsRelabel}
+                    type="checkbox"
+                    onChange={(event) => updateEditableLineRelabel(index, event.target.checked)}
+                  />
+                  <span>Перемаркировать</span>
+                </label>
                 <button
                   className="icon-button client-request-row-remove"
                   type="button"
@@ -255,6 +263,12 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
     );
   }
 
+  function updateEditableLineRelabel(index: number, needsRelabel: boolean) {
+    setEditableLines((current) =>
+      current.map((line, lineIndex) => (lineIndex === index ? { ...line, needsRelabel } : line)),
+    );
+  }
+
   function removeEditableLine(index: number) {
     setEditableLines((current) => current.filter((_, lineIndex) => lineIndex !== index));
   }
@@ -262,6 +276,7 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
 
 type EditableXlsxLine = OutboundRequestXlsxLine & {
   key: string;
+  needsRelabel: boolean;
 };
 
 function adjustedShortage(line: EditableXlsxLine) {
@@ -297,4 +312,16 @@ function xlsxLineText(line: EditableXlsxLine) {
   }
 
   return `Доступно ${line.availableQuantity}, занято ${line.reservedQuantity}.${conflictText}`;
+}
+
+function xlsxLineComment(line: EditableXlsxLine) {
+  return [
+    line.city ? `Город: ${line.city}` : null,
+    line.artSeller ? `Артикул продавца: ${line.artSeller}` : null,
+    line.size ? `Размер: ${line.size}` : null,
+    line.needsRelabel ? 'Перемаркировка: да' : null,
+    `Excel rows: ${line.sourceRows.join(', ')}`,
+  ]
+    .filter(Boolean)
+    .join('; ');
 }

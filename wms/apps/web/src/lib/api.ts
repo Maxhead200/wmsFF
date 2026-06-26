@@ -580,6 +580,10 @@ export type OutboundRequestXlsxIssue = {
 export type OutboundRequestXlsxLine = {
   barcode: string;
   requestedQuantity: number;
+  city?: string;
+  artSeller?: string;
+  size?: string;
+  needsRelabel?: boolean;
   stockQuantity: number;
   reservedQuantity: number;
   availableQuantity: number;

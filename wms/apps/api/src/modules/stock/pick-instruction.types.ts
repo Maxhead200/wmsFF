@@ -42,6 +42,7 @@ export type PickInstructionBoxSummary = {
 export type WarehouseInstructionRow = {
   city: string;
   sourceBox: string;
+  targetBox: string;
   pallet: string;
   artOnBox: string;
   barcodeOnBox: string;
@@ -57,6 +58,24 @@ export type WarehouseWholeBoxRow = {
   status: string;
   city: string;
   pallet: string;
+  balanceBox: string;
+};
+
+export type WarehouseBalanceMoveRow = {
+  sourceBox: string;
+  newBox: string;
+  pallet: string;
+  artOnBox: string;
+  barcodeOnBox: string;
+  size: string;
+  quantity: number;
+  note: string;
+};
+
+export type WarehouseBalanceLabelRow = {
+  newBox: string;
+  sourceBox: string;
+  tspl: string;
 };
 
 export type WarehouseMarkRow = {
@@ -103,5 +122,7 @@ export type PickInstructionDocument = {
   boxes: PickInstructionBoxSummary[];
   warehouseRows: WarehouseInstructionRow[];
   warehouseWholeBoxes: WarehouseWholeBoxRow[];
+  warehouseBalanceMoves: WarehouseBalanceMoveRow[];
+  warehouseBalanceLabels: WarehouseBalanceLabelRow[];
   warehouseMarkRows: WarehouseMarkRow[];
 };

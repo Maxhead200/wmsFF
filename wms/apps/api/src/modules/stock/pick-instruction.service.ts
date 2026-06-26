@@ -13,6 +13,8 @@ import {
 } from './pick-instruction-renderer';
 import type {
   PickInstructionAllocation,
+  WarehouseBalanceLabelRow,
+  WarehouseBalanceMoveRow,
   PickInstructionBoxSummary,
   PickInstructionDocument,
   PickInstructionRow,
@@ -57,7 +59,7 @@ export class PickInstructionService {
     const balances = await this.loadAvailableBalances(request.clientId, rows, auxiliary.mapping.size > 0);
     const { instructionRows, boxAllocations } = this.allocateRows(rows, balances);
     const boxes = await this.buildBoxSummaries(request.clientId, boxAllocations);
-    const warehousePlan = this.buildWarehousePlan(request, rows, balances, auxiliary);
+    const warehousePlan = await this.buildWarehousePlan(request, rows, balances, auxiliary);
 
     const document: PickInstructionDocument = {
       requestId: request.id,
@@ -84,6 +86,8 @@ export class PickInstructionService {
       boxes,
       warehouseRows: warehousePlan.rows,
       warehouseWholeBoxes: warehousePlan.wholeBoxes,
+      warehouseBalanceMoves: warehousePlan.balanceMoves,
+      warehouseBalanceLabels: warehousePlan.balanceLabels,
       warehouseMarkRows: warehousePlan.markRows,
     };
 
@@ -284,7 +288,7 @@ export class PickInstructionService {
     return { instructionRows, boxAllocations };
   }
 
-  private buildWarehousePlan(
+  private async buildWarehousePlan(
     request: RequestForInstruction,
     rows: ReturnType<PickInstructionService['prepareRows']>,
     balances: BalanceForInstruction[],
@@ -299,6 +303,7 @@ export class PickInstructionService {
         barcode: row.barcode ?? '',
         size: normalizeSize(meta.size || row.sku?.size || ''),
         city: meta.city || request.deliveryAddress || '',
+        needsRelabel: meta.needsRelabel || Boolean(row.sku?.needsRelabel),
         required: row.requestedQuantity,
         remaining: row.requestedQuantity,
       };
@@ -379,14 +384,14 @@ export class PickInstructionService {
         shipmentBoxes.add(box);
         const anyRebrand = tempAssign.some(({ item, orderId }) => {
           const demand = demandById.get(orderId);
-          return Boolean(demand && item.artWarehouse !== demand.artSeller);
+          return Boolean(demand && needsWarehouseRelabel(item, demand));
         });
 
         for (const assignment of tempAssign) {
           const demand = demandById.get(assignment.orderId)!;
           decreaseRemaining(assignment.orderId, assignment.quantity);
           assignment.item.quantity -= assignment.quantity;
-          const rebrandNote = assignment.item.artWarehouse !== demand.artSeller ? `переклеить на ${demand.artSeller}` : '';
+          const rebrandNote = relabelNote(assignment.item, demand);
           const targetBox =
             useful === totalItems ? (anyRebrand ? 'МАРК ЦЕЛЫЙ' : 'ЦЕЛЫЙ') : rebrandNote ? 'МАРК ПОСТАВКА' : 'ПОСТАВКА';
           actions.push(actionFromAssignment(assignment.item, demand, assignment.quantity, targetBox, rebrandNote, ''));
@@ -421,7 +426,7 @@ export class PickInstructionService {
             if (take > 0) {
               decreaseRemaining(orderId, take);
               item.quantity -= take;
-              const rebrandNote = item.artWarehouse !== demand.artSeller ? `переклеить на ${demand.artSeller}` : '';
+              const rebrandNote = relabelNote(item, demand);
               actions.push(actionFromAssignment(item, demand, take, rebrandNote ? 'МАРК ПОСТАВКА' : 'ПОСТАВКА', rebrandNote, ''));
             }
           }
@@ -460,6 +465,10 @@ export class PickInstructionService {
       }
     }
 
+    const generatedAt = new Date();
+    const usedShipmentBoxes = new Set(actions.filter((action) => action.sourceBox && action.targetBox !== 'БАЛАНС').map((action) => action.sourceBox));
+    const existingBalanceBoxCodes = await this.loadExistingBalanceBoxCodes(request.clientId, generatedAt);
+    const balanceBoxBySourceBox = assignBalanceBoxCodes(actions, existingBalanceBoxCodes, generatedAt);
     const wholeBoxCities = new Map<string, Set<string>>();
     actions.forEach((action) => {
       if (['ЦЕЛЫЙ', 'МАРК ЦЕЛЫЙ'].includes(action.targetBox)) {
@@ -470,24 +479,42 @@ export class PickInstructionService {
     const warehouseRows: WarehouseInstructionRow[] = actions.map((action) => ({
       city: action.city,
       sourceBox: action.sourceBox,
+      targetBox: balanceBoxBySourceBox.get(action.sourceBox) ?? '',
       pallet: action.pallet || auxiliary.boxToPallet.get(action.sourceBox) || '',
       artOnBox: action.artOnBox,
       barcodeOnBox: action.barcodeOnBox,
       size: action.size,
       quantity: action.quantity,
-      comment:
-        ['ЦЕЛЫЙ', 'МАРК ЦЕЛЫЙ'].includes(action.targetBox) && (wholeBoxCities.get(action.sourceBox)?.size ?? 0) > 1
-          ? 'НЕСКОЛЬКО'
-          : action.targetBox,
+      comment: warehouseActionComment(action, usedShipmentBoxes, balanceBoxBySourceBox, wholeBoxCities),
       rebrandNote: action.rebrandNote,
-      note: action.note,
+      note:
+        action.targetBox === 'БАЛАНС' && balanceBoxBySourceBox.has(action.sourceBox)
+          ? `${action.note}; новый короб ${balanceBoxBySourceBox.get(action.sourceBox)}`
+          : action.note,
     }));
+    const balanceMoves = buildBalanceMoves(actions, balanceBoxBySourceBox, auxiliary.boxToPallet);
+    const balanceLabels = buildBalanceLabels(balanceMoves, request.client.name);
 
     return {
       rows: warehouseRows,
-      wholeBoxes: buildWholeBoxes(actions, auxiliary.boxToPallet),
+      wholeBoxes: buildWholeBoxes(actions, auxiliary.boxToPallet, balanceBoxBySourceBox),
+      balanceMoves,
+      balanceLabels,
       markRows: buildMarkRows(actions, auxiliary.shk),
     };
+  }
+
+  private async loadExistingBalanceBoxCodes(clientId: string, date: Date) {
+    const prefix = balanceBoxPrefix(date);
+    const boxes = await this.prisma.box.findMany({
+      where: {
+        clientId,
+        code: { startsWith: prefix },
+      },
+      select: { code: true },
+    });
+
+    return new Set(boxes.map((box) => box.code));
   }
 
   private rowStatus(row: { skuId: string | null }, shortageQuantity: number): PickInstructionRowStatus {
@@ -684,6 +711,7 @@ type WarehouseDemand = {
   barcode: string;
   size: string;
   city: string;
+  needsRelabel: boolean;
   required: number;
   remaining: number;
 };
@@ -784,6 +812,7 @@ function parseRequestItemComment(comment: string | null) {
     city: '',
     artSeller: '',
     size: '',
+    needsRelabel: false,
   };
   if (!comment) {
     return result;
@@ -799,6 +828,8 @@ function parseRequestItemComment(comment: string | null) {
       result.artSeller = value;
     } else if (key === 'размер') {
       result.size = value;
+    } else if (key === 'перемаркировка') {
+      result.needsRelabel = ['да', 'true', '1', 'yes'].includes(value.toLowerCase());
     }
   });
   return result;
@@ -856,14 +887,22 @@ function balanceAction(item: WarehouseInventoryItem): WarehouseAction {
   };
 }
 
-function buildWholeBoxes(actions: WarehouseAction[], boxToPallet: Map<string, string>): WarehouseWholeBoxRow[] {
+function buildWholeBoxes(
+  actions: WarehouseAction[],
+  boxToPallet: Map<string, string>,
+  balanceBoxBySourceBox: Map<string, string>,
+): WarehouseWholeBoxRow[] {
   const boxCities = new Map<string, Set<string>>();
   const boxHasMark = new Map<string, boolean>();
   actions.forEach((action) => {
-    if (!['ЦЕЛЫЙ', 'МАРК ЦЕЛЫЙ'].includes(action.targetBox)) {
+    if (!['ЦЕЛЫЙ', 'МАРК ЦЕЛЫЙ'].includes(action.targetBox) && !balanceBoxBySourceBox.has(action.sourceBox)) {
       return;
     }
-    boxCities.set(action.sourceBox, new Set([...(boxCities.get(action.sourceBox) ?? []), action.city]));
+    const cities = boxCities.get(action.sourceBox) ?? new Set<string>();
+    if (action.city) {
+      cities.add(action.city);
+    }
+    boxCities.set(action.sourceBox, cities);
     if (action.targetBox === 'МАРК ЦЕЛЫЙ') {
       boxHasMark.set(action.sourceBox, true);
     }
@@ -872,11 +911,147 @@ function buildWholeBoxes(actions: WarehouseAction[], boxToPallet: Map<string, st
   return [...boxCities.entries()]
     .map(([box, cities]) => ({
       box,
-      status: cities.size === 1 ? (boxHasMark.get(box) ? 'МАРК ЦЕЛЫЙ' : 'ЦЕЛЫЙ') : 'НЕСКОЛЬКО',
-      city: cities.size === 1 ? [...cities][0] : 'РАЗНЫЕ ГОРОДА',
+      status: balanceBoxBySourceBox.has(box)
+        ? 'КОРОБ УЕЗЖАЕТ, ОСТАТОК ПЕРЕЛОЖИТЬ'
+        : cities.size === 1
+          ? boxHasMark.get(box)
+            ? 'МАРК ЦЕЛЫЙ'
+            : 'ЦЕЛЫЙ'
+          : 'НЕСКОЛЬКО',
+      city: cities.size === 1 ? [...cities][0] : cities.size > 1 ? 'РАЗНЫЕ ГОРОДА' : '',
       pallet: actions.find((action) => action.sourceBox === box)?.pallet || boxToPallet.get(box) || '',
+      balanceBox: balanceBoxBySourceBox.get(box) ?? '',
     }))
     .sort((left, right) => left.box.localeCompare(right.box, 'ru'));
+}
+
+function buildBalanceMoves(
+  actions: WarehouseAction[],
+  balanceBoxBySourceBox: Map<string, string>,
+  boxToPallet: Map<string, string>,
+): WarehouseBalanceMoveRow[] {
+  return actions
+    .filter((action) => action.targetBox === 'БАЛАНС' && balanceBoxBySourceBox.has(action.sourceBox))
+    .map((action) => ({
+      sourceBox: action.sourceBox,
+      newBox: balanceBoxBySourceBox.get(action.sourceBox)!,
+      pallet: action.pallet || boxToPallet.get(action.sourceBox) || '',
+      artOnBox: action.artOnBox,
+      barcodeOnBox: action.barcodeOnBox,
+      size: action.size,
+      quantity: action.quantity,
+      note: 'Остаток переложить в новый короб, исходный короб уезжает.',
+    }));
+}
+
+function buildBalanceLabels(balanceMoves: WarehouseBalanceMoveRow[], clientName: string): WarehouseBalanceLabelRow[] {
+  const sourceByNewBox = new Map<string, string>();
+  balanceMoves.forEach((move) => {
+    sourceByNewBox.set(move.newBox, move.sourceBox);
+  });
+
+  return [...sourceByNewBox.entries()]
+    .map(([newBox, sourceBox]) => ({
+      newBox,
+      sourceBox,
+      tspl: balanceBoxTspl(newBox, clientName),
+    }))
+    .sort((left, right) => left.newBox.localeCompare(right.newBox, 'ru'));
+}
+
+function assignBalanceBoxCodes(actions: WarehouseAction[], existingCodes: Set<string>, date: Date) {
+  const usedCodes = new Set(existingCodes);
+  const result = new Map<string, string>();
+  const sourceBoxes = [
+    ...new Set(
+      actions
+        .filter((action) => action.targetBox === 'БАЛАНС' && action.sourceBox)
+        .map((action) => action.sourceBox)
+        .sort((left, right) => left.localeCompare(right, 'ru')),
+    ),
+  ];
+
+  let sequence = 1;
+  for (const sourceBox of sourceBoxes) {
+    let candidate = balanceBoxCode(date, sequence);
+    while (usedCodes.has(candidate)) {
+      sequence += 1;
+      candidate = balanceBoxCode(date, sequence);
+    }
+    usedCodes.add(candidate);
+    result.set(sourceBox, candidate);
+    sequence += 1;
+  }
+
+  return result;
+}
+
+function balanceBoxPrefix(date: Date) {
+  const parts = new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    timeZone: 'Europe/Moscow',
+  }).formatToParts(date);
+  const day = parts.find((part) => part.type === 'day')?.value ?? String(date.getDate()).padStart(2, '0');
+  const month = parts.find((part) => part.type === 'month')?.value ?? String(date.getMonth() + 1).padStart(2, '0');
+  return `FFL_BAL${day}${month}_`;
+}
+
+function balanceBoxCode(date: Date, sequence: number) {
+  return `${balanceBoxPrefix(date)}${String(sequence).padStart(2, '0')}`;
+}
+
+function warehouseActionComment(
+  action: WarehouseAction,
+  usedShipmentBoxes: Set<string>,
+  balanceBoxBySourceBox: Map<string, string>,
+  wholeBoxCities: Map<string, Set<string>>,
+) {
+  if (action.targetBox === 'БАЛАНС') {
+    return 'ПЕРЕЛОЖИТЬ ОСТАТОК';
+  }
+
+  if (usedShipmentBoxes.has(action.sourceBox) && balanceBoxBySourceBox.has(action.sourceBox)) {
+    return `${action.targetBox}; КОРОБ УЕЗЖАЕТ`;
+  }
+
+  if (['ЦЕЛЫЙ', 'МАРК ЦЕЛЫЙ'].includes(action.targetBox) && (wholeBoxCities.get(action.sourceBox)?.size ?? 0) > 1) {
+    return 'НЕСКОЛЬКО';
+  }
+
+  return action.targetBox;
+}
+
+function needsWarehouseRelabel(item: WarehouseInventoryItem, demand: WarehouseDemand) {
+  return demand.needsRelabel || Boolean(demand.artSeller && item.artWarehouse !== demand.artSeller);
+}
+
+function relabelNote(item: WarehouseInventoryItem, demand: WarehouseDemand) {
+  if (!needsWarehouseRelabel(item, demand)) {
+    return '';
+  }
+
+  const target = demand.artSeller || demand.barcode || item.artWarehouse;
+  return `перемаркировать на ${target}`;
+}
+
+function balanceBoxTspl(boxCode: string, clientName: string) {
+  const safeClient = sanitizeTsplText(clientName);
+  const safeBox = sanitizeTsplText(boxCode);
+
+  return [
+    'SIZE 80 mm,50 mm',
+    'GAP 2 mm,0',
+    'CLS',
+    `TEXT 40,25,"3",0,1,1,"${safeClient}"`,
+    `QRCODE 170,80,L,7,A,0,"${safeBox}"`,
+    `TEXT 80,310,"3",0,1,1,"${safeBox}"`,
+    'PRINT 1',
+  ].join('\n');
+}
+
+function sanitizeTsplText(value: string) {
+  return value.replace(/"/g, '').trim();
 }
 
 function buildMarkRows(actions: WarehouseAction[], shk: Map<string, WarehouseShkRecord>): WarehouseMarkRow[] {

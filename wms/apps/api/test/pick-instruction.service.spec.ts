@@ -25,6 +25,9 @@ describe('PickInstructionService', () => {
           { boxId: 'box-2', _sum: { quantity: 5 } },
         ]),
       },
+      box: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
     };
     const service = new PickInstructionService(prisma as never, new ClientScopeService());
 
@@ -46,6 +49,9 @@ describe('PickInstructionService', () => {
       expect.objectContaining({ boxCode: 'BOX-1', allocatedQuantity: 2, availableQuantity: 2, isFullBox: true }),
       expect.objectContaining({ boxCode: 'BOX-2', allocatedQuantity: 2, availableQuantity: 5, isFullBox: false }),
     ]);
+    expect(document.warehouseBalanceMoves).toEqual([
+      expect.objectContaining({ sourceBox: 'BOX-2', quantity: 3, newBox: expect.stringMatching(/^FFL_BAL\d{4}_\d{2,}$/) }),
+    ]);
     expect(document.html).toContain('Инструкция сборки');
   });
 
@@ -62,6 +68,9 @@ describe('PickInstructionService', () => {
           balanceFixture({ id: 'balance-1', boxId: 'box-1', boxCode: 'BOX-1', quantity: 2 }),
         ]),
         groupBy: vi.fn().mockResolvedValue([{ boxId: 'box-1', _sum: { quantity: 2 } }]),
+      },
+      box: {
+        findMany: vi.fn().mockResolvedValue([]),
       },
     };
     const service = new PickInstructionService(prisma as never, new ClientScopeService());
@@ -95,6 +104,9 @@ describe('PickInstructionService', () => {
           { boxId: 'box-2', _sum: { quantity: 5 } },
         ]),
       },
+      box: {
+        findMany: vi.fn().mockResolvedValue([{ code: balanceBoxCodeForToday(1) }]),
+      },
     };
     const service = new PickInstructionService(prisma as never, new ClientScopeService());
 
@@ -103,12 +115,27 @@ describe('PickInstructionService', () => {
 
     expect(file.fileName).toMatch(/\.xlsx$/);
     expect(file.mimeType).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    expect(workbook.SheetNames).toEqual(['Сводка', 'Инструкция', 'Целые короба', 'МАРК', 'План WMS', 'Короба', 'Дефицит']);
+    expect(workbook.SheetNames).toEqual([
+      'Сводка',
+      'Инструкция',
+      'Целые короба',
+      'Остатки в новые короба',
+      'Печать коробов',
+      'МАРК',
+      'План WMS',
+      'Короба',
+      'Дефицит',
+    ]);
     const instructionRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['Инструкция'], { defval: '' });
+    const moveRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['Остатки в новые короба'], { defval: '' });
+    const labelRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['Печать коробов'], { defval: '' });
     const wmsRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['План WMS'], { defval: '' });
     const boxRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['Короба'], { defval: '' });
 
     expect(instructionRows[0]).toMatchObject({ 'Исходный короб': 'BOX-1', Количество: 2 });
+    expect(moveRows[0]).toMatchObject({ 'Исходный короб': 'BOX-2', 'Новый короб': balanceBoxCodeForToday(2), Количество: 3 });
+    expect(labelRows[0]).toMatchObject({ 'Новый короб': balanceBoxCodeForToday(2), 'Исходный короб': 'BOX-2' });
+    expect(String(labelRows[0]['TSPL для TSC'])).toContain(`QRCODE 170,80,L,7,A,0,"${balanceBoxCodeForToday(2)}"`);
     expect(wmsRows[0]).toMatchObject({ Короб: 'BOX-1', Взять: 2 });
     expect(wmsRows[1]).toMatchObject({ Короб: 'BOX-2', Взять: 2 });
     expect(boxRows[0]).toMatchObject({ Короб: 'BOX-1', 'Целый короб': 'Да' });
@@ -207,4 +234,16 @@ function user(overrides: Partial<AuthUser>): AuthUser {
     writableClientIds: [],
     ...overrides,
   };
+}
+
+function balanceBoxCodeForToday(sequence: number) {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    timeZone: 'Europe/Moscow',
+  }).formatToParts(now);
+  const day = parts.find((part) => part.type === 'day')?.value ?? String(now.getDate()).padStart(2, '0');
+  const month = parts.find((part) => part.type === 'month')?.value ?? String(now.getMonth() + 1).padStart(2, '0');
+  return `FFL_BAL${day}${month}_${String(sequence).padStart(2, '0')}`;
 }

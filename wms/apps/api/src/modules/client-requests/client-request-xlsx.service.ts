@@ -303,9 +303,27 @@ export class ClientRequestXlsxService {
       }
 
       const uniqueMatches = uniqueSkus(matches.map((match) => match.sku));
-      return uniqueMatches.length === 1
-        ? { line, match: { sku: uniqueMatches[0] }, issueMessage: '' }
-        : { line, match: 'duplicate', issueMessage: 'Баркод привязан к нескольким SKU клиента.' };
+      if (uniqueMatches.length !== 1) {
+        return { line, match: 'duplicate', issueMessage: 'Баркод привязан к нескольким SKU клиента.' };
+      }
+
+      const skuByBarcode = uniqueMatches[0];
+      const productName = normalizeText(line.name || line.artSeller);
+      if (productName) {
+        const matchesByName = skuMatches.get(normalizeLookupKey(productName)) ?? [];
+        if (matchesByName.length === 0) {
+          return { line, match: null, issueMessage: 'Баркод найден, но наименование товара не найдено в SKU клиента.' };
+        }
+        if (!matchesByName.some((sku) => sku.id === skuByBarcode.id)) {
+          return {
+            line,
+            match: null,
+            issueMessage: 'Баркод и наименование товара относятся к разным SKU клиента.',
+          };
+        }
+      }
+
+      return { line, match: { sku: skuByBarcode }, issueMessage: '' };
     }
 
     const productName = normalizeText(line.name || line.artSeller);

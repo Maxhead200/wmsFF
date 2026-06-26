@@ -172,6 +172,65 @@ describe('ClientRequestXlsxService', () => {
       availableQuantity: 12,
     });
   });
+
+  it('проверяет, что баркод и наименование относятся к одному SKU', async () => {
+    const prisma = {
+      barcode: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            skuId: 'sku-barcode',
+            value: '460000000001',
+            sku: {
+              id: 'sku-barcode',
+              internalSku: 'SKU-BARCODE',
+              name: 'Товар по баркоду',
+              needsRelabel: false,
+            },
+          },
+        ]),
+      },
+      sku: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: 'sku-name',
+            internalSku: 'Костюм_реглан_синий',
+            clientSku: null,
+            article: null,
+            name: 'Костюм реглан синий',
+            needsRelabel: false,
+          },
+        ]),
+      },
+    };
+    const service = new ClientRequestXlsxService(
+      prisma as never,
+      new ClientScopeService(),
+      {
+        create: vi.fn(),
+        previewAvailability: vi.fn().mockResolvedValue({
+          lines: [availabilityLine({ index: 0, skuId: 'sku-barcode', requestedQuantity: 2, stockQuantity: 5, availableQuantity: 5 })],
+        }),
+      } as never,
+    );
+
+    const preview = await service.previewOutboundRequest(
+      fileFixture([
+        ['Баркод', 'Артикул продавца', 'Количество'],
+        ['460000000001', 'Костюм_реглан_синий', 2],
+      ]),
+      { clientId: 'client-1', title: 'Excel сборка' },
+      user({ writableClientIds: ['client-1'], clientIds: ['client-1'] }),
+    );
+
+    expect(preview.canCommit).toBe(false);
+    expect(preview.issues).toContainEqual(
+      expect.objectContaining({
+        barcode: '460000000001',
+        severity: 'error',
+        message: 'Баркод и наименование товара относятся к разным SKU клиента.',
+      }),
+    );
+  });
 });
 
 function fileFixture(rows: unknown[][], originalname = 'request.xlsx'): Express.Multer.File {

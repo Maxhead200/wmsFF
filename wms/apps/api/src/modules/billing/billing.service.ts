@@ -1,8 +1,16 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { BillingChargeSource, BillingChargeStatus, BillingInvoiceStatus, BillingUnit, Prisma } from '@prisma/client';
+import {
+  BillingChargeSource,
+  BillingChargeStatus,
+  BillingInvoiceStatus,
+  BillingUnit,
+  ClientNotificationEvent,
+  Prisma,
+} from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
+import { isClientNotificationEnabled } from '../client-notifications/client-notification-preferences';
 import { CreateBillingChargeDto } from './dto/create-billing-charge.dto';
 import { CreateBillingInvoiceDto } from './dto/create-billing-invoice.dto';
 import { CreateBillingPaymentDto } from './dto/create-billing-payment.dto';
@@ -326,6 +334,7 @@ export class BillingService {
       where: { id: invoiceId },
       select: {
         id: true,
+        number: true,
         clientId: true,
         status: true,
         totalRub: true,
@@ -355,19 +364,38 @@ export class BillingService {
       throw new BadRequestException('Счет нельзя закрыть как оплаченный, пока сумма оплат меньше итога.');
     }
 
-    return this.prisma.billingInvoice.update({
-      where: { id: invoiceId },
-      data: {
-        status: dto.status,
-        issuedAt:
-          dto.status === BillingInvoiceStatus.DRAFT
-            ? null
-            : dto.status === BillingInvoiceStatus.ISSUED || dto.status === BillingInvoiceStatus.PAID
-              ? invoice.issuedAt ?? new Date()
-              : invoice.issuedAt,
-        paidAt: dto.status === BillingInvoiceStatus.PAID ? invoice.paidAt ?? new Date() : null,
-      },
-      include: billingInvoiceInclude,
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.billingInvoice.update({
+        where: { id: invoiceId },
+        data: {
+          status: dto.status,
+          issuedAt:
+            dto.status === BillingInvoiceStatus.DRAFT
+              ? null
+              : dto.status === BillingInvoiceStatus.ISSUED || dto.status === BillingInvoiceStatus.PAID
+                ? invoice.issuedAt ?? new Date()
+                : invoice.issuedAt,
+          paidAt: dto.status === BillingInvoiceStatus.PAID ? invoice.paidAt ?? new Date() : null,
+        },
+        include: billingInvoiceInclude,
+      });
+
+      if (
+        invoice.status !== dto.status &&
+        (await isClientNotificationEnabled(tx, invoice.clientId, ClientNotificationEvent.BILLING_INVOICE_STATUS_CHANGED))
+      ) {
+        await tx.clientNotification.create({
+          data: {
+            clientId: invoice.clientId,
+            title: 'Статус счета изменен',
+            body: `Счет № ${invoice.number}: ${billingInvoiceStatusLabel(invoice.status)} -> ${billingInvoiceStatusLabel(dto.status)}`,
+            severity: dto.status === BillingInvoiceStatus.PAID ? 'SUCCESS' : 'INFO',
+            createdByUserId: user.id,
+          },
+        });
+      }
+
+      return updated;
     });
   }
 
@@ -376,6 +404,7 @@ export class BillingService {
       where: { id: dto.invoiceId },
       select: {
         id: true,
+        number: true,
         clientId: true,
         status: true,
         totalRub: true,
@@ -419,7 +448,7 @@ export class BillingService {
         },
       });
 
-      return tx.billingInvoice.update({
+      const updated = await tx.billingInvoice.update({
         where: { id: invoice.id },
         data: {
           paidRub: nextPaidRub,
@@ -429,6 +458,20 @@ export class BillingService {
         },
         include: billingInvoiceInclude,
       });
+
+      if (await isClientNotificationEnabled(tx, invoice.clientId, ClientNotificationEvent.BILLING_PAYMENT_RECORDED)) {
+        await tx.clientNotification.create({
+          data: {
+            clientId: invoice.clientId,
+            title: 'Оплата по счету принята',
+            body: `Счет № ${invoice.number}: ${formatRub(dto.amountRub)} руб. Оплачено ${formatRub(nextPaidRub)} из ${formatRub(totalRub)} руб.`,
+            severity: nextStatus === BillingInvoiceStatus.PAID ? 'SUCCESS' : 'INFO',
+            createdByUserId: user.id,
+          },
+        });
+      }
+
+      return updated;
     });
   }
 
@@ -726,6 +769,21 @@ function storageSourceKey(clientId: string, periodFrom: Date, periodTo: Date) {
 
 function formatDateKey(date: Date) {
   return date.toISOString().slice(0, 10);
+}
+
+function billingInvoiceStatusLabel(status: BillingInvoiceStatus) {
+  const labels: Record<BillingInvoiceStatus, string> = {
+    [BillingInvoiceStatus.DRAFT]: 'черновик',
+    [BillingInvoiceStatus.ISSUED]: 'выставлен',
+    [BillingInvoiceStatus.PAID]: 'оплачен',
+    [BillingInvoiceStatus.CANCELLED]: 'отменен',
+  };
+
+  return labels[status];
+}
+
+function formatRub(value: number) {
+  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2, minimumFractionDigits: 2 }).format(value);
 }
 
 function sourceCode(source: BillingChargeSource) {

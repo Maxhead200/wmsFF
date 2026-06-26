@@ -3,6 +3,7 @@ import {
   BillingChargeSource,
   BillingChargeStatus,
   BillingUnit,
+  ClientNotificationEvent,
   LogisticsDeliveryStatus,
   LogisticsPricingMode,
   LogisticsTripStatus,
@@ -11,6 +12,7 @@ import {
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
+import { isClientNotificationEnabled } from '../client-notifications/client-notification-preferences';
 import type { LogisticsDirection as ParsedLogisticsDirection } from '../imports/parsers/logistics-xlsx.parser';
 import { AssignDeliveryTripDto } from './dto/assign-delivery-trip.dto';
 import { CreateDeliveryRequestDto } from './dto/create-delivery-request.dto';
@@ -384,7 +386,13 @@ export class LogisticsService {
   async updateDeliveryStatus(id: string, dto: UpdateDeliveryStatusDto, user: AuthUser) {
     const request = await this.prisma.logisticsDeliveryRequest.findUnique({
       where: { id },
-      select: { id: true, clientId: true },
+      select: {
+        id: true,
+        clientId: true,
+        status: true,
+        origin: true,
+        destination: true,
+      },
     });
 
     if (!request) {
@@ -393,14 +401,38 @@ export class LogisticsService {
 
     this.clientScopes.requireClientAccess(user, request.clientId, 'write');
 
-    return this.prisma.logisticsDeliveryRequest.update({
-      where: { id },
-      data: {
-        status: dto.status,
-        plannedShipDate: this.parseDate(dto.plannedShipDate),
-        managerComment: normalizeText(dto.managerComment),
-      },
-      include: deliveryRequestInclude,
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.logisticsDeliveryRequest.update({
+        where: { id },
+        data: {
+          status: dto.status,
+          plannedShipDate: this.parseDate(dto.plannedShipDate),
+          managerComment: normalizeText(dto.managerComment),
+        },
+        include: deliveryRequestInclude,
+      });
+
+      if (
+        request.status !== dto.status &&
+        (await isClientNotificationEnabled(
+          tx,
+          request.clientId,
+          ClientNotificationEvent.LOGISTICS_DELIVERY_STATUS_CHANGED,
+        ))
+      ) {
+        await tx.clientNotification.create({
+          data: {
+            clientId: request.clientId,
+            requestId: updated.requestId,
+            title: 'Статус доставки изменен',
+            body: `${request.origin} -> ${request.destination}: ${deliveryStatusLabel(request.status)} -> ${deliveryStatusLabel(dto.status)}`,
+            severity: dto.status === LogisticsDeliveryStatus.DELIVERED ? 'SUCCESS' : 'INFO',
+            createdByUserId: user.id,
+          },
+        });
+      }
+
+      return updated;
     });
   }
 
@@ -780,6 +812,19 @@ function ensureDeliveryBillingService(tx: Prisma.TransactionClient) {
 
 function deliverySourceKey(deliveryRequestId: string) {
   return `logistics-delivery:${deliveryRequestId}`;
+}
+
+function deliveryStatusLabel(status: LogisticsDeliveryStatus) {
+  const labels: Record<LogisticsDeliveryStatus, string> = {
+    [LogisticsDeliveryStatus.REQUESTED]: 'запрос',
+    [LogisticsDeliveryStatus.QUOTED]: 'рассчитано',
+    [LogisticsDeliveryStatus.PLANNED]: 'запланировано',
+    [LogisticsDeliveryStatus.IN_TRANSIT]: 'в пути',
+    [LogisticsDeliveryStatus.DELIVERED]: 'доставлено',
+    [LogisticsDeliveryStatus.CANCELLED]: 'отменено',
+  };
+
+  return labels[status];
 }
 
 function normalizeText(value?: string) {

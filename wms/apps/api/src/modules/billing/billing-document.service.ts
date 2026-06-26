@@ -48,7 +48,7 @@ export class BillingDocumentService {
     const payload: InvoiceDocumentPayload = {
       invoiceId: invoice.id,
       number: invoice.number,
-      title: `Счет ${invoice.number}`,
+      title: `Счет № ${invoice.number}`,
       fileName: `${safeFileName(invoice.number)}.html`,
       status: invoice.status,
       statusLabel: invoiceStatusLabel(invoice.status),
@@ -91,7 +91,7 @@ export class BillingDocumentService {
   async getInvoiceActDocument(invoiceId: string, user: AuthUser): Promise<BillingPrintableDocument> {
     const invoiceDocument = await this.getInvoiceDocument(invoiceId, user);
     const actNumber = actNumberForInvoice(invoiceDocument.number);
-    const title = `Акт оказанных услуг ${actNumber}`;
+    const title = `Акт № ${actNumber} оказанных услуг`;
     const fileName = `${safeFileName(actNumber)}.html`;
 
     // Русский комментарий: акт строится из того же снимка счета, чтобы суммы и состав услуг не расходились между документами.
@@ -314,7 +314,7 @@ function renderActHtml(document: InvoiceDocumentPayload) {
 </head>
 <body>
   <h1>${escapeHtml(document.title)}</h1>
-  <p class="muted">Основание: счет ${escapeHtml(document.number)} · период ${formatDate(document.periodFrom)} - ${formatDate(document.periodTo)}</p>
+  <p class="muted">Основание: счет № ${escapeHtml(document.number)} · период ${formatDate(document.periodFrom)} - ${formatDate(document.periodTo)}</p>
   <div class="grid">
     <section class="box">
       <strong>Заказчик</strong>

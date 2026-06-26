@@ -1,9 +1,12 @@
 import { ClientNotificationEvent } from '@prisma/client';
 
 export const clientNotificationEvents = [
-  ClientNotificationEvent.REQUEST_COMMENT,
   ClientNotificationEvent.REQUEST_STATUS_CHANGED,
   ClientNotificationEvent.REQUEST_FILE_UPLOADED,
+  ClientNotificationEvent.REQUEST_COMMENT,
+  ClientNotificationEvent.BILLING_INVOICE_STATUS_CHANGED,
+  ClientNotificationEvent.BILLING_PAYMENT_RECORDED,
+  ClientNotificationEvent.LOGISTICS_DELIVERY_STATUS_CHANGED,
   ClientNotificationEvent.MANUAL,
 ] as const;
 

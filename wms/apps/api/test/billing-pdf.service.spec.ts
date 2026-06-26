@@ -28,7 +28,7 @@ describe('BillingPdfService', () => {
         ...printableDocument(),
         documentKind: 'act',
         actNumber: 'ACT-202606-0001',
-        title: 'Акт оказанных услуг ACT-202606-0001',
+        title: 'Акт № ACT-202606-0001 оказанных услуг',
         fileName: 'ACT-202606-0001.html',
       }),
     };
@@ -46,7 +46,7 @@ function printableDocument(): BillingPrintableDocument {
   return {
     invoiceId: 'invoice-1',
     number: 'INV-202606-0001',
-    title: 'Счет INV-202606-0001',
+    title: 'Счет № INV-202606-0001',
     fileName: 'INV-202606-0001.html',
     status: BillingInvoiceStatus.ISSUED,
     statusLabel: 'Выставлен',

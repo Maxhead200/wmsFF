@@ -25,7 +25,7 @@ describe('BillingDocumentService', () => {
     expect(document.remainingRub).toBe(1000);
     expect(document.rows).toHaveLength(2);
     expect(document.payments).toHaveLength(1);
-    expect(document.html).toContain('Счет INV-202606-0001');
+    expect(document.html).toContain('Счет № INV-202606-0001');
     expect(document.html).toContain('ООО &quot;Клиент&quot;');
     expect(document.html).not.toContain('<script>');
   });
@@ -58,8 +58,8 @@ describe('BillingDocumentService', () => {
     expect(document.documentKind).toBe('act');
     expect(document.actNumber).toBe('ACT-202606-0001');
     expect(document.fileName).toBe('ACT-202606-0001.html');
-    expect(document.html).toContain('Акт оказанных услуг ACT-202606-0001');
-    expect(document.html).toContain('Основание: счет INV-202606-0001');
+    expect(document.html).toContain('Акт № ACT-202606-0001 оказанных услуг');
+    expect(document.html).toContain('Основание: счет № INV-202606-0001');
     expect(document.html).toContain('Итого оказано услуг на сумму');
     expect(document.html).not.toContain('Оплаты');
   });

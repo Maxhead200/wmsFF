@@ -3,6 +3,7 @@ import {
   BillingChargeSource,
   BillingChargeStatus,
   BillingUnit,
+  ClientNotificationEvent,
   LogisticsDeliveryStatus,
   LogisticsPricingMode,
   LogisticsTripStatus,
@@ -162,6 +163,62 @@ describe('LogisticsService', () => {
       ),
     ).rejects.toThrow(BadRequestException);
   });
+
+  it('создает уведомление клиенту при смене статуса доставки', async () => {
+    const prisma = {
+      logisticsDeliveryRequest: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'delivery-1',
+          clientId: 'client-1',
+          status: LogisticsDeliveryStatus.REQUESTED,
+          origin: 'Москва',
+          destination: 'Казань',
+        }),
+        update: vi.fn().mockResolvedValue({
+          id: 'delivery-1',
+          requestId: 'request-1',
+          status: LogisticsDeliveryStatus.PLANNED,
+        }),
+      },
+      clientNotificationPreference: {
+        findUnique: vi.fn().mockResolvedValue(null),
+      },
+      clientNotification: {
+        create: vi.fn().mockResolvedValue({ id: 'notification-1' }),
+      },
+      $transaction: vi.fn((callback) => callback(prisma)),
+    };
+    const deliveryService = new LogisticsService(prisma as never, { requireClientAccess: vi.fn() } as never);
+
+    await deliveryService.updateDeliveryStatus(
+      'delivery-1',
+      { status: LogisticsDeliveryStatus.PLANNED },
+      user(),
+    );
+
+    expect(prisma.clientNotificationPreference.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          clientId_eventType: {
+            clientId: 'client-1',
+            eventType: ClientNotificationEvent.LOGISTICS_DELIVERY_STATUS_CHANGED,
+          },
+        },
+      }),
+    );
+    expect(prisma.clientNotification.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          clientId: 'client-1',
+          requestId: 'request-1',
+          title: 'Статус доставки изменен',
+          body: 'Москва -> Казань: запрос -> запланировано',
+          severity: 'INFO',
+        }),
+      }),
+    );
+  });
+
   it('финализирует ручной расчет доставки', async () => {
     const prisma = {
       logisticsDeliveryRequest: {

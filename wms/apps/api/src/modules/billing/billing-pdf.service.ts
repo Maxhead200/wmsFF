@@ -78,7 +78,7 @@ function invoiceDefinition(document: BillingPrintableDocument): TDocumentDefinit
 
 function actDefinition(document: BillingPrintableDocument): TDocumentDefinitions {
   return baseDefinition(document, [
-    documentHeader(document, `Основание: счет ${document.number}`),
+    documentHeader(document, `Основание: счет № ${document.number}`),
     metaGrid([
       ['Заказчик', clientLines(document)],
       ['Исполнитель', ['LOGOFF Fulfillment WMS', `Дата акта: ${formatDate(document.issuedAt ?? new Date().toISOString())}`, `Ответственный: ${document.createdBy?.name ?? '-'}`]],

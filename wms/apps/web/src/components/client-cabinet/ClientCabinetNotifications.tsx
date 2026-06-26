@@ -14,28 +14,43 @@ type ClientCabinetNotificationsProps = {
 };
 
 const preferenceLabels: Record<ClientNotificationEvent, { title: string; caption: string }> = {
-  REQUEST_COMMENT: {
-    title: 'Комментарии',
-    caption: 'Новые внешние комментарии по заявкам',
-  },
   REQUEST_STATUS_CHANGED: {
-    title: 'Статусы',
-    caption: 'Изменения статуса заявок',
+    title: 'Заявки',
+    caption: 'Статусы и ход обработки заявок',
   },
   REQUEST_FILE_UPLOADED: {
     title: 'Файлы',
     caption: 'Новые вложения в заявках',
   },
+  REQUEST_COMMENT: {
+    title: 'Комментарии',
+    caption: 'Внешние комментарии по заявкам',
+  },
+  BILLING_INVOICE_STATUS_CHANGED: {
+    title: 'Счета',
+    caption: 'Изменения статуса счетов',
+  },
+  BILLING_PAYMENT_RECORDED: {
+    title: 'Оплаты',
+    caption: 'Поступления по счетам',
+  },
+  LOGISTICS_DELIVERY_STATUS_CHANGED: {
+    title: 'Доставка',
+    caption: 'Статусы доставок и рейсов',
+  },
   MANUAL: {
-    title: 'Ручные',
+    title: 'Сообщения',
     caption: 'Сообщения от менеджера',
   },
 };
 
 const preferenceOrder: ClientNotificationEvent[] = [
-  'REQUEST_COMMENT',
   'REQUEST_STATUS_CHANGED',
   'REQUEST_FILE_UPLOADED',
+  'REQUEST_COMMENT',
+  'BILLING_INVOICE_STATUS_CHANGED',
+  'BILLING_PAYMENT_RECORDED',
+  'LOGISTICS_DELIVERY_STATUS_CHANGED',
   'MANUAL',
 ];
 

@@ -80,12 +80,42 @@ describe('ClientNotificationsService', () => {
       user({ clientIds: ['client-1'] }),
     );
 
-    expect(preferences).toHaveLength(4);
+    expect(preferences).toHaveLength(7);
     expect(preferences).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           clientId: 'client-1',
+          eventType: ClientNotificationEvent.REQUEST_STATUS_CHANGED,
+          isEnabled: true,
+        }),
+        expect.objectContaining({
+          clientId: 'client-1',
+          eventType: ClientNotificationEvent.REQUEST_FILE_UPLOADED,
+          isEnabled: true,
+        }),
+        expect.objectContaining({
+          clientId: 'client-1',
           eventType: ClientNotificationEvent.REQUEST_COMMENT,
+          isEnabled: true,
+        }),
+        expect.objectContaining({
+          clientId: 'client-1',
+          eventType: ClientNotificationEvent.BILLING_INVOICE_STATUS_CHANGED,
+          isEnabled: true,
+        }),
+        expect.objectContaining({
+          clientId: 'client-1',
+          eventType: ClientNotificationEvent.LOGISTICS_DELIVERY_STATUS_CHANGED,
+          isEnabled: true,
+        }),
+        expect.objectContaining({
+          clientId: 'client-1',
+          eventType: ClientNotificationEvent.BILLING_PAYMENT_RECORDED,
+          isEnabled: true,
+        }),
+        expect.objectContaining({
+          clientId: 'client-1',
+          eventType: ClientNotificationEvent.MANUAL,
           isEnabled: true,
         }),
       ]),

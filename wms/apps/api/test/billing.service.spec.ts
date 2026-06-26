@@ -1,5 +1,11 @@
 import { BadRequestException } from '@nestjs/common';
-import { BillingChargeSource, BillingChargeStatus, BillingInvoiceStatus, BillingUnit } from '@prisma/client';
+import {
+  BillingChargeSource,
+  BillingChargeStatus,
+  BillingInvoiceStatus,
+  BillingUnit,
+  ClientNotificationEvent,
+} from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthUser } from '../src/modules/auth/auth.types';
 import { BillingService } from '../src/modules/billing/billing.service';
@@ -328,11 +334,69 @@ describe('BillingService', () => {
     ).rejects.toThrow(BadRequestException);
   });
 
+  it('создает клиентское уведомление при смене статуса счета', async () => {
+    const tx = {
+      billingInvoice: {
+        update: vi.fn().mockResolvedValue({ id: 'invoice-1', status: BillingInvoiceStatus.ISSUED }),
+      },
+      clientNotificationPreference: {
+        findUnique: vi.fn().mockResolvedValue(null),
+      },
+      clientNotification: {
+        create: vi.fn().mockResolvedValue({ id: 'notification-1' }),
+      },
+    };
+    const prisma = {
+      billingInvoice: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'invoice-1',
+          number: 'INV-202606-0001',
+          clientId: 'client-1',
+          totalRub: '100.00',
+          paidRub: '0.00',
+          status: BillingInvoiceStatus.DRAFT,
+          issuedAt: null,
+          paidAt: null,
+        }),
+      },
+      $transaction: vi.fn((callback) => callback(tx)),
+    };
+    const service = new BillingService(prisma as never, clientScopes());
+
+    await service.updateInvoiceStatus(
+      'invoice-1',
+      { status: BillingInvoiceStatus.ISSUED },
+      user({ clientIds: ['client-1'], writableClientIds: ['client-1'] }),
+    );
+
+    expect(tx.clientNotificationPreference.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          clientId_eventType: {
+            clientId: 'client-1',
+            eventType: ClientNotificationEvent.BILLING_INVOICE_STATUS_CHANGED,
+          },
+        },
+      }),
+    );
+    expect(tx.clientNotification.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          clientId: 'client-1',
+          title: 'Статус счета изменен',
+          body: 'Счет № INV-202606-0001: черновик -> выставлен',
+          severity: 'INFO',
+        }),
+      }),
+    );
+  });
+
   it('принимает оплату и закрывает счет при полной сумме', async () => {
     const prisma = {
       billingInvoice: {
         findUnique: vi.fn().mockResolvedValue({
           id: 'invoice-1',
+          number: 'INV-1',
           clientId: 'client-1',
           status: BillingInvoiceStatus.ISSUED,
           totalRub: '100.00',
@@ -343,6 +407,12 @@ describe('BillingService', () => {
       },
       billingPayment: {
         create: vi.fn().mockResolvedValue({ id: 'payment-1' }),
+      },
+      clientNotificationPreference: {
+        findUnique: vi.fn().mockResolvedValue(null),
+      },
+      clientNotification: {
+        create: vi.fn().mockResolvedValue({ id: 'notification-1' }),
       },
       $transaction: vi.fn((callback) => callback(prisma)),
     };
@@ -375,6 +445,25 @@ describe('BillingService', () => {
           paidRub: 100,
           status: BillingInvoiceStatus.PAID,
           paidAt: expect.any(Date),
+        }),
+      }),
+    );
+    expect(prisma.clientNotificationPreference.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          clientId_eventType: {
+            clientId: 'client-1',
+            eventType: ClientNotificationEvent.BILLING_PAYMENT_RECORDED,
+          },
+        },
+      }),
+    );
+    expect(prisma.clientNotification.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          clientId: 'client-1',
+          title: 'Оплата по счету принята',
+          severity: 'SUCCESS',
         }),
       }),
     );

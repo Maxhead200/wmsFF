@@ -10,7 +10,7 @@ ENV_FILE="$APP_DIR/wms/.env"
 HOST_NGINX_AVAILABLE="/etc/nginx/sites-available/wms.logoff.pro"
 HOST_NGINX_ENABLED="/etc/nginx/sites-enabled/wms.logoff.pro"
 DOCKER_CLEANUP_AFTER_DEPLOY="${DOCKER_CLEANUP_AFTER_DEPLOY:-1}"
-DOCKER_BUILD_CACHE_MAX_AGE="${DOCKER_BUILD_CACHE_MAX_AGE:-24h}"
+DOCKER_PRUNE_UNTIL="${DOCKER_PRUNE_UNTIL:-}"
 
 cleanup_docker_after_deploy() {
   if [ "$DOCKER_CLEANUP_AFTER_DEPLOY" != "1" ]; then
@@ -21,9 +21,15 @@ cleanup_docker_after_deploy() {
   docker system df || true
 
   # Русский комментарий: чистим только неиспользуемые слои/кэш; volumes с PostgreSQL и Redis не трогаем.
-  docker image prune -f || true
-  docker container prune -f --filter "until=$DOCKER_BUILD_CACHE_MAX_AGE" || true
-  docker builder prune -af --filter "until=$DOCKER_BUILD_CACHE_MAX_AGE" || true
+  if [ -n "$DOCKER_PRUNE_UNTIL" ]; then
+    docker image prune -af --filter "until=$DOCKER_PRUNE_UNTIL" || true
+    docker container prune -f --filter "until=$DOCKER_PRUNE_UNTIL" || true
+    docker builder prune -af --filter "until=$DOCKER_PRUNE_UNTIL" || true
+  else
+    docker image prune -af || true
+    docker container prune -f || true
+    docker builder prune -af || true
+  fi
 
   echo "--- docker disk after cleanup ---"
   docker system df || true

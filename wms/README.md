@@ -35,4 +35,4 @@ curl -fsSL https://raw.githubusercontent.com/Maxhead200/wmsFF/codex/wms-foundati
 sh deploy-vps.sh
 ```
 
-После успешного health-check deploy чистит неиспользуемые Docker images/containers/build cache, но не трогает volumes с данными. Отключить можно через `DOCKER_CLEANUP_AFTER_DEPLOY=0`, возраст build cache задается через `DOCKER_BUILD_CACHE_MAX_AGE` (по умолчанию `24h`).
+После успешного health-check deploy чистит неиспользуемые Docker images/containers/build cache, но не трогает volumes с данными. Отключить можно через `DOCKER_CLEANUP_AFTER_DEPLOY=0`; если нужно оставить свежий кэш, задайте возрастной фильтр `DOCKER_PRUNE_UNTIL=24h`.

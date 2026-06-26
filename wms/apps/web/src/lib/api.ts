@@ -31,6 +31,72 @@ export type ClientRequestStatus = 'SUBMITTED' | 'IN_REVIEW' | 'APPROVED' | 'IN_W
 
 export type ClientRequestPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
 
+export type BillingUnit = 'SERVICE' | 'PIECE' | 'BOX' | 'PALLET' | 'LITER' | 'DAY' | 'HOUR';
+
+export type BillingChargeStatus = 'DRAFT' | 'APPROVED' | 'CANCELLED';
+
+export type BillingServiceSummary = {
+  id: string;
+  code: string;
+  name: string;
+  unit: BillingUnit;
+  defaultPriceRub: string | number | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type BillingChargeSummary = {
+  id: string;
+  clientId: string;
+  serviceId: string | null;
+  requestId: string | null;
+  description: string;
+  unit: BillingUnit;
+  quantity: string | number;
+  unitPriceRub: string | number;
+  totalRub: string | number;
+  status: BillingChargeStatus;
+  serviceDate: string;
+  comment: string | null;
+  approvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  client: Pick<ClientSummary, 'id' | 'code' | 'name'>;
+  service: BillingServiceSummary | null;
+  request: Pick<ClientRequestSummary, 'id' | 'title' | 'type' | 'status'> | null;
+  createdBy: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+  approvedBy: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+};
+
+export type CreateBillingServicePayload = {
+  code: string;
+  name: string;
+  unit?: BillingUnit;
+  defaultPriceRub?: number;
+  isActive?: boolean;
+};
+
+export type CreateBillingChargePayload = {
+  clientId: string;
+  serviceId?: string;
+  requestId?: string;
+  description?: string;
+  unit?: BillingUnit;
+  quantity: number;
+  unitPriceRub?: number;
+  serviceDate?: string;
+  comment?: string;
+};
+
 export type ClientRequestItem = {
   id: string;
   requestId: string;
@@ -534,6 +600,49 @@ export async function fetchClientRequests(
   filter: { clientId?: string; status?: ClientRequestStatus; type?: ClientRequestType } = {},
 ) {
   return request<ClientRequestSummary[]>(withQuery('/client-requests', filter), {
+    accessToken,
+  });
+}
+
+export async function fetchBillingServices(accessToken: string) {
+  return request<BillingServiceSummary[]>('/billing/services', {
+    accessToken,
+  });
+}
+
+export async function createBillingService(accessToken: string, payload: CreateBillingServicePayload) {
+  return request<BillingServiceSummary>('/billing/services', {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function fetchBillingCharges(
+  accessToken: string,
+  filter: { clientId?: string; status?: BillingChargeStatus } = {},
+) {
+  return request<BillingChargeSummary[]>(withQuery('/billing/charges', filter), {
+    accessToken,
+  });
+}
+
+export async function createBillingCharge(accessToken: string, payload: CreateBillingChargePayload) {
+  return request<BillingChargeSummary>('/billing/charges', {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function updateBillingChargeStatus(
+  accessToken: string,
+  chargeId: string,
+  payload: { status: BillingChargeStatus },
+) {
+  return request<BillingChargeSummary>(`/billing/charges/${chargeId}/status`, {
+    method: 'PATCH',
+    body: payload,
     accessToken,
   });
 }

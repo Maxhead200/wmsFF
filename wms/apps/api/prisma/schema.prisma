@@ -99,6 +99,22 @@ enum LogisticsPricingMode {
   MANUAL_REVIEW
 }
 
+enum BillingUnit {
+  SERVICE
+  PIECE
+  BOX
+  PALLET
+  LITER
+  DAY
+  HOUR
+}
+
+enum BillingChargeStatus {
+  DRAFT
+  APPROVED
+  CANCELLED
+}
+
 model User {
   id                     String          @id @default(uuid())
   email                  String          @unique
@@ -111,6 +127,8 @@ model User {
   createdClientRequests  ClientRequest[] @relation("ClientRequestCreatedBy")
   assignedClientRequests ClientRequest[] @relation("ClientRequestAssignedTo")
   reviewedTsdOperations  TsdOperation[]  @relation("TsdOperationReviewedBy")
+  createdBillingCharges  BillingCharge[] @relation("BillingChargeCreatedBy")
+  approvedBillingCharges BillingCharge[] @relation("BillingChargeApprovedBy")
   auditLogs              AuditLog[]
   createdAt              DateTime        @default(now())
   updatedAt              DateTime        @updatedAt
@@ -163,24 +181,25 @@ model RolePermission {
 }
 
 model Client {
-  id            String          @id @default(uuid())
-  code          String          @unique
-  name          String
-  inn           String?
-  kpp           String?
-  legalAddress  String?
-  actualAddress String?
-  phone         String?
-  email         String?
-  status        ClientStatus    @default(ACTIVE)
-  skus          Sku[]
-  boxes         Box[]
-  pallets       Pallet[]
-  movements     StockMovement[]
-  userScopes    UserClient[]
-  requests      ClientRequest[]
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  id             String          @id @default(uuid())
+  code           String          @unique
+  name           String
+  inn            String?
+  kpp            String?
+  legalAddress   String?
+  actualAddress  String?
+  phone          String?
+  email          String?
+  status         ClientStatus    @default(ACTIVE)
+  skus           Sku[]
+  boxes          Box[]
+  pallets        Pallet[]
+  movements      StockMovement[]
+  userScopes     UserClient[]
+  requests       ClientRequest[]
+  billingCharges BillingCharge[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 }
 
 model Warehouse {
@@ -333,6 +352,7 @@ model ClientRequest {
   createdBy        User?                 @relation("ClientRequestCreatedBy", fields: [createdByUserId], references: [id])
   assignedTo       User?                 @relation("ClientRequestAssignedTo", fields: [assignedToUserId], references: [id])
   items            ClientRequestItem[]
+  billingCharges   BillingCharge[]
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
 
@@ -355,6 +375,48 @@ model ClientRequestItem {
 
   @@index([requestId])
   @@index([skuId])
+}
+
+model BillingService {
+  id              String          @id @default(uuid())
+  code            String          @unique
+  name            String
+  unit            BillingUnit     @default(SERVICE)
+  defaultPriceRub Decimal?        @db.Decimal(12, 2)
+  isActive        Boolean         @default(true)
+  charges         BillingCharge[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
+model BillingCharge {
+  id               String              @id @default(uuid())
+  clientId         String
+  serviceId        String?
+  requestId        String?
+  description      String
+  unit             BillingUnit         @default(SERVICE)
+  quantity         Decimal             @db.Decimal(12, 3)
+  unitPriceRub     Decimal             @db.Decimal(12, 2)
+  totalRub         Decimal             @db.Decimal(14, 2)
+  status           BillingChargeStatus @default(DRAFT)
+  serviceDate      DateTime            @default(now())
+  comment          String?
+  createdByUserId  String?
+  approvedByUserId String?
+  approvedAt       DateTime?
+  client           Client              @relation(fields: [clientId], references: [id])
+  service          BillingService?     @relation(fields: [serviceId], references: [id])
+  request          ClientRequest?      @relation(fields: [requestId], references: [id])
+  createdBy        User?               @relation("BillingChargeCreatedBy", fields: [createdByUserId], references: [id])
+  approvedBy       User?               @relation("BillingChargeApprovedBy", fields: [approvedByUserId], references: [id])
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([clientId, status, serviceDate])
+  @@index([requestId])
+  @@index([serviceId])
+  @@index([approvedByUserId])
 }
 
 model LogisticsTariffSet {

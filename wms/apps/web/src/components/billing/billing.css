@@ -1,0 +1,123 @@
+.billing-panel {
+  margin-bottom: 28px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 18px;
+}
+
+.billing-panel__heading {
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.billing-form {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 16px;
+}
+
+.billing-fields {
+  display: grid;
+  gap: 12px;
+  align-items: end;
+}
+
+.billing-fields--service {
+  grid-template-columns: 0.8fr 1.4fr 1fr 1fr;
+}
+
+.billing-fields--charge {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.billing-fields label {
+  display: grid;
+  gap: 6px;
+}
+
+.billing-fields label > span:first-child {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.billing-fields input,
+.billing-fields select,
+.billing-status-select select {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfdff;
+  color: var(--ink);
+  padding: 0 11px;
+}
+
+.billing-fields input:focus,
+.billing-fields select:focus,
+.billing-status-select select:focus {
+  border-color: var(--red-dark);
+  outline: 3px solid rgb(215 25 32 / 0.14);
+}
+
+.billing-fields__wide {
+  grid-column: span 2;
+}
+
+.billing-submit {
+  width: fit-content;
+}
+
+.billing-panel__list {
+  min-height: 140px;
+}
+
+.billing-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.billing-table {
+  min-width: 920px;
+}
+
+.billing-status-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--red-dark);
+}
+
+.billing-status-select svg {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 980px) {
+  .billing-fields--service,
+  .billing-fields--charge {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .billing-panel {
+    padding: 14px;
+  }
+
+  .billing-fields--service,
+  .billing-fields--charge {
+    grid-template-columns: 1fr;
+  }
+
+  .billing-fields__wide {
+    grid-column: auto;
+  }
+
+  .billing-submit {
+    width: 100%;
+  }
+}

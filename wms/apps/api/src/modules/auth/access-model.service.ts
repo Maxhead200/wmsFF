@@ -19,6 +19,8 @@ const permissions = [
   ['imports:write', 'Загрузка XLSX-импортов'],
   ['logistics:read', 'Просмотр тарифов и расчет логистики'],
   ['logistics:write', 'Загрузка и изменение тарифов логистики'],
+  ['billing:read', 'Просмотр услуг и начислений биллинга'],
+  ['billing:write', 'Создание услуг и начислений биллинга'],
   ['print:write', 'Печать этикеток'],
 ] as const;
 
@@ -45,6 +47,8 @@ const rolePermissions: Record<string, { name: string; permissions: string[] }> =
       'imports:write',
       'logistics:read',
       'logistics:write',
+      'billing:read',
+      'billing:write',
       'print:write',
     ],
   },
@@ -61,12 +65,20 @@ const rolePermissions: Record<string, { name: string; permissions: string[] }> =
       'client-requests:status',
       'imports:write',
       'logistics:read',
+      'billing:read',
       'print:write',
     ],
   },
   CLIENT: {
     name: 'Клиент',
-    permissions: ['clients:read', 'stock:read', 'client-requests:read', 'client-requests:write', 'logistics:read'],
+    permissions: [
+      'clients:read',
+      'stock:read',
+      'client-requests:read',
+      'client-requests:write',
+      'logistics:read',
+      'billing:read',
+    ],
   },
 };
 

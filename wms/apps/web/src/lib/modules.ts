@@ -1,5 +1,6 @@
 import {
   Boxes,
+  Calculator,
   ClipboardCheck,
   ClipboardList,
   PackageSearch,
@@ -65,5 +66,11 @@ export const mvpModules: WmsModuleCard[] = [
     status: 'in-progress',
     icon: ClipboardList,
     description: 'Клиентские заявки, статусы обработки и доступ только по клиентским scope.',
+  },
+  {
+    title: 'Биллинг',
+    status: 'in-progress',
+    icon: Calculator,
+    description: 'Справочник услуг, ручные начисления и статусы утверждения к оплате.',
   },
 ];

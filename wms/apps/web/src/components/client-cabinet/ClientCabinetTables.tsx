@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { FileText, ReceiptText } from 'lucide-react';
+import { FileText, MessageSquareText, ReceiptText } from 'lucide-react';
 import type {
   BillingChargeSummary,
   BillingInvoiceSummary,
@@ -26,6 +26,7 @@ type ClientCabinetTablesProps = {
   charges: BillingChargeSummary[];
   notifications: ClientNotificationSummary[];
   onOpenRequestDocument: (request: ClientRequestSummary) => void;
+  onOpenRequestTimeline: (request: ClientRequestSummary) => void;
   onOpenInvoiceDocument: (invoice: BillingInvoiceSummary) => void;
   onUploadRequestFile: (request: ClientRequestSummary, file: File) => Promise<void>;
   onDownloadRequestFile: (request: ClientRequestSummary, file: ClientRequestFileSummary) => Promise<void>;
@@ -39,6 +40,7 @@ export function ClientCabinetTables({
   charges,
   notifications,
   onOpenRequestDocument,
+  onOpenRequestTimeline,
   onOpenInvoiceDocument,
   onUploadRequestFile,
   onDownloadRequestFile,
@@ -53,7 +55,13 @@ export function ClientCabinetTables({
       </CabinetSection>
 
       <CabinetSection title="Заявки" emptyText="Заявок пока нет." hasItems={requests.length > 0}>
-        {renderRequestTable(requests, onOpenRequestDocument, onUploadRequestFile, onDownloadRequestFile)}
+        {renderRequestTable(
+          requests,
+          onOpenRequestDocument,
+          onOpenRequestTimeline,
+          onUploadRequestFile,
+          onDownloadRequestFile,
+        )}
       </CabinetSection>
 
       <CabinetSection title="Счета" emptyText="Счетов пока нет." hasItems={invoices.length > 0}>
@@ -129,6 +137,7 @@ function renderStockTable(items: StockBalance[]) {
 function renderRequestTable(
   items: ClientRequestSummary[],
   onOpenRequestDocument: (request: ClientRequestSummary) => void,
+  onOpenRequestTimeline: (request: ClientRequestSummary) => void,
   onUploadRequestFile: (request: ClientRequestSummary, file: File) => Promise<void>,
   onDownloadRequestFile: (request: ClientRequestSummary, file: ClientRequestFileSummary) => Promise<void>,
 ) {
@@ -163,15 +172,26 @@ function renderRequestTable(
                 {request.managerComment ? <span>{request.managerComment}</span> : null}
               </td>
               <td>
-                <button
-                  className="document-open-button"
-                  type="button"
-                  onClick={() => onOpenRequestDocument(request)}
-                  title="Открыть состав заявки"
-                >
-                  <FileText size={15} aria-hidden="true" />
-                  <span>Заявка</span>
-                </button>
+                <div className="client-request-actions-cell">
+                  <button
+                    className="document-open-button"
+                    type="button"
+                    onClick={() => onOpenRequestDocument(request)}
+                    title="Открыть состав заявки"
+                  >
+                    <FileText size={15} aria-hidden="true" />
+                    <span>Заявка</span>
+                  </button>
+                  <button
+                    className="document-open-button"
+                    type="button"
+                    onClick={() => onOpenRequestTimeline(request)}
+                    title="Открыть историю заявки"
+                  >
+                    <MessageSquareText size={15} aria-hidden="true" />
+                    <span>История</span>
+                  </button>
+                </div>
               </td>
               <td>
                 <ClientRequestFilesCell

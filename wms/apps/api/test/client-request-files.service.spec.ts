@@ -1,4 +1,5 @@
 import { ForbiddenException } from '@nestjs/common';
+import { ClientRequestEventType } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthUser } from '../src/modules/auth/auth.types';
 import { ClientScopeService } from '../src/modules/auth/client-scope.service';
@@ -18,6 +19,9 @@ describe('ClientRequestFilesService', () => {
       },
       clientNotification: {
         create: vi.fn().mockResolvedValue({ id: 'notification-1' }),
+      },
+      clientRequestEvent: {
+        create: vi.fn().mockResolvedValue({ id: 'event-1' }),
       },
     };
     const prisma = {
@@ -54,6 +58,15 @@ describe('ClientRequestFilesService', () => {
           clientId: 'client-1',
           requestId: 'request-1',
           title: 'Добавлен файл к заявке',
+        }),
+      }),
+    );
+    expect(tx.clientRequestEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          requestId: 'request-1',
+          eventType: ClientRequestEventType.FILE_UPLOADED,
+          body: 'invoice.pdf',
         }),
       }),
     );

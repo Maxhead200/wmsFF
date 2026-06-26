@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { ClientRequestPriority, ClientRequestStatus, ClientRequestType } from '@prisma/client';
+import { ClientRequestEventType, ClientRequestPriority, ClientRequestStatus, ClientRequestType } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthUser } from '../src/modules/auth/auth.types';
 import { ClientScopeService } from '../src/modules/auth/client-scope.service';
@@ -26,13 +26,19 @@ describe('ClientRequestsService', () => {
   });
 
   it('создает заявку в статусе SUBMITTED и привязывает автора', async () => {
+    const tx = {
+      clientRequest: {
+        create: vi.fn().mockResolvedValue({ id: 'request-1', clientId: 'client-1', comment: null }),
+      },
+      clientRequestEvent: {
+        create: vi.fn().mockResolvedValue({ id: 'event-1' }),
+      },
+    };
     const prisma = {
       sku: {
         findMany: vi.fn().mockResolvedValue([{ id: 'sku-1' }]),
       },
-      clientRequest: {
-        create: vi.fn().mockResolvedValue({ id: 'request-1' }),
-      },
+      $transaction: vi.fn((callback) => callback(tx)),
     };
     const service = new ClientRequestsService(prisma as never, new ClientScopeService());
 
@@ -47,12 +53,21 @@ describe('ClientRequestsService', () => {
       user({ clientIds: ['client-1'], writableClientIds: ['client-1'] }),
     );
 
-    expect(prisma.clientRequest.create).toHaveBeenCalledWith(
+    expect(tx.clientRequest.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           clientId: 'client-1',
           status: ClientRequestStatus.SUBMITTED,
           createdByUserId: 'user-1',
+        }),
+      }),
+    );
+    expect(tx.clientRequestEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          requestId: 'request-1',
+          eventType: ClientRequestEventType.CREATED,
+          statusTo: ClientRequestStatus.SUBMITTED,
         }),
       }),
     );

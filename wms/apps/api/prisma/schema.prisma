@@ -45,6 +45,13 @@ enum ClientRequestPriority {
   URGENT
 }
 
+enum ClientRequestEventType {
+  CREATED
+  STATUS_CHANGED
+  COMMENT
+  FILE_UPLOADED
+}
+
 enum StockStatus {
   AVAILABLE
   RESERVED
@@ -185,6 +192,8 @@ model User {
   createdDeliveries       LogisticsDeliveryRequest[] @relation("LogisticsDeliveryCreatedBy")
   uploadedRequestFiles   ClientRequestFile[] @relation("ClientRequestFileUploadedBy")
   createdNotifications   ClientNotification[] @relation("ClientNotificationCreatedBy")
+  authoredRequestComments ClientRequestComment[] @relation("ClientRequestCommentAuthor")
+  createdRequestEvents   ClientRequestEvent[] @relation("ClientRequestEventCreatedBy")
   auditLogs              AuditLog[]
   createdAt              DateTime         @default(now())
   updatedAt              DateTime         @updatedAt
@@ -259,6 +268,8 @@ model Client {
   deliveryRequests LogisticsDeliveryRequest[]
   requestFiles    ClientRequestFile[]
   notifications   ClientNotification[]
+  requestComments ClientRequestComment[]
+  requestEvents   ClientRequestEvent[]
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 }
@@ -415,6 +426,8 @@ model ClientRequest {
   items            ClientRequestItem[]
   files            ClientRequestFile[]
   notifications    ClientNotification[]
+  comments         ClientRequestComment[]
+  events           ClientRequestEvent[]
   billingCharges   BillingCharge[]
   deliveryRequests LogisticsDeliveryRequest[]
   createdAt        DateTime              @default(now())
@@ -458,6 +471,44 @@ model ClientRequestFile {
   @@index([requestId, createdAt])
   @@index([clientId, createdAt])
   @@index([uploadedByUserId])
+}
+
+model ClientRequestComment {
+  id           String        @id @default(uuid())
+  requestId    String
+  clientId     String
+  authorUserId String?
+  body         String
+  isInternal   Boolean       @default(false)
+  request      ClientRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  client       Client        @relation(fields: [clientId], references: [id])
+  author       User?         @relation("ClientRequestCommentAuthor", fields: [authorUserId], references: [id])
+  createdAt    DateTime      @default(now())
+
+  @@index([requestId, createdAt])
+  @@index([clientId, createdAt])
+  @@index([authorUserId])
+}
+
+model ClientRequestEvent {
+  id              String                 @id @default(uuid())
+  requestId       String
+  clientId        String
+  eventType       ClientRequestEventType
+  title           String
+  body            String?
+  statusFrom      ClientRequestStatus?
+  statusTo        ClientRequestStatus?
+  createdByUserId String?
+  request         ClientRequest          @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  client          Client                 @relation(fields: [clientId], references: [id])
+  createdBy       User?                  @relation("ClientRequestEventCreatedBy", fields: [createdByUserId], references: [id])
+  createdAt       DateTime               @default(now())
+
+  @@index([requestId, createdAt])
+  @@index([clientId, createdAt])
+  @@index([eventType, createdAt])
+  @@index([createdByUserId])
 }
 
 model ClientNotification {

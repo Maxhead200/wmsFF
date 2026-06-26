@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { ClientRequestStatus, Prisma } from '@prisma/client';
+import { ClientRequestEventType, ClientRequestStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
@@ -49,39 +49,55 @@ export class ClientRequestsService {
     await this.ensureSkuItemsBelongToClient(dto.clientId, dto.items ?? []);
 
     // Русский комментарий: клиентская заявка всегда стартует как SUBMITTED; статусы меняет отдельный workflow.
-    return this.prisma.clientRequest.create({
-      data: {
-        clientId: dto.clientId,
-        type: dto.type,
-        status: ClientRequestStatus.SUBMITTED,
-        priority: dto.priority ?? 'NORMAL',
-        title: dto.title.trim(),
-        comment: normalizeText(dto.comment),
-        contactName: normalizeText(dto.contactName),
-        contactPhone: normalizeText(dto.contactPhone),
-        deliveryAddress: normalizeText(dto.deliveryAddress),
-        desiredDate: dto.desiredDate ? new Date(dto.desiredDate) : undefined,
-        createdByUserId: user.id,
-        items: dto.items?.length
-          ? {
-              create: dto.items.map((item) => ({
-                skuId: normalizeText(item.skuId),
-                barcode: normalizeText(item.barcode),
-                name: normalizeText(item.name),
-                quantity: item.quantity,
-                comment: normalizeText(item.comment),
-              })),
-            }
-          : undefined,
-      },
-      include: clientRequestInclude,
+    return this.prisma.$transaction(async (tx) => {
+      const request = await tx.clientRequest.create({
+        data: {
+          clientId: dto.clientId,
+          type: dto.type,
+          status: ClientRequestStatus.SUBMITTED,
+          priority: dto.priority ?? 'NORMAL',
+          title: dto.title.trim(),
+          comment: normalizeText(dto.comment),
+          contactName: normalizeText(dto.contactName),
+          contactPhone: normalizeText(dto.contactPhone),
+          deliveryAddress: normalizeText(dto.deliveryAddress),
+          desiredDate: dto.desiredDate ? new Date(dto.desiredDate) : undefined,
+          createdByUserId: user.id,
+          items: dto.items?.length
+            ? {
+                create: dto.items.map((item) => ({
+                  skuId: normalizeText(item.skuId),
+                  barcode: normalizeText(item.barcode),
+                  name: normalizeText(item.name),
+                  quantity: item.quantity,
+                  comment: normalizeText(item.comment),
+                })),
+              }
+            : undefined,
+        },
+        include: clientRequestInclude,
+      });
+
+      await tx.clientRequestEvent.create({
+        data: {
+          requestId: request.id,
+          clientId: request.clientId,
+          eventType: ClientRequestEventType.CREATED,
+          title: 'Заявка создана',
+          body: request.comment ?? undefined,
+          statusTo: ClientRequestStatus.SUBMITTED,
+          createdByUserId: user.id,
+        },
+      });
+
+      return request;
     });
   }
 
   async updateStatus(id: string, dto: UpdateClientRequestStatusDto, user: AuthUser) {
     const request = await this.prisma.clientRequest.findUnique({
       where: { id },
-      select: { id: true, clientId: true },
+      select: { id: true, clientId: true, status: true, title: true },
     });
 
     if (!request) {
@@ -91,14 +107,44 @@ export class ClientRequestsService {
     // Русский комментарий: даже менеджер с ограниченным scope не меняет статусы чужого клиента.
     this.clientScopes.requireClientAccess(user, request.clientId, 'write');
 
-    return this.prisma.clientRequest.update({
-      where: { id },
-      data: {
-        status: dto.status,
-        managerComment: normalizeText(dto.managerComment),
-        assignedToUserId: dto.status === ClientRequestStatus.IN_WORK ? user.id : undefined,
-      },
-      include: clientRequestInclude,
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.clientRequest.update({
+        where: { id },
+        data: {
+          status: dto.status,
+          managerComment: normalizeText(dto.managerComment),
+          assignedToUserId: dto.status === ClientRequestStatus.IN_WORK ? user.id : undefined,
+        },
+        include: clientRequestInclude,
+      });
+
+      if (request.status !== dto.status) {
+        await tx.clientRequestEvent.create({
+          data: {
+            requestId: id,
+            clientId: request.clientId,
+            eventType: ClientRequestEventType.STATUS_CHANGED,
+            title: 'Статус заявки изменен',
+            body: normalizeText(dto.managerComment),
+            statusFrom: request.status,
+            statusTo: dto.status,
+            createdByUserId: user.id,
+          },
+        });
+
+        await tx.clientNotification.create({
+          data: {
+            clientId: request.clientId,
+            requestId: id,
+            title: 'Статус заявки изменен',
+            body: `${request.title}: ${request.status} -> ${dto.status}`,
+            severity: 'INFO',
+            createdByUserId: user.id,
+          },
+        });
+      }
+
+      return updated;
     });
   }
 

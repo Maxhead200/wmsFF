@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { ClientRequestEventType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
@@ -58,6 +58,17 @@ export class ClientRequestFilesService {
           title: 'Добавлен файл к заявке',
           body: `${savedFile.fileName} · ${request.title}`,
           severity: 'INFO',
+          createdByUserId: user.id,
+        },
+      });
+
+      await tx.clientRequestEvent.create({
+        data: {
+          requestId,
+          clientId: request.clientId,
+          eventType: ClientRequestEventType.FILE_UPLOADED,
+          title: 'Файл приложен к заявке',
+          body: savedFile.fileName,
           createdByUserId: user.id,
         },
       });

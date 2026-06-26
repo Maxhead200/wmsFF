@@ -18,8 +18,10 @@ import type { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { ClientRequestFilesService } from './client-request-files.service';
+import { ClientRequestHistoryService } from './client-request-history.service';
 import { ClientRequestDocumentService } from './client-request-document.service';
 import { ClientRequestsService } from './client-requests.service';
+import { CreateClientRequestCommentDto } from './dto/create-client-request-comment.dto';
 import { CreateClientRequestDto } from './dto/create-client-request.dto';
 import { ListClientRequestsDto } from './dto/list-client-requests.dto';
 import { UpdateClientRequestStatusDto } from './dto/update-client-request-status.dto';
@@ -32,6 +34,7 @@ export class ClientRequestsController {
     private readonly clientRequests: ClientRequestsService,
     private readonly documents: ClientRequestDocumentService,
     private readonly files: ClientRequestFilesService,
+    private readonly history: ClientRequestHistoryService,
   ) {}
 
   @Get()
@@ -52,6 +55,11 @@ export class ClientRequestsController {
   @Get(':id/files')
   listFiles(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.files.listForRequest(id, user);
+  }
+
+  @Get(':id/timeline')
+  getTimeline(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.history.getTimeline(id, user);
   }
 
   @Get(':id/files/:fileId')
@@ -86,6 +94,16 @@ export class ClientRequestsController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.files.uploadToRequest(id, file, user);
+  }
+
+  @Post(':id/comments')
+  @RequirePermissions('client-requests:write')
+  addComment(
+    @Param('id') id: string,
+    @Body() dto: CreateClientRequestCommentDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.history.addComment(id, dto, user);
   }
 
   @Patch(':id/status')

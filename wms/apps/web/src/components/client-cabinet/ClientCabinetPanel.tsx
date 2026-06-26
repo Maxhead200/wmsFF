@@ -8,10 +8,12 @@ import {
   fetchClientNotifications,
   fetchClientRequestDocument,
   fetchClientRequests,
+  fetchClientRequestTimeline,
   fetchClients,
   fetchStockBalances,
   markClientNotificationRead,
   uploadClientRequestFile,
+  createClientRequestComment,
   type AuthSession,
   type BillingChargeSummary,
   type BillingInvoiceDocument,
@@ -20,6 +22,7 @@ import {
   type ClientRequestFileSummary,
   type ClientRequestDocument,
   type ClientRequestSummary,
+  type ClientRequestTimeline,
   type ClientSummary,
   type StockBalance,
 } from '../../lib/api';
@@ -28,6 +31,7 @@ import { ClientRequestDocumentPreview } from '../client-requests/ClientRequestDo
 import './client-cabinet.css';
 import { ClientCabinetMetrics } from './ClientCabinetMetrics';
 import { ClientCabinetTables } from './ClientCabinetTables';
+import { ClientRequestTimelineModal } from './ClientRequestTimelineModal';
 
 type CabinetData = {
   clients: ClientSummary[];
@@ -62,6 +66,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
   const [selectedClientId, setSelectedClientId] = useState('');
   const [documentPreview, setDocumentPreview] = useState<BillingInvoiceDocument | null>(null);
   const [requestDocumentPreview, setRequestDocumentPreview] = useState<ClientRequestDocument | null>(null);
+  const [requestTimeline, setRequestTimeline] = useState<ClientRequestTimeline | null>(null);
   const [documentError, setDocumentError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -155,6 +160,16 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
     }
   }
 
+  async function openRequestTimeline(request: ClientRequestSummary) {
+    setDocumentError(null);
+
+    try {
+      setRequestTimeline(await fetchClientRequestTimeline(session.accessToken, request.id));
+    } catch (caught) {
+      setDocumentError(caught instanceof Error ? caught.message : 'Не удалось открыть историю заявки.');
+    }
+  }
+
   async function uploadRequestFile(request: ClientRequestSummary, file: File) {
     const uploadedFile = await uploadClientRequestFile(session.accessToken, request.id, file);
     const notifications = await fetchClientNotifications(session.accessToken);
@@ -193,6 +208,28 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
         notifications: current.data.notifications.map((item) => (item.id === updated.id ? updated : item)),
       },
     }));
+  }
+
+  async function addTimelineComment(body: string) {
+    if (!requestTimeline) {
+      throw new Error('История заявки не открыта.');
+    }
+
+    const comment = await createClientRequestComment(session.accessToken, requestTimeline.request.id, { body });
+    const [nextTimeline, notifications] = await Promise.all([
+      fetchClientRequestTimeline(session.accessToken, requestTimeline.request.id),
+      fetchClientNotifications(session.accessToken),
+    ]);
+    setRequestTimeline(nextTimeline);
+    setState((current) => ({
+      ...current,
+      data: {
+        ...current.data,
+        notifications,
+      },
+    }));
+
+    return comment;
   }
 
   return (
@@ -258,6 +295,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
             charges={view.charges}
             notifications={view.notifications}
             onOpenRequestDocument={(request) => void openRequestDocument(request)}
+            onOpenRequestTimeline={(request) => void openRequestTimeline(request)}
             onOpenInvoiceDocument={(invoice) => void openInvoiceDocument(invoice)}
             onUploadRequestFile={uploadRequestFile}
             onDownloadRequestFile={downloadRequestFile}
@@ -272,6 +310,14 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
 
       {requestDocumentPreview ? (
         <ClientRequestDocumentPreview document={requestDocumentPreview} onClose={() => setRequestDocumentPreview(null)} />
+      ) : null}
+
+      {requestTimeline ? (
+        <ClientRequestTimelineModal
+          timeline={requestTimeline}
+          onClose={() => setRequestTimeline(null)}
+          onAddComment={addTimelineComment}
+        />
       ) : null}
     </section>
   );

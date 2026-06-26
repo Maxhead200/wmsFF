@@ -39,6 +39,8 @@ export type ClientRequestStatus =
 
 export type ClientRequestPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
 
+export type ClientRequestEventType = 'CREATED' | 'STATUS_CHANGED' | 'COMMENT' | 'FILE_UPLOADED';
+
 export type ClientNotificationSeverity = 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR';
 
 export type BillingUnit = 'SERVICE' | 'PIECE' | 'BOX' | 'PALLET' | 'LITER' | 'LITER_DAY' | 'DAY' | 'HOUR';
@@ -353,6 +355,53 @@ export type ClientNotificationSummary = {
     email: string;
     name: string;
   } | null;
+};
+
+export type ClientRequestCommentSummary = {
+  id: string;
+  requestId: string;
+  clientId: string;
+  authorUserId: string | null;
+  body: string;
+  isInternal: boolean;
+  createdAt: string;
+  author: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+};
+
+export type ClientRequestEventSummary = {
+  id: string;
+  requestId: string;
+  clientId: string;
+  eventType: ClientRequestEventType;
+  title: string;
+  body: string | null;
+  statusFrom: ClientRequestStatus | null;
+  statusTo: ClientRequestStatus | null;
+  createdByUserId: string | null;
+  createdAt: string;
+  createdBy: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+};
+
+export type ClientRequestTimeline = {
+  request: {
+    id: string;
+    clientId: string;
+    title: string;
+    type: ClientRequestType;
+    status: ClientRequestStatus;
+    createdAt: string;
+    client: Pick<ClientSummary, 'id' | 'code' | 'name'>;
+  };
+  comments: ClientRequestCommentSummary[];
+  events: ClientRequestEventSummary[];
 };
 
 export type ClientRequestSummary = {
@@ -1101,6 +1150,24 @@ export async function fetchClientRequestDocument(accessToken: string, requestId:
 
 export async function fetchClientRequestFiles(accessToken: string, requestId: string) {
   return request<ClientRequestFileSummary[]>(`/client-requests/${requestId}/files`, {
+    accessToken,
+  });
+}
+
+export async function fetchClientRequestTimeline(accessToken: string, requestId: string) {
+  return request<ClientRequestTimeline>(`/client-requests/${requestId}/timeline`, {
+    accessToken,
+  });
+}
+
+export async function createClientRequestComment(
+  accessToken: string,
+  requestId: string,
+  payload: { body: string; isInternal?: boolean },
+) {
+  return request<ClientRequestCommentSummary>(`/client-requests/${requestId}/comments`, {
+    method: 'POST',
+    body: payload,
     accessToken,
   });
 }

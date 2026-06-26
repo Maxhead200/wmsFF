@@ -36,7 +36,6 @@ export class StockBalancesService {
         pallet: true,
       },
       orderBy: [{ updatedAt: 'desc' }],
-      take: 200,
     });
   }
 

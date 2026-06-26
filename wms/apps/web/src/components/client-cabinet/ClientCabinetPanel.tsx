@@ -40,7 +40,7 @@ import { BillingInvoiceDocumentPreview } from '../billing/BillingInvoiceDocument
 import { ClientRequestDocumentPreview } from '../client-requests/ClientRequestDocumentPreview';
 import './client-cabinet.css';
 import { ClientCabinetExports } from './ClientCabinetExports';
-import { ClientCabinetMetrics } from './ClientCabinetMetrics';
+import { ClientCabinetMetrics, type ClientCabinetMetricTarget } from './ClientCabinetMetrics';
 import { ClientCabinetTables } from './ClientCabinetTables';
 import { ClientCabinetFilterPresets } from './ClientCabinetFilterPresets';
 import {
@@ -92,6 +92,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
   const [requestTimeline, setRequestTimeline] = useState<ClientRequestTimeline | null>(null);
   const [documentError, setDocumentError] = useState<string | null>(null);
   const [filters, setFilters] = useState<ClientCabinetFiltersValue>(emptyClientCabinetFilters);
+  const [activeSection, setActiveSection] = useState<ClientCabinetMetricTarget | null>(null);
 
   useEffect(() => {
     void loadData();
@@ -331,6 +332,13 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
     return comment;
   }
 
+  function navigateToSection(target: ClientCabinetMetricTarget) {
+    setActiveSection(target);
+    window.setTimeout(() => {
+      document.getElementById(`client-cabinet-${target}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 0);
+  }
+
   return (
     <section className="client-cabinet-panel" aria-label="Кабинет клиента">
       <div className="section-heading client-cabinet-panel__heading">
@@ -386,6 +394,13 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
             <span className="status status--ready">{view.client.status}</span>
           </div>
 
+          <ClientCabinetMetrics
+            stock={view.stock}
+            requests={view.requests}
+            invoices={view.invoices}
+            reconciliation={view.reconciliation}
+            onNavigate={navigateToSection}
+          />
           <ClientCabinetFilters value={filters} totals={view.filterTotals} onChange={setFilters} />
           <ClientCabinetFilterPresets
             userId={session.user.id}
@@ -402,12 +417,6 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
             charges={view.charges}
             serviceHistory={view.serviceHistory}
           />
-          <ClientCabinetMetrics
-            stock={view.stock}
-            requests={view.requests}
-            invoices={view.invoices}
-            reconciliation={view.reconciliation}
-          />
           <ClientCabinetTables
             stock={view.stock}
             requests={view.requests}
@@ -417,6 +426,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
             serviceHistory={view.serviceHistory}
             notifications={view.notifications}
             notificationPreferences={view.notificationPreferences}
+            activeSection={activeSection}
             onOpenRequestDocument={(request) => void openRequestDocument(request)}
             onOpenRequestTimeline={(request) => void openRequestTimeline(request)}
             onOpenInvoiceDocument={(invoice) => void openInvoiceDocument(invoice)}

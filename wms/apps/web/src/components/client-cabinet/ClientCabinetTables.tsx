@@ -21,6 +21,7 @@ import {
   primaryBarcode,
 } from './clientCabinetFormat';
 import { ClientCabinetNotifications } from './ClientCabinetNotifications';
+import type { ClientCabinetMetricTarget } from './ClientCabinetMetrics';
 import { ClientCabinetPeriodSummary } from './ClientCabinetPeriodSummary';
 import { ClientCabinetServiceHistory } from './ClientCabinetServiceHistory';
 import { ClientRequestFilesCell } from './ClientRequestFilesCell';
@@ -34,6 +35,7 @@ type ClientCabinetTablesProps = {
   serviceHistory: BillingServiceHistory | null;
   notifications: ClientNotificationSummary[];
   notificationPreferences: ClientNotificationPreferenceSummary[];
+  activeSection: ClientCabinetMetricTarget | null;
   onOpenRequestDocument: (request: ClientRequestSummary) => void;
   onOpenRequestTimeline: (request: ClientRequestSummary) => void;
   onOpenInvoiceDocument: (invoice: BillingInvoiceSummary) => void;
@@ -52,6 +54,7 @@ export function ClientCabinetTables({
   serviceHistory,
   notifications,
   notificationPreferences,
+  activeSection,
   onOpenRequestDocument,
   onOpenRequestTimeline,
   onOpenInvoiceDocument,
@@ -61,7 +64,7 @@ export function ClientCabinetTables({
   onToggleNotificationPreference,
 }: ClientCabinetTablesProps) {
   return (
-    <div className="client-cabinet-sections">
+    <div className={`client-cabinet-sections client-cabinet-sections--active-${activeSection ?? 'none'}`}>
       <ClientCabinetNotifications
         notifications={notifications}
         preferences={notificationPreferences}
@@ -121,7 +124,7 @@ function CabinetSection({
 
 function renderStockTable(items: StockBalance[]) {
   return (
-    <div className="client-cabinet-table-wrap">
+    <div id="client-cabinet-stock" className="client-cabinet-table-wrap">
       <table className="data-table client-cabinet-table">
         <thead>
           <tr>
@@ -165,7 +168,7 @@ function renderRequestTable(
   onDownloadRequestFile: (request: ClientRequestSummary, file: ClientRequestFileSummary) => Promise<void>,
 ) {
   return (
-    <div className="client-cabinet-table-wrap">
+    <div id="client-cabinet-requests" className="client-cabinet-table-wrap">
       <table className="data-table client-cabinet-table">
         <thead>
           <tr>
@@ -233,7 +236,7 @@ function renderRequestTable(
 
 function renderInvoiceTable(items: BillingInvoiceSummary[], onOpenInvoiceDocument: (invoice: BillingInvoiceSummary) => void) {
   return (
-    <div className="client-cabinet-table-wrap">
+    <div id="client-cabinet-invoices" className="client-cabinet-table-wrap">
       <table className="data-table client-cabinet-table">
         <thead>
           <tr>

@@ -5,13 +5,17 @@ import { CreateLabelTemplateDto } from './dto/create-label-template.dto';
 import { CreatePrintJobFromTemplateDto } from './dto/create-print-job.dto';
 import { ListLabelTemplatesDto } from './dto/list-label-templates.dto';
 import { ListPrintJobsDto } from './dto/list-print-jobs.dto';
+import { ProcessPrintQueueDto } from './dto/process-print-queue.dto';
 import { PreviewLabelTemplateDto } from './dto/preview-label-template.dto';
 import { PreviewBoxLabelDto } from './dto/preview-box-label.dto';
 import { PreviewPalletLabelDto } from './dto/preview-pallet-label.dto';
 import { PreviewSkuLabelDto } from './dto/preview-sku-label.dto';
 import { UpdatePrintJobStatusDto } from './dto/update-print-job-status.dto';
+import { UpsertPrintPrinterDto } from './dto/upsert-print-printer.dto';
 import { LabelTemplateService } from './label-template.service';
 import { PrintJobService } from './print-job.service';
+import { PrintPrinterService } from './print-printer.service';
+import { PrintQueueWorkerService } from './print-queue-worker.service';
 import { TsplLabelService } from './tspl-label.service';
 
 @ApiTags('print')
@@ -22,7 +26,19 @@ export class PrintController {
     private readonly labels: TsplLabelService,
     private readonly templates: LabelTemplateService,
     private readonly jobs: PrintJobService,
+    private readonly printers: PrintPrinterService,
+    private readonly queue: PrintQueueWorkerService,
   ) {}
+
+  @Get('printers')
+  listPrinters() {
+    return this.printers.listPrinters();
+  }
+
+  @Post('printers')
+  upsertPrinter(@Body() body: UpsertPrintPrinterDto) {
+    return this.printers.upsertPrinter(body);
+  }
 
   @Get('templates')
   listTemplates(@Query() query: ListLabelTemplatesDto) {
@@ -52,6 +68,11 @@ export class PrintController {
   @Patch('jobs/:id/status')
   updateJobStatus(@Param('id') jobId: string, @Body() body: UpdatePrintJobStatusDto) {
     return this.jobs.updateStatus(jobId, body);
+  }
+
+  @Post('jobs/process')
+  processQueue(@Body() body: ProcessPrintQueueDto = {}) {
+    return this.queue.processQueued(body.limit);
   }
 
   @Post('box-label/preview')

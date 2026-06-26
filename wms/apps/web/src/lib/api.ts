@@ -1073,7 +1073,43 @@ export type PrintJobSummary = {
   payload: Record<string, unknown>;
   tspl: string;
   status: PrintJobStatus;
+  attempts: number;
+  processedAt: string | null;
   createdAt: string;
+};
+
+export type PrintPrinterConnectionType = 'dry_run' | 'tcp';
+
+export type PrintPrinterSummary = {
+  id: string;
+  code: string;
+  name: string;
+  connectionType: PrintPrinterConnectionType;
+  host: string | null;
+  port: number | null;
+  isActive: boolean;
+  autoProcess: boolean;
+  lastSeenAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type UpsertPrintPrinterPayload = {
+  code: string;
+  name: string;
+  connectionType?: PrintPrinterConnectionType;
+  host?: string;
+  port?: number;
+  isActive?: boolean;
+  autoProcess?: boolean;
+};
+
+export type ProcessPrintQueueResult = {
+  processed: number;
+  printed: number;
+  sent: number;
+  failed: number;
+  skipped: number;
 };
 
 export type CreatePrintJobFromTemplatePayload = {
@@ -1842,6 +1878,28 @@ export async function previewLabelTemplate(accessToken: string, templateId: stri
 
 export async function fetchPrintJobs(accessToken: string, filter: { status?: PrintJobStatus; limit?: string } = {}) {
   return request<PrintJobSummary[]>(withQuery('/print/jobs', filter), {
+    accessToken,
+  });
+}
+
+export async function fetchPrintPrinters(accessToken: string) {
+  return request<PrintPrinterSummary[]>('/print/printers', {
+    accessToken,
+  });
+}
+
+export async function upsertPrintPrinter(accessToken: string, payload: UpsertPrintPrinterPayload) {
+  return request<PrintPrinterSummary>('/print/printers', {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function processPrintQueue(accessToken: string, payload: { limit?: number } = {}) {
+  return request<ProcessPrintQueueResult>('/print/jobs/process', {
+    method: 'POST',
+    body: payload,
     accessToken,
   });
 }

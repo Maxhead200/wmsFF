@@ -29,12 +29,15 @@ describe('PrintJobService', () => {
       }),
       renderTspl: vi.fn().mockReturnValue('TEXT 10,10,"2",0,1,1,"BOX-001"'),
     } as unknown as LabelTemplateService;
+    const printers = {
+      getActivePrinterOrThrow: vi.fn().mockResolvedValue({ code: 'TSC-01' }),
+    };
 
-    return { service: new PrintJobService(prisma, templates), prisma, templates };
+    return { service: new PrintJobService(prisma, templates, printers as never), prisma, templates, printers };
   }
 
   it('ставит готовый TSPL из шаблона в очередь печати', async () => {
-    const { service, templates } = createService();
+    const { service, templates, printers } = createService();
 
     const job = await service.createFromTemplate('tpl-1', {
       printerCode: 'TSC-01',
@@ -46,6 +49,7 @@ describe('PrintJobService', () => {
     expect(job.labelType).toBe(LabelTemplateType.BOX);
     expect(job.status).toBe('queued');
     expect(job.tspl).toContain('BOX-001');
+    expect(printers.getActivePrinterOrThrow).toHaveBeenCalledWith('TSC-01');
     expect(templates.renderTspl).toHaveBeenCalledWith('TEXT 10,10,"2",0,1,1,"{{boxCode}}"', { boxCode: 'BOX-001' });
   });
 

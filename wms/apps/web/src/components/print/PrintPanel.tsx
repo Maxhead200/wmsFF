@@ -1,4 +1,4 @@
-import { Boxes, FileText, Layers3, ListChecks, Package, Printer } from 'lucide-react';
+import { Boxes, FileText, Layers3, ListChecks, Network, Package, Printer } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import type { AuthSession, AuthUser } from '../../lib/api';
@@ -7,19 +7,21 @@ import { LabelTemplatePanel } from './LabelTemplatePanel';
 import { PalletLabelForm } from './PalletLabelForm';
 import './print.css';
 import { PrintJobPanel } from './PrintJobPanel';
+import { PrintPrinterPanel } from './PrintPrinterPanel';
 import { SkuLabelForm } from './SkuLabelForm';
 
 type PrintPanelProps = {
   session: AuthSession;
 };
 
-type PrintTab = 'box' | 'sku' | 'pallet' | 'templates' | 'jobs';
+type PrintTab = 'box' | 'sku' | 'pallet' | 'templates' | 'printers' | 'jobs';
 
 const printTabs: Array<{ id: PrintTab; label: string; icon: LucideIcon }> = [
   { id: 'box', label: 'Короб', icon: Boxes },
   { id: 'sku', label: 'SKU', icon: Package },
   { id: 'pallet', label: 'Паллета', icon: Layers3 },
   { id: 'templates', label: 'Шаблоны', icon: FileText },
+  { id: 'printers', label: 'Принтеры', icon: Network },
   { id: 'jobs', label: 'Задания', icon: ListChecks },
 ];
 
@@ -62,6 +64,7 @@ export function PrintPanel({ session }: PrintPanelProps) {
       {activeTab === 'sku' ? <SkuLabelForm session={session} /> : null}
       {activeTab === 'pallet' ? <PalletLabelForm session={session} /> : null}
       {activeTab === 'templates' ? <LabelTemplatePanel session={session} /> : null}
+      {activeTab === 'printers' ? <PrintPrinterPanel session={session} /> : null}
       {activeTab === 'jobs' ? <PrintJobPanel session={session} /> : null}
     </section>
   );

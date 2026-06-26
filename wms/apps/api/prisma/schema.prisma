@@ -926,7 +926,27 @@ model PrintJob {
   payload     Json
   tspl        String
   status      String   @default("queued")
+  attempts    Int      @default(0)
+  processedAt DateTime?
   createdAt   DateTime @default(now())
+
+  @@index([printerCode, status, createdAt])
+}
+
+model PrintPrinter {
+  id             String   @id @default(uuid())
+  code           String   @unique
+  name           String
+  connectionType String   @default("dry_run")
+  host           String?
+  port           Int?
+  isActive       Boolean  @default(true)
+  autoProcess    Boolean  @default(true)
+  lastSeenAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([isActive, autoProcess])
 }
 
 model LabelTemplate {

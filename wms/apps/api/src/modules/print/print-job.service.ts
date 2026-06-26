@@ -5,12 +5,14 @@ import { CreatePrintJobFromTemplateDto } from './dto/create-print-job.dto';
 import { ListPrintJobsDto } from './dto/list-print-jobs.dto';
 import { UpdatePrintJobStatusDto } from './dto/update-print-job-status.dto';
 import { LabelTemplateService } from './label-template.service';
+import { PrintPrinterService, normalizePrinterCode } from './print-printer.service';
 
 @Injectable()
 export class PrintJobService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly templates: LabelTemplateService,
+    private readonly printers: PrintPrinterService,
   ) {}
 
   listJobs(query: ListPrintJobsDto) {
@@ -27,6 +29,7 @@ export class PrintJobService {
     const printerCode = normalizePrinterCode(dto.printerCode);
     const copies = dto.copies ?? 1;
     const template = await this.templates.getTemplateOrThrow(templateId);
+    await this.printers.getActivePrinterOrThrow(printerCode);
 
     if (!template.isActive) {
       throw new BadRequestException('Шаблон этикетки отключен.');
@@ -72,15 +75,6 @@ export class PrintJobService {
       },
     });
   }
-}
-
-function normalizePrinterCode(value: string) {
-  const normalized = value.trim();
-  if (!normalized) {
-    throw new BadRequestException('Код принтера обязателен.');
-  }
-
-  return normalized;
 }
 
 function mergeStatusMessage(payload: Prisma.JsonValue, message?: string) {

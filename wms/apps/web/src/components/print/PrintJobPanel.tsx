@@ -4,11 +4,14 @@ import {
   createPrintJobFromTemplate,
   fetchLabelTemplates,
   fetchPrintJobs,
+  fetchPrintPrinters,
+  processPrintQueue,
   updatePrintJobStatus,
   type AuthSession,
   type LabelTemplateSummary,
   type PrintJobStatus,
   type PrintJobSummary,
+  type PrintPrinterSummary,
 } from '../../lib/api';
 import { extractTemplateVariables, sampleVariableValue } from './templateVariables';
 
@@ -35,8 +38,9 @@ const dateTimeFormatter = new Intl.DateTimeFormat('ru-RU', {
 export function PrintJobPanel({ session }: PrintJobPanelProps) {
   const [templates, setTemplates] = useState<LabelTemplateSummary[]>([]);
   const [jobs, setJobs] = useState<PrintJobSummary[]>([]);
+  const [printers, setPrinters] = useState<PrintPrinterSummary[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
-  const [printerCode, setPrinterCode] = useState('TSC-01');
+  const [printerCode, setPrinterCode] = useState('');
   const [copies, setCopies] = useState('1');
   const [variableValues, setVariableValues] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
@@ -73,13 +77,16 @@ export function PrintJobPanel({ session }: PrintJobPanelProps) {
     setError('');
 
     try {
-      const [templateList, jobList] = await Promise.all([
+      const [templateList, jobList, printerList] = await Promise.all([
         fetchLabelTemplates(session.accessToken),
         fetchPrintJobs(session.accessToken, { limit: '50' }),
+        fetchPrintPrinters(session.accessToken),
       ]);
       setTemplates(templateList.filter((template) => template.isActive));
       setJobs(jobList);
+      setPrinters(printerList);
       setSelectedTemplateId((current) => current || templateList.find((template) => template.isActive)?.id || '');
+      setPrinterCode((current) => current || printerList.find((printer) => printer.isActive)?.code || 'TSC-01');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Не удалось загрузить очередь печати.');
     } finally {
@@ -127,6 +134,21 @@ export function PrintJobPanel({ session }: PrintJobPanelProps) {
     }
   }
 
+  async function processQueueNow() {
+    setError('');
+    setMessage('');
+
+    try {
+      const result = await processPrintQueue(session.accessToken, { limit: 50 });
+      setMessage(
+        `Очередь обработана: ${result.processed}, напечатано ${result.printed}, отправлено ${result.sent}, ошибок ${result.failed}.`,
+      );
+      await loadPrintData();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Не удалось обработать очередь печати.');
+    }
+  }
+
   const canSubmit = Boolean(selectedTemplate && printerCode.trim());
 
   return (
@@ -155,7 +177,16 @@ export function PrintJobPanel({ session }: PrintJobPanelProps) {
 
           <label>
             <span>Принтер</span>
-            <input value={printerCode} onChange={(event) => setPrinterCode(event.target.value)} required />
+            <select value={printerCode} onChange={(event) => setPrinterCode(event.target.value)} required>
+              {printers.length === 0 ? <option value="TSC-01">TSC-01</option> : null}
+              {printers
+                .filter((printer) => printer.isActive)
+                .map((printer) => (
+                  <option key={printer.id} value={printer.code}>
+                    {printer.code} - {printer.name}
+                  </option>
+                ))}
+            </select>
           </label>
 
           <label>
@@ -196,6 +227,10 @@ export function PrintJobPanel({ session }: PrintJobPanelProps) {
             <RefreshCw size={16} aria-hidden="true" />
             <span>Обновить</span>
           </button>
+          <button className="primary-button print-secondary" type="button" onClick={() => void processQueueNow()} disabled={isLoading}>
+            <Send size={16} aria-hidden="true" />
+            <span>Обработать очередь</span>
+          </button>
         </div>
       </form>
 
@@ -217,8 +252,9 @@ export function PrintJobPanel({ session }: PrintJobPanelProps) {
                   <span className={`status status--${statusTone(job.status)}`}>{printJobStatusLabels[job.status] ?? job.status}</span>
                   <strong>{payloadTemplateName(job)}</strong>
                   <small>
-                    {job.printerCode} · {job.labelType} · {formatDate(job.createdAt)}
+                    {job.printerCode} · {job.labelType} · {formatDate(job.createdAt)} · попыток {job.attempts}
                   </small>
+                  {job.processedAt ? <small>Обработано: {formatDate(job.processedAt)}</small> : null}
                 </div>
                 <div className="print-job-actions">
                   <button

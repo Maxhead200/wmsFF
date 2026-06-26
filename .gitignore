@@ -9,5 +9,6 @@ wms/**/.turbo/
 wms/**/.vite/
 wms/**/coverage/
 wms/**/.env
+wms/.runtime/
 wms/infra/data/
 wms/infra/backups/

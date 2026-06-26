@@ -83,6 +83,11 @@ enum TsdOperationStatus {
   REJECTED
 }
 
+enum TsdReviewAction {
+  APPLY_INVENTORY_ADJUSTMENT
+  REJECT
+}
+
 enum TsdDeviceStatus {
   ACTIVE
   BLOCKED
@@ -105,6 +110,7 @@ model User {
   tsdDevices             TsdDevice[]
   createdClientRequests  ClientRequest[] @relation("ClientRequestCreatedBy")
   assignedClientRequests ClientRequest[] @relation("ClientRequestAssignedTo")
+  reviewedTsdOperations  TsdOperation[]  @relation("TsdOperationReviewedBy")
   auditLogs              AuditLog[]
   createdAt              DateTime        @default(now())
   updatedAt              DateTime        @updatedAt
@@ -390,18 +396,25 @@ model LogisticsRateTier {
 }
 
 model TsdOperation {
-  id            String             @id @default(uuid())
-  deviceId      String
-  operationKey  String             @unique
-  operationType String
-  payload       Json
-  status        TsdOperationStatus @default(ACCEPTED)
-  serverMessage String?
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  id               String             @id @default(uuid())
+  deviceId         String
+  operationKey     String             @unique
+  operationType    String
+  payload          Json
+  status           TsdOperationStatus @default(ACCEPTED)
+  serverMessage    String?
+  reviewAction     TsdReviewAction?
+  reviewComment    String?
+  reviewedByUserId String?
+  reviewedBy       User?              @relation("TsdOperationReviewedBy", fields: [reviewedByUserId], references: [id])
+  reviewedAt       DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
 
   @@index([status, createdAt])
   @@index([deviceId])
+  @@index([reviewedAt])
+  @@index([reviewedByUserId])
 }
 
 model TsdDevice {

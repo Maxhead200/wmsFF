@@ -1,10 +1,21 @@
-import { AlertTriangle, CheckCircle2, Database, RefreshCw, ShieldCheck, Truck, UsersRound, XCircle } from 'lucide-react';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ClipboardCheck,
+  Database,
+  RefreshCw,
+  ShieldCheck,
+  Truck,
+  UsersRound,
+  XCircle,
+} from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   fetchClients,
   fetchLogisticsTariffSets,
   fetchRoles,
   fetchStockBalances,
+  fetchTsdReviewHistory,
   fetchTsdReviewQueue,
   resolveTsdReviewOperation,
   type AuthSession,
@@ -21,6 +32,7 @@ const dataTabs = [
   { id: 'clients', label: 'Клиенты', permission: 'clients:read', icon: UsersRound },
   { id: 'stock', label: 'Остатки', permission: 'stock:read', icon: Database },
   { id: 'tsdReview', label: 'Разбор ТСД', permission: 'stock:write', icon: AlertTriangle },
+  { id: 'tsdHistory', label: 'История ТСД', permission: 'stock:write', icon: ClipboardCheck },
   { id: 'roles', label: 'Роли', permission: 'users:read', icon: ShieldCheck },
   { id: 'tariffs', label: 'Логистика', permission: 'logistics:read', icon: Truck },
 ] as const;
@@ -48,6 +60,7 @@ export function DashboardDataPanel({ session }: DashboardDataPanelProps) {
   const [clients, setClients] = useState<LoadState<ClientSummary>>({ status: 'idle', data: [] });
   const [stock, setStock] = useState<LoadState<StockBalance>>({ status: 'idle', data: [] });
   const [tsdReview, setTsdReview] = useState<LoadState<TsdReviewOperation>>({ status: 'idle', data: [] });
+  const [tsdHistory, setTsdHistory] = useState<LoadState<TsdReviewOperation>>({ status: 'idle', data: [] });
   const [roles, setRoles] = useState<LoadState<RoleSummary>>({ status: 'idle', data: [] });
   const [tariffs, setTariffs] = useState<LoadState<LogisticsTariffSetSummary>>({ status: 'idle', data: [] });
 
@@ -106,6 +119,19 @@ export function DashboardDataPanel({ session }: DashboardDataPanelProps) {
         setTsdReview({ status: 'ready', data: await fetchTsdReviewQueue(session.accessToken) });
       } catch (caught) {
         setTsdReview((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
+      }
+    }
+
+    if (tab === 'tsdHistory') {
+      if (!force && tsdHistory.status !== 'idle') {
+        return;
+      }
+
+      setTsdHistory((current) => ({ ...current, status: 'loading', error: undefined }));
+      try {
+        setTsdHistory({ status: 'ready', data: await fetchTsdReviewHistory(session.accessToken) });
+      } catch (caught) {
+        setTsdHistory((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
       }
     }
 
@@ -173,6 +199,10 @@ export function DashboardDataPanel({ session }: DashboardDataPanelProps) {
       return renderLoadState(tsdReview, 'Операций ТСД на разборе нет.', (items) =>
         renderTsdReview(items, (operation, action) => void resolveReview(operation, action)),
       );
+    }
+
+    if (activeTab === 'tsdHistory') {
+      return renderLoadState(tsdHistory, 'История разбора ТСД пока пустая.', renderTsdReviewHistory);
     }
 
     if (activeTab === 'roles') {
@@ -429,6 +459,47 @@ function renderTsdReview(
   );
 }
 
+function renderTsdReviewHistory(items: TsdReviewOperation[]) {
+  return (
+    <div className="data-table-wrap">
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th>Операция</th>
+            <th>Решение</th>
+            <th>Оператор</th>
+            <th>Payload</th>
+            <th>Комментарий</th>
+            <th>Дата</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((operation) => (
+            <tr key={operation.id}>
+              <td>
+                <strong>{operation.operationType}</strong>
+                <span>{operation.operationKey}</span>
+              </td>
+              <td>
+                <span className={`status status--${operation.status === 'ACCEPTED' ? 'ready' : 'planned'}`}>
+                  {reviewActionLabel(operation)}
+                </span>
+              </td>
+              <td>
+                <strong>{operation.reviewedBy?.name ?? '-'}</strong>
+                {operation.reviewedBy?.email ? <span>{operation.reviewedBy.email}</span> : null}
+              </td>
+              <td>{payloadSummary(operation.payload)}</td>
+              <td>{operation.reviewComment ?? operation.serverMessage ?? '-'}</td>
+              <td>{formatDate(operation.reviewedAt)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function PanelMessage({ text, tone = 'neutral' }: { text: string; tone?: 'neutral' | 'error' }) {
   return <p className={`panel-message panel-message--${tone}`}>{text}</p>;
 }
@@ -459,4 +530,16 @@ function payloadSummary(payload: Record<string, unknown>) {
     .map((field) => (payload[field] == null ? '' : `${field}: ${String(payload[field])}`))
     .filter(Boolean)
     .join(' · ');
+}
+
+function reviewActionLabel(operation: TsdReviewOperation) {
+  if (operation.reviewAction === 'APPLY_INVENTORY_ADJUSTMENT') {
+    return 'Корректировка принята';
+  }
+
+  if (operation.reviewAction === 'REJECT') {
+    return 'Отклонено';
+  }
+
+  return operation.status;
 }

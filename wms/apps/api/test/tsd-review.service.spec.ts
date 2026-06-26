@@ -89,6 +89,37 @@ describe('TsdReviewService', () => {
     expect(stockOperations.adjustInventoryToCounted).not.toHaveBeenCalled();
     expect(clientScopes.requireClientAccess).toHaveBeenCalledWith(expect.objectContaining({ id: 'user-1' }), 'client-1', 'write');
   });
+
+  it('отдает историю разобранных операций ТСД', async () => {
+    const prisma = {
+      tsdOperation: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+    };
+    const clientScopes = {
+      requireGlobalClientAccess: vi.fn(),
+    };
+    const service = new TsdReviewService(
+      prisma as never,
+      clientScopes as never,
+      { adjustInventoryToCounted: vi.fn() } as never,
+      new TsdPayloadParser(),
+    );
+
+    await expect(service.listReviewHistory(user())).resolves.toEqual([]);
+    expect(clientScopes.requireGlobalClientAccess).toHaveBeenCalledWith(expect.objectContaining({ id: 'user-1' }));
+    expect(prisma.tsdOperation.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          reviewedAt: {
+            not: null,
+          },
+        },
+        orderBy: [{ reviewedAt: 'desc' }],
+        take: 200,
+      }),
+    );
+  });
 });
 
 function reviewOperation() {

@@ -316,6 +316,15 @@ export type TsdReviewOperation = {
   payload: Record<string, unknown>;
   status: 'ACCEPTED' | 'NEEDS_REVIEW' | 'REJECTED';
   serverMessage: string | null;
+  reviewAction: 'APPLY_INVENTORY_ADJUSTMENT' | 'REJECT' | null;
+  reviewComment: string | null;
+  reviewedByUserId: string | null;
+  reviewedBy?: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+  reviewedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -634,6 +643,12 @@ export async function createTsdDevice(accessToken: string, payload: CreateTsdDev
 
 export async function fetchTsdReviewQueue(accessToken: string) {
   return request<TsdReviewOperation[]>('/tsd/review', {
+    accessToken,
+  });
+}
+
+export async function fetchTsdReviewHistory(accessToken: string) {
+  return request<TsdReviewOperation[]>('/tsd/review/history', {
     accessToken,
   });
 }

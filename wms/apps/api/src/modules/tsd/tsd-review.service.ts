@@ -33,6 +33,10 @@ export class TsdReviewService {
         data: {
           status: TsdOperationStatus.REJECTED,
           serverMessage: dto.comment?.trim() || 'Операция отклонена после ручного разбора.',
+          reviewAction: dto.action,
+          reviewComment: dto.comment?.trim(),
+          reviewedByUserId: user.id,
+          reviewedAt: new Date(),
         },
       });
 
@@ -71,6 +75,10 @@ export class TsdReviewService {
       data: {
         status: TsdOperationStatus.ACCEPTED,
         serverMessage: `Разбор подтвержден: дельта ${adjustment.delta}.`,
+        reviewAction: dto.action,
+        reviewComment: dto.comment?.trim(),
+        reviewedByUserId: user.id,
+        reviewedAt: new Date(),
       },
     });
 
@@ -81,6 +89,29 @@ export class TsdReviewService {
         adjustment,
       },
     };
+  }
+
+  listReviewHistory(user: AuthUser) {
+    this.clientScopes.requireGlobalClientAccess(user);
+
+    return this.prisma.tsdOperation.findMany({
+      where: {
+        reviewedAt: {
+          not: null,
+        },
+      },
+      include: {
+        reviewedBy: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: [{ reviewedAt: 'desc' }],
+      take: 200,
+    });
   }
 
   private reviewClientId(operationType: string, payload: unknown) {

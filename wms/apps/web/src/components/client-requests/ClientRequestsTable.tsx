@@ -1,4 +1,4 @@
-import { CheckCircle2, FileText, PackageCheck, Send, Truck } from 'lucide-react';
+import { CheckCircle2, ClipboardList, FileText, PackageCheck, Send, Truck } from 'lucide-react';
 import { type ClientRequestStatus, type ClientRequestSummary } from '../../lib/api';
 import {
   requestPriorityLabel,
@@ -14,6 +14,7 @@ type ClientRequestsTableProps = {
   canPickOutbound: boolean;
   onStatusChange: (requestId: string, status: ClientRequestStatus) => void;
   onOpenDocument?: (request: ClientRequestSummary) => void;
+  onOpenPickInstruction?: (request: ClientRequestSummary) => void;
   onPickOutbound: (request: ClientRequestSummary) => void;
   onPackageOutbound: (request: ClientRequestSummary) => void;
   onShipOutbound: (request: ClientRequestSummary) => void;
@@ -31,6 +32,7 @@ export function ClientRequestsTable({
   canPickOutbound,
   onStatusChange,
   onOpenDocument,
+  onOpenPickInstruction,
   onPickOutbound,
   onPackageOutbound,
   onShipOutbound,
@@ -91,6 +93,17 @@ export function ClientRequestsTable({
                 <td>
                   {canRunFulfillment(request) ? (
                     <div className="client-request-actions">
+                      {onOpenPickInstruction && request.type === 'OUTBOUND' ? (
+                        <button
+                          className="client-request-action-button client-request-action-button--instruction"
+                          type="button"
+                          onClick={() => onOpenPickInstruction(request)}
+                          title="Открыть складскую инструкцию"
+                        >
+                          <ClipboardList size={15} aria-hidden="true" />
+                          <span>Инструкция</span>
+                        </button>
+                      ) : null}
                       {canPickRequest(request) ? (
                         <button
                           className="client-request-action-button client-request-action-button--pick"

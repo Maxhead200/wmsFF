@@ -653,6 +653,30 @@ export type PickWaveDocument = {
   html: string;
 };
 
+export type PickInstructionDocument = {
+  requestId: string;
+  title: string;
+  fileName: string;
+  requestTitle: string;
+  requestStatus: ClientRequestStatus;
+  requestStatusLabel: string;
+  priority: ClientRequestPriority;
+  priorityLabel: string;
+  client: Pick<ClientSummary, 'id' | 'code' | 'name'>;
+  generatedAt: string;
+  desiredDate: string | null;
+  deliveryAddress: string | null;
+  totalRequested: number;
+  totalAllocated: number;
+  totalShortage: number;
+  rowsCount: number;
+  readyRowsCount: number;
+  shortageRowsCount: number;
+  boxesCount: number;
+  fullBoxesCount: number;
+  html: string;
+};
+
 export type CreateClientRequestPayload = {
   clientId: string;
   type: ClientRequestType;
@@ -2093,6 +2117,12 @@ export async function runPickWave(
 
 export async function fetchPickWaveDocument(accessToken: string, waveId: string) {
   return request<PickWaveDocument>(`/stock/fulfillment/waves/${waveId}/document`, {
+    accessToken,
+  });
+}
+
+export async function fetchPickInstruction(accessToken: string, requestId: string) {
+  return request<PickInstructionDocument>(`/stock/fulfillment/requests/${requestId}/instruction`, {
     accessToken,
   });
 }

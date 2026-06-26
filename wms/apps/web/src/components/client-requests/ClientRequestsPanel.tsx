@@ -4,6 +4,7 @@ import {
   fetchClientRequestDocument,
   fetchClientRequests,
   fetchClients,
+  fetchPickInstruction,
   packageClientRequest,
   pickClientRequest,
   shipClientRequest,
@@ -14,12 +15,14 @@ import {
   type ClientRequestStatus,
   type ClientRequestSummary,
   type ClientSummary,
+  type PickInstructionDocument,
 } from '../../lib/api';
 import { ClientRequestCreateForm } from './ClientRequestCreateForm';
 import { ClientRequestDocumentPreview } from './ClientRequestDocumentPreview';
 import { ClientRequestXlsxImportForm } from './ClientRequestXlsxImportForm';
 import './client-requests.css';
 import { ClientRequestsTable } from './ClientRequestsTable';
+import { HtmlDocumentPreview } from '../documents/HtmlDocumentPreview';
 
 type LoadState<T> = {
   status: 'idle' | 'loading' | 'ready' | 'error';
@@ -40,6 +43,7 @@ export function ClientRequestsPanel({ session }: ClientRequestsPanelProps) {
   const [clients, setClients] = useState<LoadState<ClientSummary>>({ status: 'idle', data: [] });
   const [error, setError] = useState<string | null>(null);
   const [documentPreview, setDocumentPreview] = useState<ClientRequestDocument | null>(null);
+  const [pickInstructionPreview, setPickInstructionPreview] = useState<PickInstructionDocument | null>(null);
 
   const visibleClients = useMemo(() => clients.data, [clients.data]);
 
@@ -109,6 +113,16 @@ export function ClientRequestsPanel({ session }: ClientRequestsPanelProps) {
 
     try {
       setDocumentPreview(await fetchClientRequestDocument(session.accessToken, request.id));
+    } catch (caught) {
+      setError(errorMessage(caught));
+    }
+  }
+
+  async function openPickInstruction(request: ClientRequestSummary) {
+    setError(null);
+
+    try {
+      setPickInstructionPreview(await fetchPickInstruction(session.accessToken, request.id));
     } catch (caught) {
       setError(errorMessage(caught));
     }
@@ -193,6 +207,7 @@ export function ClientRequestsPanel({ session }: ClientRequestsPanelProps) {
           canPickOutbound,
           (requestId, status) => void changeStatus(requestId, status),
           (request) => void openRequestDocument(request),
+          (request) => void openPickInstruction(request),
           (request) => void pickOutboundRequest(request),
           (request) => void packageOutboundRequest(request),
           (request) => void shipOutboundRequest(request),
@@ -201,6 +216,15 @@ export function ClientRequestsPanel({ session }: ClientRequestsPanelProps) {
 
       {documentPreview ? (
         <ClientRequestDocumentPreview document={documentPreview} onClose={() => setDocumentPreview(null)} />
+      ) : null}
+
+      {pickInstructionPreview ? (
+        <HtmlDocumentPreview
+          title={pickInstructionPreview.title}
+          fileName={pickInstructionPreview.fileName}
+          html={pickInstructionPreview.html}
+          onClose={() => setPickInstructionPreview(null)}
+        />
       ) : null}
     </section>
   );
@@ -212,6 +236,7 @@ function renderRequests(
   canPickOutbound: boolean,
   onStatusChange: (requestId: string, status: ClientRequestStatus) => void,
   onOpenDocument: (request: ClientRequestSummary) => void,
+  onOpenPickInstruction: (request: ClientRequestSummary) => void,
   onPickOutbound: (request: ClientRequestSummary) => void,
   onPackageOutbound: (request: ClientRequestSummary) => void,
   onShipOutbound: (request: ClientRequestSummary) => void,
@@ -242,6 +267,7 @@ function renderRequests(
         canPickOutbound={canPickOutbound}
         onStatusChange={onStatusChange}
         onOpenDocument={onOpenDocument}
+        onOpenPickInstruction={onOpenPickInstruction}
         onPickOutbound={onPickOutbound}
         onPackageOutbound={onPackageOutbound}
         onShipOutbound={onShipOutbound}

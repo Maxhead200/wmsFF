@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { FulfillmentWaveService } from './fulfillment-wave.service';
+import { PickInstructionService } from './pick-instruction.service';
 import { PickWaveDocumentService } from './pick-wave-document.service';
 import { StockController } from './stock.controller';
 import { StockBalancesService } from './stock-balances.service';
@@ -16,6 +17,7 @@ import { VolumeService } from './volume.service';
     StockLedgerService,
     StockOperationsService,
     FulfillmentWaveService,
+    PickInstructionService,
     PickWaveDocumentService,
     VolumeService,
   ],
@@ -24,6 +26,7 @@ import { VolumeService } from './volume.service';
     StockLedgerService,
     StockOperationsService,
     FulfillmentWaveService,
+    PickInstructionService,
     PickWaveDocumentService,
     VolumeService,
   ],

@@ -1,5 +1,5 @@
 import { Send } from 'lucide-react';
-import { useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useMemo, useState, type FormEvent } from 'react';
 import {
   createClientRequest,
   previewClientRequestAvailability,
@@ -41,6 +41,28 @@ export function ClientRequestCreateForm({ clients, session, onCreated }: ClientR
   const [availability, setAvailability] = useState<ClientRequestAvailabilityPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setSubmitting] = useState(false);
+  const [isCheckingAvailability, setCheckingAvailability] = useState(false);
+
+  const checkAvailability = useCallback(async (nextItems = items) => {
+    const requestItems = normalizeClientRequestItems(nextItems);
+    if (requestItems.length === 0) {
+      setAvailability(null);
+      return null;
+    }
+
+    setCheckingAvailability(true);
+    try {
+      const nextAvailability = await previewClientRequestAvailability(session.accessToken, {
+        clientId,
+        type,
+        items: requestItems,
+      });
+      setAvailability(nextAvailability);
+      return nextAvailability;
+    } finally {
+      setCheckingAvailability(false);
+    }
+  }, [clientId, items, session.accessToken, type]);
 
   if (writableClients.length === 0) {
     return null;
@@ -53,14 +75,9 @@ export function ClientRequestCreateForm({ clients, session, onCreated }: ClientR
 
     try {
       const requestItems = normalizeClientRequestItems(items);
-      const nextAvailability = await previewClientRequestAvailability(session.accessToken, {
-        clientId,
-        type,
-        items: requestItems.length > 0 ? requestItems : undefined,
-      });
-      setAvailability(nextAvailability);
+      const nextAvailability = await checkAvailability(items);
 
-      if (!nextAvailability.canCommit) {
+      if (nextAvailability && !nextAvailability.canCommit) {
         setError('Исправьте красные позиции: удалите строку крестиком или уменьшите количество до доступного остатка.');
         return;
       }
@@ -168,13 +185,16 @@ export function ClientRequestCreateForm({ clients, session, onCreated }: ClientR
 
       <ClientRequestItemsEditor
         items={items}
+        accessToken={session.accessToken}
+        clientId={clientId}
         availability={availability}
         onChange={(nextItems) => {
           setItems(nextItems);
-          setAvailability(null);
         }}
+        onAvailabilityCheck={checkAvailability}
         onError={setError}
       />
+      {isCheckingAvailability ? <p className="inline-status">Проверяю остатки.</p> : null}
 
       {error ? <p className="form-error">{error}</p> : null}
 

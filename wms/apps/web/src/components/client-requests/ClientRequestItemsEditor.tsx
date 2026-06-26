@@ -1,26 +1,99 @@
 import { ClipboardPaste, Plus, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { fetchSkus, type ClientRequestAvailabilityPreview, type SkuSummary } from '../../lib/api';
 import {
   emptyClientRequestItem,
   MAX_CLIENT_REQUEST_ITEMS,
   parseClientRequestItemsText,
   type ClientRequestDraftItem,
 } from './clientRequestItems';
-import type { ClientRequestAvailabilityPreview } from '../../lib/api';
 
 type ClientRequestItemsEditorProps = {
   items: ClientRequestDraftItem[];
+  accessToken: string;
+  clientId: string;
   availability?: ClientRequestAvailabilityPreview | null;
   onChange: (items: ClientRequestDraftItem[]) => void;
+  onAvailabilityCheck?: (items: ClientRequestDraftItem[]) => void;
   onError: (message: string | null) => void;
 };
 
-export function ClientRequestItemsEditor({ items, availability, onChange, onError }: ClientRequestItemsEditorProps) {
+export function ClientRequestItemsEditor({
+  items,
+  accessToken,
+  clientId,
+  availability,
+  onChange,
+  onAvailabilityCheck,
+  onError,
+}: ClientRequestItemsEditorProps) {
   const [pasteText, setPasteText] = useState('');
+  const [activeSuggest, setActiveSuggest] = useState<{ index: number; query: string } | null>(null);
+  const [suggestions, setSuggestions] = useState<SkuSummary[]>([]);
+  const [isSuggesting, setSuggesting] = useState(false);
   const availabilityByIndex = new Map((availability?.lines ?? []).map((line) => [line.index, line]));
+  const suggestionsId = useMemo(() => `client-request-sku-suggestions-${Math.random().toString(36).slice(2)}`, []);
+
+  useEffect(() => {
+    const query = activeSuggest?.query.trim() ?? '';
+    if (!clientId || query.length < 1) {
+      setSuggestions([]);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setSuggesting(true);
+      fetchSkus(accessToken, { clientId, search: query })
+        .then((items) => setSuggestions(items.slice(0, 8)))
+        .catch(() => setSuggestions([]))
+        .finally(() => setSuggesting(false));
+    }, 180);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [accessToken, activeSuggest, clientId]);
+
+  useEffect(() => {
+    if (!clientId || !onAvailabilityCheck) {
+      return;
+    }
+
+    const hasCheckableItems = items.some((item) => item.skuId.trim() || item.barcode.trim());
+    if (!hasCheckableItems) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => onAvailabilityCheck(items), 350);
+    return () => window.clearTimeout(timeoutId);
+  }, [clientId, items, onAvailabilityCheck]);
 
   function updateItem(index: number, field: keyof ClientRequestDraftItem, value: string) {
-    onChange(items.map((item, itemIndex) => (itemIndex === index ? { ...item, [field]: value } : item)));
+    onChange(
+      items.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value, skuId: field === 'barcode' || field === 'name' ? '' : item.skuId } : item,
+      ),
+    );
+    if (field === 'barcode' || field === 'name') {
+      setActiveSuggest({ index, query: value });
+    }
+  }
+
+  function selectSku(index: number, sku: SkuSummary) {
+    const primaryBarcode = sku.barcodes.find((barcode) => barcode.isPrimary)?.value ?? sku.barcodes[0]?.value ?? '';
+    onError(null);
+    onChange(
+      items.map((item, itemIndex) =>
+        itemIndex === index
+          ? {
+              ...item,
+              skuId: sku.id,
+              barcode: primaryBarcode,
+              name: sku.name,
+            }
+          : item,
+      ),
+    );
+    setActiveSuggest(null);
+    setSuggestions([]);
   }
 
   function addItem() {
@@ -81,13 +154,17 @@ export function ClientRequestItemsEditor({ items, availability, onChange, onErro
             <div className={`client-request-items-grid__row ${availabilityClassName(line)}`} key={index} role="row">
               <input
                 aria-label={`Штрихкод позиции ${index + 1}`}
+                list={suggestionsId}
                 value={item.barcode}
                 onChange={(event) => updateItem(index, 'barcode', event.target.value)}
+                onFocus={(event) => setActiveSuggest({ index, query: event.currentTarget.value })}
               />
               <input
                 aria-label={`Товар позиции ${index + 1}`}
+                list={suggestionsId}
                 value={item.name}
                 onChange={(event) => updateItem(index, 'name', event.target.value)}
+                onFocus={(event) => setActiveSuggest({ index, query: event.currentTarget.value })}
               />
               <input
                 aria-label={`Количество позиции ${index + 1}`}
@@ -111,11 +188,33 @@ export function ClientRequestItemsEditor({ items, availability, onChange, onErro
               >
                 <Trash2 size={15} aria-hidden="true" />
               </button>
+              {activeSuggest?.index === index && suggestions.length > 0 ? (
+                <div className="client-request-sku-suggestions">
+                  {suggestions.map((sku) => (
+                    <button key={sku.id} type="button" onClick={() => selectSku(index, sku)}>
+                      <strong>{sku.internalSku}</strong>
+                      <span>{sku.name}</span>
+                      <small>{sku.barcodes[0]?.value ?? 'без штрихкода'}</small>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              {activeSuggest?.index === index && isSuggesting ? (
+                <small className="client-request-sku-suggestions-status">Ищу варианты.</small>
+              ) : null}
               {line ? <small className="client-request-item-availability">{availabilityText(line)}</small> : null}
             </div>
           );
         })}
       </div>
+
+      <datalist id={suggestionsId}>
+        {suggestions.map((sku) => (
+          <option key={sku.id} value={sku.barcodes[0]?.value ?? sku.internalSku}>
+            {sku.internalSku} · {sku.name}
+          </option>
+        ))}
+      </datalist>
 
       <div className="client-request-paste">
         <label>

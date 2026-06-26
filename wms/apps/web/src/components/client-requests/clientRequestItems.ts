@@ -1,4 +1,5 @@
 export type ClientRequestDraftItem = {
+  skuId: string;
   name: string;
   barcode: string;
   quantity: string;
@@ -9,6 +10,7 @@ export const MAX_CLIENT_REQUEST_ITEMS = 100;
 
 export function emptyClientRequestItem(): ClientRequestDraftItem {
   return {
+    skuId: '',
     name: '',
     barcode: '',
     quantity: '1',
@@ -19,6 +21,7 @@ export function emptyClientRequestItem(): ClientRequestDraftItem {
 export function normalizeClientRequestItems(items: ClientRequestDraftItem[]) {
   return items
     .map((item) => ({
+      skuId: item.skuId.trim(),
       name: item.name.trim(),
       barcode: item.barcode.trim(),
       quantity: Number(item.quantity),
@@ -26,6 +29,7 @@ export function normalizeClientRequestItems(items: ClientRequestDraftItem[]) {
     }))
     .filter((item) => item.name || item.barcode || item.comment)
     .map((item) => ({
+      skuId: item.skuId || undefined,
       name: item.name || undefined,
       barcode: item.barcode || undefined,
       quantity: Number.isFinite(item.quantity) && item.quantity > 0 ? Math.floor(item.quantity) : 1,
@@ -49,6 +53,7 @@ export function parseClientRequestItemsText(raw: string) {
     const [barcode = '', name = '', quantity = '1', comment = ''] = parts;
 
     return {
+      skuId: '',
       barcode: barcode.trim(),
       name: name.trim(),
       quantity: normalizeQuantity(quantity),

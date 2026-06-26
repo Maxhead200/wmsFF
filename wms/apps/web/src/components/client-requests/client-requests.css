@@ -285,9 +285,63 @@
 }
 
 .client-request-items-grid__row {
+  position: relative;
   border: 1px solid transparent;
   border-radius: 8px;
   padding: 6px;
+}
+
+.client-request-sku-suggestions {
+  grid-column: 1 / 3;
+  display: grid;
+  z-index: 3;
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgb(15 23 42 / 0.14);
+}
+
+.client-request-sku-suggestions button {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.7fr) minmax(0, 1.5fr) minmax(120px, 0.8fr);
+  gap: 8px;
+  align-items: center;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: #ffffff;
+  color: var(--ink);
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.client-request-sku-suggestions button:hover,
+.client-request-sku-suggestions button:focus-visible {
+  background: #eff6ff;
+}
+
+.client-request-sku-suggestions button:last-child {
+  border-bottom: 0;
+}
+
+.client-request-sku-suggestions strong,
+.client-request-sku-suggestions span,
+.client-request-sku-suggestions small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.client-request-sku-suggestions small,
+.client-request-sku-suggestions-status {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.client-request-sku-suggestions-status {
+  grid-column: 1 / -1;
 }
 
 .client-request-item-availability {

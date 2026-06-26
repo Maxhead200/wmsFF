@@ -303,6 +303,34 @@
   gap: 6px;
 }
 
+.client-cabinet-exports__pdf-options {
+  grid-column: 2 / 4;
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.client-cabinet-exports__pdf-option {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfdff;
+  color: var(--muted);
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.client-cabinet-exports__pdf-option input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--red-dark);
+}
+
 .client-cabinet-exports__metrics span {
   display: inline-flex;
   min-height: 26px;
@@ -840,6 +868,10 @@
   }
 
   .client-cabinet-exports__message {
+    grid-column: auto;
+  }
+
+  .client-cabinet-exports__pdf-options {
     grid-column: auto;
   }
 

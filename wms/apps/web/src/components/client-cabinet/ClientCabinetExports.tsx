@@ -14,7 +14,13 @@ import {
   type ClientCabinetExportData,
 } from './clientCabinetCsvExport';
 import { downloadClientCabinetHtmlPackage, type ClientCabinetHtmlPackageData } from './clientCabinetHtmlPackage';
-import { downloadClientCabinetPdfPackage, type ClientCabinetPdfPackageData } from './clientCabinetPdfPackage';
+import {
+  countClientCabinetPdfDocuments,
+  defaultPdfPackageOptions,
+  downloadClientCabinetPdfPackage,
+  type ClientCabinetPdfPackageData,
+  type ClientCabinetPdfPackageOptions,
+} from './clientCabinetPdfPackage';
 
 type ClientCabinetExportsProps = {
   accessToken: string;
@@ -37,11 +43,13 @@ export function ClientCabinetExports({
 }: ClientCabinetExportsProps) {
   const [isHtmlPackaging, setHtmlPackaging] = useState(false);
   const [isPdfPackaging, setPdfPackaging] = useState(false);
+  const [pdfOptions, setPdfOptions] = useState<ClientCabinetPdfPackageOptions>(defaultPdfPackageOptions);
   const [message, setMessage] = useState('');
   const exportData: ClientCabinetExportData = { client, filters, requests, invoices, charges, serviceHistory };
   const htmlPackageData: ClientCabinetHtmlPackageData = { client, filters, requests, invoices };
-  const pdfPackageData: ClientCabinetPdfPackageData = { client, filters, requests, invoices };
+  const pdfPackageData: ClientCabinetPdfPackageData = { client, filters, requests, invoices, options: pdfOptions };
   const documentsCount = requests.length + invoices.length * 2;
+  const pdfDocumentsCount = countClientCabinetPdfDocuments(pdfPackageData);
   const financeRowsCount = charges.length + invoices.length + invoices.reduce((total, invoice) => total + invoice.payments.length, 0);
 
   async function downloadHtmlPackage() {
@@ -84,7 +92,31 @@ export function ClientCabinetExports({
 
       <div className="client-cabinet-exports__metrics" aria-label="Состав выгрузки">
         <span>{documentsCount} документов</span>
+        <span>{pdfDocumentsCount} PDF в пакете</span>
         <span>{financeRowsCount} финансовых строк</span>
+      </div>
+
+      <div className="client-cabinet-exports__pdf-options" aria-label="Настройки PDF-пакета">
+        <PdfOption
+          label="Заявки"
+          checked={pdfOptions.includeRequests}
+          onChange={(checked) => setPdfOptions((current) => ({ ...current, includeRequests: checked }))}
+        />
+        <PdfOption
+          label="Счета"
+          checked={pdfOptions.includeInvoices}
+          onChange={(checked) => setPdfOptions((current) => ({ ...current, includeInvoices: checked }))}
+        />
+        <PdfOption
+          label="Акты"
+          checked={pdfOptions.includeActs}
+          onChange={(checked) => setPdfOptions((current) => ({ ...current, includeActs: checked }))}
+        />
+        <PdfOption
+          label="Папка юрлица"
+          checked={pdfOptions.groupByLegalEntity}
+          onChange={(checked) => setPdfOptions((current) => ({ ...current, groupByLegalEntity: checked }))}
+        />
       </div>
 
       <div className="client-cabinet-exports__actions">
@@ -110,7 +142,7 @@ export function ClientCabinetExports({
           className="icon-text-button"
           type="button"
           onClick={() => void downloadPdfPackage()}
-          disabled={documentsCount === 0 || isPdfPackaging}
+          disabled={pdfDocumentsCount === 0 || isPdfPackaging}
         >
           <FileArchive size={15} aria-hidden="true" />
           <span>{isPdfPackaging ? 'Готовлю PDF' : 'Пакет PDF'}</span>
@@ -128,5 +160,22 @@ export function ClientCabinetExports({
 
       {message ? <p className="inline-status client-cabinet-exports__message">{message}</p> : null}
     </section>
+  );
+}
+
+function PdfOption({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="client-cabinet-exports__pdf-option">
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+      <span>{label}</span>
+    </label>
   );
 }

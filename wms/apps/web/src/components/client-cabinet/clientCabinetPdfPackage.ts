@@ -13,6 +13,14 @@ export type ClientCabinetPdfPackageData = {
   filters: ClientCabinetFiltersValue;
   requests: ClientRequestSummary[];
   invoices: BillingInvoiceSummary[];
+  options?: ClientCabinetPdfPackageOptions;
+};
+
+export type ClientCabinetPdfPackageOptions = {
+  includeRequests: boolean;
+  includeInvoices: boolean;
+  includeActs: boolean;
+  groupByLegalEntity: boolean;
 };
 
 type PdfPackageFile = {
@@ -30,6 +38,10 @@ type ZipEntry = {
 
 export async function downloadClientCabinetPdfPackage(accessToken: string, data: ClientCabinetPdfPackageData) {
   const files = await loadPdfPackageFiles(accessToken, data);
+  if (files.length === 0) {
+    throw new Error('Выберите хотя бы один вид документов для PDF-пакета.');
+  }
+
   const zip = await buildZip(files);
 
   downloadBlob(pdfPackageFileName(data.client.code), zip);
@@ -37,16 +49,48 @@ export async function downloadClientCabinetPdfPackage(accessToken: string, data:
 }
 
 async function loadPdfPackageFiles(accessToken: string, data: ClientCabinetPdfPackageData) {
-  const requestFiles = data.requests.map(async (request) => ({
-    fileName: documentFileName('Заявка', request.title, request.id),
-    blob: await downloadClientRequestPdf(accessToken, request.id),
-  }));
+  const options = data.options ?? defaultPdfPackageOptions;
+  const prefix = options.groupByLegalEntity ? `${legalEntityFolder(data.client)}/` : '';
+  const requestFiles = options.includeRequests
+    ? data.requests.map(async (request) => ({
+        fileName: `${prefix}Заявки/${documentFileName('Заявка', request.title, request.id)}`,
+        blob: await downloadClientRequestPdf(accessToken, request.id),
+      }))
+    : [];
   const invoiceFiles = data.invoices.flatMap((invoice) => [
-    asyncPdfFile(`Счет_${safeFileName(invoice.number)}.pdf`, () => downloadBillingInvoicePdf(accessToken, invoice.id)),
-    asyncPdfFile(`Акт_${safeFileName(actNumber(invoice.number))}.pdf`, () => downloadBillingInvoiceActPdf(accessToken, invoice.id)),
+    ...(options.includeInvoices
+      ? [
+          asyncPdfFile(`${prefix}Счета/Счет_${safeFileName(invoice.number)}.pdf`, () =>
+            downloadBillingInvoicePdf(accessToken, invoice.id),
+          ),
+        ]
+      : []),
+    ...(options.includeActs
+      ? [
+          asyncPdfFile(`${prefix}Акты/Акт_${safeFileName(actNumber(invoice.number))}.pdf`, () =>
+            downloadBillingInvoiceActPdf(accessToken, invoice.id),
+          ),
+        ]
+      : []),
   ]);
 
   return uniqueFileNames(await Promise.all([...requestFiles, ...invoiceFiles]));
+}
+
+export const defaultPdfPackageOptions: ClientCabinetPdfPackageOptions = {
+  includeRequests: true,
+  includeInvoices: true,
+  includeActs: true,
+  groupByLegalEntity: true,
+};
+
+export function countClientCabinetPdfDocuments(data: ClientCabinetPdfPackageData) {
+  const options = data.options ?? defaultPdfPackageOptions;
+  return (
+    (options.includeRequests ? data.requests.length : 0) +
+    (options.includeInvoices ? data.invoices.length : 0) +
+    (options.includeActs ? data.invoices.length : 0)
+  );
 }
 
 async function asyncPdfFile(fileName: string, load: () => Promise<Blob>): Promise<PdfPackageFile> {
@@ -214,6 +258,11 @@ function uniqueFileNames(files: PdfPackageFile[]) {
 
 function documentFileName(prefix: string, title: string, id: string) {
   return `${prefix}_${safeFileName(title)}_${id.slice(0, 8)}.pdf`;
+}
+
+function legalEntityFolder(client: ClientSummary) {
+  const inn = client.inn ? `_ИНН_${client.inn}` : '';
+  return safeFileName(`${client.legalName || client.name || client.code}${inn}`);
 }
 
 function actNumber(invoiceNumber: string) {

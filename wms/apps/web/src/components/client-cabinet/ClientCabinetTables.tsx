@@ -106,7 +106,6 @@ export function ClientCabinetTables({
   const allTotal = totalForTab(activeSection, allSkuRows, stock, requests, invoices);
   const activeQuantity = quantityForTab(activeSection, skuRows, visibleStock);
   const allQuantity = quantityForTab(activeSection, allSkuRows, stock);
-  const skuTabQuantity = quantityForTab('skus', skuRows, visibleStock) ?? 0;
   const stockTabQuantity = quantityForTab('stock', skuRows, visibleStock) ?? 0;
   const pageCount = Math.max(1, Math.ceil(activeTotal / pageSize));
   const currentPage = Math.min(activePage, pageCount);
@@ -140,7 +139,7 @@ export function ClientCabinetTables({
 
       <section className="client-cabinet-section" aria-label="Таблицы клиента">
         <div className="client-cabinet-tabs" role="tablist" aria-label="Разделы кабинета клиента">
-          <TabButton label="SKU" count={skuTabQuantity} tab="skus" activeTab={activeSection} onClick={onSectionChange} />
+          <TabButton label="SKU" count={skuRows.length} tab="skus" activeTab={activeSection} onClick={onSectionChange} />
           <TabButton label="Остатки" count={stockTabQuantity} tab="stock" activeTab={activeSection} onClick={onSectionChange} />
           <TabButton label="Заявки" count={requests.length} tab="requests" activeTab={activeSection} onClick={onSectionChange} />
           <TabButton label="Счета" count={invoices.length} tab="invoices" activeTab={activeSection} onClick={onSectionChange} />
@@ -189,7 +188,7 @@ export function ClientCabinetTables({
           pageCount={pageCount}
           pageSize={pageSize}
           total={activeTotal}
-          quantity={activeQuantity}
+          quantity={activeSection === 'stock' ? activeQuantity : null}
           onPageChange={changePage}
           onPageSizeChange={setPageSize}
         />
@@ -600,7 +599,7 @@ function tableCountText(
   }
 
   if (tab === 'skus') {
-    return `Найдено единиц ${formatCabinetNumber(activeQuantity ?? 0)} из ${formatCabinetNumber(allQuantity ?? 0)}`;
+    return `Найдено SKU ${formatCabinetNumber(activeTotal)} из ${formatCabinetNumber(allTotal)}`;
   }
 
   return `Найдено ${formatCabinetNumber(activeTotal)} из ${formatCabinetNumber(allTotal)}`;

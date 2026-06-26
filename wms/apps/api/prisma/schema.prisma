@@ -129,6 +129,7 @@ enum BillingChargeStatus {
 enum BillingChargeSource {
   MANUAL
   STORAGE
+  LOGISTICS
 }
 
 enum BillingInvoiceStatus {
@@ -437,7 +438,7 @@ model BillingCharge {
   status           BillingChargeStatus  @default(DRAFT)
   serviceDate      DateTime             @default(now())
   source           BillingChargeSource  @default(MANUAL)
-  sourceKey        String?
+  sourceKey        String?              @unique
   metadata         Json?
   comment          String?
   createdByUserId  String?
@@ -458,7 +459,6 @@ model BillingCharge {
   @@index([serviceId])
   @@index([approvedByUserId])
   @@index([source, serviceDate])
-  @@index([sourceKey])
 }
 
 model BillingInvoice {

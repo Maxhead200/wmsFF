@@ -1,5 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { LogisticsDeliveryStatus, LogisticsPricingMode, Prisma } from '@prisma/client';
+import {
+  BillingChargeSource,
+  BillingChargeStatus,
+  BillingUnit,
+  LogisticsDeliveryStatus,
+  LogisticsPricingMode,
+  Prisma,
+} from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
@@ -238,6 +245,95 @@ export class LogisticsService {
     });
   }
 
+  async generateDeliveryBillingCharge(id: string, user: AuthUser) {
+    const request = await this.prisma.logisticsDeliveryRequest.findUnique({
+      where: { id },
+      include: {
+        client: { select: { id: true, code: true, name: true } },
+        request: { select: { id: true, title: true } },
+        tariffSet: { select: { id: true, name: true } },
+        billingCharge: { select: { id: true } },
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException('Заявка на доставку не найдена.');
+    }
+
+    this.clientScopes.requireClientAccess(user, request.clientId, 'write');
+
+    if (request.billingChargeId) {
+      return this.prisma.logisticsDeliveryRequest.findUniqueOrThrow({
+        where: { id },
+        include: deliveryRequestInclude,
+      });
+    }
+
+    if (request.status !== LogisticsDeliveryStatus.DELIVERED) {
+      throw new BadRequestException('Начисление доставки можно создать только после статуса "Доставлена".');
+    }
+
+    if (request.requiresManualReview || request.estimatedTotalRub == null) {
+      throw new BadRequestException('Для доставки нужен финальный расчет тарифа перед начислением.');
+    }
+
+    const sourceKey = deliverySourceKey(request.id);
+    const totalRub = Number(request.estimatedTotalRub);
+    if (!Number.isFinite(totalRub) || totalRub <= 0) {
+      throw new BadRequestException('Некорректная сумма доставки для начисления.');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const existingCharge = await tx.billingCharge.findFirst({
+        where: { sourceKey },
+        select: { id: true },
+      });
+
+      const charge =
+        existingCharge ??
+        (await tx.billingCharge.create({
+          data: {
+            clientId: request.clientId,
+            serviceId: (await ensureDeliveryBillingService(tx)).id,
+            requestId: request.requestId,
+            description: `Доставка ${request.origin} -> ${request.destination}`,
+            unit: BillingUnit.SERVICE,
+            quantity: 1,
+            unitPriceRub: totalRub,
+            totalRub,
+            status: BillingChargeStatus.APPROVED,
+            serviceDate: request.plannedShipDate ?? request.desiredShipDate ?? new Date(),
+            source: BillingChargeSource.LOGISTICS,
+            sourceKey,
+            metadata: {
+              deliveryRequestId: request.id,
+              route: {
+                origin: request.origin,
+                destination: request.destination,
+              },
+              boxes: request.boxes,
+              pallets: request.pallets,
+              tariffSetId: request.tariffSetId,
+              tariffSetName: request.tariffSet?.name ?? null,
+              clientRequestId: request.requestId,
+            },
+            comment: request.managerComment ?? request.comment,
+            createdByUserId: user.id,
+            approvedByUserId: user.id,
+            approvedAt: new Date(),
+          },
+          select: { id: true },
+        }));
+
+      // Русский комментарий: связь хранится в заявке, чтобы в логистике сразу было видно, что доставка уже ушла в биллинг.
+      return tx.logisticsDeliveryRequest.update({
+        where: { id: request.id },
+        data: { billingChargeId: charge.id },
+        include: deliveryRequestInclude,
+      });
+    });
+  }
+
   selectRateTier(tiers: RateTierLike[], input: { boxes?: number; pallets?: number }) {
     if (input.boxes != null) {
       const candidates = tiers
@@ -364,6 +460,8 @@ export class LogisticsService {
   }
 }
 
+const DELIVERY_SERVICE_CODE = 'LOGISTICS_DELIVERY';
+
 const deliveryRequestInclude = {
   client: {
     select: {
@@ -402,6 +500,27 @@ const deliveryRequestInclude = {
     },
   },
 } satisfies Prisma.LogisticsDeliveryRequestInclude;
+
+function ensureDeliveryBillingService(tx: Prisma.TransactionClient) {
+  return tx.billingService.upsert({
+    where: { code: DELIVERY_SERVICE_CODE },
+    update: {
+      name: 'Доставка по заявке',
+      unit: BillingUnit.SERVICE,
+      isActive: true,
+    },
+    create: {
+      code: DELIVERY_SERVICE_CODE,
+      name: 'Доставка по заявке',
+      unit: BillingUnit.SERVICE,
+      isActive: true,
+    },
+  });
+}
+
+function deliverySourceKey(deliveryRequestId: string) {
+  return `logistics-delivery:${deliveryRequestId}`;
+}
 
 function normalizeText(value?: string) {
   const normalized = value?.trim();

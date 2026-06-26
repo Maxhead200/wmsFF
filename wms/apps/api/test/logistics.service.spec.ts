@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { LogisticsPricingMode } from '@prisma/client';
+import { BillingChargeSource, BillingChargeStatus, BillingUnit, LogisticsDeliveryStatus, LogisticsPricingMode } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthUser } from '../src/modules/auth/auth.types';
 import { LogisticsService } from '../src/modules/logistics/logistics.service';
@@ -154,6 +154,81 @@ describe('LogisticsService', () => {
         user(),
       ),
     ).rejects.toThrow(BadRequestException);
+  });
+  it('создает начисление биллинга по доставленной заявке', async () => {
+    const tx = {
+      billingService: {
+        upsert: vi.fn().mockResolvedValue({ id: 'service-delivery' }),
+      },
+      billingCharge: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({ id: 'charge-delivery' }),
+      },
+      logisticsDeliveryRequest: {
+        update: vi.fn().mockResolvedValue({ id: 'delivery-1', billingChargeId: 'charge-delivery' }),
+      },
+    };
+    const prisma = {
+      logisticsDeliveryRequest: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'delivery-1',
+          clientId: 'client-1',
+          requestId: 'request-1',
+          tariffSetId: 'tariff-1',
+          billingChargeId: null,
+          origin: 'Москва',
+          destination: 'Казань',
+          boxes: 4,
+          pallets: null,
+          desiredShipDate: new Date('2026-06-20T00:00:00.000Z'),
+          plannedShipDate: null,
+          status: LogisticsDeliveryStatus.DELIVERED,
+          estimatedTotalRub: '7500.00',
+          requiresManualReview: false,
+          comment: 'доставка клиента',
+          managerComment: null,
+          client: { id: 'client-1', code: 'CL-1', name: 'Client' },
+          request: { id: 'request-1', title: 'Заявка' },
+          tariffSet: { id: 'tariff-1', name: 'Тариф' },
+          billingCharge: null,
+        }),
+      },
+      $transaction: vi.fn((callback) => callback(tx)),
+    };
+    const deliveryService = new LogisticsService(prisma as never, { requireClientAccess: vi.fn() } as never);
+
+    await deliveryService.generateDeliveryBillingCharge('delivery-1', user());
+
+    expect(tx.billingCharge.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          clientId: 'client-1',
+          requestId: 'request-1',
+          serviceId: 'service-delivery',
+          description: 'Доставка Москва -> Казань',
+          unit: BillingUnit.SERVICE,
+          quantity: 1,
+          unitPriceRub: 7500,
+          totalRub: 7500,
+          status: BillingChargeStatus.APPROVED,
+          source: BillingChargeSource.LOGISTICS,
+          sourceKey: 'logistics-delivery:delivery-1',
+          createdByUserId: 'user-1',
+          approvedByUserId: 'user-1',
+          metadata: expect.objectContaining({
+            deliveryRequestId: 'delivery-1',
+            boxes: 4,
+            tariffSetId: 'tariff-1',
+          }),
+        }),
+      }),
+    );
+    expect(tx.logisticsDeliveryRequest.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'delivery-1' },
+        data: { billingChargeId: 'charge-delivery' },
+      }),
+    );
   });
 });
 

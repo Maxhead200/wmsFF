@@ -240,7 +240,7 @@
 }
 
 .delivery-table {
-  min-width: 960px;
+  min-width: 1080px;
 }
 
 .delivery-status-select {
@@ -252,6 +252,35 @@
 
 .delivery-status-select svg {
   flex: 0 0 auto;
+}
+
+.delivery-billing-link,
+.delivery-billing-muted {
+  display: grid;
+  gap: 3px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.delivery-billing-link strong {
+  color: var(--ink);
+}
+
+.delivery-billing-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  border: 1px solid rgb(215 25 32 / 0.28);
+  border-radius: 6px;
+  background: #fff7f7;
+  color: var(--red-dark);
+  font-weight: 800;
+  padding: 0 10px;
+}
+
+.delivery-billing-button:hover {
+  background: #ffecec;
 }
 
 @media (max-width: 980px) {

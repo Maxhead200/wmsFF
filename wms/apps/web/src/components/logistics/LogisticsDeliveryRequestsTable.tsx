@@ -1,4 +1,4 @@
-import { CalendarClock } from 'lucide-react';
+import { CalendarClock, ReceiptText } from 'lucide-react';
 import type { LogisticsDeliveryRequestSummary, LogisticsDeliveryStatus } from '../../lib/api';
 import {
   logisticsDeliveryStatusLabel,
@@ -9,6 +9,8 @@ import {
 type LogisticsDeliveryRequestsTableProps = {
   items: LogisticsDeliveryRequestSummary[];
   canWrite: boolean;
+  canCreateBillingCharge: boolean;
+  onBillingChargeCreate: (deliveryId: string) => void;
   onStatusChange: (deliveryId: string, status: LogisticsDeliveryStatus) => void;
 };
 
@@ -18,6 +20,8 @@ const moneyFormatter = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2
 export function LogisticsDeliveryRequestsTable({
   items,
   canWrite,
+  canCreateBillingCharge,
+  onBillingChargeCreate,
   onStatusChange,
 }: LogisticsDeliveryRequestsTableProps) {
   return (
@@ -30,6 +34,7 @@ export function LogisticsDeliveryRequestsTable({
             <th>Объем</th>
             <th>Дата</th>
             <th>Расчет</th>
+            <th>Биллинг</th>
             <th>Статус</th>
             {canWrite ? <th>Workflow</th> : null}
           </tr>
@@ -42,7 +47,9 @@ export function LogisticsDeliveryRequestsTable({
                 <span>{request.client.name}</span>
               </td>
               <td>
-                <strong>{request.origin} → {request.destination}</strong>
+                <strong>
+                  {request.origin} -&gt; {request.destination}
+                </strong>
                 <span>{request.request?.title ?? request.comment ?? '-'}</span>
               </td>
               <td>{formatQuantity(request)}</td>
@@ -53,6 +60,25 @@ export function LogisticsDeliveryRequestsTable({
               <td>
                 <strong>{formatMoney(request.estimatedTotalRub)}</strong>
                 <span>{request.requiresManualReview ? 'ручная проверка' : request.tariffSet?.name ?? '-'}</span>
+              </td>
+              <td>
+                {request.billingCharge ? (
+                  <div className="delivery-billing-link">
+                    <strong>{formatMoney(request.billingCharge.totalRub)}</strong>
+                    <span>{request.billingCharge.status}</span>
+                  </div>
+                ) : canCreateBillingCharge && canGenerateBillingCharge(request) ? (
+                  <button
+                    className="delivery-billing-button"
+                    type="button"
+                    onClick={() => onBillingChargeCreate(request.id)}
+                  >
+                    <ReceiptText size={15} aria-hidden="true" />
+                    <span>Начислить</span>
+                  </button>
+                ) : (
+                  <span className="delivery-billing-muted">{billingHint(request)}</span>
+                )}
               </td>
               <td>
                 <span className={`status status--${logisticsDeliveryStatusTone(request.status)}`}>
@@ -83,6 +109,22 @@ export function LogisticsDeliveryRequestsTable({
       </table>
     </div>
   );
+}
+
+function canGenerateBillingCharge(request: LogisticsDeliveryRequestSummary) {
+  return request.status === 'DELIVERED' && request.estimatedTotalRub != null && !request.requiresManualReview;
+}
+
+function billingHint(request: LogisticsDeliveryRequestSummary) {
+  if (request.requiresManualReview || request.estimatedTotalRub == null) {
+    return 'требует расчет';
+  }
+
+  if (request.status !== 'DELIVERED') {
+    return 'после доставки';
+  }
+
+  return '-';
 }
 
 function formatQuantity(request: LogisticsDeliveryRequestSummary) {

@@ -43,7 +43,7 @@ export type BillingUnit = 'SERVICE' | 'PIECE' | 'BOX' | 'PALLET' | 'LITER' | 'LI
 
 export type BillingChargeStatus = 'DRAFT' | 'APPROVED' | 'CANCELLED';
 
-export type BillingChargeSource = 'MANUAL' | 'STORAGE';
+export type BillingChargeSource = 'MANUAL' | 'STORAGE' | 'LOGISTICS';
 
 export type BillingInvoiceStatus = 'DRAFT' | 'ISSUED' | 'PAID' | 'CANCELLED';
 
@@ -1163,6 +1163,13 @@ export async function updateLogisticsDeliveryStatus(
   return request<LogisticsDeliveryRequestSummary>(`/logistics/delivery-requests/${deliveryId}/status`, {
     method: 'PATCH',
     body: payload,
+    accessToken,
+  });
+}
+
+export async function generateLogisticsDeliveryBillingCharge(accessToken: string, deliveryId: string) {
+  return request<LogisticsDeliveryRequestSummary>(`/logistics/delivery-requests/${deliveryId}/billing-charge`, {
+    method: 'POST',
     accessToken,
   });
 }

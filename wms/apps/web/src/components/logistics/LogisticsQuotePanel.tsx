@@ -5,6 +5,7 @@ import {
   fetchClients,
   fetchLogisticsDeliveryRequests,
   fetchLogisticsTariffSets,
+  generateLogisticsDeliveryBillingCharge,
   quoteLogistics,
   updateLogisticsDeliveryStatus,
   type AuthSession,
@@ -88,6 +89,17 @@ export function LogisticsQuotePanel({ session }: LogisticsQuotePanelProps) {
       setDeliveryRequests((current) => current.map((item) => (item.id === updated.id ? updated : item)));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Не удалось обновить статус доставки.');
+    }
+  }
+
+  async function generateBillingCharge(deliveryId: string) {
+    setError('');
+
+    try {
+      const updated = await generateLogisticsDeliveryBillingCharge(session.accessToken, deliveryId);
+      setDeliveryRequests((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Не удалось создать начисление доставки.');
     }
   }
 
@@ -217,6 +229,8 @@ export function LogisticsQuotePanel({ session }: LogisticsQuotePanelProps) {
           <LogisticsDeliveryRequestsTable
             items={deliveryRequests}
             canWrite={canUse(session.user, 'logistics:write')}
+            canCreateBillingCharge={canUse(session.user, 'logistics:write') && canUse(session.user, 'billing:write')}
+            onBillingChargeCreate={(deliveryId) => void generateBillingCharge(deliveryId)}
             onStatusChange={(deliveryId, status) => void changeDeliveryStatus(deliveryId, status)}
           />
         ) : null}

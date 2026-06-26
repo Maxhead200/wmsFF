@@ -50,4 +50,10 @@ export class LogisticsController {
   ) {
     return this.logistics.updateDeliveryStatus(id, dto, user);
   }
+
+  @Post('delivery-requests/:id/billing-charge')
+  @RequirePermissions('logistics:write', 'billing:write')
+  generateDeliveryBillingCharge(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.logistics.generateDeliveryBillingCharge(id, user);
+  }
 }

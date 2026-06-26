@@ -5,9 +5,13 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { BillingService } from './billing.service';
 import { CreateBillingChargeDto } from './dto/create-billing-charge.dto';
+import { CreateBillingInvoiceDto } from './dto/create-billing-invoice.dto';
+import { CreateBillingPaymentDto } from './dto/create-billing-payment.dto';
 import { CreateBillingServiceDto } from './dto/create-billing-service.dto';
 import { ListBillingChargesDto } from './dto/list-billing-charges.dto';
+import { ListBillingInvoicesDto } from './dto/list-billing-invoices.dto';
 import { UpdateBillingChargeStatusDto } from './dto/update-billing-charge-status.dto';
+import { UpdateBillingInvoiceStatusDto } from './dto/update-billing-invoice-status.dto';
 
 @ApiTags('billing')
 @RequirePermissions('billing:read')
@@ -45,5 +49,32 @@ export class BillingController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.billing.updateChargeStatus(id, dto, user);
+  }
+
+  @Get('invoices')
+  listInvoices(@Query() query: ListBillingInvoicesDto, @CurrentUser() user: AuthUser) {
+    return this.billing.listInvoices(query, user);
+  }
+
+  @Post('invoices')
+  @RequirePermissions('billing:write')
+  createInvoice(@Body() dto: CreateBillingInvoiceDto, @CurrentUser() user: AuthUser) {
+    return this.billing.createInvoice(dto, user);
+  }
+
+  @Patch('invoices/:id/status')
+  @RequirePermissions('billing:write')
+  updateInvoiceStatus(
+    @Param('id') id: string,
+    @Body() dto: UpdateBillingInvoiceStatusDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.billing.updateInvoiceStatus(id, dto, user);
+  }
+
+  @Post('payments')
+  @RequirePermissions('billing:write')
+  createPayment(@Body() dto: CreateBillingPaymentDto, @CurrentUser() user: AuthUser) {
+    return this.billing.createPayment(dto, user);
   }
 }

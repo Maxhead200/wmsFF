@@ -65,7 +65,7 @@ export class AuthService {
   async login(dto: LoginDto) {
     const user = await this.findUserWithAccess(this.normalizeEmail(dto.email));
     if (!user || !(await this.passwords.verify(dto.password, user.passwordHash))) {
-      throw new UnauthorizedException('Неверный email или пароль.');
+      throw new UnauthorizedException('Неверный логин или пароль.');
     }
 
     if (user.status !== UserStatus.ACTIVE) {

@@ -69,11 +69,11 @@ export function AuthPanel({ onSession }: AuthPanelProps) {
           ) : null}
 
           <label>
-            <span>Email</span>
+            <span>{mode === 'login' ? 'Логин или email' : 'Email'}</span>
             <input
-              autoComplete="email"
-              inputMode="email"
-              type="email"
+              autoComplete={mode === 'login' ? 'username' : 'email'}
+              inputMode={mode === 'login' ? 'text' : 'email'}
+              type={mode === 'login' ? 'text' : 'email'}
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               required

@@ -35,6 +35,10 @@ export type BillingUnit = 'SERVICE' | 'PIECE' | 'BOX' | 'PALLET' | 'LITER' | 'DA
 
 export type BillingChargeStatus = 'DRAFT' | 'APPROVED' | 'CANCELLED';
 
+export type BillingInvoiceStatus = 'DRAFT' | 'ISSUED' | 'PAID' | 'CANCELLED';
+
+export type BillingPaymentStatus = 'RECORDED' | 'CANCELLED';
+
 export type BillingServiceSummary = {
   id: string;
   code: string;
@@ -77,6 +81,59 @@ export type BillingChargeSummary = {
   } | null;
 };
 
+export type BillingInvoiceItemSummary = {
+  id: string;
+  invoiceId: string;
+  chargeId: string | null;
+  description: string;
+  unit: BillingUnit;
+  quantity: string | number;
+  unitPriceRub: string | number;
+  totalRub: string | number;
+  serviceDate: string;
+  charge: Pick<BillingChargeSummary, 'id' | 'description' | 'status'> | null;
+};
+
+export type BillingPaymentSummary = {
+  id: string;
+  invoiceId: string;
+  clientId: string;
+  amountRub: string | number;
+  paidAt: string;
+  method: string | null;
+  reference: string | null;
+  comment: string | null;
+  status: BillingPaymentStatus;
+  createdByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type BillingInvoiceSummary = {
+  id: string;
+  number: string;
+  clientId: string;
+  periodFrom: string;
+  periodTo: string;
+  dueDate: string | null;
+  status: BillingInvoiceStatus;
+  totalRub: string | number;
+  paidRub: string | number;
+  issuedAt: string | null;
+  paidAt: string | null;
+  comment: string | null;
+  createdAt: string;
+  updatedAt: string;
+  client: Pick<ClientSummary, 'id' | 'code' | 'name'>;
+  items: BillingInvoiceItemSummary[];
+  payments: BillingPaymentSummary[];
+  createdBy: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+};
+
 export type CreateBillingServicePayload = {
   code: string;
   name: string;
@@ -94,6 +151,24 @@ export type CreateBillingChargePayload = {
   quantity: number;
   unitPriceRub?: number;
   serviceDate?: string;
+  comment?: string;
+};
+
+export type CreateBillingInvoicePayload = {
+  clientId: string;
+  periodFrom: string;
+  periodTo: string;
+  dueDate?: string;
+  chargeIds?: string[];
+  comment?: string;
+};
+
+export type CreateBillingPaymentPayload = {
+  invoiceId: string;
+  amountRub: number;
+  paidAt?: string;
+  method?: string;
+  reference?: string;
   comment?: string;
 };
 
@@ -642,6 +717,43 @@ export async function updateBillingChargeStatus(
 ) {
   return request<BillingChargeSummary>(`/billing/charges/${chargeId}/status`, {
     method: 'PATCH',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function fetchBillingInvoices(
+  accessToken: string,
+  filter: { clientId?: string; status?: BillingInvoiceStatus; periodFrom?: string; periodTo?: string } = {},
+) {
+  return request<BillingInvoiceSummary[]>(withQuery('/billing/invoices', filter), {
+    accessToken,
+  });
+}
+
+export async function createBillingInvoice(accessToken: string, payload: CreateBillingInvoicePayload) {
+  return request<BillingInvoiceSummary>('/billing/invoices', {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function updateBillingInvoiceStatus(
+  accessToken: string,
+  invoiceId: string,
+  payload: { status: BillingInvoiceStatus },
+) {
+  return request<BillingInvoiceSummary>(`/billing/invoices/${invoiceId}/status`, {
+    method: 'PATCH',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function createBillingPayment(accessToken: string, payload: CreateBillingPaymentPayload) {
+  return request<BillingInvoiceSummary>('/billing/payments', {
+    method: 'POST',
     body: payload,
     accessToken,
   });

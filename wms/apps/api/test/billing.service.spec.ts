@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { BillingChargeStatus, BillingUnit } from '@prisma/client';
+import { BillingChargeStatus, BillingInvoiceStatus, BillingUnit } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthUser } from '../src/modules/auth/auth.types';
 import { BillingService } from '../src/modules/billing/billing.service';
@@ -113,6 +113,171 @@ describe('BillingService', () => {
           status: BillingChargeStatus.APPROVED,
           approvedByUserId: 'user-1',
           approvedAt: expect.any(Date),
+        }),
+      }),
+    );
+  });
+
+  it('создает счет из утвержденных начислений периода', async () => {
+    const prisma = {
+      billingCharge: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: 'charge-1',
+            description: 'Хранение',
+            unit: BillingUnit.LITER,
+            quantity: '10',
+            unitPriceRub: '2.00',
+            totalRub: '20.00',
+            serviceDate: new Date('2026-06-10T00:00:00.000Z'),
+          },
+          {
+            id: 'charge-2',
+            description: 'Приемка',
+            unit: BillingUnit.BOX,
+            quantity: '3',
+            unitPriceRub: '15.00',
+            totalRub: '45.00',
+            serviceDate: new Date('2026-06-12T00:00:00.000Z'),
+          },
+        ]),
+      },
+      billingInvoice: {
+        count: vi.fn().mockResolvedValue(0),
+        create: vi.fn().mockResolvedValue({ id: 'invoice-1', number: 'INV-202606-0001' }),
+      },
+    };
+    const service = new BillingService(prisma as never, clientScopes());
+
+    await service.createInvoice(
+      {
+        clientId: 'client-1',
+        periodFrom: '2026-06-01',
+        periodTo: '2026-06-30',
+      },
+      user({ clientIds: ['client-1'], writableClientIds: ['client-1'] }),
+    );
+
+    expect(prisma.billingCharge.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          clientId: 'client-1',
+          status: BillingChargeStatus.APPROVED,
+          invoiceItems: expect.objectContaining({
+            none: expect.any(Object),
+          }),
+        }),
+      }),
+    );
+    expect(prisma.billingInvoice.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          number: 'INV-202606-0001',
+          totalRub: 65,
+          createdByUserId: 'user-1',
+          items: expect.objectContaining({
+            create: expect.arrayContaining([
+              expect.objectContaining({ chargeId: 'charge-1', totalRub: '20.00' }),
+              expect.objectContaining({ chargeId: 'charge-2', totalRub: '45.00' }),
+            ]),
+          }),
+        }),
+      }),
+    );
+  });
+
+  it('не создает счет без доступных утвержденных начислений', async () => {
+    const prisma = {
+      billingCharge: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+    };
+    const service = new BillingService(prisma as never, clientScopes());
+
+    await expect(
+      service.createInvoice(
+        {
+          clientId: 'client-1',
+          periodFrom: '2026-06-01',
+          periodTo: '2026-06-30',
+        },
+        user({ clientIds: ['client-1'], writableClientIds: ['client-1'] }),
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('запрещает закрыть счет как оплаченный при неполной оплате', async () => {
+    const prisma = {
+      billingInvoice: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'invoice-1',
+          clientId: 'client-1',
+          totalRub: '100.00',
+          paidRub: '40.00',
+          status: BillingInvoiceStatus.ISSUED,
+          issuedAt: new Date('2026-06-15T00:00:00.000Z'),
+          paidAt: null,
+        }),
+      },
+    };
+    const service = new BillingService(prisma as never, clientScopes());
+
+    await expect(
+      service.updateInvoiceStatus(
+        'invoice-1',
+        { status: BillingInvoiceStatus.PAID },
+        user({ clientIds: ['client-1'], writableClientIds: ['client-1'] }),
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('принимает оплату и закрывает счет при полной сумме', async () => {
+    const prisma = {
+      billingInvoice: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'invoice-1',
+          clientId: 'client-1',
+          status: BillingInvoiceStatus.ISSUED,
+          totalRub: '100.00',
+          paidRub: '40.00',
+          issuedAt: new Date('2026-06-15T00:00:00.000Z'),
+        }),
+        update: vi.fn().mockResolvedValue({ id: 'invoice-1', status: BillingInvoiceStatus.PAID }),
+      },
+      billingPayment: {
+        create: vi.fn().mockResolvedValue({ id: 'payment-1' }),
+      },
+      $transaction: vi.fn((callback) => callback(prisma)),
+    };
+    const service = new BillingService(prisma as never, clientScopes());
+
+    await service.createPayment(
+      {
+        invoiceId: 'invoice-1',
+        amountRub: 60,
+        paidAt: '2026-06-20',
+        method: 'bank',
+      },
+      user({ clientIds: ['client-1'], writableClientIds: ['client-1'] }),
+    );
+
+    expect(prisma.billingPayment.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          invoiceId: 'invoice-1',
+          clientId: 'client-1',
+          amountRub: 60,
+          method: 'bank',
+          createdByUserId: 'user-1',
+        }),
+      }),
+    );
+    expect(prisma.billingInvoice.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          paidRub: 100,
+          status: BillingInvoiceStatus.PAID,
+          paidAt: expect.any(Date),
         }),
       }),
     );

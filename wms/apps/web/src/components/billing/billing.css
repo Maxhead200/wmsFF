@@ -33,6 +33,14 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.billing-fields--invoice {
+  grid-template-columns: minmax(180px, 1.4fr) repeat(3, minmax(130px, 0.8fr));
+}
+
+.billing-fields--payment {
+  grid-template-columns: minmax(180px, 1.3fr) repeat(4, minmax(120px, 0.8fr));
+}
+
 .billing-fields label {
   display: grid;
   gap: 6px;
@@ -72,7 +80,16 @@
 }
 
 .billing-panel__list {
+  margin-bottom: 16px;
   min-height: 140px;
+}
+
+.billing-panel__subheading {
+  margin: 14px 0 10px;
+}
+
+.billing-panel__subheading h3 {
+  font-size: 17px;
 }
 
 .billing-table-wrap {
@@ -83,6 +100,10 @@
 
 .billing-table {
   min-width: 920px;
+}
+
+.billing-table--invoices {
+  min-width: 1080px;
 }
 
 .billing-status-select {
@@ -98,7 +119,9 @@
 
 @media (max-width: 980px) {
   .billing-fields--service,
-  .billing-fields--charge {
+  .billing-fields--charge,
+  .billing-fields--invoice,
+  .billing-fields--payment {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -109,7 +132,9 @@
   }
 
   .billing-fields--service,
-  .billing-fields--charge {
+  .billing-fields--charge,
+  .billing-fields--invoice,
+  .billing-fields--payment {
     grid-template-columns: 1fr;
   }
 

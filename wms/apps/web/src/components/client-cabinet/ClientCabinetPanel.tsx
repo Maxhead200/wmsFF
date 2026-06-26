@@ -37,6 +37,7 @@ import { ClientRequestDocumentPreview } from '../client-requests/ClientRequestDo
 import './client-cabinet.css';
 import { ClientCabinetMetrics } from './ClientCabinetMetrics';
 import { ClientCabinetTables } from './ClientCabinetTables';
+import { ClientCabinetFilterPresets } from './ClientCabinetFilterPresets';
 import {
   ClientCabinetFilters,
   emptyClientCabinetFilters,
@@ -366,6 +367,12 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
           </div>
 
           <ClientCabinetFilters value={filters} totals={view.filterTotals} onChange={setFilters} />
+          <ClientCabinetFilterPresets
+            userId={session.user.id}
+            clientId={view.client.id}
+            value={filters}
+            onApply={setFilters}
+          />
           <ClientCabinetMetrics stock={view.stock} requests={view.requests} invoices={view.invoices} />
           <ClientCabinetTables
             stock={view.stock}

@@ -178,6 +178,81 @@
   opacity: 0.55;
 }
 
+.client-cabinet-presets {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.8fr) minmax(180px, 1.2fr) minmax(180px, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.client-cabinet-presets__title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+}
+
+.client-cabinet-presets__title svg {
+  flex: 0 0 auto;
+  color: var(--red-dark);
+}
+
+.client-cabinet-presets__title div,
+.client-cabinet-presets__name,
+.client-cabinet-presets__select {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.client-cabinet-presets__title h3 {
+  overflow: hidden;
+  font-size: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.client-cabinet-presets__title span,
+.client-cabinet-presets__name span,
+.client-cabinet-presets__select span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.client-cabinet-presets__name input,
+.client-cabinet-presets__select select {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfdff;
+  color: var(--ink);
+  padding: 0 9px;
+  font: inherit;
+}
+
+.client-cabinet-presets__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.client-cabinet-presets__actions .icon-text-button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.client-cabinet-presets__message {
+  grid-column: 2 / 5;
+  margin: 0;
+}
+
 .client-cabinet-metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -669,11 +744,20 @@
     align-items: stretch;
   }
 
+  .client-cabinet-presets {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
   .client-cabinet-filter-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .client-cabinet-filter-summary {
+    grid-column: auto;
+  }
+
+  .client-cabinet-presets__message {
     grid-column: auto;
   }
 
@@ -753,6 +837,10 @@
   .client-cabinet-filter-summary span {
     flex: 1 1 140px;
     justify-content: center;
+  }
+
+  .client-cabinet-presets__actions .icon-text-button {
+    flex: 1 1 120px;
   }
 
   .client-notification-preferences {

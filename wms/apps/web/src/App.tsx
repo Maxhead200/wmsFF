@@ -1,4 +1,4 @@
-import { ChevronRight, LogOut } from 'lucide-react';
+import { CheckCircle2, ChevronRight, LogOut, PanelLeft, ShieldCheck, UsersRound } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { AccessAdminPanel } from './components/access/AccessAdminPanel';
 import { AuthPanel } from './components/AuthPanel';
@@ -20,6 +20,16 @@ const statusLabel = {
   'in-progress': 'в работе',
   planned: 'план',
 };
+
+const workspaceSections = [
+  { id: 'main', title: 'Главное' },
+  { id: 'client', title: 'Клиентский контур' },
+  { id: 'operations', title: 'Склад и операции' },
+  { id: 'management', title: 'Управление' },
+  { id: 'control', title: 'Контроль' },
+] as const;
+
+type WorkspaceSection = (typeof workspaceSections)[number]['id'];
 
 export function App() {
   const [session, setSession] = useState<AuthSession | null>(() => loadStoredSession());
@@ -68,6 +78,7 @@ export function App() {
 
     return workspaceNav.filter((item) => canOpenWorkspace(session.user, item));
   }, [session]);
+  const groupedWorkspaces = useMemo(() => groupWorkspaces(availableWorkspaces), [availableWorkspaces]);
 
   useEffect(() => {
     if (!session) {
@@ -113,26 +124,37 @@ export function App() {
         <div className="app-sidebar__brand">
           <span>LOGOFF</span>
           <strong>WMS</strong>
+          <small>Fulfillment control</small>
         </div>
 
         <nav className="workspace-nav">
-          {availableWorkspaces.map((item) => {
-            const Icon = item.icon;
-            const isActive = item.id === activeWorkspace.id;
+          {groupedWorkspaces.map((group) => (
+            <section className="workspace-nav__group" key={group.id}>
+              <p>{group.title}</p>
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const isActive = item.id === activeWorkspace.id;
 
-            return (
-              <button
-                className={isActive ? 'active' : ''}
-                key={item.id}
-                type="button"
-                onClick={() => setActiveWorkspaceId(item.id)}
-              >
-                <Icon size={18} aria-hidden="true" />
-                <span>{item.title}</span>
-              </button>
-            );
-          })}
+                return (
+                  <button
+                    className={isActive ? 'active' : ''}
+                    key={item.id}
+                    type="button"
+                    onClick={() => setActiveWorkspaceId(item.id)}
+                  >
+                    <Icon size={18} aria-hidden="true" />
+                    <span>{item.title}</span>
+                  </button>
+                );
+              })}
+            </section>
+          ))}
         </nav>
+
+        <div className="app-sidebar__footer">
+          <span>Доступно разделов</span>
+          <strong>{Math.max(availableWorkspaces.length - 1, 0)}</strong>
+        </div>
       </aside>
 
       <main className="workspace-shell">
@@ -140,32 +162,31 @@ export function App() {
           <div className="workspace-header__title">
             <p className="eyebrow">{activeWorkspace.eyebrow}</p>
             <h1>{activeWorkspace.title}</h1>
+            <p className="workspace-header__description">{activeWorkspace.description}</p>
           </div>
 
-          <div className="workspace-user">
-            <div>
-              <strong>{session.user.name}</strong>
-              <span>{session.user.email}</span>
+          <div className="workspace-header__meta">
+            <span className={`status status--${activeWorkspace.status}`}>{statusLabel[activeWorkspace.status]}</span>
+            <div className="workspace-user">
+              <div>
+                <strong>{session.user.name}</strong>
+                <span>{session.user.email}</span>
+              </div>
+              <span className="status status--ready">{session.user.clientScopeMode}</span>
+              <button className="icon-button" type="button" onClick={logout} title="Выйти" aria-label="Выйти">
+                <LogOut size={18} aria-hidden="true" />
+              </button>
             </div>
-            <span className="status status--ready">{session.user.clientScopeMode}</span>
-            <button className="icon-button" type="button" onClick={logout} title="Выйти" aria-label="Выйти">
-              <LogOut size={18} aria-hidden="true" />
-            </button>
           </div>
         </header>
 
         <section className="workspace-content" aria-label={activeWorkspace.title}>
-          <div className="workspace-content__intro">
-            <p>{activeWorkspace.description}</p>
-            <span className={`status status--${activeWorkspace.status}`}>{statusLabel[activeWorkspace.status]}</span>
-          </div>
-
           {renderWorkspace(activeWorkspace.id, session, availableWorkspaces, setActiveWorkspaceId)}
         </section>
 
         <footer className="workspace-footer">
           <span>LOGOFF Fulfillment WMS</span>
-          <span>{session.user.roleCodes.join(', ') || 'NO ROLE'}</span>
+          <span>Роли: {session.user.roleCodes.join(', ') || 'NO ROLE'}</span>
         </footer>
       </main>
     </div>
@@ -201,31 +222,138 @@ function renderWorkspace(
       return <DashboardDataPanel session={session} />;
     case 'overview':
     default:
-      return <WorkspaceOverview items={availableWorkspaces} onOpen={setActiveWorkspaceId} />;
+      return <WorkspaceOverview items={availableWorkspaces} session={session} onOpen={setActiveWorkspaceId} />;
   }
 }
 
-function WorkspaceOverview({ items, onOpen }: { items: WorkspaceNavItem[]; onOpen: (id: WorkspaceId) => void }) {
-  return (
-    <div className="workspace-tiles">
-      {items
-        .filter((item) => item.id !== 'overview')
-        .map((item) => {
-          const Icon = item.icon;
+function WorkspaceOverview({
+  items,
+  session,
+  onOpen,
+}: {
+  items: WorkspaceNavItem[];
+  session: AuthSession;
+  onOpen: (id: WorkspaceId) => void;
+}) {
+  const workspaces = items.filter((item) => item.id !== 'overview');
+  const groups = groupWorkspaces(workspaces);
 
-          return (
-            <button className="workspace-tile" key={item.id} type="button" onClick={() => onOpen(item.id)}>
-              <span className="workspace-tile__icon">
-                <Icon size={20} aria-hidden="true" />
-              </span>
-              <span>
-                <strong>{item.title}</strong>
-                <small>{item.description}</small>
-              </span>
-              <ChevronRight size={16} aria-hidden="true" />
-            </button>
-          );
-        })}
+  return (
+    <div className="workspace-overview">
+      <section className="workspace-summary" aria-label="Профиль доступа">
+        <article>
+          <PanelLeft size={18} aria-hidden="true" />
+          <span>Рабочие зоны</span>
+          <strong>{workspaces.length}</strong>
+        </article>
+        <article>
+          <ShieldCheck size={18} aria-hidden="true" />
+          <span>Контур доступа</span>
+          <strong>{session.user.clientScopeMode}</strong>
+        </article>
+        <article>
+          <UsersRound size={18} aria-hidden="true" />
+          <span>Роли</span>
+          <strong>{session.user.roleCodes.join(', ') || 'NO ROLE'}</strong>
+        </article>
+      </section>
+
+      {groups.map((group) => (
+        <section className="workspace-group" key={group.id} aria-label={group.title}>
+          <div className="workspace-group__heading">
+            <h2>{group.title}</h2>
+            <span>{group.items.length}</span>
+          </div>
+
+          <div className="workspace-tiles">
+            {group.items.map((item) => {
+              const Icon = item.icon;
+
+              return (
+                <button className="workspace-tile" key={item.id} type="button" onClick={() => onOpen(item.id)}>
+                  <span className="workspace-tile__icon">
+                    <Icon size={20} aria-hidden="true" />
+                  </span>
+                  <span className="workspace-tile__body">
+                    <span className="workspace-tile__meta">
+                      <span>{audienceLabel(item)}</span>
+                      <span className={`status status--${item.status}`}>{statusLabel[item.status]}</span>
+                    </span>
+                    <strong>{item.title}</strong>
+                    <small>{item.description}</small>
+                    <span className="workspace-tile__access" title={permissionTitle(item)}>
+                      <CheckCircle2 size={14} aria-hidden="true" />
+                      {permissionLabel(item)}
+                    </span>
+                  </span>
+                  <ChevronRight size={16} aria-hidden="true" />
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ))}
     </div>
   );
+}
+
+function groupWorkspaces(items: WorkspaceNavItem[]) {
+  return workspaceSections
+    .map((section) => ({
+      ...section,
+      items: items.filter((item) => sectionForWorkspace(item.id) === section.id),
+    }))
+    .filter((section) => section.items.length > 0);
+}
+
+function sectionForWorkspace(id: WorkspaceId): WorkspaceSection {
+  if (id === 'overview') {
+    return 'main';
+  }
+
+  if (id === 'cabinet' || id === 'requests') {
+    return 'client';
+  }
+
+  if (id === 'warehouse' || id === 'imports' || id === 'logistics' || id === 'print') {
+    return 'operations';
+  }
+
+  if (id === 'access' || id === 'directories' || id === 'billing') {
+    return 'management';
+  }
+
+  return 'control';
+}
+
+function audienceLabel(item: WorkspaceNavItem) {
+  if (item.audience === 'client') {
+    return 'Клиент';
+  }
+
+  if (item.audience === 'internal') {
+    return 'Внутренний';
+  }
+
+  return 'Общий';
+}
+
+function permissionLabel(item: WorkspaceNavItem) {
+  if (item.permissions.length === 0) {
+    return 'доступен всем';
+  }
+
+  if (item.permissionMode === 'all') {
+    return 'строгий доступ';
+  }
+
+  return 'доступ по роли';
+}
+
+function permissionTitle(item: WorkspaceNavItem) {
+  if (item.permissions.length === 0) {
+    return 'Раздел доступен всем авторизованным пользователям';
+  }
+
+  return item.permissions.join(', ');
 }

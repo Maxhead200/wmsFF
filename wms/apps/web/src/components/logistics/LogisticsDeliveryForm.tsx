@@ -19,11 +19,12 @@ type LogisticsDeliveryFormProps = {
 
 type QuantityMode = 'boxes' | 'pallets';
 
+const DEFAULT_LOGISTICS_ORIGIN = 'Москва';
+
 export function LogisticsDeliveryForm({ clients, requests, tariffs, session, onCreated }: LogisticsDeliveryFormProps) {
   const [clientId, setClientId] = useState(clients[0]?.id ?? '');
   const [requestId, setRequestId] = useState('');
   const [tariffSetId, setTariffSetId] = useState(tariffs[0]?.id ?? '');
-  const [origin, setOrigin] = useState('МОСКВА');
   const [destination, setDestination] = useState('');
   const [quantityMode, setQuantityMode] = useState<QuantityMode>('boxes');
   const [quantity, setQuantity] = useState('1');
@@ -37,7 +38,7 @@ export function LogisticsDeliveryForm({ clients, requests, tariffs, session, onC
     [clientId, requests],
   );
   const parsedQuantity = Number(quantity);
-  const canSubmit = Boolean(clientId && origin.trim() && destination.trim() && Number.isInteger(parsedQuantity) && parsedQuantity > 0);
+  const canSubmit = Boolean(clientId && destination.trim() && Number.isInteger(parsedQuantity) && parsedQuantity > 0);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -50,7 +51,7 @@ export function LogisticsDeliveryForm({ clients, requests, tariffs, session, onC
         clientId,
         requestId: requestId || undefined,
         tariffSetId: tariffSetId || undefined,
-        origin: origin.trim(),
+        origin: DEFAULT_LOGISTICS_ORIGIN,
         destination: destination.trim(),
         desiredShipDate: desiredShipDate || undefined,
         comment: comment.trim() || undefined,
@@ -118,7 +119,7 @@ export function LogisticsDeliveryForm({ clients, requests, tariffs, session, onC
       <div className="delivery-fields delivery-fields--route">
         <label>
           <span>Откуда</span>
-          <input value={origin} onChange={(event) => setOrigin(event.target.value)} required />
+          <strong className="readonly-field">{DEFAULT_LOGISTICS_ORIGIN}</strong>
         </label>
         <label>
           <span>Куда</span>

@@ -46,6 +46,7 @@
 
 .quote-fields input,
 .quote-fields select,
+.readonly-field,
 .quote-quantity-row input,
 .delivery-fields input,
 .delivery-fields select,
@@ -63,6 +64,13 @@
   background: #fbfdff;
   color: var(--ink);
   padding: 0 11px;
+}
+
+.readonly-field {
+  display: flex;
+  align-items: center;
+  background: #f3f6fa;
+  font-size: 14px;
 }
 
 .quote-fields input:focus,

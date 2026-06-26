@@ -121,7 +121,7 @@ describe('LogisticsService', () => {
         clientId: 'client-1',
         requestId: 'request-1',
         tariffSetId: 'tariff-1',
-        origin: 'МОСКВА',
+        origin: 'Санкт-Петербург',
         destination: 'КАЗАНЬ',
         boxes: 4,
       },
@@ -133,6 +133,7 @@ describe('LogisticsService', () => {
         data: expect.objectContaining({
           clientId: 'client-1',
           requestId: 'request-1',
+          origin: 'Москва',
           status: 'QUOTED',
           estimatedTotalRub: 5000,
           requiresManualReview: false,

@@ -6,8 +6,9 @@ export class QuoteLogisticsDto {
   @IsString()
   tariffSetId?: string;
 
+  @IsOptional()
   @IsString()
-  origin!: string;
+  origin?: string;
 
   @IsString()
   destination!: string;

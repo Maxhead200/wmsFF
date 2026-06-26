@@ -36,6 +36,7 @@ type LogisticsQuotePanelProps = {
 
 type QuantityMode = 'boxes' | 'pallets';
 
+const DEFAULT_LOGISTICS_ORIGIN = 'Москва';
 const defaultQuoteDate = new Date().toISOString().slice(0, 10);
 
 export function LogisticsQuotePanel({ session }: LogisticsQuotePanelProps) {
@@ -46,7 +47,6 @@ export function LogisticsQuotePanel({ session }: LogisticsQuotePanelProps) {
   const [carriers, setCarriers] = useState<LogisticsCarrierSummary[]>([]);
   const [trips, setTrips] = useState<LogisticsTripSummary[]>([]);
   const [tariffSetId, setTariffSetId] = useState('');
-  const [origin, setOrigin] = useState('МОСКВА');
   const [destination, setDestination] = useState('');
   const [quantityMode, setQuantityMode] = useState<QuantityMode>('boxes');
   const [quantity, setQuantity] = useState('1');
@@ -150,7 +150,7 @@ export function LogisticsQuotePanel({ session }: LogisticsQuotePanelProps) {
       const parsedQuantity = Number(quantity);
       // Русский комментарий: backend принимает ровно один параметр количества, поэтому режим формы разворачиваем в boxes или pallets.
       const quote = await quoteLogistics(session.accessToken, {
-        origin: origin.trim(),
+        origin: DEFAULT_LOGISTICS_ORIGIN,
         destination: destination.trim(),
         quoteDate: quoteDate || undefined,
         tariffSetId: tariffSetId || undefined,
@@ -165,7 +165,7 @@ export function LogisticsQuotePanel({ session }: LogisticsQuotePanelProps) {
   }
 
   const parsedQuantity = Number(quantity);
-  const canSubmit = Boolean(origin.trim() && destination.trim() && Number.isInteger(parsedQuantity) && parsedQuantity > 0);
+  const canSubmit = Boolean(destination.trim() && Number.isInteger(parsedQuantity) && parsedQuantity > 0);
 
   return (
     <section className="logistics-panel" aria-label="Расчет логистики">
@@ -201,7 +201,7 @@ export function LogisticsQuotePanel({ session }: LogisticsQuotePanelProps) {
           </label>
           <label>
             <span>Откуда</span>
-            <input value={origin} onChange={(event) => setOrigin(event.target.value)} required />
+            <strong className="readonly-field">{DEFAULT_LOGISTICS_ORIGIN}</strong>
           </label>
           <label>
             <span>Куда</span>

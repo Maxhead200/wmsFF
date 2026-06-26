@@ -47,6 +47,8 @@ type RateTierLike = {
   pricingMode: LogisticsPricingMode;
 };
 
+const DEFAULT_LOGISTICS_ORIGIN = 'Москва';
+
 @Injectable()
 export class LogisticsService {
   constructor(
@@ -143,7 +145,7 @@ export class LogisticsService {
 
     const direction = directions.find(
       (item) =>
-        this.normalizePoint(item.origin) === this.normalizePoint(dto.origin) &&
+        this.normalizePoint(item.origin) === this.normalizePoint(DEFAULT_LOGISTICS_ORIGIN) &&
         this.normalizePoint(item.destination) === this.normalizePoint(dto.destination),
     );
 
@@ -161,7 +163,7 @@ export class LogisticsService {
         sourceFile: tariffSet.sourceFile,
       },
       route: {
-        origin: direction.origin,
+        origin: DEFAULT_LOGISTICS_ORIGIN,
         destination: direction.destination,
       },
       input: {
@@ -302,7 +304,7 @@ export class LogisticsService {
         clientId: dto.clientId,
         requestId: dto.requestId,
         tariffSetId: quote.tariffSetId ?? dto.tariffSetId,
-        origin: dto.origin.trim(),
+        origin: DEFAULT_LOGISTICS_ORIGIN,
         destination: dto.destination.trim(),
         boxes: dto.boxes,
         pallets: dto.pallets,
@@ -649,7 +651,7 @@ export class LogisticsService {
     try {
       const quote = await this.quote({
         tariffSetId: dto.tariffSetId,
-        origin: dto.origin,
+        origin: DEFAULT_LOGISTICS_ORIGIN,
         destination: dto.destination,
         boxes: dto.boxes,
         pallets: dto.pallets,

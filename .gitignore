@@ -9,6 +9,7 @@ wms/**/.turbo/
 wms/**/.vite/
 wms/**/coverage/
 wms/**/.gradle/
+wms/**/.kotlin/
 wms/**/build/
 wms/**/.env
 wms/.runtime/

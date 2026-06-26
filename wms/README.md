@@ -6,7 +6,7 @@
 
 - `apps/api` - NestJS API, Prisma-схема, авторизация/RBAC, импорты XLSX, логистические тарифы, stock ledger, печать TSC и API для ТСД.
 - `apps/web` - React/Vite интерфейс оператора/администратора с картой модулей.
-- `apps/android-tsd` - Kotlin native skeleton для Android-ТСД.
+- `apps/android-tsd` - Kotlin native Android-ТСД с Room outbox и batch-синхронизацией.
 - `infra` - Docker Compose, Nginx и скрипт бэкапа PostgreSQL.
 - `docs` - архитектура, модули и созданные отдельные чаты по модулям.
 

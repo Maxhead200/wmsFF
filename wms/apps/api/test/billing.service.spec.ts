@@ -102,7 +102,7 @@ describe('BillingService', () => {
         }),
       },
       billingCharge: {
-        findUnique: vi.fn().mockResolvedValue(null),
+        findFirst: vi.fn().mockResolvedValue(null),
         create: vi.fn().mockResolvedValue({ id: 'charge-storage' }),
       },
       stockBalance: {
@@ -171,7 +171,7 @@ describe('BillingService', () => {
   it('не дублирует автоматическое хранение за тот же период', async () => {
     const prisma = {
       billingCharge: {
-        findUnique: vi.fn().mockResolvedValue({ id: 'existing-storage' }),
+        findFirst: vi.fn().mockResolvedValue({ id: 'existing-storage' }),
       },
     };
     const service = new BillingService(prisma as never, clientScopes());

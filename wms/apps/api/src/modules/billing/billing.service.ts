@@ -112,7 +112,7 @@ export class BillingService {
     }
 
     const sourceKey = storageSourceKey(dto.clientId, periodFrom, periodTo);
-    const existingCharge = await this.prisma.billingCharge.findUnique({
+    const existingCharge = await this.prisma.billingCharge.findFirst({
       where: { sourceKey },
       include: billingChargeInclude,
     });

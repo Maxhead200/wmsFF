@@ -1,5 +1,5 @@
-import { Boxes, Database, Printer, Smartphone, Upload, UsersRound } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { ChevronRight, LogOut } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { AccessAdminPanel } from './components/access/AccessAdminPanel';
 import { AuthPanel } from './components/AuthPanel';
 import { BillingPanel } from './components/billing/BillingPanel';
@@ -8,26 +8,22 @@ import { DashboardDataPanel } from './components/DashboardDataPanel';
 import { DirectoryPanel } from './components/directories/DirectoryPanel';
 import { ImportPanel } from './components/imports/ImportPanel';
 import { LogisticsQuotePanel } from './components/logistics/LogisticsQuotePanel';
-import { ModuleBoard } from './components/ModuleBoard';
 import { PrintPanel } from './components/print/PrintPanel';
-import { UserBar } from './components/UserBar';
 import { WarehouseOpsPanel } from './components/warehouse/WarehouseOpsPanel';
 import { fetchMe, type AuthSession } from './lib/api';
-import { mvpModules } from './lib/modules';
 import { clearStoredSession, loadStoredSession, storeSession } from './lib/session';
+import { canOpenWorkspace, workspaceNav, type WorkspaceId, type WorkspaceNavItem } from './lib/workspaces';
 
-const metrics = [
-  { label: 'Остатки', value: 'WMS ledger', icon: Database },
-  { label: 'Клиенты', value: '20+ ready', icon: UsersRound },
-  { label: 'Короба', value: 'box-first', icon: Boxes },
-  { label: 'Импорт', value: 'XLSX preview', icon: Upload },
-  { label: 'ТСД', value: 'Kotlin online', icon: Smartphone },
-  { label: 'Печать', value: 'TSC TSPL', icon: Printer },
-];
+const statusLabel = {
+  ready: 'готово',
+  'in-progress': 'в работе',
+  planned: 'план',
+};
 
 export function App() {
   const [session, setSession] = useState<AuthSession | null>(() => loadStoredSession());
   const [isRestoring, setRestoring] = useState(Boolean(session));
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<WorkspaceId>('overview');
 
   useEffect(() => {
     let isActive = true;
@@ -64,9 +60,28 @@ export function App() {
     };
   }, []);
 
+  const availableWorkspaces = useMemo(() => {
+    if (!session) {
+      return [];
+    }
+
+    return workspaceNav.filter((item) => canOpenWorkspace(session.user, item));
+  }, [session]);
+
+  useEffect(() => {
+    if (!session) {
+      return;
+    }
+
+    if (!availableWorkspaces.some((item) => item.id === activeWorkspaceId)) {
+      setActiveWorkspaceId('overview');
+    }
+  }, [activeWorkspaceId, availableWorkspaces, session]);
+
   function acceptSession(nextSession: AuthSession) {
     setSession(nextSession);
     storeSession(nextSession);
+    setActiveWorkspaceId('overview');
   }
 
   function logout() {
@@ -89,49 +104,125 @@ export function App() {
     return <AuthPanel onSession={acceptSession} />;
   }
 
+  const activeWorkspace = availableWorkspaces.find((item) => item.id === activeWorkspaceId) ?? availableWorkspaces[0];
+
   return (
-    <main className="app-shell">
-      <header className="topbar">
-        <div>
-          <p className="eyebrow">LOGOFF Fulfillment</p>
-          <h1>WMS операционный контур</h1>
+    <div className="app-layout">
+      <aside className="app-sidebar" aria-label="Навигация WMS">
+        <div className="app-sidebar__brand">
+          <span>LOGOFF</span>
+          <strong>WMS</strong>
         </div>
-        <button className="primary-button" type="button">Новая приёмка</button>
-      </header>
 
-      <UserBar user={session.user} onLogout={logout} />
+        <nav className="workspace-nav">
+          {availableWorkspaces.map((item) => {
+            const Icon = item.icon;
+            const isActive = item.id === activeWorkspace.id;
 
-      <section className="metrics-grid" aria-label="Состояние MVP">
-        {metrics.map((metric) => (
-          <article className="metric-tile" key={metric.label}>
-            <metric.icon size={20} aria-hidden="true" />
+            return (
+              <button
+                className={isActive ? 'active' : ''}
+                key={item.id}
+                type="button"
+                onClick={() => setActiveWorkspaceId(item.id)}
+              >
+                <Icon size={18} aria-hidden="true" />
+                <span>{item.title}</span>
+              </button>
+            );
+          })}
+        </nav>
+      </aside>
+
+      <main className="workspace-shell">
+        <header className="workspace-header">
+          <div className="workspace-header__title">
+            <p className="eyebrow">{activeWorkspace.eyebrow}</p>
+            <h1>{activeWorkspace.title}</h1>
+          </div>
+
+          <div className="workspace-user">
             <div>
-              <span>{metric.label}</span>
-              <strong>{metric.value}</strong>
+              <strong>{session.user.name}</strong>
+              <span>{session.user.email}</span>
             </div>
-          </article>
-        ))}
-      </section>
+            <span className="status status--ready">{session.user.clientScopeMode}</span>
+            <button className="icon-button" type="button" onClick={logout} title="Выйти" aria-label="Выйти">
+              <LogOut size={18} aria-hidden="true" />
+            </button>
+          </div>
+        </header>
 
-      <AccessAdminPanel session={session} />
+        <section className="workspace-content" aria-label={activeWorkspace.title}>
+          <div className="workspace-content__intro">
+            <p>{activeWorkspace.description}</p>
+            <span className={`status status--${activeWorkspace.status}`}>{statusLabel[activeWorkspace.status]}</span>
+          </div>
 
-      <DirectoryPanel session={session} />
+          {renderWorkspace(activeWorkspace.id, session, availableWorkspaces, setActiveWorkspaceId)}
+        </section>
 
-      <ImportPanel session={session} />
+        <footer className="workspace-footer">
+          <span>LOGOFF Fulfillment WMS</span>
+          <span>{session.user.roleCodes.join(', ') || 'NO ROLE'}</span>
+        </footer>
+      </main>
+    </div>
+  );
+}
 
-      <LogisticsQuotePanel session={session} />
+function renderWorkspace(
+  activeWorkspaceId: WorkspaceId,
+  session: AuthSession,
+  availableWorkspaces: WorkspaceNavItem[],
+  setActiveWorkspaceId: (id: WorkspaceId) => void,
+) {
+  switch (activeWorkspaceId) {
+    case 'access':
+      return <AccessAdminPanel session={session} />;
+    case 'directories':
+      return <DirectoryPanel session={session} />;
+    case 'imports':
+      return <ImportPanel session={session} />;
+    case 'logistics':
+      return <LogisticsQuotePanel session={session} />;
+    case 'warehouse':
+      return <WarehouseOpsPanel session={session} />;
+    case 'requests':
+      return <ClientRequestsPanel session={session} />;
+    case 'billing':
+      return <BillingPanel session={session} />;
+    case 'print':
+      return <PrintPanel session={session} />;
+    case 'data':
+      return <DashboardDataPanel session={session} />;
+    case 'overview':
+    default:
+      return <WorkspaceOverview items={availableWorkspaces} onOpen={setActiveWorkspaceId} />;
+  }
+}
 
-      <WarehouseOpsPanel session={session} />
+function WorkspaceOverview({ items, onOpen }: { items: WorkspaceNavItem[]; onOpen: (id: WorkspaceId) => void }) {
+  return (
+    <div className="workspace-tiles">
+      {items
+        .filter((item) => item.id !== 'overview')
+        .map((item) => {
+          const Icon = item.icon;
 
-      <ClientRequestsPanel session={session} />
-
-      <BillingPanel session={session} />
-
-      <PrintPanel session={session} />
-
-      <DashboardDataPanel session={session} />
-
-      <ModuleBoard modules={mvpModules} />
-    </main>
+          return (
+            <button className="workspace-tile" key={item.id} type="button" onClick={() => onOpen(item.id)}>
+              <span className="workspace-tile__icon">
+                <Icon size={20} aria-hidden="true" />
+              </span>
+              <span>
+                <strong>{item.title}</strong>
+                <small>{item.description}</small>
+              </span>
+              <ChevronRight size={16} aria-hidden="true" />
+            </button>
+          );
+        })}
+    </div>
   );
 }

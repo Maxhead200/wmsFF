@@ -424,7 +424,7 @@ model BillingCharge {
   status           BillingChargeStatus  @default(DRAFT)
   serviceDate      DateTime             @default(now())
   source           BillingChargeSource  @default(MANUAL)
-  sourceKey        String?              @unique
+  sourceKey        String?
   metadata         Json?
   comment          String?
   createdByUserId  String?
@@ -444,6 +444,7 @@ model BillingCharge {
   @@index([serviceId])
   @@index([approvedByUserId])
   @@index([source, serviceDate])
+  @@index([sourceKey])
 }
 
 model BillingInvoice {

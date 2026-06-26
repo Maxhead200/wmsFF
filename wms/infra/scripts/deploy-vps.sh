@@ -7,7 +7,8 @@ BRANCH="${BRANCH:-codex/wms-foundation}"
 REPO_URL="${REPO_URL:-https://github.com/Maxhead200/wmsFF.git}"
 COMPOSE_DIR="$APP_DIR/wms/infra"
 ENV_FILE="$APP_DIR/wms/.env"
-HOST_NGINX_SITE="/etc/nginx/sites-enabled/wms.logoff.pro"
+HOST_NGINX_AVAILABLE="/etc/nginx/sites-available/wms.logoff.pro"
+HOST_NGINX_ENABLED="/etc/nginx/sites-enabled/wms.logoff.pro"
 
 if ! command -v git >/dev/null 2>&1; then
   apt-get update
@@ -52,15 +53,17 @@ cd "$COMPOSE_DIR"
 docker compose --env-file ../.env build
 docker compose --env-file ../.env up -d postgres redis
 docker compose --env-file ../.env up -d api web
+docker compose --env-file ../.env --profile compose-nginx rm -sf nginx >/dev/null 2>&1 || true
 
 # Русский комментарий: для первого bootstrap используем db push; после появления миграций заменим на migrate deploy.
 docker compose --env-file ../.env exec -T api pnpm --filter @logoff/wms-api prisma:push
 
-if [ -f "$HOST_NGINX_SITE" ]; then
-  cp "$HOST_NGINX_SITE" "$HOST_NGINX_SITE.bak.$(date +%Y%m%d-%H%M%S)"
+if [ -f "$HOST_NGINX_AVAILABLE" ]; then
+  cp "$HOST_NGINX_AVAILABLE" "$HOST_NGINX_AVAILABLE.bak.$(date +%Y%m%d-%H%M%S)"
 fi
 
-cp "$APP_DIR/wms/infra/nginx/host-wms.logoff.pro.conf" "$HOST_NGINX_SITE"
+cp "$APP_DIR/wms/infra/nginx/host-wms.logoff.pro.conf" "$HOST_NGINX_AVAILABLE"
+ln -sfn "$HOST_NGINX_AVAILABLE" "$HOST_NGINX_ENABLED"
 nginx -t
 systemctl reload nginx
 

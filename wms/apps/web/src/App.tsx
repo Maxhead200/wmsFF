@@ -2,6 +2,7 @@ import { Boxes, Database, Printer, Smartphone, Upload, UsersRound } from 'lucide
 import { useEffect, useState } from 'react';
 import { AuthPanel } from './components/AuthPanel';
 import { DashboardDataPanel } from './components/DashboardDataPanel';
+import { DirectoryPanel } from './components/directories/DirectoryPanel';
 import { ImportPanel } from './components/imports/ImportPanel';
 import { ModuleBoard } from './components/ModuleBoard';
 import { UserBar } from './components/UserBar';
@@ -106,6 +107,8 @@ export function App() {
           </article>
         ))}
       </section>
+
+      <DirectoryPanel session={session} />
 
       <ImportPanel session={session} />
 

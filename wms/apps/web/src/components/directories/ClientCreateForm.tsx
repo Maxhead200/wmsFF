@@ -1,0 +1,108 @@
+import { Save } from 'lucide-react';
+import { FormEvent, useState } from 'react';
+import { createClient, type AuthSession, type ClientSummary, type CreateClientPayload } from '../../lib/api';
+import { DirectoryResultCard } from './DirectoryResultCard';
+
+type ClientCreateFormProps = {
+  session: AuthSession;
+};
+
+const emptyClientForm = {
+  code: '',
+  name: '',
+  inn: '',
+  kpp: '',
+  phone: '',
+  email: '',
+};
+
+export function ClientCreateForm({ session }: ClientCreateFormProps) {
+  const [form, setForm] = useState(emptyClientForm);
+  const [createdClient, setCreatedClient] = useState<ClientSummary | null>(null);
+  const [error, setError] = useState('');
+  const [isSubmitting, setSubmitting] = useState(false);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitting(true);
+    setError('');
+    setCreatedClient(null);
+
+    try {
+      const created = await createClient(session.accessToken, compactPayload(form));
+      setCreatedClient(created);
+      setForm(emptyClientForm);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Не удалось создать клиента.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form className="directory-form" onSubmit={submit}>
+      <div className="directory-fields directory-fields--client">
+        <label>
+          <span>Код клиента</span>
+          <input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} required />
+        </label>
+        <label>
+          <span>Название</span>
+          <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required />
+        </label>
+        <label>
+          <span>ИНН</span>
+          <input value={form.inn} onChange={(event) => setForm({ ...form, inn: event.target.value })} />
+        </label>
+        <label>
+          <span>КПП</span>
+          <input value={form.kpp} onChange={(event) => setForm({ ...form, kpp: event.target.value })} />
+        </label>
+        <label>
+          <span>Телефон</span>
+          <input value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} />
+        </label>
+        <label>
+          <span>Email</span>
+          <input
+            inputMode="email"
+            type="email"
+            value={form.email}
+            onChange={(event) => setForm({ ...form, email: event.target.value })}
+          />
+        </label>
+      </div>
+
+      {error ? <p className="form-error">{error}</p> : null}
+
+      <button className="primary-button directory-submit" type="submit" disabled={isSubmitting}>
+        <Save size={16} aria-hidden="true" />
+        <span>{isSubmitting ? 'Сохранение' : 'Создать клиента'}</span>
+      </button>
+
+      {createdClient ? (
+        <DirectoryResultCard
+          title="Клиент создан"
+          lines={[`${createdClient.code} - ${createdClient.name}`, createdClient.email ?? 'email не задан']}
+        />
+      ) : null}
+    </form>
+  );
+}
+
+function compactPayload(form: typeof emptyClientForm): CreateClientPayload {
+  // Русский комментарий: пустые необязательные поля не отправляем, чтобы class-validator не ругался на пустой email.
+  return {
+    code: form.code.trim(),
+    name: form.name.trim(),
+    ...optionalString('inn', form.inn),
+    ...optionalString('kpp', form.kpp),
+    ...optionalString('phone', form.phone),
+    ...optionalString('email', form.email),
+  };
+}
+
+function optionalString<T extends string>(key: T, value: string): Partial<Record<T, string>> {
+  const trimmed = value.trim();
+  return trimmed ? { [key]: trimmed } as Partial<Record<T, string>> : {};
+}

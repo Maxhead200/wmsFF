@@ -25,6 +25,15 @@ export type ClientSummary = {
   createdAt: string;
 };
 
+export type CreateClientPayload = {
+  code: string;
+  name: string;
+  inn?: string;
+  kpp?: string;
+  phone?: string;
+  email?: string;
+};
+
 export type StockBalance = {
   id: string;
   clientId: string;
@@ -56,6 +65,47 @@ export type StockBalance = {
     code: string;
     status: string;
   } | null;
+};
+
+export type SkuSummary = {
+  id: string;
+  clientId: string;
+  internalSku: string;
+  clientSku: string | null;
+  article: string | null;
+  name: string;
+  color: string | null;
+  size: string | null;
+  lengthCm: string | number | null;
+  widthCm: string | number | null;
+  heightCm: string | number | null;
+  volumeLiters: string | number | null;
+  volumeSource: string;
+  needsChestnyZnak: boolean;
+  barcodes: Array<{
+    id: string;
+    value: string;
+    isPrimary: boolean;
+  }>;
+  _count?: {
+    balances: number;
+    movements: number;
+  };
+};
+
+export type CreateSkuPayload = {
+  clientId: string;
+  internalSku: string;
+  clientSku?: string;
+  article?: string;
+  name: string;
+  barcode?: string;
+  color?: string;
+  size?: string;
+  lengthCm?: number;
+  widthCm?: number;
+  heightCm?: number;
+  needsChestnyZnak?: boolean;
 };
 
 export type WarehouseBoxSummary = {
@@ -252,6 +302,28 @@ export async function fetchMe(accessToken: string) {
 
 export async function fetchClients(accessToken: string) {
   return request<ClientSummary[]>('/clients', {
+    accessToken,
+  });
+}
+
+export async function createClient(accessToken: string, payload: CreateClientPayload) {
+  return request<ClientSummary>('/clients', {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function fetchSkus(accessToken: string, filter: { clientId?: string; search?: string } = {}) {
+  return request<SkuSummary[]>(withQuery('/skus', filter), {
+    accessToken,
+  });
+}
+
+export async function createSku(accessToken: string, payload: CreateSkuPayload) {
+  return request<SkuSummary>('/skus', {
+    method: 'POST',
+    body: payload,
     accessToken,
   });
 }

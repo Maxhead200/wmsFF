@@ -21,6 +21,7 @@ import {
   primaryBarcode,
 } from './clientCabinetFormat';
 import { ClientCabinetNotifications } from './ClientCabinetNotifications';
+import { ClientCabinetPeriodSummary } from './ClientCabinetPeriodSummary';
 import { ClientCabinetServiceHistory } from './ClientCabinetServiceHistory';
 import { ClientRequestFilesCell } from './ClientRequestFilesCell';
 
@@ -69,6 +70,7 @@ export function ClientCabinetTables({
       />
 
       <ClientCabinetServiceHistory history={serviceHistory} />
+      <ClientCabinetPeriodSummary invoices={invoices} charges={charges} />
       <BillingReconciliationPanel report={reconciliation} title="Задолженность и сверка" />
 
       <CabinetSection title="Остатки" emptyText="Остатков пока нет." hasItems={stock.length > 0}>

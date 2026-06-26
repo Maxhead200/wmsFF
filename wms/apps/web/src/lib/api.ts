@@ -174,6 +174,44 @@ export type RoleSummary = {
   }>;
 };
 
+export type UserClientScope = {
+  canRead: boolean;
+  canWrite: boolean;
+  client: Pick<ClientSummary, 'id' | 'code' | 'name'>;
+};
+
+export type UserSummary = {
+  id: string;
+  email: string;
+  name: string;
+  status: string;
+  createdAt?: string;
+  roles: Array<{
+    role: {
+      code: string;
+      name: string;
+    };
+  }>;
+  clientScopes: UserClientScope[];
+};
+
+export type CreateUserPayload = {
+  email: string;
+  name: string;
+  password: string;
+  roleCodes?: string[];
+  clientIds?: string[];
+  writableClientIds?: string[];
+};
+
+export type UpdateUserClientScopesPayload = {
+  scopes: Array<{
+    clientId: string;
+    canRead?: boolean;
+    canWrite?: boolean;
+  }>;
+};
+
 export type LogisticsTariffSetSummary = {
   id: string;
   name: string;
@@ -346,6 +384,35 @@ export async function fetchRoles(accessToken: string) {
   });
 }
 
+export async function fetchUsers(accessToken: string) {
+  return request<UserSummary[]>('/users', {
+    accessToken,
+  });
+}
+
+export async function createUser(accessToken: string, payload: CreateUserPayload) {
+  return request<UserSummary>('/users', {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function updateUserClientScopes(
+  accessToken: string,
+  userId: string,
+  payload: UpdateUserClientScopesPayload,
+) {
+  return request<Pick<UserSummary, 'id' | 'email' | 'name' | 'status' | 'clientScopes'>>(
+    `/users/${userId}/client-scopes`,
+    {
+      method: 'PATCH',
+      body: payload,
+      accessToken,
+    },
+  );
+}
+
 export async function fetchLogisticsTariffSets(accessToken: string) {
   return request<LogisticsTariffSetSummary[]>('/logistics/tariff-sets', {
     accessToken,
@@ -410,7 +477,7 @@ export async function transferBetweenBoxes(accessToken: string, payload: Transfe
 
 async function request<T>(
   path: string,
-  options: { method?: 'GET' | 'POST'; body?: unknown; accessToken?: string } = {},
+  options: { method?: 'GET' | 'POST' | 'PATCH'; body?: unknown; accessToken?: string } = {},
 ) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: options.method ?? 'GET',

@@ -1,5 +1,6 @@
 import { Boxes, Database, Printer, Smartphone, Upload, UsersRound } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { AccessAdminPanel } from './components/access/AccessAdminPanel';
 import { AuthPanel } from './components/AuthPanel';
 import { DashboardDataPanel } from './components/DashboardDataPanel';
 import { DirectoryPanel } from './components/directories/DirectoryPanel';
@@ -107,6 +108,8 @@ export function App() {
           </article>
         ))}
       </section>
+
+      <AccessAdminPanel session={session} />
 
       <DirectoryPanel session={session} />
 

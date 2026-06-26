@@ -1,9 +1,11 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { UserStatus } from '@prisma/client';
 import { AccessModelService } from '../auth/access-model.service';
 import { PasswordService } from '../auth/password.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserClientScopesDto } from './dto/update-user-client-scopes.dto';
+import { UpdateUserRolesDto } from './dto/update-user-roles.dto';
 
 @Injectable()
 export class UsersService {
@@ -16,36 +18,7 @@ export class UsersService {
   list() {
     return this.prisma.user.findMany({
       orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        status: true,
-        createdAt: true,
-        roles: {
-          select: {
-            role: {
-              select: {
-                code: true,
-                name: true,
-              },
-            },
-          },
-        },
-        clientScopes: {
-          select: {
-            canRead: true,
-            canWrite: true,
-            client: {
-              select: {
-                id: true,
-                code: true,
-                name: true,
-              },
-            },
-          },
-        },
-      },
+      select: this.userSummarySelect(),
     });
   }
 
@@ -124,28 +97,34 @@ export class UsersService {
       }
     });
 
-    return this.prisma.user.findUniqueOrThrow({
-      where: { id: userId },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        status: true,
-        clientScopes: {
-          select: {
-            canRead: true,
-            canWrite: true,
-            client: {
-              select: {
-                id: true,
-                code: true,
-                name: true,
-              },
-            },
-          },
-        },
-      },
+    return this.findUserSummary(userId);
+  }
+
+  async updateRoles(userId: string, dto: UpdateUserRolesDto) {
+    const roleCodes = this.normalizeRoleCodes(dto.roleCodes);
+    if (roleCodes.length === 0) {
+      throw new BadRequestException('Нужно выбрать хотя бы одну роль пользователя.');
+    }
+
+    const roles = await this.accessModel.resolveRoles(roleCodes);
+    await this.ensureSystemAdminSurvives(userId, roles.map((role) => role.id));
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.findUniqueOrThrow({
+        where: { id: userId },
+        select: { id: true },
+      });
+      await tx.userRole.deleteMany({ where: { userId } });
+      await tx.userRole.createMany({
+        data: roles.map((role) => ({
+          userId,
+          roleId: role.id,
+        })),
+        skipDuplicates: true,
+      });
     });
+
+    return this.findUserSummary(userId);
   }
 
   async listRoles() {
@@ -187,5 +166,105 @@ export class UsersService {
     if (foundClients.length !== uniqueClientIds.length) {
       throw new BadRequestException('Один или несколько клиентов для scope не найдены.');
     }
+  }
+
+  private normalizeRoleCodes(roleCodes: string[]) {
+    return [...new Set(roleCodes.map((code) => code.trim().toUpperCase()).filter(Boolean))];
+  }
+
+  private async ensureSystemAdminSurvives(userId: string, nextRoleIds: string[]) {
+    const currentHasSystemAdmin = await this.prisma.userRole.count({
+      where: {
+        userId,
+        role: {
+          permissions: {
+            some: {
+              permission: { code: 'system:admin' },
+            },
+          },
+        },
+      },
+    });
+
+    if (currentHasSystemAdmin === 0) {
+      return;
+    }
+
+    const nextHasSystemAdmin = await this.prisma.role.count({
+      where: {
+        id: { in: nextRoleIds },
+        permissions: {
+          some: {
+            permission: { code: 'system:admin' },
+          },
+        },
+      },
+    });
+
+    if (nextHasSystemAdmin > 0) {
+      return;
+    }
+
+    const otherSystemAdmins = await this.prisma.user.count({
+      where: {
+        id: { not: userId },
+        status: UserStatus.ACTIVE,
+        roles: {
+          some: {
+            role: {
+              permissions: {
+                some: {
+                  permission: { code: 'system:admin' },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (otherSystemAdmins === 0) {
+      throw new BadRequestException('Нельзя снять последнюю роль с полным административным доступом.');
+    }
+  }
+
+  private findUserSummary(userId: string) {
+    return this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: this.userSummarySelect(),
+    });
+  }
+
+  private userSummarySelect() {
+    return {
+      id: true,
+      email: true,
+      name: true,
+      status: true,
+      createdAt: true,
+      roles: {
+        select: {
+          role: {
+            select: {
+              code: true,
+              name: true,
+            },
+          },
+        },
+      },
+      clientScopes: {
+        select: {
+          canRead: true,
+          canWrite: true,
+          client: {
+            select: {
+              id: true,
+              code: true,
+              name: true,
+            },
+          },
+        },
+      },
+    } as const;
   }
 }

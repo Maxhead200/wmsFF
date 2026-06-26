@@ -1,16 +1,17 @@
-import { ShieldCheck, Smartphone, UserPlus } from 'lucide-react';
+import { KeyRound, ShieldCheck, Smartphone, UserPlus } from 'lucide-react';
 import { useState } from 'react';
 import type { AuthSession, AuthUser } from '../../lib/api';
 import './access.css';
 import { TsdDeviceAdminPanel } from './TsdDeviceAdminPanel';
 import { UserCreateForm } from './UserCreateForm';
+import { UserRoleEditor } from './UserRoleEditor';
 import { UserScopeEditor } from './UserScopeEditor';
 
 type AccessAdminPanelProps = {
   session: AuthSession;
 };
 
-type AccessTab = 'create' | 'scopes' | 'tsd';
+type AccessTab = 'create' | 'roles' | 'scopes' | 'tsd';
 
 export function AccessAdminPanel({ session }: AccessAdminPanelProps) {
   const [activeTab, setActiveTab] = useState<AccessTab>('create');
@@ -40,6 +41,16 @@ export function AccessAdminPanel({ session }: AccessAdminPanelProps) {
           <span>Создать</span>
         </button>
         <button
+          aria-selected={activeTab === 'roles'}
+          className={activeTab === 'roles' ? 'active' : ''}
+          onClick={() => setActiveTab('roles')}
+          role="tab"
+          type="button"
+        >
+          <KeyRound size={16} aria-hidden="true" />
+          <span>Роли</span>
+        </button>
+        <button
           aria-selected={activeTab === 'scopes'}
           className={activeTab === 'scopes' ? 'active' : ''}
           onClick={() => setActiveTab('scopes')}
@@ -62,6 +73,7 @@ export function AccessAdminPanel({ session }: AccessAdminPanelProps) {
       </div>
 
       {activeTab === 'create' ? <UserCreateForm session={session} /> : null}
+      {activeTab === 'roles' ? <UserRoleEditor session={session} /> : null}
       {activeTab === 'scopes' ? <UserScopeEditor session={session} /> : null}
       {activeTab === 'tsd' ? <TsdDeviceAdminPanel session={session} /> : null}
     </section>

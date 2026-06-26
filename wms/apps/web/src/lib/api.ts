@@ -843,6 +843,10 @@ export type UpdateUserClientScopesPayload = {
   }>;
 };
 
+export type UpdateUserRolesPayload = {
+  roleCodes: string[];
+};
+
 export type TsdDeviceSummary = {
   id: string;
   code: string;
@@ -1584,6 +1588,14 @@ export async function updateUserClientScopes(
       accessToken,
     },
   );
+}
+
+export async function updateUserRoles(accessToken: string, userId: string, payload: UpdateUserRolesPayload) {
+  return request<UserSummary>(`/users/${userId}/roles`, {
+    method: 'PATCH',
+    body: payload,
+    accessToken,
+  });
 }
 
 export async function fetchTsdDevices(accessToken: string) {

@@ -11,7 +11,7 @@ import { ImportPanel } from './components/imports/ImportPanel';
 import { LogisticsQuotePanel } from './components/logistics/LogisticsQuotePanel';
 import { PrintPanel } from './components/print/PrintPanel';
 import { WarehouseOpsPanel } from './components/warehouse/WarehouseOpsPanel';
-import { fetchMe, type AuthSession } from './lib/api';
+import { fetchMe, type AuthSession, type AuthUser } from './lib/api';
 import { clearStoredSession, loadStoredSession, storeSession } from './lib/session';
 import { canOpenWorkspace, workspaceNav, type WorkspaceId, type WorkspaceNavItem } from './lib/workspaces';
 
@@ -31,10 +31,14 @@ const workspaceSections = [
 
 type WorkspaceSection = (typeof workspaceSections)[number]['id'];
 
+const initialSession = loadStoredSession();
+
 export function App() {
-  const [session, setSession] = useState<AuthSession | null>(() => loadStoredSession());
+  const [session, setSession] = useState<AuthSession | null>(() => initialSession);
   const [isRestoring, setRestoring] = useState(Boolean(session));
-  const [activeWorkspaceId, setActiveWorkspaceId] = useState<WorkspaceId>('overview');
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<WorkspaceId>(() =>
+    initialSession ? defaultWorkspaceForUser(initialSession.user) : 'overview',
+  );
 
   useEffect(() => {
     let isActive = true;
@@ -51,6 +55,7 @@ export function App() {
           const nextSession = { ...session, user };
           setSession(nextSession);
           storeSession(nextSession);
+          setActiveWorkspaceId((current) => (canKeepWorkspace(user, current) ? current : defaultWorkspaceForUser(user)));
         }
       } catch {
         clearStoredSession();
@@ -86,14 +91,14 @@ export function App() {
     }
 
     if (!availableWorkspaces.some((item) => item.id === activeWorkspaceId)) {
-      setActiveWorkspaceId('overview');
+      setActiveWorkspaceId(defaultWorkspaceForUser(session.user));
     }
   }, [activeWorkspaceId, availableWorkspaces, session]);
 
   function acceptSession(nextSession: AuthSession) {
     setSession(nextSession);
     storeSession(nextSession);
-    setActiveWorkspaceId('overview');
+    setActiveWorkspaceId(defaultWorkspaceForUser(nextSession.user));
   }
 
   function logout() {
@@ -356,4 +361,22 @@ function permissionTitle(item: WorkspaceNavItem) {
   }
 
   return item.permissions.join(', ');
+}
+
+function defaultWorkspaceForUser(user: AuthUser): WorkspaceId {
+  const preferredOrder: WorkspaceId[] = isClientOnlyUser(user)
+    ? ['cabinet', 'requests', 'logistics', 'billing', 'overview']
+    : ['warehouse', 'requests', 'access', 'directories', 'imports', 'logistics', 'billing', 'print', 'data', 'overview'];
+
+  return preferredOrder.find((id) => canKeepWorkspace(user, id)) ?? 'overview';
+}
+
+function canKeepWorkspace(user: AuthUser, workspaceId: WorkspaceId) {
+  const item = workspaceNav.find((candidate) => candidate.id === workspaceId);
+  return Boolean(item && item.id !== 'overview' && canOpenWorkspace(user, item));
+}
+
+function isClientOnlyUser(user: AuthUser) {
+  const internalRoles = ['ADMIN', 'OWNER', 'MANAGER', 'OPERATOR'];
+  return user.roleCodes.includes('CLIENT') && !user.roleCodes.some((roleCode) => internalRoles.includes(roleCode));
 }

@@ -28,6 +28,10 @@ const permissions = [
 ] as const;
 
 const rolePermissions: Record<string, { name: string; permissions: string[] }> = {
+  OWNER: {
+    name: 'Владелец системы',
+    permissions: ['system:admin'],
+  },
   ADMIN: {
     name: 'Администратор',
     permissions: ['system:admin'],

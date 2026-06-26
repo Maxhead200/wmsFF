@@ -1,6 +1,8 @@
 import { Calculator, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  downloadBillingInvoiceActPdf,
+  downloadBillingInvoicePdf,
   fetchBillingCharges,
   fetchBillingInvoiceActDocument,
   fetchBillingInvoiceDocument,
@@ -155,6 +157,20 @@ export function BillingPanel({ session }: BillingPanelProps) {
     }
   }
 
+  async function downloadInvoicePdf(invoice: BillingInvoiceSummary, kind: 'invoice' | 'act') {
+    setError(null);
+
+    try {
+      const blob =
+        kind === 'act'
+          ? await downloadBillingInvoiceActPdf(session.accessToken, invoice.id)
+          : await downloadBillingInvoicePdf(session.accessToken, invoice.id);
+      downloadBlob(blob, kind === 'act' ? actFileName(invoice.number) : `${invoice.number}.pdf`);
+    } catch (caught) {
+      setError(errorMessage(caught));
+    }
+  }
+
   return (
     <section className="billing-panel" aria-label="Биллинг">
       <div className="section-heading billing-panel__heading">
@@ -203,7 +219,13 @@ export function BillingPanel({ session }: BillingPanelProps) {
         <h3>Счета</h3>
       </div>
       <div className="billing-panel__list">
-        {renderInvoices(invoices, canWrite, (invoice, kind) => void openInvoiceDocument(invoice, kind), changeInvoiceStatus)}
+        {renderInvoices(
+          invoices,
+          canWrite,
+          (invoice, kind) => void openInvoiceDocument(invoice, kind),
+          (invoice, kind) => void downloadInvoicePdf(invoice, kind),
+          changeInvoiceStatus,
+        )}
       </div>
 
       <div className="billing-panel__subheading">
@@ -222,6 +244,7 @@ function renderInvoices(
   state: LoadState<BillingInvoiceSummary>,
   canWrite: boolean,
   onOpenDocument: (invoice: BillingInvoiceSummary, kind: 'invoice' | 'act') => void,
+  onDownloadPdf: (invoice: BillingInvoiceSummary, kind: 'invoice' | 'act') => void,
   onStatusChange: (invoiceId: string, status: BillingInvoiceStatus) => void,
 ) {
   if (state.status === 'idle' || (state.status === 'loading' && state.data.length === 0)) {
@@ -248,6 +271,7 @@ function renderInvoices(
         invoices={state.data}
         canWrite={canWrite}
         onOpenDocument={onOpenDocument}
+        onDownloadPdf={onDownloadPdf}
         onStatusChange={onStatusChange}
       />
     </>
@@ -290,4 +314,19 @@ function canUse(user: AuthUser, permission: string) {
 
 function errorMessage(caught: unknown) {
   return caught instanceof Error ? caught.message : 'Не удалось выполнить операцию.';
+}
+
+function downloadBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function actFileName(invoiceNumber: string) {
+  return invoiceNumber.startsWith('INV-') ? `ACT-${invoiceNumber.slice(4)}.pdf` : `ACT-${invoiceNumber}.pdf`;
 }

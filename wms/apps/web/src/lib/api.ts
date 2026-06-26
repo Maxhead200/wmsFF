@@ -1658,10 +1658,18 @@ export async function fetchBillingInvoiceDocument(accessToken: string, invoiceId
   });
 }
 
+export async function downloadBillingInvoicePdf(accessToken: string, invoiceId: string) {
+  return requestBlob(`/billing/invoices/${invoiceId}/document.pdf`, accessToken);
+}
+
 export async function fetchBillingInvoiceActDocument(accessToken: string, invoiceId: string) {
   return request<BillingInvoiceDocument>(`/billing/invoices/${invoiceId}/act`, {
     accessToken,
   });
+}
+
+export async function downloadBillingInvoiceActPdf(accessToken: string, invoiceId: string) {
+  return requestBlob(`/billing/invoices/${invoiceId}/act.pdf`, accessToken);
 }
 
 export async function createBillingInvoice(accessToken: string, payload: CreateBillingInvoicePayload) {

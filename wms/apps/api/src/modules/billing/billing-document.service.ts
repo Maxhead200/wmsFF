@@ -11,7 +11,7 @@ export class BillingDocumentService {
     private readonly clientScopes: ClientScopeService,
   ) {}
 
-  async getInvoiceDocument(invoiceId: string, user: AuthUser) {
+  async getInvoiceDocument(invoiceId: string, user: AuthUser): Promise<BillingPrintableDocument> {
     const invoice = await this.prisma.billingInvoice.findUnique({
       where: { id: invoiceId },
       include: invoiceDocumentInclude,
@@ -45,7 +45,7 @@ export class BillingDocumentService {
     const totalRub = Number(invoice.totalRub);
     const paidRub = Number(invoice.paidRub);
     const remainingRub = roundMoney(totalRub - paidRub);
-    const payload = {
+    const payload: InvoiceDocumentPayload = {
       invoiceId: invoice.id,
       number: invoice.number,
       title: `Счет ${invoice.number}`,
@@ -88,7 +88,7 @@ export class BillingDocumentService {
     };
   }
 
-  async getInvoiceActDocument(invoiceId: string, user: AuthUser) {
+  async getInvoiceActDocument(invoiceId: string, user: AuthUser): Promise<BillingPrintableDocument> {
     const invoiceDocument = await this.getInvoiceDocument(invoiceId, user);
     const actNumber = actNumberForInvoice(invoiceDocument.number);
     const title = `Акт оказанных услуг ${actNumber}`;
@@ -112,7 +112,11 @@ export class BillingDocumentService {
   }
 }
 
-type InvoiceDocumentPayload = {
+export type BillingPrintableDocument = InvoiceDocumentPayload & {
+  html: string;
+};
+
+export type InvoiceDocumentPayload = {
   invoiceId: string;
   number: string;
   documentKind?: 'invoice' | 'act';
@@ -194,7 +198,7 @@ const invoiceDocumentInclude = {
 } satisfies Prisma.BillingInvoiceInclude;
 
 function renderInvoiceHtml(document: InvoiceDocumentPayload) {
-  // Русский комментарий: HTML нужен как переносимый печатный документ; PDF-генерацию можно добавить поверх этого слоя.
+  // Русский комментарий: HTML остается быстрым preview, а PDF строится отдельным сервисом из того же payload.
   return `<!doctype html>
 <html lang="ru">
 <head>

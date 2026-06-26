@@ -1,4 +1,4 @@
-import { ClipboardCheck, FileCheck2, ReceiptText } from 'lucide-react';
+import { ClipboardCheck, FileCheck2, FileDown, ReceiptText } from 'lucide-react';
 import type { BillingInvoiceStatus, BillingInvoiceSummary } from '../../lib/api';
 import { billingInvoiceStatusLabel, billingInvoiceStatusOptions, billingInvoiceStatusTone } from './billingMeta';
 
@@ -6,6 +6,7 @@ type BillingInvoicesTableProps = {
   invoices: BillingInvoiceSummary[];
   canWrite: boolean;
   onOpenDocument?: (invoice: BillingInvoiceSummary, kind: 'invoice' | 'act') => void;
+  onDownloadPdf?: (invoice: BillingInvoiceSummary, kind: 'invoice' | 'act') => void;
   onStatusChange: (invoiceId: string, status: BillingInvoiceStatus) => void;
 };
 
@@ -20,7 +21,13 @@ const moneyFormatter = new Intl.NumberFormat('ru-RU', {
   minimumFractionDigits: 2,
 });
 
-export function BillingInvoicesTable({ invoices, canWrite, onOpenDocument, onStatusChange }: BillingInvoicesTableProps) {
+export function BillingInvoicesTable({
+  invoices,
+  canWrite,
+  onOpenDocument,
+  onDownloadPdf,
+  onStatusChange,
+}: BillingInvoicesTableProps) {
   return (
     <div className="billing-table-wrap billing-table-wrap--invoices">
       <table className="data-table billing-table billing-table--invoices">
@@ -33,7 +40,7 @@ export function BillingInvoicesTable({ invoices, canWrite, onOpenDocument, onSta
             <th>Оплачено</th>
             <th>Статус</th>
             <th>Состав</th>
-            {onOpenDocument ? <th>Документы</th> : null}
+            {onOpenDocument || onDownloadPdf ? <th>Документы</th> : null}
             {canWrite ? <th>Workflow</th> : null}
           </tr>
         </thead>
@@ -73,27 +80,53 @@ export function BillingInvoicesTable({ invoices, canWrite, onOpenDocument, onSta
                   <strong>{invoice.items.length} поз.</strong>
                   <span>{invoice.payments.length} оплат</span>
                 </td>
-                {onOpenDocument ? (
+                {onOpenDocument || onDownloadPdf ? (
                   <td>
                     <div className="billing-document-actions">
-                      <button
-                        className="document-open-button"
-                        type="button"
-                        onClick={() => onOpenDocument(invoice, 'invoice')}
-                        title="Открыть счет"
-                      >
-                        <ReceiptText size={15} aria-hidden="true" />
-                        <span>Счет</span>
-                      </button>
-                      <button
-                        className="document-open-button"
-                        type="button"
-                        onClick={() => onOpenDocument(invoice, 'act')}
-                        title="Открыть акт"
-                      >
-                        <ClipboardCheck size={15} aria-hidden="true" />
-                        <span>Акт</span>
-                      </button>
+                      {onOpenDocument ? (
+                        <>
+                          <button
+                            className="document-open-button"
+                            type="button"
+                            onClick={() => onOpenDocument(invoice, 'invoice')}
+                            title="Открыть счет HTML"
+                          >
+                            <ReceiptText size={15} aria-hidden="true" />
+                            <span>Счет</span>
+                          </button>
+                          <button
+                            className="document-open-button"
+                            type="button"
+                            onClick={() => onOpenDocument(invoice, 'act')}
+                            title="Открыть акт HTML"
+                          >
+                            <ClipboardCheck size={15} aria-hidden="true" />
+                            <span>Акт</span>
+                          </button>
+                        </>
+                      ) : null}
+                      {onDownloadPdf ? (
+                        <>
+                          <button
+                            className="document-open-button"
+                            type="button"
+                            onClick={() => onDownloadPdf(invoice, 'invoice')}
+                            title="Скачать счет PDF"
+                          >
+                            <FileDown size={15} aria-hidden="true" />
+                            <span>PDF счет</span>
+                          </button>
+                          <button
+                            className="document-open-button"
+                            type="button"
+                            onClick={() => onDownloadPdf(invoice, 'act')}
+                            title="Скачать акт PDF"
+                          >
+                            <FileDown size={15} aria-hidden="true" />
+                            <span>PDF акт</span>
+                          </button>
+                        </>
+                      ) : null}
                     </div>
                   </td>
                 ) : null}

@@ -1,9 +1,11 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Res, StreamableFile } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 import type { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { BillingDocumentService } from './billing-document.service';
+import { BillingPdfService } from './billing-pdf.service';
 import { BillingService } from './billing.service';
 import { CreateBillingChargeDto } from './dto/create-billing-charge.dto';
 import { CreateBillingInvoiceDto } from './dto/create-billing-invoice.dto';
@@ -23,6 +25,7 @@ export class BillingController {
   constructor(
     private readonly billing: BillingService,
     private readonly documents: BillingDocumentService,
+    private readonly pdf: BillingPdfService,
   ) {}
 
   @Get('services')
@@ -78,9 +81,31 @@ export class BillingController {
     return this.documents.getInvoiceDocument(id, user);
   }
 
+  @Get('invoices/:id/document.pdf')
+  async getInvoiceDocumentPdf(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthUser,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const file = await this.pdf.getInvoicePdf(id, user);
+    setPdfHeaders(response, file.fileName);
+    return new StreamableFile(file.buffer);
+  }
+
   @Get('invoices/:id/act')
   getInvoiceActDocument(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.documents.getInvoiceActDocument(id, user);
+  }
+
+  @Get('invoices/:id/act.pdf')
+  async getInvoiceActDocumentPdf(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthUser,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const file = await this.pdf.getInvoiceActPdf(id, user);
+    setPdfHeaders(response, file.fileName);
+    return new StreamableFile(file.buffer);
   }
 
   @Post('invoices')
@@ -104,4 +129,10 @@ export class BillingController {
   createPayment(@Body() dto: CreateBillingPaymentDto, @CurrentUser() user: AuthUser) {
     return this.billing.createPayment(dto, user);
   }
+}
+
+function setPdfHeaders(response: Response, fileName: string) {
+  const asciiName = fileName.replace(/[^\w.-]+/g, '_');
+  response.setHeader('Content-Type', 'application/pdf');
+  response.setHeader('Content-Disposition', `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`);
 }

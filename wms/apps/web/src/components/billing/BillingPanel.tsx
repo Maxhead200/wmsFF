@@ -2,6 +2,7 @@ import { Calculator, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
   fetchBillingCharges,
+  fetchBillingInvoiceDocument,
   fetchBillingInvoices,
   fetchBillingServices,
   fetchClientRequests,
@@ -12,6 +13,7 @@ import {
   type AuthUser,
   type BillingChargeStatus,
   type BillingChargeSummary,
+  type BillingInvoiceDocument,
   type BillingInvoiceStatus,
   type BillingInvoiceSummary,
   type BillingServiceSummary,
@@ -21,6 +23,7 @@ import {
 import { BillingChargeForm } from './BillingChargeForm';
 import { BillingChargesTable } from './BillingChargesTable';
 import './billing.css';
+import { BillingInvoiceDocumentPreview } from './BillingInvoiceDocumentPreview';
 import { BillingInvoiceForm } from './BillingInvoiceForm';
 import { BillingInvoicesTable } from './BillingInvoicesTable';
 import { BillingPaymentForm } from './BillingPaymentForm';
@@ -46,6 +49,7 @@ export function BillingPanel({ session }: BillingPanelProps) {
   const [clients, setClients] = useState<LoadState<ClientSummary>>({ status: 'idle', data: [] });
   const [requests, setRequests] = useState<LoadState<ClientRequestSummary>>({ status: 'idle', data: [] });
   const [error, setError] = useState<string | null>(null);
+  const [documentPreview, setDocumentPreview] = useState<BillingInvoiceDocument | null>(null);
 
   const activeServices = useMemo(() => services.data.filter((service) => service.isActive), [services.data]);
 
@@ -136,6 +140,16 @@ export function BillingPanel({ session }: BillingPanelProps) {
     }
   }
 
+  async function openInvoiceDocument(invoice: BillingInvoiceSummary) {
+    setError(null);
+
+    try {
+      setDocumentPreview(await fetchBillingInvoiceDocument(session.accessToken, invoice.id));
+    } catch (caught) {
+      setError(errorMessage(caught));
+    }
+  }
+
   return (
     <section className="billing-panel" aria-label="Биллинг">
       <div className="section-heading billing-panel__heading">
@@ -183,12 +197,18 @@ export function BillingPanel({ session }: BillingPanelProps) {
       <div className="billing-panel__subheading">
         <h3>Счета</h3>
       </div>
-      <div className="billing-panel__list">{renderInvoices(invoices, canWrite, changeInvoiceStatus)}</div>
+      <div className="billing-panel__list">
+        {renderInvoices(invoices, canWrite, (invoice) => void openInvoiceDocument(invoice), changeInvoiceStatus)}
+      </div>
 
       <div className="billing-panel__subheading">
         <h3>Начисления</h3>
       </div>
       <div className="billing-panel__list">{renderCharges(charges, canWrite, changeChargeStatus)}</div>
+
+      {documentPreview ? (
+        <BillingInvoiceDocumentPreview document={documentPreview} onClose={() => setDocumentPreview(null)} />
+      ) : null}
     </section>
   );
 }
@@ -196,6 +216,7 @@ export function BillingPanel({ session }: BillingPanelProps) {
 function renderInvoices(
   state: LoadState<BillingInvoiceSummary>,
   canWrite: boolean,
+  onOpenDocument: (invoice: BillingInvoiceSummary) => void,
   onStatusChange: (invoiceId: string, status: BillingInvoiceStatus) => void,
 ) {
   if (state.status === 'idle' || (state.status === 'loading' && state.data.length === 0)) {
@@ -218,7 +239,12 @@ function renderInvoices(
   return (
     <>
       {state.status === 'loading' ? <p className="inline-status">Обновляю счета.</p> : null}
-      <BillingInvoicesTable invoices={state.data} canWrite={canWrite} onStatusChange={onStatusChange} />
+      <BillingInvoicesTable
+        invoices={state.data}
+        canWrite={canWrite}
+        onOpenDocument={onOpenDocument}
+        onStatusChange={onStatusChange}
+      />
     </>
   );
 }

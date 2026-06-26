@@ -1,10 +1,11 @@
-import { FileCheck2 } from 'lucide-react';
+import { FileCheck2, ReceiptText } from 'lucide-react';
 import type { BillingInvoiceStatus, BillingInvoiceSummary } from '../../lib/api';
 import { billingInvoiceStatusLabel, billingInvoiceStatusOptions, billingInvoiceStatusTone } from './billingMeta';
 
 type BillingInvoicesTableProps = {
   invoices: BillingInvoiceSummary[];
   canWrite: boolean;
+  onOpenDocument?: (invoice: BillingInvoiceSummary) => void;
   onStatusChange: (invoiceId: string, status: BillingInvoiceStatus) => void;
 };
 
@@ -19,7 +20,7 @@ const moneyFormatter = new Intl.NumberFormat('ru-RU', {
   minimumFractionDigits: 2,
 });
 
-export function BillingInvoicesTable({ invoices, canWrite, onStatusChange }: BillingInvoicesTableProps) {
+export function BillingInvoicesTable({ invoices, canWrite, onOpenDocument, onStatusChange }: BillingInvoicesTableProps) {
   return (
     <div className="billing-table-wrap billing-table-wrap--invoices">
       <table className="data-table billing-table billing-table--invoices">
@@ -32,6 +33,7 @@ export function BillingInvoicesTable({ invoices, canWrite, onStatusChange }: Bil
             <th>Оплачено</th>
             <th>Статус</th>
             <th>Состав</th>
+            {onOpenDocument ? <th>Документ</th> : null}
             {canWrite ? <th>Workflow</th> : null}
           </tr>
         </thead>
@@ -71,6 +73,19 @@ export function BillingInvoicesTable({ invoices, canWrite, onStatusChange }: Bil
                   <strong>{invoice.items.length} поз.</strong>
                   <span>{invoice.payments.length} оплат</span>
                 </td>
+                {onOpenDocument ? (
+                  <td>
+                    <button
+                      className="billing-document-button"
+                      type="button"
+                      onClick={() => onOpenDocument(invoice)}
+                      title="Открыть документ"
+                    >
+                      <ReceiptText size={15} aria-hidden="true" />
+                      <span>Счет</span>
+                    </button>
+                  </td>
+                ) : null}
                 {canWrite ? (
                   <td>
                     <label className="billing-status-select">

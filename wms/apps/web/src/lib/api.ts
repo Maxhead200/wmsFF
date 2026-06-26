@@ -139,6 +139,57 @@ export type BillingInvoiceSummary = {
   } | null;
 };
 
+export type BillingInvoiceDocument = {
+  invoiceId: string;
+  number: string;
+  title: string;
+  fileName: string;
+  status: BillingInvoiceStatus;
+  statusLabel: string;
+  periodFrom: string;
+  periodTo: string;
+  dueDate: string | null;
+  issuedAt: string | null;
+  totalRub: number;
+  paidRub: number;
+  remainingRub: number;
+  comment: string | null;
+  client: {
+    id: string;
+    code: string;
+    name: string;
+    inn: string | null;
+    kpp: string | null;
+    legalAddress: string | null;
+    actualAddress: string | null;
+    email: string | null;
+    phone: string | null;
+  };
+  rows: Array<{
+    position: number;
+    description: string;
+    unit: BillingUnit;
+    quantity: number;
+    unitPriceRub: number;
+    totalRub: number;
+    serviceDate: string;
+  }>;
+  payments: Array<{
+    id: string;
+    amountRub: number;
+    paidAt: string;
+    method: string | null;
+    reference: string | null;
+    comment: string | null;
+  }>;
+  createdBy: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+  html: string;
+};
+
 export type CreateBillingServicePayload = {
   code: string;
   name: string;
@@ -750,6 +801,12 @@ export async function fetchBillingInvoices(
   filter: { clientId?: string; status?: BillingInvoiceStatus; periodFrom?: string; periodTo?: string } = {},
 ) {
   return request<BillingInvoiceSummary[]>(withQuery('/billing/invoices', filter), {
+    accessToken,
+  });
+}
+
+export async function fetchBillingInvoiceDocument(accessToken: string, invoiceId: string) {
+  return request<BillingInvoiceDocument>(`/billing/invoices/${invoiceId}/document`, {
     accessToken,
   });
 }

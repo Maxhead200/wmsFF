@@ -2,17 +2,20 @@ import { RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
   fetchBillingCharges,
+  fetchBillingInvoiceDocument,
   fetchBillingInvoices,
   fetchClientRequests,
   fetchClients,
   fetchStockBalances,
   type AuthSession,
   type BillingChargeSummary,
+  type BillingInvoiceDocument,
   type BillingInvoiceSummary,
   type ClientRequestSummary,
   type ClientSummary,
   type StockBalance,
 } from '../../lib/api';
+import { BillingInvoiceDocumentPreview } from '../billing/BillingInvoiceDocumentPreview';
 import './client-cabinet.css';
 import { ClientCabinetMetrics } from './ClientCabinetMetrics';
 import { ClientCabinetTables } from './ClientCabinetTables';
@@ -46,6 +49,8 @@ const emptyData: CabinetData = {
 export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
   const [state, setState] = useState<CabinetState>({ status: 'idle', data: emptyData });
   const [selectedClientId, setSelectedClientId] = useState('');
+  const [documentPreview, setDocumentPreview] = useState<BillingInvoiceDocument | null>(null);
+  const [documentError, setDocumentError] = useState<string | null>(null);
 
   useEffect(() => {
     void loadData();
@@ -86,6 +91,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
   }, [selectedClientId, state.data]);
 
   async function loadData() {
+    setDocumentError(null);
     setState((current) => ({ ...current, status: 'loading', error: undefined }));
 
     try {
@@ -109,6 +115,16 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
         status: 'error',
         error: caught instanceof Error ? caught.message : 'Не удалось загрузить кабинет клиента.',
       }));
+    }
+  }
+
+  async function openInvoiceDocument(invoice: BillingInvoiceSummary) {
+    setDocumentError(null);
+
+    try {
+      setDocumentPreview(await fetchBillingInvoiceDocument(session.accessToken, invoice.id));
+    } catch (caught) {
+      setDocumentError(caught instanceof Error ? caught.message : 'Не удалось открыть документ счета.');
     }
   }
 
@@ -149,6 +165,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
       ) : null}
 
       {state.status === 'error' ? <p className="panel-message panel-message--error">{state.error}</p> : null}
+      {documentError ? <p className="form-error">{documentError}</p> : null}
 
       {state.status !== 'error' && state.data.clients.length === 0 && state.status !== 'loading' ? (
         <p className="panel-message">Нет доступных клиентов.</p>
@@ -172,8 +189,13 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
             requests={view.requests}
             invoices={view.invoices}
             charges={view.charges}
+            onOpenInvoiceDocument={(invoice) => void openInvoiceDocument(invoice)}
           />
         </>
+      ) : null}
+
+      {documentPreview ? (
+        <BillingInvoiceDocumentPreview document={documentPreview} onClose={() => setDocumentPreview(null)} />
       ) : null}
     </section>
   );

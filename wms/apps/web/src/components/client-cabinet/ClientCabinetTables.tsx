@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { ReceiptText } from 'lucide-react';
 import type { BillingChargeSummary, BillingInvoiceSummary, ClientRequestSummary, StockBalance } from '../../lib/api';
 import { billingInvoiceStatusLabel, billingInvoiceStatusTone, billingStatusLabel, billingStatusTone } from '../billing/billingMeta';
 import { requestStatusLabel, requestStatusTone, requestTypeLabel } from '../client-requests/clientRequestMeta';
@@ -14,9 +15,16 @@ type ClientCabinetTablesProps = {
   requests: ClientRequestSummary[];
   invoices: BillingInvoiceSummary[];
   charges: BillingChargeSummary[];
+  onOpenInvoiceDocument: (invoice: BillingInvoiceSummary) => void;
 };
 
-export function ClientCabinetTables({ stock, requests, invoices, charges }: ClientCabinetTablesProps) {
+export function ClientCabinetTables({
+  stock,
+  requests,
+  invoices,
+  charges,
+  onOpenInvoiceDocument,
+}: ClientCabinetTablesProps) {
   return (
     <div className="client-cabinet-sections">
       <CabinetSection title="Остатки" emptyText="Остатков пока нет." hasItems={stock.length > 0}>
@@ -28,7 +36,7 @@ export function ClientCabinetTables({ stock, requests, invoices, charges }: Clie
       </CabinetSection>
 
       <CabinetSection title="Счета" emptyText="Счетов пока нет." hasItems={invoices.length > 0}>
-        {renderInvoiceTable(invoices)}
+        {renderInvoiceTable(invoices, onOpenInvoiceDocument)}
       </CabinetSection>
 
       <CabinetSection title="Начисления" emptyText="Начислений пока нет." hasItems={charges.length > 0}>
@@ -134,7 +142,7 @@ function renderRequestTable(items: ClientRequestSummary[]) {
   );
 }
 
-function renderInvoiceTable(items: BillingInvoiceSummary[]) {
+function renderInvoiceTable(items: BillingInvoiceSummary[], onOpenInvoiceDocument: (invoice: BillingInvoiceSummary) => void) {
   return (
     <div className="client-cabinet-table-wrap">
       <table className="data-table client-cabinet-table">
@@ -146,6 +154,7 @@ function renderInvoiceTable(items: BillingInvoiceSummary[]) {
             <th>Оплачено</th>
             <th>Статус</th>
             <th>Состав</th>
+            <th>Документ</th>
           </tr>
         </thead>
         <tbody>
@@ -178,6 +187,17 @@ function renderInvoiceTable(items: BillingInvoiceSummary[]) {
                 <td>
                   <strong>{invoice.items.length} поз.</strong>
                   <span>{invoice.payments.length} оплат</span>
+                </td>
+                <td>
+                  <button
+                    className="billing-document-button"
+                    type="button"
+                    onClick={() => onOpenInvoiceDocument(invoice)}
+                    title="Открыть документ"
+                  >
+                    <ReceiptText size={15} aria-hidden="true" />
+                    <span>Счет</span>
+                  </button>
                 </td>
               </tr>
             );

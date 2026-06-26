@@ -3,6 +3,7 @@ import { ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { BillingDocumentService } from './billing-document.service';
 import { BillingService } from './billing.service';
 import { CreateBillingChargeDto } from './dto/create-billing-charge.dto';
 import { CreateBillingInvoiceDto } from './dto/create-billing-invoice.dto';
@@ -18,7 +19,10 @@ import { UpdateBillingInvoiceStatusDto } from './dto/update-billing-invoice-stat
 @RequirePermissions('billing:read')
 @Controller('billing')
 export class BillingController {
-  constructor(private readonly billing: BillingService) {}
+  constructor(
+    private readonly billing: BillingService,
+    private readonly documents: BillingDocumentService,
+  ) {}
 
   @Get('services')
   listServices() {
@@ -61,6 +65,11 @@ export class BillingController {
   @Get('invoices')
   listInvoices(@Query() query: ListBillingInvoicesDto, @CurrentUser() user: AuthUser) {
     return this.billing.listInvoices(query, user);
+  }
+
+  @Get('invoices/:id/document')
+  getInvoiceDocument(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.documents.getInvoiceDocument(id, user);
   }
 
   @Post('invoices')

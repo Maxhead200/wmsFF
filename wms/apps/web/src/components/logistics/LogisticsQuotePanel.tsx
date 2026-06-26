@@ -27,6 +27,7 @@ import {
 import './logistics.css';
 import { LogisticsDeliveryForm } from './LogisticsDeliveryForm';
 import { LogisticsDeliveryRequestsTable } from './LogisticsDeliveryRequestsTable';
+import { LogisticsOperationsSummary } from './LogisticsOperationsSummary';
 import { LogisticsQuoteResultCard } from './LogisticsQuoteResultCard';
 import { LogisticsTripsPanel } from './LogisticsTripsPanel';
 
@@ -254,6 +255,11 @@ export function LogisticsQuotePanel({ session }: LogisticsQuotePanelProps) {
           />
         </>
       ) : null}
+
+      <div className="logistics-panel__subheading">
+        <h3>Операционная сводка</h3>
+      </div>
+      <LogisticsOperationsSummary carriers={carriers} trips={trips} deliveries={deliveryRequests} />
 
       {canUse(session.user, 'logistics:write') || trips.length > 0 ? (
         <>

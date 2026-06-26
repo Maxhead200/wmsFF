@@ -32,6 +32,7 @@ import { BillingInvoiceDocumentPreview } from './BillingInvoiceDocumentPreview';
 import { BillingInvoiceForm } from './BillingInvoiceForm';
 import { BillingInvoicesTable } from './BillingInvoicesTable';
 import { BillingPaymentForm } from './BillingPaymentForm';
+import { BillingPeriodSummary } from './BillingPeriodSummary';
 import { BillingReconciliationPanel } from './BillingReconciliationPanel';
 import { BillingServiceForm } from './BillingServiceForm';
 import { BillingStorageChargeForm } from './BillingStorageChargeForm';
@@ -243,6 +244,17 @@ export function BillingPanel({ session }: BillingPanelProps) {
         <h3>Сверка</h3>
       </div>
       <div className="billing-panel__list">{renderReconciliation(reconciliation)}</div>
+
+      {charges.status === 'ready' && invoices.status === 'ready' ? (
+        <>
+          <div className="billing-panel__subheading">
+            <h3>Периоды</h3>
+          </div>
+          <div className="billing-panel__list">
+            <BillingPeriodSummary charges={charges.data} invoices={invoices.data} />
+          </div>
+        </>
+      ) : null}
 
       <div className="billing-panel__subheading">
         <h3>Счета</h3>

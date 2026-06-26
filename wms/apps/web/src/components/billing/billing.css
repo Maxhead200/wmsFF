@@ -271,6 +271,144 @@
   color: var(--danger);
 }
 
+.billing-period-summary {
+  display: grid;
+  gap: 12px;
+}
+
+.billing-period-summary__rail {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 8px;
+}
+
+.billing-period-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px 10px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  color: inherit;
+  text-align: left;
+  padding: 10px 12px;
+}
+
+.billing-period-card:hover,
+.billing-period-card.is-active {
+  border-color: rgb(215 25 32 / 0.4);
+  background: #fff8f8;
+}
+
+.billing-period-card > svg {
+  color: var(--red-dark);
+}
+
+.billing-period-card > strong {
+  grid-column: 2;
+  color: var(--red-dark);
+}
+
+.billing-period-card div,
+.billing-period-metric div,
+.billing-period-row div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.billing-period-card strong,
+.billing-period-card span,
+.billing-period-metric strong,
+.billing-period-metric span,
+.billing-period-row strong,
+.billing-period-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.billing-period-card span,
+.billing-period-metric span,
+.billing-period-row span,
+.billing-period-empty {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.billing-period-detail {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 12px;
+}
+
+.billing-period-detail__metrics,
+.billing-period-detail__grid {
+  display: grid;
+  gap: 10px;
+}
+
+.billing-period-detail__metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.billing-period-detail__grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.billing-period-metric {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.billing-period-metric svg {
+  flex: 0 0 auto;
+  color: var(--red-dark);
+}
+
+.billing-period-metric strong {
+  font-size: 16px;
+}
+
+.billing-period-column {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.billing-period-column > strong {
+  color: var(--ink);
+}
+
+.billing-period-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(92px, auto);
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 9px 10px;
+}
+
+.billing-period-empty {
+  margin: 0;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 10px;
+}
+
 @media (max-width: 980px) {
   .billing-fields--service,
   .billing-fields--charge,
@@ -293,6 +431,14 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .billing-period-detail__metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .billing-period-detail__grid {
+    grid-template-columns: 1fr;
+  }
+
   .billing-reconciliation-invoice > div:nth-child(2) {
     justify-items: start;
   }
@@ -313,7 +459,9 @@
 
   .billing-reconciliation__metrics,
   .billing-reconciliation-client__summary,
-  .billing-reconciliation-invoice {
+  .billing-reconciliation-invoice,
+  .billing-period-detail__metrics,
+  .billing-period-row {
     grid-template-columns: 1fr;
   }
 

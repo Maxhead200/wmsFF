@@ -14,6 +14,7 @@ import { CreateBillingServiceDto } from './dto/create-billing-service.dto';
 import { GenerateStorageChargeDto } from './dto/generate-storage-charge.dto';
 import { ListBillingChargesDto } from './dto/list-billing-charges.dto';
 import { ListBillingInvoicesDto } from './dto/list-billing-invoices.dto';
+import { ListBillingReconciliationDto } from './dto/list-billing-reconciliation.dto';
 import { ListBillingServiceHistoryDto } from './dto/list-billing-service-history.dto';
 import { UpdateBillingChargeStatusDto } from './dto/update-billing-charge-status.dto';
 import { UpdateBillingInvoiceStatusDto } from './dto/update-billing-invoice-status.dto';
@@ -47,6 +48,11 @@ export class BillingController {
   @Get('service-history')
   listServiceHistory(@Query() query: ListBillingServiceHistoryDto, @CurrentUser() user: AuthUser) {
     return this.billing.listServiceHistory(query, user);
+  }
+
+  @Get('reconciliation')
+  listReconciliation(@Query() query: ListBillingReconciliationDto, @CurrentUser() user: AuthUser) {
+    return this.billing.listReconciliation(query, user);
   }
 
   @Post('charges')

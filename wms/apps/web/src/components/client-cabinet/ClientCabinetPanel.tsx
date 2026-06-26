@@ -4,6 +4,7 @@ import {
   fetchBillingCharges,
   fetchBillingInvoiceDocument,
   fetchBillingInvoices,
+  fetchBillingReconciliation,
   fetchBillingServiceHistory,
   downloadClientRequestFile,
   fetchClientNotifications,
@@ -21,6 +22,9 @@ import {
   type BillingChargeSummary,
   type BillingInvoiceDocument,
   type BillingInvoiceSummary,
+  type BillingReconciliation,
+  type BillingReconciliationClient,
+  type BillingReconciliationInvoice,
   type BillingServiceHistory,
   type BillingServiceHistoryGroup,
   type ClientNotificationPreferenceSummary,
@@ -52,6 +56,7 @@ type CabinetData = {
   requests: ClientRequestSummary[];
   invoices: BillingInvoiceSummary[];
   charges: BillingChargeSummary[];
+  reconciliation: BillingReconciliation | null;
   serviceHistory: BillingServiceHistory | null;
   notifications: ClientNotificationSummary[];
   notificationPreferences: ClientNotificationPreferenceSummary[];
@@ -73,6 +78,7 @@ const emptyData: CabinetData = {
   requests: [],
   invoices: [],
   charges: [],
+  reconciliation: null,
   serviceHistory: null,
   notifications: [],
   notificationPreferences: [],
@@ -139,6 +145,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
       requests,
       invoices,
       charges,
+      reconciliation: filterReconciliation(state.data.reconciliation, clientId, filters),
       serviceHistory: filterServiceHistory(state.data.serviceHistory, clientId, filters),
       notifications,
       notificationPreferences: state.data.notificationPreferences.filter(
@@ -167,6 +174,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
         requests,
         invoices,
         charges,
+        reconciliation,
         serviceHistory,
         notifications,
         notificationPreferences,
@@ -176,6 +184,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
         fetchClientRequests(session.accessToken),
         fetchBillingInvoices(session.accessToken),
         fetchBillingCharges(session.accessToken),
+        fetchBillingReconciliation(session.accessToken),
         fetchBillingServiceHistory(session.accessToken),
         fetchClientNotifications(session.accessToken),
         fetchClientNotificationPreferences(session.accessToken),
@@ -183,7 +192,17 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
 
       setState({
         status: 'ready',
-        data: { clients, stock, requests, invoices, charges, serviceHistory, notifications, notificationPreferences },
+        data: {
+          clients,
+          stock,
+          requests,
+          invoices,
+          charges,
+          reconciliation,
+          serviceHistory,
+          notifications,
+          notificationPreferences,
+        },
       });
     } catch (caught) {
       setState((current) => ({
@@ -383,12 +402,18 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
             charges={view.charges}
             serviceHistory={view.serviceHistory}
           />
-          <ClientCabinetMetrics stock={view.stock} requests={view.requests} invoices={view.invoices} />
+          <ClientCabinetMetrics
+            stock={view.stock}
+            requests={view.requests}
+            invoices={view.invoices}
+            reconciliation={view.reconciliation}
+          />
           <ClientCabinetTables
             stock={view.stock}
             requests={view.requests}
             invoices={view.invoices}
             charges={view.charges}
+            reconciliation={view.reconciliation}
             serviceHistory={view.serviceHistory}
             notifications={view.notifications}
             notificationPreferences={view.notificationPreferences}
@@ -459,6 +484,79 @@ function filterServiceHistory(
       { chargesCount: 0, totalRub: 0, draftRub: 0, approvedRub: 0, cancelledRub: 0 },
     ),
     groups,
+  };
+}
+
+function filterReconciliation(
+  report: BillingReconciliation | null,
+  clientId: string,
+  filters: ClientCabinetFiltersValue,
+): BillingReconciliation | null {
+  if (!report) {
+    return null;
+  }
+
+  const clients = report.clients
+    .filter((item) => !clientId || item.client.id === clientId)
+    .map((item) => rebuildReconciliationClient(item, item.invoices.filter((invoice) => periodMatchesRange(invoice.periodFrom, invoice.periodTo, filters))))
+    .filter((item) => item.invoicesCount > 0);
+
+  return {
+    ...report,
+    totals: clients.reduce(
+      (totals, item) => ({
+        invoicesCount: totals.invoicesCount + item.invoicesCount,
+        openInvoicesCount: totals.openInvoicesCount + item.openInvoicesCount,
+        paidInvoicesCount: totals.paidInvoicesCount + item.paidInvoicesCount,
+        overdueInvoicesCount: totals.overdueInvoicesCount + item.overdueInvoicesCount,
+        totalRub: roundMoney(totals.totalRub + item.totalRub),
+        paidRub: roundMoney(totals.paidRub + item.paidRub),
+        debtRub: roundMoney(totals.debtRub + item.debtRub),
+        overdueRub: roundMoney(totals.overdueRub + item.overdueRub),
+      }),
+      {
+        invoicesCount: 0,
+        openInvoicesCount: 0,
+        paidInvoicesCount: 0,
+        overdueInvoicesCount: 0,
+        totalRub: 0,
+        paidRub: 0,
+        debtRub: 0,
+        overdueRub: 0,
+      },
+    ),
+    clients,
+  };
+}
+
+function rebuildReconciliationClient(
+  item: BillingReconciliationClient,
+  invoices: BillingReconciliationInvoice[],
+): BillingReconciliationClient {
+  const openInvoices = invoices.filter((invoice) => invoice.remainingRub > 0 && invoice.status !== 'PAID');
+  const overdueInvoices = invoices.filter((invoice) => invoice.overdueDays > 0);
+  const invoiceDates = invoices
+    .map((invoice) => invoice.issuedAt ?? invoice.periodTo)
+    .filter((value): value is string => Boolean(value))
+    .sort();
+
+  return {
+    ...item,
+    invoices,
+    invoicesCount: invoices.length,
+    openInvoicesCount: openInvoices.length,
+    paidInvoicesCount: invoices.filter((invoice) => invoice.status === 'PAID').length,
+    overdueInvoicesCount: overdueInvoices.length,
+    totalRub: invoices.reduce((sum, invoice) => roundMoney(sum + invoice.totalRub), 0),
+    paidRub: invoices.reduce((sum, invoice) => roundMoney(sum + invoice.paidRub), 0),
+    debtRub: invoices.reduce((sum, invoice) => roundMoney(sum + invoice.remainingRub), 0),
+    overdueRub: overdueInvoices.reduce((sum, invoice) => roundMoney(sum + invoice.remainingRub), 0),
+    nearestDueDate:
+      openInvoices
+        .map((invoice) => invoice.dueDate)
+        .filter((value): value is string => Boolean(value))
+        .sort()[0] ?? null,
+    latestInvoiceDate: invoiceDates[invoiceDates.length - 1] ?? null,
   };
 }
 

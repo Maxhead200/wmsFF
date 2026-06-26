@@ -3,6 +3,7 @@ import { FileText, MessageSquareText, ReceiptText } from 'lucide-react';
 import type {
   BillingChargeSummary,
   BillingInvoiceSummary,
+  BillingReconciliation,
   BillingServiceHistory,
   ClientNotificationPreferenceSummary,
   ClientNotificationSummary,
@@ -11,6 +12,7 @@ import type {
   StockBalance,
 } from '../../lib/api';
 import { billingInvoiceStatusLabel, billingInvoiceStatusTone, billingStatusLabel, billingStatusTone } from '../billing/billingMeta';
+import { BillingReconciliationPanel } from '../billing/BillingReconciliationPanel';
 import { requestStatusLabel, requestStatusTone, requestTypeLabel } from '../client-requests/clientRequestMeta';
 import {
   formatCabinetDate,
@@ -27,6 +29,7 @@ type ClientCabinetTablesProps = {
   requests: ClientRequestSummary[];
   invoices: BillingInvoiceSummary[];
   charges: BillingChargeSummary[];
+  reconciliation: BillingReconciliation | null;
   serviceHistory: BillingServiceHistory | null;
   notifications: ClientNotificationSummary[];
   notificationPreferences: ClientNotificationPreferenceSummary[];
@@ -44,6 +47,7 @@ export function ClientCabinetTables({
   requests,
   invoices,
   charges,
+  reconciliation,
   serviceHistory,
   notifications,
   notificationPreferences,
@@ -65,6 +69,7 @@ export function ClientCabinetTables({
       />
 
       <ClientCabinetServiceHistory history={serviceHistory} />
+      <BillingReconciliationPanel report={reconciliation} title="Задолженность и сверка" />
 
       <CabinetSection title="Остатки" emptyText="Остатков пока нет." hasItems={stock.length > 0}>
         {renderStockTable(stock)}

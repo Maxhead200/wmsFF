@@ -7,6 +7,7 @@ import {
   fetchBillingInvoiceActDocument,
   fetchBillingInvoiceDocument,
   fetchBillingInvoices,
+  fetchBillingReconciliation,
   fetchBillingServices,
   fetchClientRequests,
   fetchClients,
@@ -19,6 +20,7 @@ import {
   type BillingInvoiceDocument,
   type BillingInvoiceStatus,
   type BillingInvoiceSummary,
+  type BillingReconciliation,
   type BillingServiceSummary,
   type ClientRequestSummary,
   type ClientSummary,
@@ -30,6 +32,7 @@ import { BillingInvoiceDocumentPreview } from './BillingInvoiceDocumentPreview';
 import { BillingInvoiceForm } from './BillingInvoiceForm';
 import { BillingInvoicesTable } from './BillingInvoicesTable';
 import { BillingPaymentForm } from './BillingPaymentForm';
+import { BillingReconciliationPanel } from './BillingReconciliationPanel';
 import { BillingServiceForm } from './BillingServiceForm';
 import { BillingStorageChargeForm } from './BillingStorageChargeForm';
 
@@ -43,6 +46,12 @@ type BillingPanelProps = {
   session: AuthSession;
 };
 
+type BillingReportState = {
+  status: 'idle' | 'loading' | 'ready' | 'error';
+  data: BillingReconciliation | null;
+  error?: string;
+};
+
 export function BillingPanel({ session }: BillingPanelProps) {
   const canRead = canUse(session.user, 'billing:read');
   const canWrite = canUse(session.user, 'billing:write');
@@ -51,6 +60,7 @@ export function BillingPanel({ session }: BillingPanelProps) {
   const [services, setServices] = useState<LoadState<BillingServiceSummary>>({ status: 'idle', data: [] });
   const [clients, setClients] = useState<LoadState<ClientSummary>>({ status: 'idle', data: [] });
   const [requests, setRequests] = useState<LoadState<ClientRequestSummary>>({ status: 'idle', data: [] });
+  const [reconciliation, setReconciliation] = useState<BillingReportState>({ status: 'idle', data: null });
   const [error, setError] = useState<string | null>(null);
   const [documentPreview, setDocumentPreview] = useState<BillingInvoiceDocument | null>(null);
 
@@ -73,20 +83,23 @@ export function BillingPanel({ session }: BillingPanelProps) {
     setServices((current) => ({ ...current, status: 'loading', error: undefined }));
     setClients((current) => ({ ...current, status: 'loading', error: undefined }));
     setRequests((current) => ({ ...current, status: 'loading', error: undefined }));
+    setReconciliation((current) => ({ ...current, status: 'loading', error: undefined }));
 
     try {
-      const [nextCharges, nextInvoices, nextServices, nextClients, nextRequests] = await Promise.all([
+      const [nextCharges, nextInvoices, nextServices, nextClients, nextRequests, nextReconciliation] = await Promise.all([
         fetchBillingCharges(session.accessToken),
         fetchBillingInvoices(session.accessToken),
         fetchBillingServices(session.accessToken),
         fetchClients(session.accessToken),
         fetchClientRequests(session.accessToken),
+        fetchBillingReconciliation(session.accessToken),
       ]);
       setCharges({ status: 'ready', data: nextCharges });
       setInvoices({ status: 'ready', data: nextInvoices });
       setServices({ status: 'ready', data: nextServices });
       setClients({ status: 'ready', data: nextClients });
       setRequests({ status: 'ready', data: nextRequests });
+      setReconciliation({ status: 'ready', data: nextReconciliation });
     } catch (caught) {
       const message = errorMessage(caught);
       setCharges((current) => ({ ...current, status: 'error', error: message }));
@@ -94,6 +107,16 @@ export function BillingPanel({ session }: BillingPanelProps) {
       setServices((current) => ({ ...current, status: 'error', error: message }));
       setClients((current) => ({ ...current, status: 'error', error: message }));
       setRequests((current) => ({ ...current, status: 'error', error: message }));
+      setReconciliation((current) => ({ ...current, status: 'error', error: message }));
+    }
+  }
+
+  async function refreshReconciliation() {
+    try {
+      setReconciliation((current) => ({ ...current, status: 'loading', error: undefined }));
+      setReconciliation({ status: 'ready', data: await fetchBillingReconciliation(session.accessToken) });
+    } catch (caught) {
+      setReconciliation((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
     }
   }
 
@@ -109,6 +132,7 @@ export function BillingPanel({ session }: BillingPanelProps) {
       status: 'ready',
       data: [invoice, ...current.data.filter((item) => item.id !== invoice.id)],
     }));
+    void refreshReconciliation();
   }
 
   function acceptCharge(charge: BillingChargeSummary) {
@@ -216,6 +240,11 @@ export function BillingPanel({ session }: BillingPanelProps) {
       {error ? <p className="form-error">{error}</p> : null}
 
       <div className="billing-panel__subheading">
+        <h3>Сверка</h3>
+      </div>
+      <div className="billing-panel__list">{renderReconciliation(reconciliation)}</div>
+
+      <div className="billing-panel__subheading">
         <h3>Счета</h3>
       </div>
       <div className="billing-panel__list">
@@ -304,6 +333,28 @@ function renderCharges(
     <>
       {state.status === 'loading' ? <p className="inline-status">Обновляю начисления.</p> : null}
       <BillingChargesTable charges={state.data} canWrite={canWrite} onStatusChange={onStatusChange} />
+    </>
+  );
+}
+
+function renderReconciliation(state: BillingReportState) {
+  if (state.status === 'idle' || (state.status === 'loading' && !state.data)) {
+    return (
+      <p className="panel-message">
+        <Calculator size={22} aria-hidden="true" />
+        <span>Загружаю сверку.</span>
+      </p>
+    );
+  }
+
+  if (state.status === 'error') {
+    return <p className="panel-message panel-message--error">{state.error ?? 'Не удалось загрузить сверку.'}</p>;
+  }
+
+  return (
+    <>
+      {state.status === 'loading' ? <p className="inline-status">Обновляю сверку.</p> : null}
+      <BillingReconciliationPanel report={state.data} />
     </>
   );
 }

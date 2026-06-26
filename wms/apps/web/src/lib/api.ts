@@ -156,6 +156,53 @@ export type BillingServiceHistory = {
   groups: BillingServiceHistoryGroup[];
 };
 
+export type BillingReconciliationInvoice = {
+  id: string;
+  number: string;
+  status: BillingInvoiceStatus;
+  periodFrom: string;
+  periodTo: string;
+  dueDate: string | null;
+  issuedAt: string | null;
+  paidAt: string | null;
+  totalRub: number;
+  paidRub: number;
+  remainingRub: number;
+  overdueDays: number;
+};
+
+export type BillingReconciliationClient = {
+  client: Pick<ClientSummary, 'id' | 'code' | 'name'>;
+  invoicesCount: number;
+  openInvoicesCount: number;
+  paidInvoicesCount: number;
+  overdueInvoicesCount: number;
+  totalRub: number;
+  paidRub: number;
+  debtRub: number;
+  overdueRub: number;
+  nearestDueDate: string | null;
+  latestInvoiceDate: string | null;
+  invoices: BillingReconciliationInvoice[];
+};
+
+export type BillingReconciliation = {
+  periodFrom: string | null;
+  periodTo: string | null;
+  generatedAt: string;
+  totals: {
+    invoicesCount: number;
+    openInvoicesCount: number;
+    paidInvoicesCount: number;
+    overdueInvoicesCount: number;
+    totalRub: number;
+    paidRub: number;
+    debtRub: number;
+    overdueRub: number;
+  };
+  clients: BillingReconciliationClient[];
+};
+
 export type BillingInvoiceItemSummary = {
   id: string;
   invoiceId: string;
@@ -1644,6 +1691,15 @@ export async function fetchBillingServiceHistory(
   filter: { clientId?: string; periodFrom?: string; periodTo?: string } = {},
 ) {
   return request<BillingServiceHistory>(withQuery('/billing/service-history', filter), {
+    accessToken,
+  });
+}
+
+export async function fetchBillingReconciliation(
+  accessToken: string,
+  filter: { clientId?: string; periodFrom?: string; periodTo?: string } = {},
+) {
+  return request<BillingReconciliation>(withQuery('/billing/reconciliation', filter), {
     accessToken,
   });
 }

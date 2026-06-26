@@ -18,6 +18,7 @@ import { CreateBillingServiceDto } from './dto/create-billing-service.dto';
 import { GenerateStorageChargeDto } from './dto/generate-storage-charge.dto';
 import { ListBillingChargesDto } from './dto/list-billing-charges.dto';
 import { ListBillingInvoicesDto } from './dto/list-billing-invoices.dto';
+import { ListBillingReconciliationDto } from './dto/list-billing-reconciliation.dto';
 import { ListBillingServiceHistoryDto } from './dto/list-billing-service-history.dto';
 import { UpdateBillingChargeStatusDto } from './dto/update-billing-charge-status.dto';
 import { UpdateBillingInvoiceStatusDto } from './dto/update-billing-invoice-status.dto';
@@ -88,6 +89,28 @@ export class BillingService {
     });
 
     return buildServiceHistory(charges, periodFrom, periodTo);
+  }
+
+  async listReconciliation(query: ListBillingReconciliationDto, user: AuthUser) {
+    const periodFrom = query.periodFrom ? parseDate(query.periodFrom) : undefined;
+    const periodTo = query.periodTo ? parseDate(query.periodTo, 'endOfDay') : undefined;
+    if (periodFrom && periodTo && periodFrom > periodTo) {
+      throw new BadRequestException('Дата начала периода не может быть позже даты окончания.');
+    }
+
+    const invoices = await this.prisma.billingInvoice.findMany({
+      where: {
+        clientId: this.clientScopes.resolveClientFilter(user, query.clientId),
+        status: { not: BillingInvoiceStatus.CANCELLED },
+        periodFrom: periodFrom ? { gte: periodFrom } : undefined,
+        periodTo: periodTo ? { lte: periodTo } : undefined,
+      },
+      include: billingReconciliationInvoiceInclude,
+      orderBy: [{ dueDate: 'asc' }, { periodFrom: 'desc' }, { createdAt: 'desc' }],
+      take: 500,
+    });
+
+    return buildBillingReconciliation(invoices, periodFrom, periodTo);
   }
 
   async createCharge(dto: CreateBillingChargeDto, user: AuthUser) {
@@ -591,7 +614,20 @@ const billingInvoiceInclude = {
   },
 } satisfies Prisma.BillingInvoiceInclude;
 
+const billingReconciliationInvoiceInclude = {
+  client: {
+    select: {
+      id: true,
+      code: true,
+      name: true,
+    },
+  },
+} satisfies Prisma.BillingInvoiceInclude;
+
 type BillingChargeWithRelations = Prisma.BillingChargeGetPayload<{ include: typeof billingChargeInclude }>;
+type BillingInvoiceForReconciliation = Prisma.BillingInvoiceGetPayload<{
+  include: typeof billingReconciliationInvoiceInclude;
+}>;
 
 type ServiceHistoryGroup = {
   key: string;
@@ -694,6 +730,157 @@ function buildServiceHistory(charges: BillingChargeWithRelations[], periodFrom?:
     totals,
     groups: [...groups.values()].sort((left, right) => right.lastServiceDate.localeCompare(left.lastServiceDate)),
   };
+}
+
+function buildBillingReconciliation(
+  invoices: BillingInvoiceForReconciliation[],
+  periodFrom?: Date,
+  periodTo?: Date,
+  now = new Date(),
+) {
+  const clients = new Map<
+    string,
+    {
+      client: { id: string; code: string; name: string };
+      invoicesCount: number;
+      openInvoicesCount: number;
+      paidInvoicesCount: number;
+      overdueInvoicesCount: number;
+      totalRub: number;
+      paidRub: number;
+      debtRub: number;
+      overdueRub: number;
+      nearestDueDate: string | null;
+      latestInvoiceDate: string | null;
+      invoices: Array<{
+        id: string;
+        number: string;
+        status: BillingInvoiceStatus;
+        periodFrom: string;
+        periodTo: string;
+        dueDate: string | null;
+        issuedAt: string | null;
+        paidAt: string | null;
+        totalRub: number;
+        paidRub: number;
+        remainingRub: number;
+        overdueDays: number;
+      }>;
+    }
+  >();
+
+  const totals = {
+    invoicesCount: 0,
+    openInvoicesCount: 0,
+    paidInvoicesCount: 0,
+    overdueInvoicesCount: 0,
+    totalRub: 0,
+    paidRub: 0,
+    debtRub: 0,
+    overdueRub: 0,
+  };
+
+  invoices.forEach((invoice) => {
+    const totalRub = decimalToNumber(invoice.totalRub) ?? 0;
+    const paidRub = decimalToNumber(invoice.paidRub) ?? 0;
+    const remainingRub = roundMoney(Math.max(0, totalRub - paidRub));
+    const overdueDays = calculateOverdueDays(invoice.dueDate, remainingRub, invoice.status, now);
+    const isOpen = remainingRub > 0 && invoice.status !== BillingInvoiceStatus.PAID;
+    const isOverdue = overdueDays > 0;
+    const issuedOrCreatedAt = (invoice.issuedAt ?? invoice.createdAt).toISOString();
+    const dueDate = invoice.dueDate?.toISOString() ?? null;
+
+    let client = clients.get(invoice.clientId);
+    if (!client) {
+      client = {
+        client: invoice.client,
+        invoicesCount: 0,
+        openInvoicesCount: 0,
+        paidInvoicesCount: 0,
+        overdueInvoicesCount: 0,
+        totalRub: 0,
+        paidRub: 0,
+        debtRub: 0,
+        overdueRub: 0,
+        nearestDueDate: null,
+        latestInvoiceDate: null,
+        invoices: [],
+      };
+      clients.set(invoice.clientId, client);
+    }
+
+    client.invoicesCount += 1;
+    client.openInvoicesCount += isOpen ? 1 : 0;
+    client.paidInvoicesCount += invoice.status === BillingInvoiceStatus.PAID ? 1 : 0;
+    client.overdueInvoicesCount += isOverdue ? 1 : 0;
+    client.totalRub = roundMoney(client.totalRub + totalRub);
+    client.paidRub = roundMoney(client.paidRub + paidRub);
+    client.debtRub = roundMoney(client.debtRub + remainingRub);
+    client.overdueRub = roundMoney(client.overdueRub + (isOverdue ? remainingRub : 0));
+    client.nearestDueDate =
+      isOpen && dueDate && (!client.nearestDueDate || dueDate < client.nearestDueDate) ? dueDate : client.nearestDueDate;
+    client.latestInvoiceDate =
+      !client.latestInvoiceDate || issuedOrCreatedAt > client.latestInvoiceDate ? issuedOrCreatedAt : client.latestInvoiceDate;
+    client.invoices.push({
+      id: invoice.id,
+      number: invoice.number,
+      status: invoice.status,
+      periodFrom: invoice.periodFrom.toISOString(),
+      periodTo: invoice.periodTo.toISOString(),
+      dueDate,
+      issuedAt: invoice.issuedAt?.toISOString() ?? null,
+      paidAt: invoice.paidAt?.toISOString() ?? null,
+      totalRub,
+      paidRub,
+      remainingRub,
+      overdueDays,
+    });
+
+    totals.invoicesCount += 1;
+    totals.openInvoicesCount += isOpen ? 1 : 0;
+    totals.paidInvoicesCount += invoice.status === BillingInvoiceStatus.PAID ? 1 : 0;
+    totals.overdueInvoicesCount += isOverdue ? 1 : 0;
+    totals.totalRub = roundMoney(totals.totalRub + totalRub);
+    totals.paidRub = roundMoney(totals.paidRub + paidRub);
+    totals.debtRub = roundMoney(totals.debtRub + remainingRub);
+    totals.overdueRub = roundMoney(totals.overdueRub + (isOverdue ? remainingRub : 0));
+  });
+
+  return {
+    periodFrom: periodFrom?.toISOString() ?? null,
+    periodTo: periodTo?.toISOString() ?? null,
+    generatedAt: now.toISOString(),
+    totals,
+    clients: [...clients.values()]
+      .map((client) => ({
+        ...client,
+        invoices: client.invoices.sort((left, right) => {
+          const leftDue = left.dueDate ?? '9999-12-31';
+          const rightDue = right.dueDate ?? '9999-12-31';
+          return leftDue.localeCompare(rightDue) || right.periodFrom.localeCompare(left.periodFrom);
+        }),
+      }))
+      .sort((left, right) => right.debtRub - left.debtRub || right.overdueRub - left.overdueRub || left.client.code.localeCompare(right.client.code)),
+  };
+}
+
+function calculateOverdueDays(
+  dueDate: Date | null,
+  remainingRub: number,
+  status: BillingInvoiceStatus,
+  now: Date,
+) {
+  if (!dueDate || remainingRub <= 0 || status === BillingInvoiceStatus.PAID || status === BillingInvoiceStatus.CANCELLED) {
+    return 0;
+  }
+
+  const dueDay = Date.UTC(dueDate.getUTCFullYear(), dueDate.getUTCMonth(), dueDate.getUTCDate());
+  const currentDay = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  if (dueDay >= currentDay) {
+    return 0;
+  }
+
+  return Math.max(1, Math.floor((currentDay - dueDay) / 86_400_000));
 }
 
 function normalizeText(value?: string) {

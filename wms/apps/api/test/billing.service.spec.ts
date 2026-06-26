@@ -469,6 +469,70 @@ describe('BillingService', () => {
     );
   });
 
+  it('собирает сверку задолженности по доступным счетам клиента', async () => {
+    const prisma = {
+      billingInvoice: {
+        findMany: vi.fn().mockResolvedValue([
+          billingInvoice({
+            id: 'invoice-overdue',
+            number: 'INV-202606-0001',
+            totalRub: '1000.00',
+            paidRub: '250.00',
+            dueDate: new Date('2020-06-01T23:59:59.999Z'),
+            status: BillingInvoiceStatus.ISSUED,
+          }),
+          billingInvoice({
+            id: 'invoice-paid',
+            number: 'INV-202606-0002',
+            totalRub: '300.00',
+            paidRub: '300.00',
+            dueDate: new Date('2026-06-20T23:59:59.999Z'),
+            status: BillingInvoiceStatus.PAID,
+            paidAt: new Date('2026-06-18T00:00:00.000Z'),
+          }),
+        ]),
+      },
+    };
+    const service = new BillingService(prisma as never, clientScopes());
+
+    const report = await service.listReconciliation(
+      { periodFrom: '2026-06-01', periodTo: '2026-06-30' },
+      user({ clientIds: ['client-1'] }),
+    );
+
+    expect(prisma.billingInvoice.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          clientId: { in: ['client-1'] },
+          status: { not: BillingInvoiceStatus.CANCELLED },
+          periodFrom: expect.objectContaining({ gte: expect.any(Date) }),
+          periodTo: expect.objectContaining({ lte: expect.any(Date) }),
+        }),
+      }),
+    );
+    expect(report.totals).toMatchObject({
+      invoicesCount: 2,
+      paidInvoicesCount: 1,
+      openInvoicesCount: 1,
+      overdueInvoicesCount: 1,
+      totalRub: 1300,
+      paidRub: 550,
+      debtRub: 750,
+      overdueRub: 750,
+    });
+    expect(report.clients[0]).toMatchObject({
+      client: { id: 'client-1', code: 'CLIENT', name: 'Client' },
+      debtRub: 750,
+      overdueRub: 750,
+      nearestDueDate: '2020-06-01T23:59:59.999Z',
+    });
+    expect(report.clients[0].invoices[0]).toMatchObject({
+      number: 'INV-202606-0001',
+      remainingRub: 750,
+      overdueDays: expect.any(Number),
+    });
+  });
+
   it('groups client service history by service and source', async () => {
     const prisma = {
       billingCharge: {
@@ -590,6 +654,28 @@ function billingCharge(overrides: Record<string, unknown>) {
     request: null,
     createdBy: null,
     approvedBy: null,
+    ...overrides,
+  };
+}
+
+function billingInvoice(overrides: Record<string, unknown>) {
+  return {
+    id: 'invoice-1',
+    number: 'INV-202606-0001',
+    clientId: 'client-1',
+    periodFrom: new Date('2026-06-01T00:00:00.000Z'),
+    periodTo: new Date('2026-06-30T23:59:59.999Z'),
+    dueDate: new Date('2026-06-15T23:59:59.999Z'),
+    status: BillingInvoiceStatus.ISSUED,
+    totalRub: '100.00',
+    paidRub: '0.00',
+    issuedAt: new Date('2026-06-10T00:00:00.000Z'),
+    paidAt: null,
+    comment: null,
+    createdByUserId: 'user-1',
+    createdAt: new Date('2026-06-10T00:00:00.000Z'),
+    updatedAt: new Date('2026-06-10T00:00:00.000Z'),
+    client: { id: 'client-1', code: 'CLIENT', name: 'Client' },
     ...overrides,
   };
 }

@@ -189,7 +189,7 @@ export function ClientRequestsPanel({ session }: ClientRequestsPanelProps) {
     <section className="client-requests-panel" aria-label="Клиентские заявки">
       <div className="section-heading client-requests-panel__heading">
         <div>
-          <p className="eyebrow">Client portal</p>
+          <p className="eyebrow">Клиентские заявки</p>
           <h2>Клиентские заявки</h2>
         </div>
         <button

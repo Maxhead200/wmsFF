@@ -145,7 +145,7 @@ export function PickWavePanel({ session }: PickWavePanelProps) {
     <section className="pick-wave-panel" aria-label="Волны сборки">
       <div className="warehouse-subheading">
         <div>
-          <p className="eyebrow">Batch picking</p>
+          <p className="eyebrow">Волны сборки</p>
           <h3>Волны сборки</h3>
         </div>
         <button className="icon-button" type="button" onClick={() => void loadData()} title="Обновить волны" aria-label="Обновить волны">
@@ -181,7 +181,7 @@ export function PickWavePanel({ session }: PickWavePanelProps) {
               ))}
             </div>
           ) : (
-            <p className="warehouse-inline">Нет outbound-заявок для новой волны.</p>
+            <p className="warehouse-inline">Нет исходящих заявок для новой волны.</p>
           )}
           <label className="warehouse-comment">
             <span>Комментарий</span>
@@ -226,7 +226,7 @@ export function PickWavePanel({ session }: PickWavePanelProps) {
                       disabled={isDownloadingXlsxId === wave.id}
                     >
                       <FileDown size={14} aria-hidden="true" />
-                      <span>{isDownloadingXlsxId === wave.id ? 'Готовлю' : 'Excel'}</span>
+                      <span>{isDownloadingXlsxId === wave.id ? 'Готовлю' : 'Скачать Excel'}</span>
                     </button>
                     {canRunWave(wave) ? (
                       <button

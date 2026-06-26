@@ -151,11 +151,11 @@ export function StockImportForm({ session }: StockImportFormProps) {
       <div className="import-actions">
         <button className="primary-button" type="button" onClick={runPreview} disabled={!canSubmit}>
           <FileSearch size={16} aria-hidden="true" />
-          <span>{busyAction === 'preview' ? 'Проверка' : 'Preview'}</span>
+          <span>{busyAction === 'preview' ? 'Проверка' : 'Проверить'}</span>
         </button>
         <button className="primary-button secondary-action" type="button" onClick={runCommit} disabled={!canSubmit || hasErrors}>
           <CheckCircle2 size={16} aria-hidden="true" />
-          <span>{busyAction === 'commit' ? 'Загрузка' : 'Commit в WMS'}</span>
+          <span>{busyAction === 'commit' ? 'Загрузка' : 'Записать в WMS'}</span>
         </button>
       </div>
 

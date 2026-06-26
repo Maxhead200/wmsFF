@@ -99,7 +99,7 @@ export function LogisticsDeliveryRequestsTable({
             <th>Биллинг</th>
             <th>Статус</th>
             <th>Рейс</th>
-            {canWrite ? <th>Workflow</th> : null}
+            {canWrite ? <th>Процесс</th> : null}
           </tr>
         </thead>
         <tbody>

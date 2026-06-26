@@ -119,11 +119,11 @@ export function LogisticsImportForm({ session }: LogisticsImportFormProps) {
       <div className="import-actions">
         <button className="primary-button" type="button" onClick={runPreview} disabled={!canSubmit}>
           <FileSearch size={16} aria-hidden="true" />
-          <span>{busyAction === 'preview' ? 'Проверка' : 'Preview'}</span>
+          <span>{busyAction === 'preview' ? 'Проверка' : 'Проверить'}</span>
         </button>
         <button className="primary-button secondary-action" type="button" onClick={runCommit} disabled={!canSubmit || hasIssues}>
           <CheckCircle2 size={16} aria-hidden="true" />
-          <span>{busyAction === 'commit' ? 'Загрузка' : 'Commit тарифов'}</span>
+          <span>{busyAction === 'commit' ? 'Загрузка' : 'Записать тарифы'}</span>
         </button>
       </div>
 

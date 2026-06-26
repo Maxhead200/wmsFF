@@ -248,7 +248,7 @@ export function DashboardDataPanel({ session }: DashboardDataPanelProps) {
     <section className="data-panel" aria-label="Операционные данные">
       <div className="section-heading data-panel__heading">
         <div>
-          <p className="eyebrow">Live data</p>
+          <p className="eyebrow">Данные онлайн</p>
           <h2>Операционные данные</h2>
         </div>
         {activeTabMeta ? (
@@ -317,7 +317,7 @@ function renderClients(items: ClientSummary[]) {
             <th>Код</th>
             <th>Клиент</th>
             <th>ИНН</th>
-            <th>Email</th>
+            <th>Почта</th>
             <th>Статус</th>
             <th>Создан</th>
           </tr>
@@ -446,7 +446,7 @@ function renderTsdReview(
           <tr>
             <th>Операция</th>
             <th>ТСД</th>
-            <th>Payload</th>
+            <th>Данные</th>
             <th>Причина</th>
             <th>Создана</th>
             <th>Решение</th>
@@ -517,7 +517,7 @@ function renderTsdReviewHistory(items: TsdReviewOperation[]) {
             <th>Операция</th>
             <th>Решение</th>
             <th>Оператор</th>
-            <th>Payload</th>
+            <th>Данные</th>
             <th>Причина</th>
             <th>Комментарий</th>
             <th>Дата</th>

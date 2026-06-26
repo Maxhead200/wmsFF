@@ -1,0 +1,161 @@
+import { Filter, RotateCcw } from 'lucide-react';
+import type { BillingChargeStatus, BillingInvoiceStatus, ClientRequestStatus } from '../../lib/api';
+import { billingInvoiceStatusOptions, billingStatusOptions } from '../billing/billingMeta';
+import { requestStatusOptions } from '../client-requests/clientRequestMeta';
+
+export type ClientCabinetNotificationFilter = '' | 'UNREAD' | 'READ';
+export type ClientCabinetFileFilter = '' | 'WITH_FILES' | 'WITHOUT_FILES';
+
+export type ClientCabinetFiltersValue = {
+  dateFrom: string;
+  dateTo: string;
+  requestStatus: '' | ClientRequestStatus;
+  invoiceStatus: '' | BillingInvoiceStatus;
+  chargeStatus: '' | BillingChargeStatus;
+  notificationState: ClientCabinetNotificationFilter;
+  fileState: ClientCabinetFileFilter;
+};
+
+export type ClientCabinetFilterTotals = {
+  requests: number;
+  invoices: number;
+  charges: number;
+  notifications: number;
+  files: number;
+};
+
+export const emptyClientCabinetFilters: ClientCabinetFiltersValue = {
+  dateFrom: '',
+  dateTo: '',
+  requestStatus: '',
+  invoiceStatus: '',
+  chargeStatus: '',
+  notificationState: '',
+  fileState: '',
+};
+
+type ClientCabinetFiltersProps = {
+  value: ClientCabinetFiltersValue;
+  totals: ClientCabinetFilterTotals;
+  onChange: (value: ClientCabinetFiltersValue) => void;
+};
+
+export function ClientCabinetFilters({ value, totals, onChange }: ClientCabinetFiltersProps) {
+  const activeCount = Object.values(value).filter(Boolean).length;
+
+  function update(patch: Partial<ClientCabinetFiltersValue>) {
+    onChange({ ...value, ...patch });
+  }
+
+  return (
+    <section className="client-cabinet-filters" aria-label="Фильтры клиентского кабинета">
+      <div className="client-cabinet-filters__title">
+        <Filter size={18} aria-hidden="true" />
+        <div>
+          <h3>Фильтры</h3>
+          <span>{activeCount > 0 ? `${activeCount} активно` : 'без фильтров'}</span>
+        </div>
+      </div>
+
+      <div className="client-cabinet-filter-grid">
+        <label>
+          <span>Период с</span>
+          <input type="date" value={value.dateFrom} onChange={(event) => update({ dateFrom: event.target.value })} />
+        </label>
+
+        <label>
+          <span>Период по</span>
+          <input type="date" value={value.dateTo} onChange={(event) => update({ dateTo: event.target.value })} />
+        </label>
+
+        <label>
+          <span>Заявки</span>
+          <select
+            value={value.requestStatus}
+            onChange={(event) => update({ requestStatus: event.target.value as ClientCabinetFiltersValue['requestStatus'] })}
+          >
+            <option value="">Все статусы</option>
+            {requestStatusOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          <span>Файлы</span>
+          <select
+            value={value.fileState}
+            onChange={(event) => update({ fileState: event.target.value as ClientCabinetFileFilter })}
+          >
+            <option value="">Все заявки</option>
+            <option value="WITH_FILES">С файлами</option>
+            <option value="WITHOUT_FILES">Без файлов</option>
+          </select>
+        </label>
+
+        <label>
+          <span>Счета</span>
+          <select
+            value={value.invoiceStatus}
+            onChange={(event) => update({ invoiceStatus: event.target.value as ClientCabinetFiltersValue['invoiceStatus'] })}
+          >
+            <option value="">Все статусы</option>
+            {billingInvoiceStatusOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          <span>Начисления</span>
+          <select
+            value={value.chargeStatus}
+            onChange={(event) => update({ chargeStatus: event.target.value as ClientCabinetFiltersValue['chargeStatus'] })}
+          >
+            <option value="">Все статусы</option>
+            {billingStatusOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          <span>Уведомления</span>
+          <select
+            value={value.notificationState}
+            onChange={(event) => update({ notificationState: event.target.value as ClientCabinetNotificationFilter })}
+          >
+            <option value="">Все уведомления</option>
+            <option value="UNREAD">Непрочитанные</option>
+            <option value="READ">Прочитанные</option>
+          </select>
+        </label>
+      </div>
+
+      <div className="client-cabinet-filter-summary" aria-label="Итоги фильтра">
+        <span>{totals.requests} заявок</span>
+        <span>{totals.files} файлов</span>
+        <span>{totals.invoices} счетов</span>
+        <span>{totals.charges} начислений</span>
+        <span>{totals.notifications} уведомлений</span>
+      </div>
+
+      <button
+        className="icon-text-button client-cabinet-filters__reset"
+        type="button"
+        onClick={() => onChange(emptyClientCabinetFilters)}
+        disabled={activeCount === 0}
+        title="Сбросить фильтры"
+      >
+        <RotateCcw size={15} aria-hidden="true" />
+        <span>Сбросить</span>
+      </button>
+    </section>
+  );
+}

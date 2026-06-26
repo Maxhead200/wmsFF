@@ -18,7 +18,7 @@ export function UserBar({ user, onLogout }: UserBarProps) {
       </div>
       <div className="userbar__meta">
         <span className="status status--ready">{user.clientScopeMode}</span>
-        <span className="status status--planned">{user.roleCodes.join(', ') || 'NO ROLE'}</span>
+        <span className="status status--planned">{user.roleCodes.join(', ') || 'нет роли'}</span>
       </div>
       <button className="icon-button" type="button" onClick={onLogout} title="Выйти" aria-label="Выйти">
         <LogOut size={18} aria-hidden="true" />

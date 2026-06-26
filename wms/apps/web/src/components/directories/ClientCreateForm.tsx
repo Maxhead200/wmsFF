@@ -63,7 +63,7 @@ export function ClientCreateForm({ session }: ClientCreateFormProps) {
           <input value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} />
         </label>
         <label>
-          <span>Email</span>
+          <span>Почта</span>
           <input
             inputMode="email"
             type="email"
@@ -83,7 +83,7 @@ export function ClientCreateForm({ session }: ClientCreateFormProps) {
       {createdClient ? (
         <DirectoryResultCard
           title="Клиент создан"
-          lines={[`${createdClient.code} - ${createdClient.name}`, createdClient.email ?? 'email не задан']}
+          lines={[`${createdClient.code} - ${createdClient.name}`, createdClient.email ?? 'почта не задана']}
         />
       ) : null}
     </form>

@@ -11,7 +11,7 @@ export function ModuleBoard({ modules }: { modules: WmsModuleCard[] }) {
   return (
     <section className="module-board" aria-label="Модули WMS">
       <div className="section-heading">
-        <p className="eyebrow">MVP modules</p>
+        <p className="eyebrow">Модули MVP</p>
         <h2>Первый рабочий срез</h2>
       </div>
 

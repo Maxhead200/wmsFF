@@ -50,7 +50,7 @@ export function ClientRequestsTable({
             <th>Срок</th>
             <th>Статус</th>
             {canPickOutbound ? <th>Склад</th> : null}
-            {canChangeStatus ? <th>Workflow</th> : null}
+            {canChangeStatus ? <th>Процесс</th> : null}
           </tr>
         </thead>
         <tbody>
@@ -114,7 +114,7 @@ export function ClientRequestsTable({
                           title="Скачать Excel-инструкцию сборки"
                         >
                           <FileDown size={15} aria-hidden="true" />
-                          <span>Excel</span>
+                          <span>Инструкция Excel</span>
                         </button>
                       ) : null}
                       {canPickRequest(request) ? (

@@ -22,6 +22,7 @@ import {
   type BillingInvoiceDocument,
   type BillingInvoiceSummary,
   type BillingServiceHistory,
+  type BillingServiceHistoryGroup,
   type ClientNotificationPreferenceSummary,
   type ClientNotificationSummary,
   type ClientRequestFileSummary,
@@ -36,6 +37,11 @@ import { ClientRequestDocumentPreview } from '../client-requests/ClientRequestDo
 import './client-cabinet.css';
 import { ClientCabinetMetrics } from './ClientCabinetMetrics';
 import { ClientCabinetTables } from './ClientCabinetTables';
+import {
+  ClientCabinetFilters,
+  emptyClientCabinetFilters,
+  type ClientCabinetFiltersValue,
+} from './ClientCabinetFilters';
 import { ClientRequestTimelineModal } from './ClientRequestTimelineModal';
 
 type CabinetData = {
@@ -77,6 +83,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
   const [requestDocumentPreview, setRequestDocumentPreview] = useState<ClientRequestDocument | null>(null);
   const [requestTimeline, setRequestTimeline] = useState<ClientRequestTimeline | null>(null);
   const [documentError, setDocumentError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<ClientCabinetFiltersValue>(emptyClientCabinetFilters);
 
   useEffect(() => {
     void loadData();
@@ -95,34 +102,55 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
   const view = useMemo(() => {
     const clientId = selectedClientId || state.data.clients[0]?.id || '';
 
+    const stock = sortByDate(
+      state.data.stock.filter((balance) => !clientId || balance.clientId === clientId),
+      (balance) => balance.updatedAt,
+    );
+    const requests = sortByDate(
+      state.data.requests
+        .filter((request) => !clientId || request.clientId === clientId)
+        .filter((request) => requestMatchesFilters(request, filters)),
+      (request) => request.createdAt,
+    );
+    const invoices = sortByDate(
+      state.data.invoices
+        .filter((invoice) => !clientId || invoice.clientId === clientId)
+        .filter((invoice) => invoiceMatchesFilters(invoice, filters)),
+      (invoice) => invoice.createdAt,
+    );
+    const charges = sortByDate(
+      state.data.charges
+        .filter((charge) => !clientId || charge.clientId === clientId)
+        .filter((charge) => chargeMatchesFilters(charge, filters)),
+      (charge) => charge.serviceDate,
+    );
+    const notifications = sortByDate(
+      state.data.notifications
+        .filter((notification) => !clientId || notification.clientId === clientId)
+        .filter((notification) => notificationMatchesFilters(notification, filters)),
+      (notification) => notification.createdAt,
+    );
+
     return {
       client: state.data.clients.find((client) => client.id === clientId) ?? null,
-      stock: sortByDate(
-        state.data.stock.filter((balance) => !clientId || balance.clientId === clientId),
-        (balance) => balance.updatedAt,
-      ),
-      requests: sortByDate(
-        state.data.requests.filter((request) => !clientId || request.clientId === clientId),
-        (request) => request.createdAt,
-      ),
-      invoices: sortByDate(
-        state.data.invoices.filter((invoice) => !clientId || invoice.clientId === clientId),
-        (invoice) => invoice.createdAt,
-      ),
-      charges: sortByDate(
-        state.data.charges.filter((charge) => !clientId || charge.clientId === clientId),
-        (charge) => charge.serviceDate,
-      ),
-      serviceHistory: filterServiceHistory(state.data.serviceHistory, clientId),
-      notifications: sortByDate(
-        state.data.notifications.filter((notification) => !clientId || notification.clientId === clientId),
-        (notification) => notification.createdAt,
-      ),
+      stock,
+      requests,
+      invoices,
+      charges,
+      serviceHistory: filterServiceHistory(state.data.serviceHistory, clientId, filters),
+      notifications,
       notificationPreferences: state.data.notificationPreferences.filter(
         (preference) => !clientId || preference.clientId === clientId,
       ),
+      filterTotals: {
+        requests: requests.length,
+        invoices: invoices.length,
+        charges: charges.length,
+        notifications: notifications.length,
+        files: requests.reduce((total, request) => total + request.files.length, 0),
+      },
     };
-  }, [selectedClientId, state.data]);
+  }, [filters, selectedClientId, state.data]);
 
   async function loadData() {
     setDocumentError(null);
@@ -286,7 +314,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
     <section className="client-cabinet-panel" aria-label="Кабинет клиента">
       <div className="section-heading client-cabinet-panel__heading">
         <div>
-          <p className="eyebrow">Client workspace</p>
+          <p className="eyebrow">Кабинет клиента</p>
           <h2>Кабинет клиента</h2>
         </div>
         <div className="client-cabinet-panel__actions">
@@ -337,6 +365,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
             <span className="status status--ready">{view.client.status}</span>
           </div>
 
+          <ClientCabinetFilters value={filters} totals={view.filterTotals} onChange={setFilters} />
           <ClientCabinetMetrics stock={view.stock} requests={view.requests} invoices={view.invoices} />
           <ClientCabinetTables
             stock={view.stock}
@@ -386,12 +415,20 @@ function sortByDate<T>(items: T[], getValue: (item: T) => string | null | undefi
   });
 }
 
-function filterServiceHistory(history: BillingServiceHistory | null, clientId: string): BillingServiceHistory | null {
+function filterServiceHistory(
+  history: BillingServiceHistory | null,
+  clientId: string,
+  filters: ClientCabinetFiltersValue,
+): BillingServiceHistory | null {
   if (!history) {
     return null;
   }
 
-  const groups = history.groups.filter((group) => !clientId || group.clientId === clientId);
+  // Русский комментарий: история услуг фильтруется по агрегированным датам группы; точные строки остаются в таблице начислений.
+  const groups = history.groups
+    .filter((group) => !clientId || group.clientId === clientId)
+    .filter((group) => serviceHistoryGroupMatchesFilters(group, filters));
+
   return {
     ...history,
     totals: groups.reduce(
@@ -410,4 +447,100 @@ function filterServiceHistory(history: BillingServiceHistory | null, clientId: s
 
 function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function requestMatchesFilters(request: ClientRequestSummary, filters: ClientCabinetFiltersValue) {
+  if (filters.requestStatus && request.status !== filters.requestStatus) {
+    return false;
+  }
+
+  if (filters.fileState === 'WITH_FILES' && request.files.length === 0) {
+    return false;
+  }
+
+  if (filters.fileState === 'WITHOUT_FILES' && request.files.length > 0) {
+    return false;
+  }
+
+  return dateMatchesRange(request.createdAt, filters);
+}
+
+function invoiceMatchesFilters(invoice: BillingInvoiceSummary, filters: ClientCabinetFiltersValue) {
+  if (filters.invoiceStatus && invoice.status !== filters.invoiceStatus) {
+    return false;
+  }
+
+  return periodMatchesRange(invoice.periodFrom, invoice.periodTo, filters);
+}
+
+function chargeMatchesFilters(charge: BillingChargeSummary, filters: ClientCabinetFiltersValue) {
+  if (filters.chargeStatus && charge.status !== filters.chargeStatus) {
+    return false;
+  }
+
+  return dateMatchesRange(charge.serviceDate, filters);
+}
+
+function notificationMatchesFilters(notification: ClientNotificationSummary, filters: ClientCabinetFiltersValue) {
+  if (filters.notificationState === 'READ' && !notification.isRead) {
+    return false;
+  }
+
+  if (filters.notificationState === 'UNREAD' && notification.isRead) {
+    return false;
+  }
+
+  return dateMatchesRange(notification.createdAt, filters);
+}
+
+function serviceHistoryGroupMatchesFilters(group: BillingServiceHistoryGroup, filters: ClientCabinetFiltersValue) {
+  if (filters.chargeStatus && group.latestStatus !== filters.chargeStatus) {
+    return false;
+  }
+
+  return periodMatchesRange(group.firstServiceDate, group.lastServiceDate, filters);
+}
+
+function dateMatchesRange(value: string | null | undefined, filters: Pick<ClientCabinetFiltersValue, 'dateFrom' | 'dateTo'>) {
+  if (!filters.dateFrom && !filters.dateTo) {
+    return true;
+  }
+
+  if (!value) {
+    return false;
+  }
+
+  const date = value.slice(0, 10);
+  if (filters.dateFrom && date < filters.dateFrom) {
+    return false;
+  }
+
+  if (filters.dateTo && date > filters.dateTo) {
+    return false;
+  }
+
+  return true;
+}
+
+function periodMatchesRange(
+  periodFrom: string,
+  periodTo: string,
+  filters: Pick<ClientCabinetFiltersValue, 'dateFrom' | 'dateTo'>,
+) {
+  if (!filters.dateFrom && !filters.dateTo) {
+    return true;
+  }
+
+  const start = periodFrom.slice(0, 10);
+  const end = periodTo.slice(0, 10);
+
+  if (filters.dateFrom && end < filters.dateFrom) {
+    return false;
+  }
+
+  if (filters.dateTo && start > filters.dateTo) {
+    return false;
+  }
+
+  return true;
 }

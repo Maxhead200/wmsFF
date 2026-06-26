@@ -125,7 +125,7 @@ export function UserCreateForm({ session }: UserCreateFormProps) {
     <form className="access-form" onSubmit={submit}>
       <div className="access-fields">
         <label>
-          <span>Email</span>
+          <span>Почта</span>
           <input
             inputMode="email"
             type="email"

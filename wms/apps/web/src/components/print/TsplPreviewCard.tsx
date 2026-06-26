@@ -29,7 +29,7 @@ export function TsplPreviewCard({ preview, fileName }: TsplPreviewCardProps) {
         </button>
       </div>
 
-      <textarea readOnly value={preview.tspl} aria-label="TSPL preview" />
+      <textarea readOnly value={preview.tspl} aria-label="Предпросмотр TSPL" />
     </div>
   );
 }

@@ -175,7 +175,7 @@ export function BillingPanel({ session }: BillingPanelProps) {
     <section className="billing-panel" aria-label="Биллинг">
       <div className="section-heading billing-panel__heading">
         <div>
-          <p className="eyebrow">Billing</p>
+          <p className="eyebrow">Биллинг</p>
           <h2>Услуги и начисления</h2>
         </div>
         <button

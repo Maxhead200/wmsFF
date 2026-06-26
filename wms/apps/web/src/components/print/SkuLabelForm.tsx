@@ -154,7 +154,7 @@ export function SkuLabelForm({ session }: SkuLabelFormProps) {
       <div className="print-actions">
         <button className="primary-button" type="submit" disabled={!canSubmit || isSubmitting}>
           <FileText size={16} aria-hidden="true" />
-          <span>{isSubmitting ? 'Готовлю' : 'Preview TSPL'}</span>
+          <span>{isSubmitting ? 'Готовлю' : 'Предпросмотр TSPL'}</span>
         </button>
         <button className="primary-button print-secondary" type="button" onClick={() => void loadSkus()} disabled={!clientId || isLoading}>
           <RefreshCw size={16} aria-hidden="true" />

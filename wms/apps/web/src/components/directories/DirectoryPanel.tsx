@@ -38,7 +38,7 @@ export function DirectoryPanel({ session }: DirectoryPanelProps) {
     <section className="directory-panel" aria-label="Справочники">
       <div className="section-heading directory-panel__heading">
         <div>
-          <p className="eyebrow">Directories</p>
+          <p className="eyebrow">Справочники</p>
           <h2>Справочники</h2>
         </div>
       </div>

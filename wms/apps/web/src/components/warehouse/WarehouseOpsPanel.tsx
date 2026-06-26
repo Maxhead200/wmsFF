@@ -17,7 +17,7 @@ export function WarehouseOpsPanel({ session }: WarehouseOpsPanelProps) {
     <section className="warehouse-panel" aria-label="Складские операции">
       <div className="section-heading warehouse-panel__heading">
         <div>
-          <p className="eyebrow">Warehouse ops</p>
+          <p className="eyebrow">Операции склада</p>
           <h2>Складские операции</h2>
         </div>
         <ArrowRightLeft size={20} aria-hidden="true" />

@@ -110,7 +110,7 @@ export function App() {
     return (
       <main className="auth-shell">
         <section className="auth-panel auth-panel--loading" aria-live="polite">
-          <p className="eyebrow">LOGOFF Fulfillment</p>
+          <p className="eyebrow">Фулфилмент LOGOFF</p>
           <h1>Проверка сессии</h1>
         </section>
       </main>
@@ -129,7 +129,7 @@ export function App() {
         <div className="app-sidebar__brand">
           <span>LOGOFF</span>
           <strong>WMS</strong>
-          <small>Fulfillment control</small>
+          <small>Управление фулфилментом</small>
         </div>
 
         <nav className="workspace-nav">
@@ -190,8 +190,8 @@ export function App() {
         </section>
 
         <footer className="workspace-footer">
-          <span>LOGOFF Fulfillment WMS</span>
-          <span>Роли: {session.user.roleCodes.join(', ') || 'NO ROLE'}</span>
+          <span>WMS фулфилмента LOGOFF</span>
+          <span>Роли: {session.user.roleCodes.join(', ') || 'нет роли'}</span>
         </footer>
       </main>
     </div>
@@ -259,7 +259,7 @@ function WorkspaceOverview({
         <article>
           <UsersRound size={18} aria-hidden="true" />
           <span>Роли</span>
-          <strong>{session.user.roleCodes.join(', ') || 'NO ROLE'}</strong>
+          <strong>{session.user.roleCodes.join(', ') || 'нет роли'}</strong>
         </article>
       </section>
 

@@ -110,7 +110,7 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
       <div className="client-request-xlsx-form__header">
         <div>
           <h3>Сборка из Excel</h3>
-          <span>barcode + qty</span>
+          <span>штрихкод + количество</span>
         </div>
         <FileSpreadsheet size={20} aria-hidden="true" />
       </div>
@@ -145,7 +145,7 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
           <input value={title} onChange={(event) => setTitle(event.target.value)} />
         </label>
         <label className="client-request-fields__wide">
-          <span>Excel</span>
+          <span>Файл Excel</span>
           <input
             key={fileInputKey}
             accept=".xlsx,.xls"
@@ -175,7 +175,7 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
                   key={`${issue.row}-${issue.message}-${index}`}
                   className={`status status--${issue.severity === 'error' ? 'planned' : 'in-progress'}`}
                 >
-                  row {issue.row}: {issue.message}
+                  строка {issue.row}: {issue.message}
                 </span>
               ))}
             </div>

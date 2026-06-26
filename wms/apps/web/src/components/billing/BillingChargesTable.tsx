@@ -31,7 +31,7 @@ export function BillingChargesTable({ charges, canWrite, onStatusChange }: Billi
             <th>Цена</th>
             <th>Сумма</th>
             <th>Статус</th>
-            {canWrite ? <th>Workflow</th> : null}
+            {canWrite ? <th>Процесс</th> : null}
           </tr>
         </thead>
         <tbody>

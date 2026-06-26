@@ -36,7 +36,7 @@ export function PrintPanel({ session }: PrintPanelProps) {
     <section className="print-panel" aria-label="Печать этикеток">
       <div className="section-heading print-panel__heading">
         <div>
-          <p className="eyebrow">Print</p>
+          <p className="eyebrow">Печать</p>
           <h2>Печать этикеток</h2>
         </div>
         <Printer size={20} aria-hidden="true" />

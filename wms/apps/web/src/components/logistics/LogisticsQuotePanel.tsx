@@ -171,7 +171,7 @@ export function LogisticsQuotePanel({ session }: LogisticsQuotePanelProps) {
     <section className="logistics-panel" aria-label="Расчет логистики">
       <div className="section-heading logistics-panel__heading">
         <div>
-          <p className="eyebrow">Logistics</p>
+          <p className="eyebrow">Логистика</p>
           <h2>Расчет и заявки доставки</h2>
         </div>
         <button

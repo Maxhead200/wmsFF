@@ -20,7 +20,7 @@ export function BillingPaymentForm({ invoices, session, onPaid }: BillingPayment
   const selectedInvoice = payableInvoices.find((invoice) => invoice.id === invoiceId) ?? payableInvoices[0];
   const [amountRub, setAmountRub] = useState(selectedInvoice ? String(remainingRub(selectedInvoice)) : '');
   const [paidAt, setPaidAt] = useState(today());
-  const [method, setMethod] = useState('bank');
+  const [method, setMethod] = useState('Банк');
   const [reference, setReference] = useState('');
   const [comment, setComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -98,7 +98,7 @@ export function BillingPaymentForm({ invoices, session, onPaid }: BillingPayment
 
         <label>
           <span>Способ</span>
-          <input value={method} onChange={(event) => setMethod(event.target.value)} placeholder="bank" />
+          <input value={method} onChange={(event) => setMethod(event.target.value)} placeholder="Банк" />
         </label>
 
         <label>

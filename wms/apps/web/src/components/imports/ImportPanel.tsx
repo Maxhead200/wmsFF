@@ -37,7 +37,7 @@ export function ImportPanel({ session }: ImportPanelProps) {
     <section className="import-panel" aria-label="Импорт XLSX">
       <div className="section-heading import-panel__heading">
         <div>
-          <p className="eyebrow">XLSX import</p>
+          <p className="eyebrow">Импорт XLSX</p>
           <h2>Загрузка данных</h2>
         </div>
       </div>

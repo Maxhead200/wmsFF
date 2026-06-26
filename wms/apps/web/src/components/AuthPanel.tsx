@@ -45,7 +45,7 @@ export function AuthPanel({ onSession }: AuthPanelProps) {
     <main className="auth-shell">
       <section className="auth-panel" aria-label="Вход в LOGOFF WMS">
         <div className="auth-panel__brand">
-          <p className="eyebrow">LOGOFF Fulfillment</p>
+          <p className="eyebrow">Фулфилмент LOGOFF</p>
           <h1>WMS операционный контур</h1>
         </div>
 

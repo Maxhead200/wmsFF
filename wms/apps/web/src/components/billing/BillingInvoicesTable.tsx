@@ -41,7 +41,7 @@ export function BillingInvoicesTable({
             <th>Статус</th>
             <th>Состав</th>
             {onOpenDocument || onDownloadPdf ? <th>Документы</th> : null}
-            {canWrite ? <th>Workflow</th> : null}
+            {canWrite ? <th>Процесс</th> : null}
           </tr>
         </thead>
         <tbody>
@@ -114,7 +114,7 @@ export function BillingInvoicesTable({
                             title="Скачать счет PDF"
                           >
                             <FileDown size={15} aria-hidden="true" />
-                            <span>PDF счет</span>
+                            <span>Счет PDF</span>
                           </button>
                           <button
                             className="document-open-button"
@@ -123,7 +123,7 @@ export function BillingInvoicesTable({
                             title="Скачать акт PDF"
                           >
                             <FileDown size={15} aria-hidden="true" />
-                            <span>PDF акт</span>
+                            <span>Акт PDF</span>
                           </button>
                         </>
                       ) : null}

@@ -23,7 +23,7 @@ export function PrintPrinterPanel({ session }: PrintPrinterPanelProps) {
   const [printers, setPrinters] = useState<PrintPrinterSummary[]>([]);
   const [code, setCode] = useState('TSC-01');
   const [groupCode, setGroupCode] = useState('DEFAULT');
-  const [name, setName] = useState('TSC dry-run');
+  const [name, setName] = useState('TSC тестовый');
   const [connectionType, setConnectionType] = useState<PrintPrinterConnectionType>('dry_run');
   const [host, setHost] = useState('');
   const [port, setPort] = useState('9100');
@@ -97,7 +97,7 @@ export function PrintPrinterPanel({ session }: PrintPrinterPanelProps) {
         <div className="print-template-header">
           <div>
             <h3>Принтер</h3>
-            <span>dry-run для пилота, TCP для сетевого TSC</span>
+            <span>Тестовый режим для пилота, TCP для сетевого TSC</span>
           </div>
           <Network size={18} aria-hidden="true" />
         </div>
@@ -118,16 +118,16 @@ export function PrintPrinterPanel({ session }: PrintPrinterPanelProps) {
           <label>
             <span>Подключение</span>
             <select value={connectionType} onChange={(event) => setConnectionType(event.target.value as PrintPrinterConnectionType)}>
-              <option value="dry_run">dry-run</option>
+              <option value="dry_run">Тестовый режим</option>
               <option value="tcp">TCP</option>
             </select>
           </label>
           <label>
-            <span>Host</span>
+            <span>Хост</span>
             <input value={host} onChange={(event) => setHost(event.target.value)} disabled={connectionType !== 'tcp'} />
           </label>
           <label>
-            <span>Port</span>
+            <span>Порт</span>
             <input min="1" max="65535" type="number" value={port} onChange={(event) => setPort(event.target.value)} disabled={connectionType !== 'tcp'} />
           </label>
         </div>
@@ -177,11 +177,11 @@ export function PrintPrinterPanel({ session }: PrintPrinterPanelProps) {
                 <strong>{printer.code}</strong>
                 <small>Группа {printer.groupCode}</small>
                 <small>
-                  {printer.name} · {printer.connectionType}
+                  {printer.name} · {printerConnectionLabel(printer.connectionType)}
                   {printer.host ? ` · ${printer.host}:${printer.port}` : ''}
                 </small>
                 <small>
-                  {printer.autoProcess ? 'автоочередь' : 'ручной режим'} · last seen {formatLastSeen(printer.lastSeenAt)}
+                  {printer.autoProcess ? 'автоочередь' : 'ручной режим'} · последняя связь {formatLastSeen(printer.lastSeenAt)}
                 </small>
               </button>
             ))}
@@ -195,6 +195,10 @@ export function PrintPrinterPanel({ session }: PrintPrinterPanelProps) {
 function parsePort(value: string) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? Math.min(Math.max(Math.floor(parsed), 1), 65535) : 9100;
+}
+
+function printerConnectionLabel(value: PrintPrinterConnectionType) {
+  return value === 'dry_run' ? 'тестовый режим' : 'TCP';
 }
 
 function formatLastSeen(value: string | null) {

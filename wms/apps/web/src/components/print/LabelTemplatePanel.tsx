@@ -317,7 +317,7 @@ export function LabelTemplatePanel({ session }: LabelTemplatePanelProps) {
       <form className="print-form print-template-preview" onSubmit={previewSelectedTemplate}>
         <div className="print-template-header">
           <div>
-            <h3>Preview шаблона</h3>
+            <h3>Предпросмотр шаблона</h3>
             <span>{templates.length} сохранено</span>
           </div>
         </div>
@@ -371,7 +371,7 @@ export function LabelTemplatePanel({ session }: LabelTemplatePanelProps) {
             ))}
           </div>
         ) : (
-          <p className="panel-message">В шаблоне нет переменных, preview можно построить без заполнения.</p>
+          <p className="panel-message">В шаблоне нет переменных, предпросмотр можно построить без заполнения.</p>
         )}
 
         {(error || message) ? <p className={error ? 'form-error' : 'inline-status'}>{error || message}</p> : null}
@@ -379,7 +379,7 @@ export function LabelTemplatePanel({ session }: LabelTemplatePanelProps) {
         <div className="print-actions">
           <button className="primary-button" type="submit" disabled={!canPreview || isPreviewing}>
             <FileText size={16} aria-hidden="true" />
-            <span>{isPreviewing ? 'Готовлю' : 'Preview TSPL'}</span>
+            <span>{isPreviewing ? 'Готовлю' : 'Предпросмотр TSPL'}</span>
           </button>
         </div>
 

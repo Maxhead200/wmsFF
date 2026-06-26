@@ -3,7 +3,7 @@ import type { LucideIcon } from 'lucide-react';
 import type { BillingInvoiceSummary, BillingReconciliation, ClientRequestSummary, StockBalance } from '../../lib/api';
 import { formatCabinetMoney, formatCabinetNumber } from './clientCabinetFormat';
 
-export type ClientCabinetMetricTarget = 'stock' | 'requests' | 'invoices';
+export type ClientCabinetMetricTarget = 'skus' | 'stock' | 'requests' | 'invoices';
 
 type ClientCabinetMetricsProps = {
   stock: StockBalance[];
@@ -27,7 +27,7 @@ export function ClientCabinetMetrics({ stock, requests, invoices, reconciliation
 
   return (
     <div className="client-cabinet-metrics" aria-label="Сводка клиента">
-      <MetricTile icon={PackageCheck} label="SKU" value={formatCabinetNumber(uniqueSkuCount)} onClick={() => onNavigate('stock')} />
+      <MetricTile icon={PackageCheck} label="SKU" value={formatCabinetNumber(uniqueSkuCount)} onClick={() => onNavigate('skus')} />
       <MetricTile
         icon={Boxes}
         label="Единиц на остатке"

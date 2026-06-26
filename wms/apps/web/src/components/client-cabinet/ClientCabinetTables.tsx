@@ -1,17 +1,19 @@
-import type { ReactNode } from 'react';
-import { FileText, MessageSquareText, ReceiptText } from 'lucide-react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { FileSpreadsheet, FileText, MessageSquareText, ReceiptText, Search } from 'lucide-react';
 import type {
   BillingChargeSummary,
   BillingInvoiceSummary,
   BillingReconciliation,
   BillingServiceHistory,
+  AuthUser,
   ClientNotificationPreferenceSummary,
   ClientNotificationSummary,
   ClientRequestFileSummary,
   ClientRequestSummary,
+  ClientSummary,
   StockBalance,
 } from '../../lib/api';
-import { billingInvoiceStatusLabel, billingInvoiceStatusTone, billingStatusLabel, billingStatusTone } from '../billing/billingMeta';
+import { billingInvoiceStatusLabel, billingInvoiceStatusTone } from '../billing/billingMeta';
 import { BillingReconciliationPanel } from '../billing/BillingReconciliationPanel';
 import { requestStatusLabel, requestStatusTone, requestTypeLabel } from '../client-requests/clientRequestMeta';
 import {
@@ -24,10 +26,15 @@ import { ClientCabinetNotifications } from './ClientCabinetNotifications';
 import type { ClientCabinetMetricTarget } from './ClientCabinetMetrics';
 import { ClientCabinetPeriodSummary } from './ClientCabinetPeriodSummary';
 import { ClientCabinetServiceHistory } from './ClientCabinetServiceHistory';
+import { downloadClientCabinetStockExcel } from './clientCabinetStockExcelExport';
 import { ClientRequestFilesCell } from './ClientRequestFilesCell';
 
 type ClientCabinetTablesProps = {
+  client: ClientSummary;
+  currentUser: AuthUser;
   stock: StockBalance[];
+  visibleStock: StockBalance[];
+  stockSearch: string;
   requests: ClientRequestSummary[];
   invoices: BillingInvoiceSummary[];
   charges: BillingChargeSummary[];
@@ -35,7 +42,9 @@ type ClientCabinetTablesProps = {
   serviceHistory: BillingServiceHistory | null;
   notifications: ClientNotificationSummary[];
   notificationPreferences: ClientNotificationPreferenceSummary[];
-  activeSection: ClientCabinetMetricTarget | null;
+  activeSection: ClientCabinetMetricTarget;
+  onSectionChange: (section: ClientCabinetMetricTarget) => void;
+  onStockSearchChange: (value: string) => void;
   onOpenRequestDocument: (request: ClientRequestSummary) => void;
   onOpenRequestTimeline: (request: ClientRequestSummary) => void;
   onOpenInvoiceDocument: (invoice: BillingInvoiceSummary) => void;
@@ -45,8 +54,24 @@ type ClientCabinetTablesProps = {
   onToggleNotificationPreference: (preference: ClientNotificationPreferenceSummary, isEnabled: boolean) => void;
 };
 
+type SkuStockSummary = {
+  skuId: string;
+  internalSku: string;
+  name: string;
+  primaryBarcode: string;
+  boxesCount: number;
+  quantity: number;
+  updatedAt: string;
+};
+
+const pageSizeOptions = [10, 20, 50, 100];
+
 export function ClientCabinetTables({
+  client,
+  currentUser,
   stock,
+  visibleStock,
+  stockSearch,
   requests,
   invoices,
   charges,
@@ -55,6 +80,8 @@ export function ClientCabinetTables({
   notifications,
   notificationPreferences,
   activeSection,
+  onSectionChange,
+  onStockSearchChange,
   onOpenRequestDocument,
   onOpenRequestTimeline,
   onOpenInvoiceDocument,
@@ -63,8 +90,37 @@ export function ClientCabinetTables({
   onMarkNotificationRead,
   onToggleNotificationPreference,
 }: ClientCabinetTablesProps) {
+  const canSeeStoragePlaces = currentUser.clientScopeMode === 'ALL' || !currentUser.roleCodes.includes('CLIENT');
+  const [pageSize, setPageSize] = useState(20);
+  const [pageByTab, setPageByTab] = useState<Record<ClientCabinetMetricTarget, number>>({
+    skus: 1,
+    stock: 1,
+    requests: 1,
+    invoices: 1,
+  });
+
+  const skuRows = useMemo(() => buildSkuRows(visibleStock), [visibleStock]);
+  const activePage = pageByTab[activeSection] ?? 1;
+  const activeTotal = totalForTab(activeSection, skuRows, visibleStock, requests, invoices);
+  const pageCount = Math.max(1, Math.ceil(activeTotal / pageSize));
+  const currentPage = Math.min(activePage, pageCount);
+
+  useEffect(() => {
+    setPageByTab((current) => ({ ...current, [activeSection]: 1 }));
+  }, [activeSection, pageSize, stockSearch]);
+
+  function changePage(nextPage: number) {
+    const normalized = Math.min(Math.max(nextPage, 1), pageCount);
+    setPageByTab((current) => ({ ...current, [activeSection]: normalized }));
+  }
+
+  const visibleSkuRows = paginate(skuRows, currentPage, pageSize);
+  const visibleStockRows = paginate(visibleStock, currentPage, pageSize);
+  const visibleRequestRows = paginate(requests, currentPage, pageSize);
+  const visibleInvoiceRows = paginate(invoices, currentPage, pageSize);
+
   return (
-    <div className={`client-cabinet-sections client-cabinet-sections--active-${activeSection ?? 'none'}`}>
+    <div className={`client-cabinet-sections client-cabinet-sections--active-${activeSection}`}>
       <ClientCabinetNotifications
         notifications={notifications}
         preferences={notificationPreferences}
@@ -76,53 +132,168 @@ export function ClientCabinetTables({
       <ClientCabinetPeriodSummary invoices={invoices} charges={charges} />
       <BillingReconciliationPanel report={reconciliation} title="Задолженность и сверка" />
 
-      <CabinetSection title="Остатки" emptyText="Остатков пока нет." hasItems={stock.length > 0}>
-        {renderStockTable(stock)}
-      </CabinetSection>
+      <section className="client-cabinet-section" aria-label="Таблицы клиента">
+        <div className="client-cabinet-tabs" role="tablist" aria-label="Разделы кабинета клиента">
+          <TabButton label="SKU" count={skuRows.length} tab="skus" activeTab={activeSection} onClick={onSectionChange} />
+          <TabButton label="Остатки" count={visibleStock.length} tab="stock" activeTab={activeSection} onClick={onSectionChange} />
+          <TabButton label="Заявки" count={requests.length} tab="requests" activeTab={activeSection} onClick={onSectionChange} />
+          <TabButton label="Счета" count={invoices.length} tab="invoices" activeTab={activeSection} onClick={onSectionChange} />
+        </div>
 
-      <CabinetSection title="Заявки" emptyText="Заявок пока нет." hasItems={requests.length > 0}>
-        {renderRequestTable(
-          requests,
+        <div className="client-cabinet-table-toolbar">
+          <label className="client-cabinet-stock-search">
+            <Search size={16} aria-hidden="true" />
+            <input
+              type="search"
+              value={stockSearch}
+              onChange={(event) => onStockSearchChange(event.target.value)}
+              placeholder="Поиск по SKU, товару, штрихкоду, коробу"
+            />
+          </label>
+          <span className="client-cabinet-table-count">
+            Найдено {formatCabinetNumber(activeTotal)} из {formatCabinetNumber(totalForTab(activeSection, buildSkuRows(stock), stock, requests, invoices))}
+          </span>
+          <button
+            className="icon-text-button"
+            type="button"
+            onClick={() => downloadClientCabinetStockExcel(client, visibleStock, canSeeStoragePlaces)}
+            disabled={visibleStock.length === 0}
+          >
+            <FileSpreadsheet size={15} aria-hidden="true" />
+            <span>Остатки Excel</span>
+          </button>
+        </div>
+
+        {renderActiveTable({
+          activeSection,
+          skuRows: visibleSkuRows,
+          stock: visibleStockRows,
+          canSeeStoragePlaces,
+          requests: visibleRequestRows,
+          invoices: visibleInvoiceRows,
           onOpenRequestDocument,
           onOpenRequestTimeline,
+          onOpenInvoiceDocument,
           onUploadRequestFile,
           onDownloadRequestFile,
-        )}
-      </CabinetSection>
+        })}
 
-      <CabinetSection title="Счета" emptyText="Счетов пока нет." hasItems={invoices.length > 0}>
-        {renderInvoiceTable(invoices, onOpenInvoiceDocument)}
-      </CabinetSection>
-
-      <CabinetSection title="Начисления" emptyText="Начислений пока нет." hasItems={charges.length > 0}>
-        {renderChargeTable(charges)}
-      </CabinetSection>
+        <TablePager
+          page={currentPage}
+          pageCount={pageCount}
+          pageSize={pageSize}
+          total={activeTotal}
+          onPageChange={changePage}
+          onPageSizeChange={setPageSize}
+        />
+      </section>
     </div>
   );
 }
 
-function CabinetSection({
-  title,
-  emptyText,
-  hasItems,
-  children,
+function TabButton({
+  label,
+  count,
+  tab,
+  activeTab,
+  onClick,
 }: {
-  title: string;
-  emptyText: string;
-  hasItems: boolean;
-  children: ReactNode;
+  label: string;
+  count: number;
+  tab: ClientCabinetMetricTarget;
+  activeTab: ClientCabinetMetricTarget;
+  onClick: (tab: ClientCabinetMetricTarget) => void;
 }) {
   return (
-    <section className="client-cabinet-section" aria-label={title}>
-      <div className="client-cabinet-section__heading">
-        <h3>{title}</h3>
-      </div>
-      {hasItems ? children : <p className="panel-message">{emptyText}</p>}
-    </section>
+    <button className={tab === activeTab ? 'is-active' : ''} type="button" role="tab" onClick={() => onClick(tab)}>
+      <span>{label}</span>
+      <strong>{formatCabinetNumber(count)}</strong>
+    </button>
   );
 }
 
-function renderStockTable(items: StockBalance[]) {
+function renderActiveTable({
+  activeSection,
+  skuRows,
+  stock,
+  canSeeStoragePlaces,
+  requests,
+  invoices,
+  onOpenRequestDocument,
+  onOpenRequestTimeline,
+  onOpenInvoiceDocument,
+  onUploadRequestFile,
+  onDownloadRequestFile,
+}: {
+  activeSection: ClientCabinetMetricTarget;
+  skuRows: SkuStockSummary[];
+  stock: StockBalance[];
+  canSeeStoragePlaces: boolean;
+  requests: ClientRequestSummary[];
+  invoices: BillingInvoiceSummary[];
+  onOpenRequestDocument: (request: ClientRequestSummary) => void;
+  onOpenRequestTimeline: (request: ClientRequestSummary) => void;
+  onOpenInvoiceDocument: (invoice: BillingInvoiceSummary) => void;
+  onUploadRequestFile: (request: ClientRequestSummary, file: File) => Promise<void>;
+  onDownloadRequestFile: (request: ClientRequestSummary, file: ClientRequestFileSummary) => Promise<void>;
+}) {
+  if (activeSection === 'skus') {
+    return skuRows.length > 0 ? renderSkuTable(skuRows, canSeeStoragePlaces) : <EmptyTable>SKU не найдены.</EmptyTable>;
+  }
+
+  if (activeSection === 'stock') {
+    return stock.length > 0 ? renderStockTable(stock, canSeeStoragePlaces) : <EmptyTable>Остатки не найдены.</EmptyTable>;
+  }
+
+  if (activeSection === 'requests') {
+    return requests.length > 0 ? (
+      renderRequestTable(requests, onOpenRequestDocument, onOpenRequestTimeline, onUploadRequestFile, onDownloadRequestFile)
+    ) : (
+      <EmptyTable>Заявок пока нет.</EmptyTable>
+    );
+  }
+
+  return invoices.length > 0 ? renderInvoiceTable(invoices, onOpenInvoiceDocument) : <EmptyTable>Счетов пока нет.</EmptyTable>;
+}
+
+function EmptyTable({ children }: { children: ReactNode }) {
+  return <p className="panel-message">{children}</p>;
+}
+
+function renderSkuTable(items: SkuStockSummary[], canSeeStoragePlaces: boolean) {
+  return (
+    <div id="client-cabinet-skus" className="client-cabinet-table-wrap">
+      <table className="data-table client-cabinet-table">
+        <thead>
+          <tr>
+            <th>SKU</th>
+            <th>Товар</th>
+            <th>Штрихкод</th>
+            {canSeeStoragePlaces ? <th>Коробов</th> : null}
+            <th>Единиц</th>
+            <th>Обновлено</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item) => (
+            <tr key={item.skuId}>
+              <td>
+                <strong>{item.internalSku}</strong>
+              </td>
+              <td>{item.name}</td>
+              <td>{item.primaryBarcode}</td>
+              {canSeeStoragePlaces ? <td>{formatCabinetNumber(item.boxesCount)}</td> : null}
+              <td>{formatCabinetNumber(item.quantity)}</td>
+              <td>{formatCabinetDate(item.updatedAt)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function renderStockTable(items: StockBalance[], canSeeStoragePlaces: boolean) {
   return (
     <div id="client-cabinet-stock" className="client-cabinet-table-wrap">
       <table className="data-table client-cabinet-table">
@@ -130,8 +301,8 @@ function renderStockTable(items: StockBalance[]) {
           <tr>
             <th>SKU</th>
             <th>Штрихкод</th>
-            <th>Короб</th>
-            <th>Паллет</th>
+            {canSeeStoragePlaces ? <th>Короб</th> : null}
+            {canSeeStoragePlaces ? <th>Паллета</th> : null}
             <th>Статус</th>
             <th>Кол-во</th>
             <th>Обновлено</th>
@@ -145,8 +316,8 @@ function renderStockTable(items: StockBalance[]) {
                 <span>{balance.sku.name}</span>
               </td>
               <td>{primaryBarcode(balance)}</td>
-              <td>{balance.box?.code ?? '-'}</td>
-              <td>{balance.pallet?.code ?? '-'}</td>
+              {canSeeStoragePlaces ? <td>{balance.box?.code ?? '-'}</td> : null}
+              {canSeeStoragePlaces ? <td>{balance.pallet?.code ?? '-'}</td> : null}
               <td>
                 <span className="status status--planned">{balance.status}</span>
               </td>
@@ -300,44 +471,105 @@ function renderInvoiceTable(items: BillingInvoiceSummary[], onOpenInvoiceDocumen
   );
 }
 
-function renderChargeTable(items: BillingChargeSummary[]) {
+function TablePager({
+  page,
+  pageCount,
+  pageSize,
+  total,
+  onPageChange,
+  onPageSizeChange,
+}: {
+  page: number;
+  pageCount: number;
+  pageSize: number;
+  total: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
+}) {
   return (
-    <div className="client-cabinet-table-wrap">
-      <table className="data-table client-cabinet-table">
-        <thead>
-          <tr>
-            <th>Начисление</th>
-            <th>Дата</th>
-            <th>Кол-во</th>
-            <th>Цена</th>
-            <th>Сумма</th>
-            <th>Статус</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((charge) => (
-            <tr key={charge.id}>
-              <td>
-                <strong>{charge.description}</strong>
-                <span>{charge.source === 'STORAGE' ? 'хранение' : charge.service?.code ?? 'услуга'}</span>
-              </td>
-              <td>{formatCabinetDate(charge.serviceDate)}</td>
-              <td>{formatCabinetNumber(Number(charge.quantity))}</td>
-              <td>{formatCabinetMoney(charge.unitPriceRub)} ₽</td>
-              <td>
-                <strong>{formatCabinetMoney(charge.totalRub)} ₽</strong>
-              </td>
-              <td>
-                <span className={`status status--${billingStatusTone(charge.status)}`}>
-                  {billingStatusLabel(charge.status)}
-                </span>
-              </td>
-            </tr>
+    <div className="client-cabinet-pager">
+      <span>Страница {formatCabinetNumber(page)} из {formatCabinetNumber(pageCount)}, всего {formatCabinetNumber(total)}</span>
+      <label>
+        <span>На странице</span>
+        <select value={pageSize} onChange={(event) => onPageSizeChange(Number(event.target.value))}>
+          {pageSizeOptions.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
           ))}
-        </tbody>
-      </table>
+        </select>
+      </label>
+      <div className="client-cabinet-pager__buttons">
+        <button type="button" onClick={() => onPageChange(page - 1)} disabled={page <= 1}>
+          Назад
+        </button>
+        <button type="button" onClick={() => onPageChange(page + 1)} disabled={page >= pageCount}>
+          Вперед
+        </button>
+      </div>
     </div>
   );
+}
+
+function buildSkuRows(stock: StockBalance[]): SkuStockSummary[] {
+  const rows = new Map<string, SkuStockSummary & { boxCodes: Set<string> }>();
+
+  stock.forEach((balance) => {
+    const current = rows.get(balance.skuId);
+    const updatedAt = current && current.updatedAt > balance.updatedAt ? current.updatedAt : balance.updatedAt;
+    const row =
+      current ??
+      {
+        skuId: balance.skuId,
+        internalSku: balance.sku.internalSku,
+        name: balance.sku.name,
+        primaryBarcode: primaryBarcode(balance),
+        boxesCount: 0,
+        quantity: 0,
+        updatedAt,
+        boxCodes: new Set<string>(),
+      };
+
+    if (balance.box?.code) {
+      row.boxCodes.add(balance.box.code);
+    }
+
+    row.quantity += Number(balance.quantity);
+    row.updatedAt = updatedAt;
+    row.boxesCount = row.boxCodes.size;
+    rows.set(balance.skuId, row);
+  });
+
+  return [...rows.values()]
+    .map(({ boxCodes, ...row }) => row)
+    .sort((left, right) => right.quantity - left.quantity || left.internalSku.localeCompare(right.internalSku));
+}
+
+function totalForTab(
+  tab: ClientCabinetMetricTarget,
+  skuRows: SkuStockSummary[],
+  stock: StockBalance[],
+  requests: ClientRequestSummary[],
+  invoices: BillingInvoiceSummary[],
+) {
+  if (tab === 'skus') {
+    return skuRows.length;
+  }
+
+  if (tab === 'stock') {
+    return stock.length;
+  }
+
+  if (tab === 'requests') {
+    return requests.length;
+  }
+
+  return invoices.length;
+}
+
+function paginate<T>(items: T[], page: number, pageSize: number) {
+  const start = (page - 1) * pageSize;
+  return items.slice(start, start + pageSize);
 }
 
 function requestItemsSummary(request: ClientRequestSummary) {

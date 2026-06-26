@@ -1,10 +1,11 @@
-import { RefreshCw, Save, UserPlus } from 'lucide-react';
+import { Link2, RefreshCw, Save, UserPlus } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   createClient,
   createUser,
   fetchUsers,
   updateClient,
+  updateUserClientScopes,
   type AuthSession,
   type ClientKind,
   type ClientSummary,
@@ -50,9 +51,11 @@ const emptyClientManagerForm = {
 
 export function ClientCreateForm({ session }: ClientCreateFormProps) {
   const [form, setForm] = useState(emptyClientForm);
+  const [allUsers, setAllUsers] = useState<UserSummary[]>([]);
   const [fulfillmentUsers, setFulfillmentUsers] = useState<UserSummary[]>([]);
   const [clientManagerForm, setClientManagerForm] = useState(emptyClientManagerForm);
   const [clientManagers, setClientManagers] = useState<UserSummary[]>([]);
+  const [existingClientUserId, setExistingClientUserId] = useState('');
   const [createdClient, setCreatedClient] = useState<ClientSummary | null>(null);
   const [createdManager, setCreatedManager] = useState<UserSummary | null>(null);
   const [error, setError] = useState('');
@@ -60,11 +63,22 @@ export function ClientCreateForm({ session }: ClientCreateFormProps) {
   const [isSubmitting, setSubmitting] = useState(false);
   const [isManagerSubmitting, setManagerSubmitting] = useState(false);
   const [isAssigningManager, setAssigningManager] = useState(false);
+  const [isLinkingClientUser, setLinkingClientUser] = useState(false);
   const canManageUsers = canUse(session, 'users:write');
 
   const selectedFulfillmentManager = useMemo(
     () => fulfillmentUsers.find((user) => user.id === (createdClient?.fulfillmentManagerUserId || form.fulfillmentManagerUserId)) ?? null,
     [createdClient?.fulfillmentManagerUserId, form.fulfillmentManagerUserId, fulfillmentUsers],
+  );
+  const existingClientUserOptions = useMemo(
+    () =>
+      allUsers.filter(
+        (user) =>
+          userHasClientRole(user) &&
+          user.status === 'ACTIVE' &&
+          (!createdClient || !user.clientScopes.some((scope) => scope.client.id === createdClient.id)),
+      ),
+    [allUsers, createdClient],
   );
 
   useEffect(() => {
@@ -76,8 +90,10 @@ export function ClientCreateForm({ session }: ClientCreateFormProps) {
   async function loadFulfillmentUsers() {
     try {
       const users = await fetchUsers(session.accessToken);
+      setAllUsers(users);
       setFulfillmentUsers(users.filter((user) => !isClientOnlyUser(user)));
     } catch {
+      setAllUsers([]);
       setFulfillmentUsers([]);
     }
   }
@@ -121,6 +137,7 @@ export function ClientCreateForm({ session }: ClientCreateFormProps) {
         writableClientIds: [createdClient.id],
       });
       setCreatedManager(manager);
+      setAllUsers((current) => [manager, ...current]);
       setClientManagers((current) => [manager, ...current]);
       setClientManagerForm(emptyClientManagerForm);
     } catch (caught) {
@@ -147,6 +164,41 @@ export function ClientCreateForm({ session }: ClientCreateFormProps) {
       setManagerError(caught instanceof Error ? caught.message : 'Не удалось назначить менеджера фулфилмента.');
     } finally {
       setAssigningManager(false);
+    }
+  }
+
+  async function linkExistingClientUser() {
+    if (!createdClient || !existingClientUserId) {
+      return;
+    }
+
+    const selectedUser = allUsers.find((user) => user.id === existingClientUserId);
+    if (!selectedUser) {
+      return;
+    }
+
+    setLinkingClientUser(true);
+    setManagerError('');
+    try {
+      const updated = await updateUserClientScopes(session.accessToken, selectedUser.id, {
+        scopes: [
+          ...selectedUser.clientScopes.map((scope) => ({
+            clientId: scope.client.id,
+            canRead: scope.canRead,
+            canWrite: scope.canWrite,
+          })),
+          { clientId: createdClient.id, canRead: true, canWrite: true },
+        ],
+      });
+
+      const nextUser = { ...selectedUser, clientScopes: updated.clientScopes };
+      setAllUsers((current) => current.map((user) => (user.id === nextUser.id ? nextUser : user)));
+      setClientManagers((current) => [nextUser, ...current.filter((user) => user.id !== nextUser.id)]);
+      setExistingClientUserId('');
+    } catch (caught) {
+      setManagerError(caught instanceof Error ? caught.message : 'Не удалось привязать пользователя к клиенту.');
+    } finally {
+      setLinkingClientUser(false);
     }
   }
 
@@ -276,8 +328,8 @@ export function ClientCreateForm({ session }: ClientCreateFormProps) {
               <form className="client-manager-card" onSubmit={createClientManager}>
                 <div className="directory-subheading directory-subheading--plain">
                   <div>
-                    <h3>Менеджер клиента</h3>
-                    <span>получит доступ к остаткам, заявкам и кабинету этого клиента</span>
+                    <h3>Пользователь клиента</h3>
+                    <span>будет работать от имени клиента с остатками, заявками и счетами</span>
                   </div>
                 </div>
                 <div className="directory-fields directory-fields--manager">
@@ -312,19 +364,56 @@ export function ClientCreateForm({ session }: ClientCreateFormProps) {
                 </div>
                 <button className="primary-button directory-submit" type="submit" disabled={isManagerSubmitting}>
                   <UserPlus size={16} aria-hidden="true" />
-                  <span>{isManagerSubmitting ? 'Добавление' : 'Добавить менеджера клиента'}</span>
+                  <span>{isManagerSubmitting ? 'Добавление' : 'Создать пользователя клиента'}</span>
                 </button>
                 {createdManager ? (
-                  <DirectoryResultCard title="Менеджер клиента добавлен" lines={[`${createdManager.name} - ${createdManager.email}`]} />
+                  <DirectoryResultCard title="Пользователь клиента добавлен" lines={[`${createdManager.name} - ${createdManager.email}`]} />
                 ) : null}
                 {clientManagers.length > 0 ? (
                   <div className="client-manager-list">
                     {clientManagers.map((manager) => (
-                      <span key={manager.id}>{manager.name}</span>
+                      <span key={manager.id}>{manager.name} · {manager.email}</span>
                     ))}
                   </div>
                 ) : null}
               </form>
+
+              <div className="client-manager-card">
+                <div className="directory-subheading directory-subheading--plain">
+                  <div>
+                    <h3>Привязать существующего</h3>
+                    <span>добавит доступ к этому клиенту пользователю с ролью клиента</span>
+                  </div>
+                  <button className="icon-text-button" type="button" onClick={() => void loadFulfillmentUsers()}>
+                    <RefreshCw size={15} aria-hidden="true" />
+                    <span>Обновить</span>
+                  </button>
+                </div>
+                <label className="directory-select-row">
+                  <span>Пользователь клиента</span>
+                  <select
+                    value={existingClientUserId}
+                    onChange={(event) => setExistingClientUserId(event.target.value)}
+                    disabled={isLinkingClientUser || existingClientUserOptions.length === 0}
+                  >
+                    <option value="">Выберите пользователя</option>
+                    {existingClientUserOptions.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.name} - {user.email}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  className="primary-button directory-submit"
+                  type="button"
+                  onClick={() => void linkExistingClientUser()}
+                  disabled={!existingClientUserId || isLinkingClientUser}
+                >
+                  <Link2 size={16} aria-hidden="true" />
+                  <span>{isLinkingClientUser ? 'Привязка' : 'Привязать к клиенту'}</span>
+                </button>
+              </div>
 
               <div className="client-manager-card">
                 <div className="directory-subheading directory-subheading--plain">
@@ -397,5 +486,9 @@ function canUse(session: AuthSession, permission: string) {
 
 function isClientOnlyUser(user: UserSummary) {
   const internalRoles = ['ADMIN', 'OWNER', 'MANAGER', 'OPERATOR'];
-  return user.roles.some((item) => item.role.code === 'CLIENT') && !user.roles.some((item) => internalRoles.includes(item.role.code));
+  return userHasClientRole(user) && !user.roles.some((item) => internalRoles.includes(item.role.code));
+}
+
+function userHasClientRole(user: UserSummary) {
+  return user.roles.some((item) => item.role.code === 'CLIENT');
 }

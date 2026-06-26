@@ -48,6 +48,7 @@ import {
   emptyClientCabinetFilters,
   type ClientCabinetFiltersValue,
 } from './ClientCabinetFilters';
+import { formatCabinetMoney, formatCabinetNumber } from './clientCabinetFormat';
 import { ClientRequestTimelineModal } from './ClientRequestTimelineModal';
 
 type CabinetData = {
@@ -72,6 +73,14 @@ type ClientCabinetPanelProps = {
   session: AuthSession;
 };
 
+type ClientCabinetClientSummary = {
+  client: ClientSummary;
+  skuCount: number;
+  totalQuantity: number;
+  activeRequests: number;
+  debtRub: number;
+};
+
 const emptyData: CabinetData = {
   clients: [],
   stock: [],
@@ -92,7 +101,8 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
   const [requestTimeline, setRequestTimeline] = useState<ClientRequestTimeline | null>(null);
   const [documentError, setDocumentError] = useState<string | null>(null);
   const [filters, setFilters] = useState<ClientCabinetFiltersValue>(emptyClientCabinetFilters);
-  const [activeSection, setActiveSection] = useState<ClientCabinetMetricTarget | null>(null);
+  const [stockSearch, setStockSearch] = useState('');
+  const [activeSection, setActiveSection] = useState<ClientCabinetMetricTarget>('skus');
 
   useEffect(() => {
     void loadData();
@@ -115,6 +125,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
       state.data.stock.filter((balance) => !clientId || balance.clientId === clientId),
       (balance) => balance.updatedAt,
     );
+    const visibleStock = stock.filter((balance) => stockMatchesSearch(balance, stockSearch, isInternalUser(session.user)));
     const requests = sortByDate(
       state.data.requests
         .filter((request) => !clientId || request.clientId === clientId)
@@ -143,6 +154,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
     return {
       client: state.data.clients.find((client) => client.id === clientId) ?? null,
       stock,
+      visibleStock,
       requests,
       invoices,
       charges,
@@ -152,6 +164,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
       notificationPreferences: state.data.notificationPreferences.filter(
         (preference) => !clientId || preference.clientId === clientId,
       ),
+      clientCards: state.data.clients.map((client) => buildClientSummary(client, state.data)),
       filterTotals: {
         requests: requests.length,
         invoices: invoices.length,
@@ -160,7 +173,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
         files: requests.reduce((total, request) => total + request.files.length, 0),
       },
     };
-  }, [filters, selectedClientId, state.data]);
+  }, [filters, selectedClientId, session.user, state.data, stockSearch]);
 
   async function loadData() {
     setDocumentError(null);
@@ -339,6 +352,14 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
     }, 0);
   }
 
+  function selectClient(clientId: string) {
+    setSelectedClientId(clientId);
+    setStockSearch('');
+    setActiveSection('skus');
+  }
+
+  const showClientOverview = isInternalUser(session.user) && state.data.clients.length > 1;
+
   return (
     <section className="client-cabinet-panel" aria-label="Кабинет клиента">
       <div className="section-heading client-cabinet-panel__heading">
@@ -350,7 +371,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
           {state.data.clients.length > 1 ? (
             <label className="client-cabinet-client-select">
               <span>Клиент</span>
-              <select value={selectedClientId} onChange={(event) => setSelectedClientId(event.target.value)}>
+              <select value={selectedClientId} onChange={(event) => selectClient(event.target.value)}>
                 {state.data.clients.map((client) => (
                   <option key={client.id} value={client.id}>
                     {client.code} · {client.name}
@@ -386,6 +407,14 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
         <>
           {state.status === 'loading' ? <p className="inline-status">Обновляю кабинет.</p> : null}
 
+          {showClientOverview ? (
+            <ClientCabinetClientCards
+              cards={view.clientCards}
+              selectedClientId={view.client.id}
+              onSelect={selectClient}
+            />
+          ) : null}
+
           <div className="client-cabinet-client">
             <div>
               <span>{view.client.code}</span>
@@ -418,7 +447,12 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
             serviceHistory={view.serviceHistory}
           />
           <ClientCabinetTables
+            client={view.client}
+            currentUser={session.user}
             stock={view.stock}
+            visibleStock={view.visibleStock}
+            stockSearch={stockSearch}
+            onStockSearchChange={setStockSearch}
             requests={view.requests}
             invoices={view.invoices}
             charges={view.charges}
@@ -427,6 +461,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
             notifications={view.notifications}
             notificationPreferences={view.notificationPreferences}
             activeSection={activeSection}
+            onSectionChange={navigateToSection}
             onOpenRequestDocument={(request) => void openRequestDocument(request)}
             onOpenRequestTimeline={(request) => void openRequestTimeline(request)}
             onOpenInvoiceDocument={(invoice) => void openInvoiceDocument(invoice)}
@@ -465,6 +500,57 @@ function sortByDate<T>(items: T[], getValue: (item: T) => string | null | undefi
     const rightTime = new Date(getValue(right) ?? '').getTime();
     return rightTime - leftTime;
   });
+}
+
+function ClientCabinetClientCards({
+  cards,
+  selectedClientId,
+  onSelect,
+}: {
+  cards: ClientCabinetClientSummary[];
+  selectedClientId: string;
+  onSelect: (clientId: string) => void;
+}) {
+  return (
+    <div className="client-cabinet-client-cards" aria-label="Клиенты в работе">
+      {cards.map((card) => (
+        <button
+          key={card.client.id}
+          className={`client-cabinet-client-card${card.client.id === selectedClientId ? ' is-active' : ''}`}
+          type="button"
+          onClick={() => onSelect(card.client.id)}
+        >
+          <span>{card.client.code}</span>
+          <strong>{card.client.name}</strong>
+          <div>
+            <small>SKU {formatCabinetNumber(card.skuCount)}</small>
+            <small>Остатки {formatCabinetNumber(card.totalQuantity)}</small>
+            <small>Заявки {formatCabinetNumber(card.activeRequests)}</small>
+            <small>К оплате {formatCabinetMoney(card.debtRub)} ₽</small>
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function buildClientSummary(client: ClientSummary, data: CabinetData): ClientCabinetClientSummary {
+  const stock = data.stock.filter((balance) => balance.clientId === client.id);
+  const invoices = data.invoices.filter((invoice) => invoice.clientId === client.id && invoice.status !== 'CANCELLED');
+
+  return {
+    client,
+    skuCount: new Set(stock.map((balance) => balance.skuId)).size,
+    totalQuantity: stock.reduce((sum, balance) => sum + Number(balance.quantity), 0),
+    activeRequests: data.requests.filter(
+      (request) => request.clientId === client.id && !['DONE', 'CANCELLED', 'REJECTED'].includes(request.status),
+    ).length,
+    debtRub: invoices.reduce((sum, invoice) => sum + Math.max(0, Number(invoice.totalRub) - Number(invoice.paidRub)), 0),
+  };
+}
+
+function isInternalUser(user: AuthSession['user']) {
+  return user.clientScopeMode === 'ALL' || !user.roleCodes.includes('CLIENT');
 }
 
 function filterServiceHistory(
@@ -572,6 +658,28 @@ function rebuildReconciliationClient(
 
 function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function stockMatchesSearch(balance: StockBalance, search: string, canSeeStoragePlaces: boolean) {
+  const query = search.trim().toLowerCase();
+  if (!query) {
+    return true;
+  }
+
+  const values = [
+    balance.sku.internalSku,
+    balance.sku.clientSku,
+    balance.sku.article,
+    balance.sku.name,
+    ...balance.sku.barcodes.map((barcode) => barcode.value),
+    balance.status,
+    String(balance.quantity),
+  ];
+  if (canSeeStoragePlaces) {
+    values.push(balance.box?.code ?? null, balance.pallet?.code ?? null);
+  }
+
+  return values.some((value) => value?.toLowerCase().includes(query));
 }
 
 function requestMatchesFilters(request: ClientRequestSummary, filters: ClientCabinetFiltersValue) {

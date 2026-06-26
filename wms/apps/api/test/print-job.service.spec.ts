@@ -12,7 +12,11 @@ describe('PrintJobService', () => {
         create: vi.fn().mockImplementation(({ data }) => ({ id: 'job-1', createdAt: new Date(), ...data })),
         findUnique: vi.fn().mockResolvedValue({
           id: 'job-1',
-          payload: { source: 'label-template' },
+          printerCode: 'TSC-01',
+          labelType: LabelTemplateType.BOX,
+          payload: { source: 'label-template', templateCode: 'BOX_STANDARD' },
+          tspl: 'PRINT 1',
+          status: 'printed',
         }),
         update: vi.fn().mockImplementation(({ data }) => ({ id: 'job-1', createdAt: new Date(), ...data })),
       },
@@ -76,6 +80,36 @@ describe('PrintJobService', () => {
     expect(job.payload).toMatchObject({
       source: 'label-template',
       statusMessage: 'Нет бумаги',
+    });
+  });
+
+  it('создает новое задание перепечатки со связью с оригиналом', async () => {
+    const { service, prisma, printers } = createService();
+
+    const job = await service.reprintJob('job-1', {
+      reason: 'Этикетка испорчена',
+    });
+
+    expect(printers.getActivePrinterOrThrow).toHaveBeenCalledWith('TSC-01');
+    expect(prisma.printJob.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          printerCode: 'TSC-01',
+          labelType: LabelTemplateType.BOX,
+          tspl: 'PRINT 1',
+          status: 'queued',
+          payload: expect.objectContaining({
+            templateCode: 'BOX_STANDARD',
+            reprintOfJobId: 'job-1',
+            reprintReason: 'Этикетка испорчена',
+            reprintedAt: expect.any(String),
+          }),
+        }),
+      }),
+    );
+    expect(job.payload).toMatchObject({
+      reprintOfJobId: 'job-1',
+      reprintReason: 'Этикетка испорчена',
     });
   });
 });

@@ -1,4 +1,4 @@
-import { CheckCircle2, FileText, RefreshCw, Send, XCircle } from 'lucide-react';
+import { CheckCircle2, FileText, RefreshCw, RotateCcw, Send, XCircle } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   createPrintJobFromTemplate,
@@ -6,6 +6,7 @@ import {
   fetchPrintJobs,
   fetchPrintPrinters,
   processPrintQueue,
+  reprintPrintJob,
   updatePrintJobStatus,
   type AuthSession,
   type LabelTemplateSummary,
@@ -134,6 +135,21 @@ export function PrintJobPanel({ session }: PrintJobPanelProps) {
     }
   }
 
+  async function requeueJob(job: PrintJobSummary) {
+    setError('');
+    setMessage('');
+
+    try {
+      const reprint = await reprintPrintJob(session.accessToken, job.id, {
+        reason: 'Повторная печать из web-интерфейса.',
+      });
+      setJobs((current) => [reprint, ...current.filter((item) => item.id !== reprint.id)].slice(0, 50));
+      setMessage(`Задание ${reprint.id.slice(0, 8)} создано как перепечатка ${job.id.slice(0, 8)}.`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Не удалось повторить задание печати.');
+    }
+  }
+
   async function processQueueNow() {
     setError('');
     setMessage('');
@@ -254,9 +270,14 @@ export function PrintJobPanel({ session }: PrintJobPanelProps) {
                   <small>
                     {job.printerCode} · {job.labelType} · {formatDate(job.createdAt)} · попыток {job.attempts}
                   </small>
+                  {reprintSummary(job) ? <small>{reprintSummary(job)}</small> : null}
                   {job.processedAt ? <small>Обработано: {formatDate(job.processedAt)}</small> : null}
                 </div>
                 <div className="print-job-actions">
+                  <button className="review-action" type="button" onClick={() => void requeueJob(job)}>
+                    <RotateCcw size={15} aria-hidden="true" />
+                    <span>Повторить</span>
+                  </button>
                   <button
                     className="review-action review-action--accept"
                     type="button"
@@ -300,6 +321,16 @@ function payloadTemplateName(job: PrintJobSummary) {
   const name = typeof payload.templateName === 'string' ? payload.templateName : 'TSPL job';
   const copies = typeof payload.copies === 'number' ? payload.copies : 1;
   return `${code} - ${name} · ${copies} экз.`;
+}
+
+function reprintSummary(job: PrintJobSummary) {
+  const sourceJobId = typeof job.payload.reprintOfJobId === 'string' ? job.payload.reprintOfJobId : '';
+  if (!sourceJobId) {
+    return '';
+  }
+
+  const reason = typeof job.payload.reprintReason === 'string' ? job.payload.reprintReason : 'перепечатка';
+  return `Повтор ${sourceJobId.slice(0, 8)} · ${reason}`;
 }
 
 function statusTone(status: PrintJobStatus) {

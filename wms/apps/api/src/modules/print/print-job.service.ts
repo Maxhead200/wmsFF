@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreatePrintJobFromTemplateDto } from './dto/create-print-job.dto';
 import { ListPrintJobsDto } from './dto/list-print-jobs.dto';
+import { ReprintPrintJobDto } from './dto/reprint-print-job.dto';
 import { UpdatePrintJobStatusDto } from './dto/update-print-job-status.dto';
 import { LabelTemplateService } from './label-template.service';
 import { PrintPrinterService, normalizePrinterCode } from './print-printer.service';
@@ -75,6 +76,29 @@ export class PrintJobService {
       },
     });
   }
+
+  async reprintJob(jobId: string, dto: ReprintPrintJobDto = {}) {
+    const job = await this.prisma.printJob.findUnique({
+      where: { id: jobId },
+    });
+
+    if (!job) {
+      throw new NotFoundException('Задание печати не найдено.');
+    }
+
+    await this.printers.getActivePrinterOrThrow(job.printerCode);
+
+    // Русский комментарий: перепечатка создает новое задание, а связь с оригиналом хранится в payload для аудита.
+    return this.prisma.printJob.create({
+      data: {
+        printerCode: job.printerCode,
+        labelType: job.labelType,
+        payload: reprintPayload(job.payload, job.id, dto.reason),
+        tspl: job.tspl,
+        status: 'queued',
+      },
+    });
+  }
 }
 
 function mergeStatusMessage(payload: Prisma.JsonValue, message?: string) {
@@ -88,5 +112,18 @@ function mergeStatusMessage(payload: Prisma.JsonValue, message?: string) {
   return {
     ...currentPayload,
     statusMessage: message.trim(),
+  } satisfies Prisma.InputJsonObject;
+}
+
+function reprintPayload(payload: Prisma.JsonValue, jobId: string, reason?: string) {
+  const currentPayload =
+    payload && typeof payload === 'object' && !Array.isArray(payload) ? (payload as Prisma.JsonObject) : {};
+  const trimmedReason = reason?.trim();
+
+  return {
+    ...currentPayload,
+    reprintOfJobId: jobId,
+    reprintReason: trimmedReason || 'Повторная печать',
+    reprintedAt: new Date().toISOString(),
   } satisfies Prisma.InputJsonObject;
 }

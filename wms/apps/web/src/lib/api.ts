@@ -2019,6 +2019,14 @@ export async function updatePrintJobStatus(
   });
 }
 
+export async function reprintPrintJob(accessToken: string, jobId: string, payload: { reason?: string } = {}) {
+  return request<PrintJobSummary>(`/print/jobs/${jobId}/reprint`, {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
 export async function previewStockImport(accessToken: string, payload: { file: File; clientId: string }) {
   const form = new FormData();
   form.append('file', payload.file);

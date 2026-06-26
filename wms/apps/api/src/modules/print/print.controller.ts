@@ -10,6 +10,7 @@ import { PreviewLabelTemplateDto } from './dto/preview-label-template.dto';
 import { PreviewBoxLabelDto } from './dto/preview-box-label.dto';
 import { PreviewPalletLabelDto } from './dto/preview-pallet-label.dto';
 import { PreviewSkuLabelDto } from './dto/preview-sku-label.dto';
+import { ReprintPrintJobDto } from './dto/reprint-print-job.dto';
 import { UpdatePrintJobStatusDto } from './dto/update-print-job-status.dto';
 import { UpsertPrintPrinterDto } from './dto/upsert-print-printer.dto';
 import { LabelTemplateService } from './label-template.service';
@@ -68,6 +69,11 @@ export class PrintController {
   @Patch('jobs/:id/status')
   updateJobStatus(@Param('id') jobId: string, @Body() body: UpdatePrintJobStatusDto) {
     return this.jobs.updateStatus(jobId, body);
+  }
+
+  @Post('jobs/:id/reprint')
+  reprintJob(@Param('id') jobId: string, @Body() body: ReprintPrintJobDto = {}) {
+    return this.jobs.reprintJob(jobId, body);
   }
 
   @Post('jobs/process')

@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ClientRequestType, Prisma, StockStatus } from '@prisma/client';
+import * as XLSX from 'xlsx';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
@@ -16,6 +17,9 @@ import type {
   PickInstructionDocument,
   PickInstructionRow,
   PickInstructionRowStatus,
+  WarehouseInstructionRow,
+  WarehouseMarkRow,
+  WarehouseWholeBoxRow,
 } from './pick-instruction.types';
 import { buildPickInstructionWorkbook, pickInstructionXlsxMimeType } from './pick-instruction-xlsx';
 
@@ -49,9 +53,11 @@ export class PickInstructionService {
 
     const skuByBarcode = await this.resolveMissingSkusByBarcode(request);
     const rows = this.prepareRows(request, skuByBarcode);
-    const balances = await this.loadAvailableBalances(request.clientId, rows);
+    const auxiliary = this.readAuxiliaryWorkbook(request.files);
+    const balances = await this.loadAvailableBalances(request.clientId, rows, auxiliary.mapping.size > 0);
     const { instructionRows, boxAllocations } = this.allocateRows(rows, balances);
     const boxes = await this.buildBoxSummaries(request.clientId, boxAllocations);
+    const warehousePlan = this.buildWarehousePlan(request, rows, balances, auxiliary);
 
     const document: PickInstructionDocument = {
       requestId: request.id,
@@ -76,6 +82,9 @@ export class PickInstructionService {
       fullBoxesCount: boxes.filter((box) => box.isFullBox).length,
       rows: instructionRows,
       boxes,
+      warehouseRows: warehousePlan.rows,
+      warehouseWholeBoxes: warehousePlan.wholeBoxes,
+      warehouseMarkRows: warehousePlan.markRows,
     };
 
     return {
@@ -162,16 +171,16 @@ export class PickInstructionService {
     });
   }
 
-  private async loadAvailableBalances(clientId: string, rows: Array<{ skuId: string | null }>) {
+  private async loadAvailableBalances(clientId: string, rows: Array<{ skuId: string | null }>, includeAllClientBalances = false) {
     const skuIds = [...new Set(rows.map((row) => row.skuId).filter((skuId): skuId is string => Boolean(skuId)))];
-    if (skuIds.length === 0) {
+    if (!includeAllClientBalances && skuIds.length === 0) {
       return [];
     }
 
     return this.prisma.stockBalance.findMany({
       where: {
         clientId,
-        skuId: { in: skuIds },
+        skuId: includeAllClientBalances ? undefined : { in: skuIds },
         status: StockStatus.AVAILABLE,
         quantity: { gt: 0 },
         boxId: { not: null },
@@ -179,6 +188,30 @@ export class PickInstructionService {
       ...stockBalanceArgs,
       orderBy: [{ updatedAt: 'asc' }],
     });
+  }
+
+  private readAuxiliaryWorkbook(files: RequestForInstruction['files'] = []): WarehouseAuxiliaryData {
+    const empty = emptyWarehouseAuxiliaryData();
+    const sourceFile = files.find((file) => /\.xlsx?$/i.test(file.fileName) || file.mimeType.includes('spreadsheet'));
+    if (!sourceFile) {
+      return empty;
+    }
+
+    try {
+      const workbook = XLSX.read(Buffer.from(sourceFile.content), { type: 'buffer' });
+      const sheet = (name: string) => {
+        const sheetName = workbook.SheetNames.find((candidate) => candidate.trim().toLowerCase() === name.toLowerCase());
+        return sheetName ? XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[sheetName], { header: 1, raw: false, blankrows: false }) : [];
+      };
+
+      return {
+        mapping: parseMappingSheet(sheet('Соответствие')),
+        boxToPallet: parsePalletSheet(sheet('палет сорт')),
+        shk: parseShkSheet(sheet('ШК')),
+      };
+    } catch {
+      return empty;
+    }
   }
 
   private allocateRows(
@@ -249,6 +282,212 @@ export class PickInstructionService {
     }
 
     return { instructionRows, boxAllocations };
+  }
+
+  private buildWarehousePlan(
+    request: RequestForInstruction,
+    rows: ReturnType<PickInstructionService['prepareRows']>,
+    balances: BalanceForInstruction[],
+    auxiliary: WarehouseAuxiliaryData,
+  ) {
+    const demands = rows.map((row) => {
+      const meta = parseRequestItemComment(row.item.comment);
+      return {
+        orderId: row.item.id,
+        skuId: row.skuId,
+        artSeller: meta.artSeller || row.internalSku || row.name || '',
+        barcode: row.barcode ?? '',
+        size: normalizeSize(meta.size || row.sku?.size || ''),
+        city: meta.city || request.deliveryAddress || '',
+        required: row.requestedQuantity,
+        remaining: row.requestedQuantity,
+      };
+    });
+    const demandById = new Map(demands.map((demand) => [demand.orderId, demand]));
+    const inventoryByBox = new Map<string, WarehouseInventoryItem[]>();
+
+    balances.forEach((balance, index) => {
+      if (!balance.box?.code || balance.quantity <= 0) {
+        return;
+      }
+      const sku = balance.sku ?? fallbackBalanceSku(balance.skuId);
+
+      const item: WarehouseInventoryItem = {
+        id: balance.id || String(index),
+        box: balance.box.code,
+        pallet: balance.pallet?.code ?? auxiliary.boxToPallet.get(balance.box.code) ?? '',
+        skuId: balance.skuId,
+        barcode: primaryBarcodeValue(sku),
+        artWarehouse: sku.internalSku || sku.article || sku.clientSku || sku.name,
+        size: normalizeSize(sku.size || ''),
+        quantity: balance.quantity,
+        originalQuantity: balance.quantity,
+        suitableDemands: [],
+      };
+      inventoryByBox.set(item.box, [...(inventoryByBox.get(item.box) ?? []), item]);
+    });
+
+    for (const items of inventoryByBox.values()) {
+      for (const item of items) {
+        item.suitableDemands = demands
+          .filter((demand) => isSuitableForDemand(item, demand, auxiliary.mapping))
+          .map((demand) => demand.orderId);
+      }
+    }
+
+    const actions: WarehouseAction[] = [];
+    const shipmentBoxes = new Set<string>();
+    const tolerance = 0;
+    const remainingOf = (orderId: string) => demandById.get(orderId)?.remaining ?? 0;
+    const decreaseRemaining = (orderId: string, amount: number) => {
+      const demand = demandById.get(orderId);
+      if (demand) {
+        demand.remaining -= amount;
+      }
+    };
+
+    for (const [box, items] of inventoryByBox.entries()) {
+      const totalItems = items.reduce((sum, item) => sum + item.originalQuantity, 0);
+      if (totalItems === 0) {
+        continue;
+      }
+
+      const tempRemaining = new Map(demands.map((demand) => [demand.orderId, demand.remaining]));
+      const tempAssign: Array<{ item: WarehouseInventoryItem; orderId: string; quantity: number }> = [];
+
+      for (const item of items) {
+        let remainingInItem = item.quantity;
+        const suitable = item.suitableDemands
+          .filter((orderId) => (tempRemaining.get(orderId) ?? 0) > -tolerance)
+          .sort((left, right) => (tempRemaining.get(right) ?? 0) - (tempRemaining.get(left) ?? 0));
+
+        for (const orderId of suitable) {
+          const take = Math.min(remainingInItem, (tempRemaining.get(orderId) ?? 0) + tolerance);
+          if (take > 0) {
+            tempRemaining.set(orderId, (tempRemaining.get(orderId) ?? 0) - take);
+            remainingInItem -= take;
+            tempAssign.push({ item, orderId, quantity: take });
+          }
+          if (remainingInItem === 0) {
+            break;
+          }
+        }
+      }
+
+      const useful = tempAssign.reduce((sum, row) => sum + row.quantity, 0);
+      if (useful / totalItems > 0.5 || useful === totalItems) {
+        shipmentBoxes.add(box);
+        const anyRebrand = tempAssign.some(({ item, orderId }) => {
+          const demand = demandById.get(orderId);
+          return Boolean(demand && item.artWarehouse !== demand.artSeller);
+        });
+
+        for (const assignment of tempAssign) {
+          const demand = demandById.get(assignment.orderId)!;
+          decreaseRemaining(assignment.orderId, assignment.quantity);
+          assignment.item.quantity -= assignment.quantity;
+          const rebrandNote = assignment.item.artWarehouse !== demand.artSeller ? `переклеить на ${demand.artSeller}` : '';
+          const targetBox =
+            useful === totalItems ? (anyRebrand ? 'МАРК ЦЕЛЫЙ' : 'ЦЕЛЫЙ') : rebrandNote ? 'МАРК ПОСТАВКА' : 'ПОСТАВКА';
+          actions.push(actionFromAssignment(assignment.item, demand, assignment.quantity, targetBox, rebrandNote, ''));
+        }
+
+        if (useful < totalItems) {
+          for (const item of items) {
+            if (item.quantity > 0) {
+              actions.push(balanceAction(item));
+              item.quantity = 0;
+            }
+          }
+        }
+      }
+    }
+
+    if (demands.some((demand) => demand.remaining > -tolerance)) {
+      for (const [box, items] of inventoryByBox.entries()) {
+        if (shipmentBoxes.has(box)) {
+          continue;
+        }
+        for (const item of items) {
+          if (item.quantity === 0) {
+            continue;
+          }
+          const suitable = item.suitableDemands
+            .filter((orderId) => remainingOf(orderId) > -tolerance)
+            .sort((left, right) => remainingOf(right) - remainingOf(left));
+          for (const orderId of suitable) {
+            const demand = demandById.get(orderId)!;
+            const take = Math.min(item.quantity, remainingOf(orderId) + tolerance);
+            if (take > 0) {
+              decreaseRemaining(orderId, take);
+              item.quantity -= take;
+              const rebrandNote = item.artWarehouse !== demand.artSeller ? `переклеить на ${demand.artSeller}` : '';
+              actions.push(actionFromAssignment(item, demand, take, rebrandNote ? 'МАРК ПОСТАВКА' : 'ПОСТАВКА', rebrandNote, ''));
+            }
+          }
+        }
+      }
+    }
+
+    const usedBoxes = new Set(actions.filter((action) => action.sourceBox && action.targetBox !== 'БАЛАНС').map((action) => action.sourceBox));
+    for (const [box, items] of inventoryByBox.entries()) {
+      if (!usedBoxes.has(box)) {
+        continue;
+      }
+      for (const item of items) {
+        if (item.quantity > 0) {
+          actions.push(balanceAction(item));
+        }
+      }
+    }
+
+    for (const demand of demands) {
+      if (demand.remaining > 0) {
+        actions.push({
+          city: demand.city,
+          sourceBox: '',
+          pallet: '',
+          artOnBox: demand.artSeller,
+          barcodeOnBox: demand.barcode,
+          targetArt: demand.artSeller,
+          targetBarcode: demand.barcode,
+          size: demand.size,
+          quantity: demand.remaining,
+          targetBox: '',
+          rebrandNote: '',
+          note: 'нет на складе',
+        });
+      }
+    }
+
+    const wholeBoxCities = new Map<string, Set<string>>();
+    actions.forEach((action) => {
+      if (['ЦЕЛЫЙ', 'МАРК ЦЕЛЫЙ'].includes(action.targetBox)) {
+        wholeBoxCities.set(action.sourceBox, new Set([...(wholeBoxCities.get(action.sourceBox) ?? []), action.city]));
+      }
+    });
+
+    const warehouseRows: WarehouseInstructionRow[] = actions.map((action) => ({
+      city: action.city,
+      sourceBox: action.sourceBox,
+      pallet: action.pallet || auxiliary.boxToPallet.get(action.sourceBox) || '',
+      artOnBox: action.artOnBox,
+      barcodeOnBox: action.barcodeOnBox,
+      size: action.size,
+      quantity: action.quantity,
+      comment:
+        ['ЦЕЛЫЙ', 'МАРК ЦЕЛЫЙ'].includes(action.targetBox) && (wholeBoxCities.get(action.sourceBox)?.size ?? 0) > 1
+          ? 'НЕСКОЛЬКО'
+          : action.targetBox,
+      rebrandNote: action.rebrandNote,
+      note: action.note,
+    }));
+
+    return {
+      rows: warehouseRows,
+      wholeBoxes: buildWholeBoxes(actions, auxiliary.boxToPallet),
+      markRows: buildMarkRows(actions, auxiliary.shk),
+    };
   }
 
   private rowStatus(row: { skuId: string | null }, shortageQuantity: number): PickInstructionRowStatus {
@@ -340,11 +579,32 @@ const pickInstructionRequestArgs = {
         id: 'asc',
       },
     },
+    files: {
+      select: {
+        fileName: true,
+        mimeType: true,
+        content: true,
+        createdAt: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    },
   },
 } satisfies Prisma.ClientRequestDefaultArgs;
 
 const stockBalanceArgs = {
   include: {
+    sku: {
+      include: {
+        barcodes: {
+          select: {
+            value: true,
+            isPrimary: true,
+          },
+        },
+      },
+    },
     box: {
       select: {
         id: true,
@@ -370,4 +630,287 @@ function groupBalancesBySkuId(balances: BalanceForInstruction[]) {
 
 function primaryBarcodeValue(sku: SkuForInstruction) {
   return sku.barcodes.find((barcode) => barcode.isPrimary)?.value ?? sku.barcodes[0]?.value ?? null;
+}
+
+function fallbackBalanceSku(skuId: string): SkuForInstruction {
+  return {
+    id: skuId,
+    clientId: '',
+    internalSku: skuId,
+    clientSku: null,
+    article: null,
+    name: skuId,
+    brand: null,
+    category: null,
+    color: null,
+    size: null,
+    weightGrams: null,
+    lengthCm: null,
+    widthCm: null,
+    heightCm: null,
+    volumeLiters: null,
+    volumeSource: 'MANUAL',
+    needsChestnyZnak: false,
+    isUnmarked: false,
+    needsLabel: false,
+    needsRelabel: false,
+    createdAt: new Date(0),
+    updatedAt: new Date(0),
+    barcodes: [],
+  };
+}
+
+type WarehouseAuxiliaryData = {
+  mapping: Map<string, Set<string>>;
+  boxToPallet: Map<string, string>;
+  shk: Map<string, WarehouseShkRecord>;
+};
+
+type WarehouseShkRecord = {
+  brand: string;
+  ip: string;
+  name: string;
+  article: string;
+  wbArticle: string;
+  color: string;
+  size: string;
+  barcode: string;
+};
+
+type WarehouseDemand = {
+  orderId: string;
+  skuId: string | null;
+  artSeller: string;
+  barcode: string;
+  size: string;
+  city: string;
+  required: number;
+  remaining: number;
+};
+
+type WarehouseInventoryItem = {
+  id: string;
+  box: string;
+  pallet: string;
+  skuId: string;
+  barcode: string;
+  artWarehouse: string;
+  size: string;
+  quantity: number;
+  originalQuantity: number;
+  suitableDemands: string[];
+};
+
+type WarehouseAction = {
+  city: string;
+  sourceBox: string;
+  pallet: string;
+  artOnBox: string;
+  barcodeOnBox: string;
+  targetArt: string;
+  targetBarcode: string;
+  size: string;
+  quantity: number;
+  targetBox: string;
+  rebrandNote: string;
+  note: string;
+};
+
+function emptyWarehouseAuxiliaryData(): WarehouseAuxiliaryData {
+  return {
+    mapping: new Map(),
+    boxToPallet: new Map(),
+    shk: new Map(),
+  };
+}
+
+function parseMappingSheet(rows: unknown[][]) {
+  const mapping = new Map<string, Set<string>>();
+  rows.slice(1).forEach((row) => {
+    const target = textCell(row[0]);
+    const source = textCell(row[1]);
+    if (!target || !source) {
+      return;
+    }
+    mapping.set(target, new Set([...(mapping.get(target) ?? []), source]));
+  });
+  return mapping;
+}
+
+function parsePalletSheet(rows: unknown[][]) {
+  const result = new Map<string, string>();
+  let currentPallet = '';
+  rows.forEach((row) => {
+    const value = textCell(row[0]);
+    if (!value) {
+      return;
+    }
+    if (value.toUpperCase().startsWith('PALLET_SORT')) {
+      currentPallet = value;
+      return;
+    }
+    if (currentPallet) {
+      result.set(value, currentPallet);
+    }
+  });
+  return result;
+}
+
+function parseShkSheet(rows: unknown[][]) {
+  const result = new Map<string, WarehouseShkRecord>();
+  rows.slice(1).forEach((row) => {
+    const record = {
+      brand: textCell(row[0]),
+      ip: textCell(row[1]),
+      name: textCell(row[2]),
+      article: textCell(row[3]),
+      wbArticle: textCell(row[4]),
+      color: textCell(row[5]),
+      size: normalizeSize(textCell(row[6])),
+      barcode: textCell(row[7]),
+    };
+    if (record.article) {
+      result.set(record.article, record);
+    }
+    if (record.barcode) {
+      result.set(record.barcode, record);
+    }
+  });
+  return result;
+}
+
+function parseRequestItemComment(comment: string | null) {
+  const result = {
+    city: '',
+    artSeller: '',
+    size: '',
+  };
+  if (!comment) {
+    return result;
+  }
+
+  comment.split(';').forEach((part) => {
+    const [rawKey, ...rawValue] = part.split(':');
+    const key = rawKey.trim().toLowerCase();
+    const value = rawValue.join(':').trim();
+    if (key === 'город') {
+      result.city = value;
+    } else if (key === 'артикул продавца') {
+      result.artSeller = value;
+    } else if (key === 'размер') {
+      result.size = value;
+    }
+  });
+  return result;
+}
+
+function isSuitableForDemand(item: WarehouseInventoryItem, demand: WarehouseDemand, mapping: Map<string, Set<string>>) {
+  if (item.skuId === demand.skuId) {
+    return true;
+  }
+  if (item.barcode === demand.barcode && sizesMatch(item.size, demand.size)) {
+    return true;
+  }
+  const baseArts = mapping.get(demand.artSeller) ?? new Set([demand.artSeller]);
+  return baseArts.has(item.artWarehouse) && sizesMatch(item.size, demand.size);
+}
+
+function actionFromAssignment(
+  item: WarehouseInventoryItem,
+  demand: WarehouseDemand,
+  quantity: number,
+  targetBox: string,
+  rebrandNote: string,
+  note: string,
+): WarehouseAction {
+  return {
+    city: demand.city,
+    sourceBox: item.box,
+    pallet: item.pallet,
+    artOnBox: item.artWarehouse,
+    barcodeOnBox: item.barcode,
+    targetArt: demand.artSeller,
+    targetBarcode: demand.barcode,
+    size: item.size || demand.size,
+    quantity,
+    targetBox,
+    rebrandNote,
+    note,
+  };
+}
+
+function balanceAction(item: WarehouseInventoryItem): WarehouseAction {
+  return {
+    city: '',
+    sourceBox: item.box,
+    pallet: item.pallet,
+    artOnBox: item.artWarehouse,
+    barcodeOnBox: item.barcode,
+    targetArt: '',
+    targetBarcode: '',
+    size: item.size,
+    quantity: item.quantity,
+    targetBox: 'БАЛАНС',
+    rebrandNote: '',
+    note: 'остаток на складе',
+  };
+}
+
+function buildWholeBoxes(actions: WarehouseAction[], boxToPallet: Map<string, string>): WarehouseWholeBoxRow[] {
+  const boxCities = new Map<string, Set<string>>();
+  const boxHasMark = new Map<string, boolean>();
+  actions.forEach((action) => {
+    if (!['ЦЕЛЫЙ', 'МАРК ЦЕЛЫЙ'].includes(action.targetBox)) {
+      return;
+    }
+    boxCities.set(action.sourceBox, new Set([...(boxCities.get(action.sourceBox) ?? []), action.city]));
+    if (action.targetBox === 'МАРК ЦЕЛЫЙ') {
+      boxHasMark.set(action.sourceBox, true);
+    }
+  });
+
+  return [...boxCities.entries()]
+    .map(([box, cities]) => ({
+      box,
+      status: cities.size === 1 ? (boxHasMark.get(box) ? 'МАРК ЦЕЛЫЙ' : 'ЦЕЛЫЙ') : 'НЕСКОЛЬКО',
+      city: cities.size === 1 ? [...cities][0] : 'РАЗНЫЕ ГОРОДА',
+      pallet: actions.find((action) => action.sourceBox === box)?.pallet || boxToPallet.get(box) || '',
+    }))
+    .sort((left, right) => left.box.localeCompare(right.box, 'ru'));
+}
+
+function buildMarkRows(actions: WarehouseAction[], shk: Map<string, WarehouseShkRecord>): WarehouseMarkRow[] {
+  return actions
+    .filter((action) => ['МАРК ЦЕЛЫЙ', 'МАРК ПОСТАВКА'].includes(action.targetBox))
+    .map((action) => {
+      const record = shk.get(action.targetArt) ?? shk.get(action.targetBarcode);
+      return {
+        comment: action.targetBox,
+        city: action.city,
+        sourceBox: action.sourceBox,
+        brand: record?.brand ?? '',
+        ip: record?.ip ?? '',
+        name: record?.name ?? '',
+        article: action.targetArt,
+        wbArticle: record?.wbArticle ?? '',
+        color: record?.color ?? '',
+        size: action.size,
+        barcode: action.targetBarcode,
+        quantity: action.quantity,
+      };
+    });
+}
+
+function normalizeSize(value: string | null | undefined) {
+  const raw = textCell(value).toUpperCase().replace(/М/g, 'M').replace(/Х/g, 'X');
+  const match = raw.match(/\(([^)]+)\)/);
+  return (match?.[1] ?? raw).replace(/\s+/g, '');
+}
+
+function sizesMatch(left: string, right: string) {
+  return !left || !right || left === right;
+}
+
+function textCell(value: unknown) {
+  return value == null ? '' : String(value).replace(/\.0$/, '').trim();
 }

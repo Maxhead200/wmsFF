@@ -4,6 +4,9 @@ export type SheetMatrix = SheetCell[][];
 export type OutboundRequestXlsxLine = {
   barcode: string;
   quantity: number;
+  city?: string;
+  artSeller?: string;
+  size?: string;
   sourceRows: number[];
 };
 
@@ -14,7 +17,7 @@ export type OutboundRequestXlsxIssue = {
   severity: 'warning' | 'error';
 };
 
-export const MAX_OUTBOUND_REQUEST_XLSX_LINES = 100;
+export const MAX_OUTBOUND_REQUEST_XLSX_LINES = 1000;
 
 export function parseOutboundRequestXlsxRows(rows: SheetMatrix) {
   const issues: OutboundRequestXlsxIssue[] = [];
@@ -30,6 +33,10 @@ export function parseOutboundRequestXlsxRows(rows: SheetMatrix) {
 
   const columns = detectColumns(rows[firstRowIndex]);
   const startIndex = columns.hasHeader ? firstRowIndex + 1 : firstRowIndex;
+  if (columns.cityColumns.length > 0) {
+    return parseDistributionRows(rows, columns, startIndex, firstRowIndex);
+  }
+
   const lineByBarcode = new Map<string, OutboundRequestXlsxLine>();
 
   rows.slice(startIndex).forEach((row, offset) => {
@@ -97,12 +104,34 @@ export function parseOutboundRequestXlsxRows(rows: SheetMatrix) {
 function detectColumns(row: SheetCell[]) {
   const barcodeColumn = findColumn(row, isBarcodeHeader);
   const quantityColumn = findColumn(row, isQuantityHeader);
+  const articleColumn = findColumn(row, isArticleHeader);
+  const sizeColumn = findColumn(row, isSizeHeader);
+  const cityColumns =
+    barcodeColumn !== -1 && articleColumn !== -1 && sizeColumn !== -1
+      ? row
+          .map((cell, index) => ({ title: text(cell), index }))
+          .filter((column) => column.index > Math.max(barcodeColumn, articleColumn, sizeColumn) && column.title)
+      : [];
 
   if (barcodeColumn !== -1 && quantityColumn !== -1) {
     return {
       hasHeader: true,
       barcodeColumn,
       quantityColumn,
+      articleColumn,
+      sizeColumn,
+      cityColumns: [] as Array<{ title: string; index: number }>,
+    };
+  }
+
+  if (barcodeColumn !== -1 && articleColumn !== -1 && sizeColumn !== -1 && cityColumns.length > 0) {
+    return {
+      hasHeader: true,
+      barcodeColumn,
+      quantityColumn: -1,
+      articleColumn,
+      sizeColumn,
+      cityColumns,
     };
   }
 
@@ -111,6 +140,9 @@ function detectColumns(row: SheetCell[]) {
     hasHeader: false,
     barcodeColumn: 0,
     quantityColumn: 1,
+    articleColumn: -1,
+    sizeColumn: -1,
+    cityColumns: [] as Array<{ title: string; index: number }>,
   };
 }
 
@@ -128,6 +160,14 @@ function isBarcodeHeader(value: string) {
 
 function isQuantityHeader(value: string) {
   return value.includes('quantity') || value.includes('qty') || value.includes('кол') || value.includes('количество');
+}
+
+function isArticleHeader(value: string) {
+  return value.includes('article') || value.includes('sku') || value.includes('артикул');
+}
+
+function isSizeHeader(value: string) {
+  return value.includes('size') || value.includes('размер');
 }
 
 function normalizeHeader(value: SheetCell) {
@@ -150,6 +190,96 @@ function numberValue(value: SheetCell) {
 
   const parsed = Number(String(value).replace(/\s+/g, '').replace(',', '.').trim());
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function parseDistributionRows(
+  rows: SheetMatrix,
+  columns: ReturnType<typeof detectColumns>,
+  startIndex: number,
+  firstRowIndex: number,
+) {
+  const issues: OutboundRequestXlsxIssue[] = [];
+  const lineByKey = new Map<string, OutboundRequestXlsxLine>();
+
+  rows.slice(startIndex).forEach((row, offset) => {
+    const sourceRow = startIndex + offset + 1;
+    if (!row.some((cell) => text(cell))) {
+      return;
+    }
+    if (looksLikeHeader(row)) {
+      return;
+    }
+
+    const barcode = normalizeBarcode(row[columns.barcodeColumn]);
+    const artSeller = text(row[columns.articleColumn]);
+    const size = normalizeSize(row[columns.sizeColumn]);
+
+    if (!barcode) {
+      if (columns.cityColumns.some((column) => numberValue(row[column.index]) > 0)) {
+        issues.push({ row: sourceRow, message: 'Не заполнен баркод товара.', severity: 'error' });
+      }
+      return;
+    }
+
+    for (const cityColumn of columns.cityColumns) {
+      const quantity = numberValue(row[cityColumn.index]);
+      if (!quantity) {
+        continue;
+      }
+
+      if (!Number.isInteger(quantity) || quantity <= 0) {
+        issues.push({ row: sourceRow, barcode, message: 'Количество должно быть целым числом больше нуля.', severity: 'error' });
+        continue;
+      }
+
+      const city = cityColumn.title.trim();
+      const key = [barcode, city, artSeller, size].join('\u0001');
+      const existing = lineByKey.get(key);
+      if (existing) {
+        existing.quantity += quantity;
+        existing.sourceRows.push(sourceRow);
+        continue;
+      }
+
+      lineByKey.set(key, {
+        barcode,
+        quantity,
+        city,
+        artSeller,
+        size,
+        sourceRows: [sourceRow],
+      });
+    }
+  });
+
+  const lines = [...lineByKey.values()];
+  if (lines.length === 0 && issues.every((issue) => issue.severity !== 'error')) {
+    issues.push({ row: firstRowIndex + 1, message: 'В файле нет строк для сборки.', severity: 'error' });
+  }
+
+  if (lines.length > MAX_OUTBOUND_REQUEST_XLSX_LINES) {
+    issues.push({
+      row: 1,
+      message: `В одной заявке можно загрузить не больше ${MAX_OUTBOUND_REQUEST_XLSX_LINES} уникальных строк.`,
+      severity: 'error',
+    });
+  }
+
+  return {
+    lines,
+    issues,
+    summary: {
+      sourceRows: rows.length,
+      lines: lines.length,
+      totalQuantity: lines.reduce((sum, line) => sum + line.quantity, 0),
+    },
+  };
+}
+
+function normalizeSize(value: SheetCell) {
+  const raw = text(value).toUpperCase().replace(/М/g, 'M').replace(/Х/g, 'X');
+  const match = raw.match(/\(([^)]+)\)/);
+  return (match?.[1] ?? raw).replace(/\s+/g, '');
 }
 
 function emptySummary() {

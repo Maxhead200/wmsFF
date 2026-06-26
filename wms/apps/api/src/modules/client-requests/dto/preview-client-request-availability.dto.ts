@@ -33,7 +33,7 @@ export class PreviewClientRequestAvailabilityDto {
 
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(100)
+  @ArrayMaxSize(1000)
   @ValidateNested({ each: true })
   @Type(() => PreviewClientRequestAvailabilityItemDto)
   items?: PreviewClientRequestAvailabilityItemDto[];

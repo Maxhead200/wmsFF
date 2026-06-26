@@ -15,6 +15,9 @@ import {
 type HydratedOutboundLine = {
   barcode: string;
   requestedQuantity: number;
+  city?: string;
+  artSeller?: string;
+  size?: string;
   stockQuantity: number;
   reservedQuantity: number;
   availableQuantity: number;
@@ -84,11 +87,13 @@ export class ClientRequestXlsxService {
           barcode: line.barcode,
           name: line.name ?? undefined,
           quantity: line.requestedQuantity,
-          comment: `Excel rows: ${line.sourceRows.join(', ')}`,
+          comment: this.buildLineComment(line),
         })),
       },
       user,
     );
+
+    await this.attachSourceWorkbook(request.id, request.clientId, file!, user);
 
     return {
       request,
@@ -185,6 +190,9 @@ export class ClientRequestXlsxService {
       lines.push({
         barcode: line.barcode,
         requestedQuantity: line.quantity,
+        city: line.city,
+        artSeller: line.artSeller,
+        size: line.size,
         stockQuantity,
         reservedQuantity,
         availableQuantity,
@@ -231,10 +239,13 @@ export class ClientRequestXlsxService {
     });
   }
 
-  private emptyHydratedLine(line: { barcode: string; quantity: number; sourceRows: number[] }): HydratedOutboundLine {
+  private emptyHydratedLine(line: { barcode: string; quantity: number; city?: string; artSeller?: string; size?: string; sourceRows: number[] }): HydratedOutboundLine {
     return {
       barcode: line.barcode,
       requestedQuantity: line.quantity,
+      city: line.city,
+      artSeller: line.artSeller,
+      size: line.size,
       stockQuantity: 0,
       reservedQuantity: 0,
       availableQuantity: 0,
@@ -255,6 +266,31 @@ export class ClientRequestXlsxService {
     ]
       .filter(Boolean)
       .join('\n');
+  }
+
+  private buildLineComment(line: HydratedOutboundLine) {
+    return [
+      line.city ? `Город: ${line.city}` : null,
+      line.artSeller ? `Артикул продавца: ${line.artSeller}` : null,
+      line.size ? `Размер: ${line.size}` : null,
+      `Excel rows: ${line.sourceRows.join(', ')}`,
+    ]
+      .filter(Boolean)
+      .join('; ');
+  }
+
+  private async attachSourceWorkbook(requestId: string, clientId: string, file: Express.Multer.File, user: AuthUser) {
+    await this.prisma.clientRequestFile?.create({
+      data: {
+        requestId,
+        clientId,
+        fileName: normalizeUploadedFileName(file.originalname),
+        mimeType: file.mimetype || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        sizeBytes: file.size,
+        content: Uint8Array.from(file.buffer),
+        uploadedByUserId: user.id,
+      },
+    });
   }
 
   private assertFile(file: Express.Multer.File | undefined) {

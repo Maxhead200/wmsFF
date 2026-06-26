@@ -28,6 +28,43 @@ describe('parseOutboundRequestXlsxRows', () => {
     expect(parsed.summary.lines).toBe(2);
   });
 
+  it('читает матрицу листа "Должно уехать" с городами', () => {
+    const parsed = parseOutboundRequestXlsxRows([
+      ['Артикул продавца', 'Баркод', 'Размер', 'Невинномысск', 'Электросталь'],
+      ['Костюм_велюр_розовый', 2042311801134, 'XS', 3, 10],
+      ['Костюм_реглан_синий', 2047945569191, 'L', '', 2],
+    ]);
+
+    expect(parsed.issues).toEqual([]);
+    expect(parsed.lines).toEqual([
+      {
+        barcode: '2042311801134',
+        quantity: 3,
+        city: 'Невинномысск',
+        artSeller: 'Костюм_велюр_розовый',
+        size: 'XS',
+        sourceRows: [2],
+      },
+      {
+        barcode: '2042311801134',
+        quantity: 10,
+        city: 'Электросталь',
+        artSeller: 'Костюм_велюр_розовый',
+        size: 'XS',
+        sourceRows: [2],
+      },
+      {
+        barcode: '2047945569191',
+        quantity: 2,
+        city: 'Электросталь',
+        artSeller: 'Костюм_реглан_синий',
+        size: 'L',
+        sourceRows: [3],
+      },
+    ]);
+    expect(parsed.summary.totalQuantity).toBe(15);
+  });
+
   it('возвращает ошибки по пустому баркоду и некорректному количеству', () => {
     const parsed = parseOutboundRequestXlsxRows([
       ['barcode', 'qty'],

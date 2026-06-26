@@ -39,6 +39,41 @@ export type PickInstructionBoxSummary = {
   comment: string;
 };
 
+export type WarehouseInstructionRow = {
+  city: string;
+  sourceBox: string;
+  pallet: string;
+  artOnBox: string;
+  barcodeOnBox: string;
+  size: string;
+  quantity: number;
+  comment: string;
+  rebrandNote: string;
+  note: string;
+};
+
+export type WarehouseWholeBoxRow = {
+  box: string;
+  status: string;
+  city: string;
+  pallet: string;
+};
+
+export type WarehouseMarkRow = {
+  comment: string;
+  city: string;
+  sourceBox: string;
+  brand: string;
+  ip: string;
+  name: string;
+  article: string;
+  wbArticle: string;
+  color: string;
+  size: string;
+  barcode: string;
+  quantity: number;
+};
+
 export type PickInstructionDocument = {
   requestId: string;
   title: string;
@@ -66,4 +101,7 @@ export type PickInstructionDocument = {
   fullBoxesCount: number;
   rows: PickInstructionRow[];
   boxes: PickInstructionBoxSummary[];
+  warehouseRows: WarehouseInstructionRow[];
+  warehouseWholeBoxes: WarehouseWholeBoxRow[];
+  warehouseMarkRows: WarehouseMarkRow[];
 };

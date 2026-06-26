@@ -103,12 +103,14 @@ describe('PickInstructionService', () => {
 
     expect(file.fileName).toMatch(/\.xlsx$/);
     expect(file.mimeType).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    expect(workbook.SheetNames).toEqual(['Сводка', 'Инструкция', 'Короба', 'Дефицит']);
+    expect(workbook.SheetNames).toEqual(['Сводка', 'Инструкция', 'Целые короба', 'МАРК', 'План WMS', 'Короба', 'Дефицит']);
     const instructionRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['Инструкция'], { defval: '' });
+    const wmsRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['План WMS'], { defval: '' });
     const boxRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['Короба'], { defval: '' });
 
-    expect(instructionRows[0]).toMatchObject({ Короб: 'BOX-1', Взять: 2 });
-    expect(instructionRows[1]).toMatchObject({ Короб: 'BOX-2', Взять: 2 });
+    expect(instructionRows[0]).toMatchObject({ 'Исходный короб': 'BOX-1', Количество: 2 });
+    expect(wmsRows[0]).toMatchObject({ Короб: 'BOX-1', Взять: 2 });
+    expect(wmsRows[1]).toMatchObject({ Короб: 'BOX-2', Взять: 2 });
     expect(boxRows[0]).toMatchObject({ Короб: 'BOX-1', 'Целый короб': 'Да' });
   });
 

@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
 import { CommonModule } from '../../common/common.module';
+import { AuthModule } from '../auth/auth.module';
 import { ClientRequestsController } from './client-requests.controller';
 import { ClientRequestsService } from './client-requests.service';
 
 @Module({
-  imports: [CommonModule],
+  imports: [AuthModule, CommonModule],
   controllers: [ClientRequestsController],
   providers: [ClientRequestsService],
 })

@@ -12,6 +12,7 @@ import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
 import type { LogisticsDirection as ParsedLogisticsDirection } from '../imports/parsers/logistics-xlsx.parser';
 import { CreateDeliveryRequestDto } from './dto/create-delivery-request.dto';
+import { FinalizeDeliveryQuoteDto } from './dto/finalize-delivery-quote.dto';
 import { ListDeliveryRequestsDto } from './dto/list-delivery-requests.dto';
 import { QuoteLogisticsDto } from './dto/quote-logistics.dto';
 import { UpdateDeliveryStatusDto } from './dto/update-delivery-status.dto';
@@ -239,6 +240,47 @@ export class LogisticsService {
       data: {
         status: dto.status,
         plannedShipDate: this.parseDate(dto.plannedShipDate),
+        managerComment: normalizeText(dto.managerComment),
+      },
+      include: deliveryRequestInclude,
+    });
+  }
+
+  async finalizeDeliveryQuote(id: string, dto: FinalizeDeliveryQuoteDto, user: AuthUser) {
+    const request = await this.prisma.logisticsDeliveryRequest.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        clientId: true,
+        status: true,
+        billingChargeId: true,
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException('Заявка на доставку не найдена.');
+    }
+
+    this.clientScopes.requireClientAccess(user, request.clientId, 'write');
+
+    if (request.billingChargeId) {
+      throw new BadRequestException('Доставка уже связана с начислением, сумму нельзя менять.');
+    }
+
+    if (request.status === LogisticsDeliveryStatus.CANCELLED) {
+      throw new BadRequestException('Нельзя финализировать расчет отмененной доставки.');
+    }
+
+    const nextStatus =
+      request.status === LogisticsDeliveryStatus.REQUESTED ? LogisticsDeliveryStatus.QUOTED : request.status;
+
+    // Русский комментарий: ручная финализация снимает флаг проверки и открывает доставку для дальнейшего workflow/биллинга.
+    return this.prisma.logisticsDeliveryRequest.update({
+      where: { id },
+      data: {
+        estimatedTotalRub: dto.estimatedTotalRub,
+        requiresManualReview: false,
+        status: nextStatus,
         managerComment: normalizeText(dto.managerComment),
       },
       include: deliveryRequestInclude,

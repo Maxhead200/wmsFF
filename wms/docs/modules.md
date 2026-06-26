@@ -85,5 +85,6 @@
 ## Дополнение: автоначисление доставки
 
 - `POST /api/v1/logistics/delivery-requests/:id/billing-charge` создает утвержденное начисление доставки в биллинге после статуса `DELIVERED`.
+- `PATCH /api/v1/logistics/delivery-requests/:id/quote` фиксирует ручной финальный расчет доставки, снимает `requiresManualReview` и переводит новую заявку в `QUOTED`.
 - Начисление получает источник `LOGISTICS`, уникальный `sourceKey=logistics-delivery:<deliveryRequestId>` и привязку обратно к заявке доставки.
 - Повторный вызов не дублирует деньги: система возвращает уже связанную заявку с существующим начислением.

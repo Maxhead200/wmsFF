@@ -811,6 +811,11 @@ export type CreateLogisticsDeliveryRequestPayload = {
   comment?: string;
 };
 
+export type FinalizeLogisticsDeliveryQuotePayload = {
+  estimatedTotalRub: number;
+  managerComment?: string;
+};
+
 export type LogisticsImportTier = {
   label: string;
   priceRub: number;
@@ -1161,6 +1166,18 @@ export async function updateLogisticsDeliveryStatus(
   payload: { status: LogisticsDeliveryStatus; plannedShipDate?: string; managerComment?: string },
 ) {
   return request<LogisticsDeliveryRequestSummary>(`/logistics/delivery-requests/${deliveryId}/status`, {
+    method: 'PATCH',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function finalizeLogisticsDeliveryQuote(
+  accessToken: string,
+  deliveryId: string,
+  payload: FinalizeLogisticsDeliveryQuotePayload,
+) {
+  return request<LogisticsDeliveryRequestSummary>(`/logistics/delivery-requests/${deliveryId}/quote`, {
     method: 'PATCH',
     body: payload,
     accessToken,

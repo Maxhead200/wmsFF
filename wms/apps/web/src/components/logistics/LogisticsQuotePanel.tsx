@@ -5,6 +5,7 @@ import {
   fetchClients,
   fetchLogisticsDeliveryRequests,
   fetchLogisticsTariffSets,
+  finalizeLogisticsDeliveryQuote,
   generateLogisticsDeliveryBillingCharge,
   quoteLogistics,
   updateLogisticsDeliveryStatus,
@@ -16,6 +17,7 @@ import {
   type LogisticsDeliveryStatus,
   type LogisticsQuoteResult,
   type LogisticsTariffSetSummary,
+  type FinalizeLogisticsDeliveryQuotePayload,
 } from '../../lib/api';
 import './logistics.css';
 import { LogisticsDeliveryForm } from './LogisticsDeliveryForm';
@@ -100,6 +102,17 @@ export function LogisticsQuotePanel({ session }: LogisticsQuotePanelProps) {
       setDeliveryRequests((current) => current.map((item) => (item.id === updated.id ? updated : item)));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Не удалось создать начисление доставки.');
+    }
+  }
+
+  async function finalizeQuote(deliveryId: string, payload: FinalizeLogisticsDeliveryQuotePayload) {
+    setError('');
+
+    try {
+      const updated = await finalizeLogisticsDeliveryQuote(session.accessToken, deliveryId, payload);
+      setDeliveryRequests((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Не удалось зафиксировать расчет доставки.');
     }
   }
 
@@ -231,6 +244,7 @@ export function LogisticsQuotePanel({ session }: LogisticsQuotePanelProps) {
             canWrite={canUse(session.user, 'logistics:write')}
             canCreateBillingCharge={canUse(session.user, 'logistics:write') && canUse(session.user, 'billing:write')}
             onBillingChargeCreate={(deliveryId) => void generateBillingCharge(deliveryId)}
+            onQuoteFinalize={finalizeQuote}
             onStatusChange={(deliveryId, status) => void changeDeliveryStatus(deliveryId, status)}
           />
         ) : null}

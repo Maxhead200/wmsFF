@@ -155,6 +155,47 @@ describe('LogisticsService', () => {
       ),
     ).rejects.toThrow(BadRequestException);
   });
+  it('финализирует ручной расчет доставки', async () => {
+    const prisma = {
+      logisticsDeliveryRequest: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'delivery-1',
+          clientId: 'client-1',
+          status: LogisticsDeliveryStatus.REQUESTED,
+          billingChargeId: null,
+        }),
+        update: vi.fn().mockResolvedValue({
+          id: 'delivery-1',
+          estimatedTotalRub: '8200.00',
+          requiresManualReview: false,
+          status: LogisticsDeliveryStatus.QUOTED,
+        }),
+      },
+    };
+    const deliveryService = new LogisticsService(prisma as never, { requireClientAccess: vi.fn() } as never);
+
+    await deliveryService.finalizeDeliveryQuote(
+      'delivery-1',
+      {
+        estimatedTotalRub: 8200,
+        managerComment: 'финальный расчет',
+      },
+      user(),
+    );
+
+    expect(prisma.logisticsDeliveryRequest.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'delivery-1' },
+        data: expect.objectContaining({
+          estimatedTotalRub: 8200,
+          requiresManualReview: false,
+          status: LogisticsDeliveryStatus.QUOTED,
+          managerComment: 'финальный расчет',
+        }),
+      }),
+    );
+  });
+
   it('создает начисление биллинга по доставленной заявке', async () => {
     const tx = {
       billingService: {

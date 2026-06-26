@@ -15,6 +15,10 @@
 ## Реализованные API-срезы
 
 - `GET/POST /api/v1/clients` - справочник клиентов.
+- `POST /api/v1/auth/bootstrap` - первичное создание администратора по bootstrap secret.
+- `POST /api/v1/auth/login` и `GET /api/v1/auth/me` - вход и профиль текущего пользователя.
+- `GET/POST /api/v1/users` - администрирование пользователей с проверкой прав.
+- `GET /api/v1/users/roles` - роли и разрешения WMS.
 - `GET/POST /api/v1/skus` - карточки SKU и основной barcode.
 - `GET/POST /api/v1/warehouse/warehouses` - склады.
 - `GET/POST /api/v1/warehouse/zones` - зоны хранения.
@@ -30,6 +34,7 @@
 
 ## Следующие этапы
 
+- Расширение RBAC на клиентские ограничения и scoped-доступы по `client_id`.
 - Offline-ТСД: Room, operation outbox, sync API, конфликтная очередь.
 - Личный кабинет клиента: остатки, заявки, услуги, статусы.
 - Сборка, batch picking, упаковка и отгрузка.

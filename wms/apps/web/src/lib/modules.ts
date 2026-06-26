@@ -4,9 +4,9 @@ import type { WmsModuleCard } from '../components/ModuleBoard';
 export const mvpModules: WmsModuleCard[] = [
   {
     title: 'Роли и доступы',
-    status: 'planned',
+    status: 'ready',
     icon: ShieldCheck,
-    description: 'RBAC, аудит действий и ограничения клиентов по своим данным.',
+    description: 'Bootstrap администратора, вход, Bearer token, роли и разрешения.',
   },
   {
     title: 'SKU и литраж',

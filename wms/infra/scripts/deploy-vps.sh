@@ -44,9 +44,14 @@ DATABASE_URL=postgresql://wms:$DB_PASSWORD@postgres:5432/wms?schema=public
 REDIS_URL=redis://redis:6379
 JWT_ACCESS_SECRET=$JWT_ACCESS
 JWT_REFRESH_SECRET=$JWT_REFRESH
+BOOTSTRAP_ADMIN_SECRET=$(openssl rand -hex 24)
 
 PUBLIC_API_URL=https://wms.logoff.pro/api/v1
 EOF
+fi
+
+if ! grep -q '^BOOTSTRAP_ADMIN_SECRET=' "$ENV_FILE"; then
+  printf '\nBOOTSTRAP_ADMIN_SECRET=%s\n' "$(openssl rand -hex 24)" >> "$ENV_FILE"
 fi
 
 cd "$COMPOSE_DIR"

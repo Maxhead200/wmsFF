@@ -70,8 +70,9 @@ describe('ClientRequestXlsxService', () => {
     const service = new ClientRequestXlsxService(prisma as never, new ClientScopeService(), clientRequests as never);
     const authUser = user({ writableClientIds: ['client-1'], clientIds: ['client-1'] });
 
+    const brokenRussianFileName = Buffer.from('Тест заявки.xlsx', 'utf8').toString('latin1');
     const result = await service.createOutboundRequest(
-      fileFixture([['barcode', 'qty'], ['460000000001', 3]], 'order.xlsx'),
+      fileFixture([['barcode', 'qty'], ['460000000001', 3]], brokenRussianFileName),
       { clientId: 'client-1', title: 'Excel сборка', priority: ClientRequestPriority.HIGH },
       authUser,
     );
@@ -94,6 +95,7 @@ describe('ClientRequestXlsxService', () => {
       }),
       authUser,
     );
+    expect(clientRequests.create.mock.calls[0][0].comment).toContain('Создано из Excel: Тест заявки.xlsx.');
   });
 });
 

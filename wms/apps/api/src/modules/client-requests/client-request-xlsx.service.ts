@@ -71,7 +71,7 @@ export class ClientRequestXlsxService {
         type: ClientRequestType.OUTBOUND,
         priority: dto.priority ?? ClientRequestPriority.NORMAL,
         title: preview.title,
-        comment: this.buildImportComment(dto.comment, file!.originalname, preview),
+        comment: this.buildImportComment(dto.comment, normalizeUploadedFileName(file!.originalname), preview),
         contactName: normalizeText(dto.contactName),
         contactPhone: normalizeText(dto.contactPhone),
         deliveryAddress: normalizeText(dto.deliveryAddress),
@@ -257,6 +257,20 @@ export class ClientRequestXlsxService {
 function normalizeText(value?: string) {
   const normalized = value?.trim();
   return normalized ? normalized : undefined;
+}
+
+function normalizeUploadedFileName(value?: string) {
+  const normalized = normalizeText(value);
+  if (!normalized) {
+    return 'request.xlsx';
+  }
+
+  if (!/[ÃÐÑ]/.test(normalized)) {
+    return normalized;
+  }
+
+  const decoded = Buffer.from(normalized, 'latin1').toString('utf8');
+  return decoded.includes('�') ? normalized : decoded;
 }
 
 function normalizeRequiredText(value: string | undefined, message: string) {

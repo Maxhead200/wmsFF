@@ -68,6 +68,11 @@
   padding-top: 16px;
 }
 
+.directory-subheading--plain {
+  border-top: 0;
+  padding-top: 0;
+}
+
 .directory-subheading h3,
 .directory-subheading span {
   display: block;
@@ -97,6 +102,10 @@
 }
 
 .directory-fields--client {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.directory-fields--manager {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
@@ -181,9 +190,55 @@
   font-size: 13px;
 }
 
+.client-after-create,
+.client-manager-card {
+  display: grid;
+  gap: 12px;
+}
+
+.client-after-create {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 12px;
+}
+
+.client-manager-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.client-manager-card {
+  align-content: start;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.client-manager-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.client-manager-list span {
+  border: 1px solid rgb(215 25 32 / 0.24);
+  border-radius: 999px;
+  background: #fff7f7;
+  color: var(--red-dark);
+  font-size: 12px;
+  font-weight: 800;
+  padding: 5px 8px;
+}
+
 @media (max-width: 980px) {
   .directory-fields--client,
-  .directory-fields--sku {
+  .directory-fields--sku,
+  .directory-fields--manager,
+  .client-manager-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -195,7 +250,9 @@
 
   .directory-tabs,
   .directory-fields--client,
-  .directory-fields--sku {
+  .directory-fields--sku,
+  .directory-fields--manager,
+  .client-manager-grid {
     grid-template-columns: 1fr;
   }
 

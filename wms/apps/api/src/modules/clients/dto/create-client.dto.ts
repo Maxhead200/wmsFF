@@ -1,21 +1,21 @@
-import { IsEmail, IsOptional, IsString, Length, ValidateIf } from 'class-validator';
+import { ClientKind } from '@prisma/client';
+import { IsEmail, IsEnum, IsOptional, IsString, Length, ValidateIf } from 'class-validator';
 
 export class CreateClientDto {
-  @IsString()
-  @Length(2, 40)
-  code!: string;
+  @IsEnum(ClientKind)
+  clientKind!: ClientKind;
 
   @IsString()
   @Length(2, 200)
   name!: string;
 
-  @IsOptional()
   @IsString()
-  legalName?: string;
+  @Length(2, 200)
+  legalName!: string;
 
-  @IsOptional()
   @IsString()
-  inn?: string;
+  @Length(10, 12)
+  inn!: string;
 
   @IsOptional()
   @IsString()
@@ -57,4 +57,8 @@ export class CreateClientDto {
   @IsOptional()
   @IsString()
   correspondentAccount?: string;
+
+  @IsOptional()
+  @IsString()
+  fulfillmentManagerUserId?: string;
 }

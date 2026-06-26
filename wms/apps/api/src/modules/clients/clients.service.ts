@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
@@ -18,25 +19,7 @@ export class ClientsService {
         id: this.clientScopes.resolveClientFilter(user),
       },
       orderBy: { name: 'asc' },
-      select: {
-        id: true,
-        code: true,
-        name: true,
-        legalName: true,
-        inn: true,
-        kpp: true,
-        ogrn: true,
-        legalAddress: true,
-        actualAddress: true,
-        phone: true,
-        email: true,
-        bankName: true,
-        bankBik: true,
-        bankAccount: true,
-        correspondentAccount: true,
-        status: true,
-        createdAt: true,
-      },
+      select: this.clientSummarySelect(),
     });
   }
 
@@ -46,6 +29,13 @@ export class ClientsService {
     const client = await this.prisma.client.findUnique({
       where: { id },
       include: {
+        fulfillmentManager: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+          },
+        },
         _count: {
           select: {
             skus: true,
@@ -64,39 +54,126 @@ export class ClientsService {
     return client;
   }
 
-  create(dto: CreateClientDto, user: AuthUser) {
+  async create(dto: CreateClientDto, user: AuthUser) {
     this.clientScopes.requireGlobalClientAccess(user);
+    await this.ensureFulfillmentManagerExists(dto.fulfillmentManagerUserId);
 
-    // Русский комментарий: код клиента нужен для Excel-импортов и быстрых фильтров операторов.
-    return this.prisma.client.create({
-      data: {
-        code: dto.code.trim(),
-        name: dto.name.trim(),
-        ...optionalCreateClientData(dto),
-      },
-    });
+    return this.createWithGeneratedCode(dto);
   }
 
-  update(id: string, dto: UpdateClientDto, user: AuthUser) {
+  async update(id: string, dto: UpdateClientDto, user: AuthUser) {
     this.clientScopes.requireGlobalClientAccess(user);
+    await this.ensureFulfillmentManagerExists(dto.fulfillmentManagerUserId);
 
-    // Русский комментарий: реквизиты клиента обновляем отдельно, чтобы счета и акты брали актуальные данные из карточки.
     return this.prisma.client.update({
       where: { id },
       data: {
-        ...(dto.code === undefined ? {} : { code: dto.code.trim() }),
+        ...(dto.clientKind === undefined ? {} : { clientKind: dto.clientKind }),
         ...(dto.name === undefined ? {} : { name: dto.name.trim() }),
+        ...(dto.fulfillmentManagerUserId === undefined
+          ? {}
+          : { fulfillmentManagerUserId: normalizeNullableString(dto.fulfillmentManagerUserId) }),
         ...nullableUpdateClientData(dto),
       },
+      select: this.clientSummarySelect(),
     });
+  }
+
+  private async createWithGeneratedCode(dto: CreateClientDto) {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const code = await this.nextClientCode();
+      try {
+        return await this.prisma.client.create({
+          data: {
+            code,
+            clientKind: dto.clientKind,
+            name: dto.name.trim(),
+            legalName: dto.legalName.trim(),
+            inn: dto.inn.trim(),
+            ...optionalCreateClientData(dto),
+            fulfillmentManagerUserId: normalizeNullableString(dto.fulfillmentManagerUserId),
+          },
+          select: this.clientSummarySelect(),
+        });
+      } catch (caught) {
+        if (!isUniqueClientCodeError(caught)) {
+          throw caught;
+        }
+      }
+    }
+
+    throw new BadRequestException('Не удалось сгенерировать уникальный код клиента.');
+  }
+
+  private async nextClientCode() {
+    const latest = await this.prisma.client.findFirst({
+      where: {
+        code: {
+          startsWith: 'CL-',
+        },
+      },
+      orderBy: {
+        code: 'desc',
+      },
+      select: {
+        code: true,
+      },
+    });
+    const latestNumber = latest?.code.match(/^CL-(\d+)$/)?.[1];
+    const nextNumber = latestNumber ? Number(latestNumber) + 1 : 1;
+    return `CL-${String(nextNumber).padStart(6, '0')}`;
+  }
+
+  private async ensureFulfillmentManagerExists(userId?: string) {
+    const normalized = normalizeNullableString(userId);
+    if (!normalized) {
+      return;
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: normalized },
+      select: { id: true },
+    });
+    if (!user) {
+      throw new BadRequestException('Менеджер фулфилмента не найден.');
+    }
+  }
+
+  private clientSummarySelect() {
+    return {
+      id: true,
+      code: true,
+      name: true,
+      clientKind: true,
+      legalName: true,
+      inn: true,
+      kpp: true,
+      ogrn: true,
+      legalAddress: true,
+      actualAddress: true,
+      phone: true,
+      email: true,
+      bankName: true,
+      bankBik: true,
+      bankAccount: true,
+      correspondentAccount: true,
+      fulfillmentManagerUserId: true,
+      fulfillmentManager: {
+        select: {
+          id: true,
+          email: true,
+          name: true,
+        },
+      },
+      status: true,
+      createdAt: true,
+    } as const;
   }
 }
 
 type ClientRequisitesDto = CreateClientDto | UpdateClientDto;
 
 const optionalClientFields = [
-  'legalName',
-  'inn',
   'kpp',
   'ogrn',
   'legalAddress',
@@ -118,12 +195,22 @@ function optionalCreateClientData(dto: ClientRequisitesDto) {
 }
 
 function nullableUpdateClientData(dto: UpdateClientDto) {
+  const fields = ['legalName', 'inn', ...optionalClientFields] as const;
   return Object.fromEntries(
-    optionalClientFields
+    fields
       .filter((field) => dto[field] !== undefined)
       .map((field) => {
         const value = dto[field]?.trim();
         return [field, value || null];
       }),
   );
+}
+
+function normalizeNullableString(value?: string | null) {
+  const trimmed = value?.trim();
+  return trimmed || null;
+}
+
+function isUniqueClientCodeError(caught: unknown) {
+  return caught instanceof Prisma.PrismaClientKnownRequestError && caught.code === 'P2002';
 }

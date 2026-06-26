@@ -18,6 +18,12 @@ enum ClientStatus {
   ARCHIVED
 }
 
+enum ClientKind {
+  LEGAL_ENTITY
+  SELF_EMPLOYED
+  INDIVIDUAL
+}
+
 enum ClientRequestType {
   INBOUND
   OUTBOUND
@@ -234,6 +240,7 @@ model User {
   updatedNotificationPreferences ClientNotificationPreference[] @relation("ClientNotificationPreferenceUpdatedBy")
   authoredRequestComments        ClientRequestComment[]         @relation("ClientRequestCommentAuthor")
   createdRequestEvents           ClientRequestEvent[]           @relation("ClientRequestEventCreatedBy")
+  assignedFulfillmentClients     Client[]                       @relation("ClientFulfillmentManager")
   auditLogs                      AuditLog[]
   createdAt                      DateTime                       @default(now())
   updatedAt                      DateTime                       @updatedAt
@@ -298,40 +305,45 @@ model RolePermission {
 }
 
 model Client {
-  id                      String                         @id @default(uuid())
-  code                    String                         @unique
-  name                    String
-  legalName               String?
-  inn                     String?
-  kpp                     String?
-  ogrn                    String?
-  legalAddress            String?
-  actualAddress           String?
-  phone                   String?
-  email                   String?
-  bankName                String?
-  bankBik                 String?
-  bankAccount             String?
-  correspondentAccount    String?
-  status                  ClientStatus                   @default(ACTIVE)
-  skus                    Sku[]
-  boxes                   Box[]
-  pallets                 Pallet[]
-  movements               StockMovement[]
-  userScopes              UserClient[]
-  requests                ClientRequest[]
-  billingCharges          BillingCharge[]
-  billingInvoices         BillingInvoice[]
-  billingPayments         BillingPayment[]
-  deliveryRequests        LogisticsDeliveryRequest[]
-  requestFiles            ClientRequestFile[]
-  requestPackages         ClientRequestPackage[]
-  notifications           ClientNotification[]
-  notificationPreferences ClientNotificationPreference[]
-  requestComments         ClientRequestComment[]
-  requestEvents           ClientRequestEvent[]
-  createdAt               DateTime                       @default(now())
-  updatedAt               DateTime                       @updatedAt
+  id                       String                         @id @default(uuid())
+  code                     String                         @unique
+  name                     String
+  clientKind               ClientKind                     @default(LEGAL_ENTITY)
+  legalName                String?
+  inn                      String?
+  kpp                      String?
+  ogrn                     String?
+  legalAddress             String?
+  actualAddress            String?
+  phone                    String?
+  email                    String?
+  bankName                 String?
+  bankBik                  String?
+  bankAccount              String?
+  correspondentAccount     String?
+  fulfillmentManagerUserId String?
+  status                   ClientStatus                   @default(ACTIVE)
+  fulfillmentManager       User?                          @relation("ClientFulfillmentManager", fields: [fulfillmentManagerUserId], references: [id])
+  skus                     Sku[]
+  boxes                    Box[]
+  pallets                  Pallet[]
+  movements                StockMovement[]
+  userScopes               UserClient[]
+  requests                 ClientRequest[]
+  billingCharges           BillingCharge[]
+  billingInvoices          BillingInvoice[]
+  billingPayments          BillingPayment[]
+  deliveryRequests         LogisticsDeliveryRequest[]
+  requestFiles             ClientRequestFile[]
+  requestPackages          ClientRequestPackage[]
+  notifications            ClientNotification[]
+  notificationPreferences  ClientNotificationPreference[]
+  requestComments          ClientRequestComment[]
+  requestEvents            ClientRequestEvent[]
+  createdAt                DateTime                       @default(now())
+  updatedAt                DateTime                       @updatedAt
+
+  @@index([fulfillmentManagerUserId])
 }
 
 model Warehouse {

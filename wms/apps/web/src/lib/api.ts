@@ -20,6 +20,7 @@ export type ClientSummary = {
   id: string;
   code: string;
   name: string;
+  clientKind: ClientKind;
   legalName: string | null;
   inn: string | null;
   kpp: string | null;
@@ -32,9 +33,17 @@ export type ClientSummary = {
   bankBik: string | null;
   bankAccount: string | null;
   correspondentAccount: string | null;
+  fulfillmentManagerUserId: string | null;
+  fulfillmentManager: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
   status: string;
   createdAt: string;
 };
+
+export type ClientKind = 'LEGAL_ENTITY' | 'SELF_EMPLOYED' | 'INDIVIDUAL';
 
 export type ClientRequestType = 'INBOUND' | 'OUTBOUND' | 'RETURN' | 'DELIVERY' | 'SERVICE' | 'OTHER';
 
@@ -787,10 +796,10 @@ export type OutboundRequestXlsxPayload = {
 };
 
 export type CreateClientPayload = {
-  code: string;
+  clientKind: ClientKind;
   name: string;
-  legalName?: string;
-  inn?: string;
+  legalName: string;
+  inn: string;
   kpp?: string;
   ogrn?: string;
   legalAddress?: string;
@@ -801,6 +810,7 @@ export type CreateClientPayload = {
   bankBik?: string;
   bankAccount?: string;
   correspondentAccount?: string;
+  fulfillmentManagerUserId?: string;
 };
 
 export type UpdateClientPayload = Partial<CreateClientPayload>;

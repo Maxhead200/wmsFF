@@ -2,6 +2,7 @@ import { Boxes, Database, Printer, Smartphone, Upload, UsersRound } from 'lucide
 import { useEffect, useState } from 'react';
 import { AccessAdminPanel } from './components/access/AccessAdminPanel';
 import { AuthPanel } from './components/AuthPanel';
+import { ClientRequestsPanel } from './components/client-requests/ClientRequestsPanel';
 import { DashboardDataPanel } from './components/DashboardDataPanel';
 import { DirectoryPanel } from './components/directories/DirectoryPanel';
 import { ImportPanel } from './components/imports/ImportPanel';
@@ -120,6 +121,8 @@ export function App() {
       <LogisticsQuotePanel session={session} />
 
       <WarehouseOpsPanel session={session} />
+
+      <ClientRequestsPanel session={session} />
 
       <PrintPanel session={session} />
 

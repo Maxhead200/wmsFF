@@ -25,6 +25,75 @@ export type ClientSummary = {
   createdAt: string;
 };
 
+export type ClientRequestType = 'INBOUND' | 'OUTBOUND' | 'RETURN' | 'DELIVERY' | 'SERVICE' | 'OTHER';
+
+export type ClientRequestStatus = 'SUBMITTED' | 'IN_REVIEW' | 'APPROVED' | 'IN_WORK' | 'DONE' | 'CANCELLED' | 'REJECTED';
+
+export type ClientRequestPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+
+export type ClientRequestItem = {
+  id: string;
+  requestId: string;
+  skuId: string | null;
+  barcode: string | null;
+  name: string | null;
+  quantity: number;
+  comment: string | null;
+  sku: {
+    id: string;
+    internalSku: string;
+    name: string;
+  } | null;
+};
+
+export type ClientRequestSummary = {
+  id: string;
+  clientId: string;
+  type: ClientRequestType;
+  status: ClientRequestStatus;
+  priority: ClientRequestPriority;
+  title: string;
+  comment: string | null;
+  contactName: string | null;
+  contactPhone: string | null;
+  deliveryAddress: string | null;
+  desiredDate: string | null;
+  managerComment: string | null;
+  createdAt: string;
+  updatedAt: string;
+  client: Pick<ClientSummary, 'id' | 'code' | 'name'>;
+  createdBy: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+  assignedTo: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+  items: ClientRequestItem[];
+};
+
+export type CreateClientRequestPayload = {
+  clientId: string;
+  type: ClientRequestType;
+  priority?: ClientRequestPriority;
+  title: string;
+  comment?: string;
+  contactName?: string;
+  contactPhone?: string;
+  deliveryAddress?: string;
+  desiredDate?: string;
+  items?: Array<{
+    skuId?: string;
+    barcode?: string;
+    name?: string;
+    quantity: number;
+    comment?: string;
+  }>;
+};
+
 export type CreateClientPayload = {
   code: string;
   name: string;
@@ -426,6 +495,35 @@ export async function fetchMe(accessToken: string) {
 
 export async function fetchClients(accessToken: string) {
   return request<ClientSummary[]>('/clients', {
+    accessToken,
+  });
+}
+
+export async function fetchClientRequests(
+  accessToken: string,
+  filter: { clientId?: string; status?: ClientRequestStatus; type?: ClientRequestType } = {},
+) {
+  return request<ClientRequestSummary[]>(withQuery('/client-requests', filter), {
+    accessToken,
+  });
+}
+
+export async function createClientRequest(accessToken: string, payload: CreateClientRequestPayload) {
+  return request<ClientRequestSummary>('/client-requests', {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function updateClientRequestStatus(
+  accessToken: string,
+  requestId: string,
+  payload: { status: ClientRequestStatus; managerComment?: string },
+) {
+  return request<ClientRequestSummary>(`/client-requests/${requestId}/status`, {
+    method: 'PATCH',
+    body: payload,
     accessToken,
   });
 }

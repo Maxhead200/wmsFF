@@ -1,4 +1,14 @@
-import { Boxes, ClipboardCheck, PackageSearch, Printer, ShieldCheck, Smartphone, Truck, Upload } from 'lucide-react';
+import {
+  Boxes,
+  ClipboardCheck,
+  ClipboardList,
+  PackageSearch,
+  Printer,
+  ShieldCheck,
+  Smartphone,
+  Truck,
+  Upload,
+} from 'lucide-react';
 import type { WmsModuleCard } from '../components/ModuleBoard';
 
 export const mvpModules: WmsModuleCard[] = [
@@ -49,5 +59,11 @@ export const mvpModules: WmsModuleCard[] = [
     status: 'in-progress',
     icon: ClipboardCheck,
     description: 'Операции склада фиксируются через stock ledger, а не прямой перезаписью.',
+  },
+  {
+    title: 'Клиентский кабинет',
+    status: 'in-progress',
+    icon: ClipboardList,
+    description: 'Клиентские заявки, статусы обработки и доступ только по клиентским scope.',
   },
 ];

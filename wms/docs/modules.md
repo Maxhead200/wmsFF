@@ -28,6 +28,8 @@
 - `GET/POST /api/v1/warehouse/pallets` - паллеты клиента.
 - `GET /api/v1/stock/balances` - текущие остатки по клиенту, SKU, коробу или barcode.
 - `POST /api/v1/stock/transfers/box-to-box` - перенос количества SKU между коробами через ledger.
+- `GET/POST /api/v1/client-requests` - клиентские заявки с фильтрацией по client scope.
+- `GET /api/v1/client-requests/:id` и `PATCH /api/v1/client-requests/:id/status` - карточка заявки и изменение статуса внутренним workflow.
 - `POST /api/v1/imports/stocks/preview` и `commit` - проверка и запись XLSX-остатков.
 - `POST /api/v1/imports/logistics/preview` и `commit` - проверка и запись XLSX-тарифов логистики.
 - `GET /api/v1/logistics/tariff-sets` - список загруженных наборов тарифов.
@@ -42,12 +44,13 @@
 - Android-ТСД хранит pending/rejected операции в Room, входит по device secret, повторяет pending batch и показывает оператору отклоненные операции.
 - `receipt_scan` создает приход в короб через ledger, а `inventory_scan` с расхождением попадает в разбор без автоматической правки остатка.
 - VPS deploy после успешных health-check чистит неиспользуемые Docker images/containers/build cache без удаления volumes PostgreSQL/Redis; возрастной фильтр включается через `DOCKER_PRUNE_UNTIL`.
+- Web-интерфейс показывает панель клиентских заявок: создание по writable client scope, список заявок и смена статуса при праве `client-requests:status`.
 
 ## Следующие этапы
 
-- Расширение клиентских scope на личный кабинет и заявки клиента.
+- Расширение клиентского кабинета: история услуг, документы, файлы заявок и табличный состав до 100 позиций.
 - ТСД: экран принятия решения по конфликтам, подтверждение inventory adjustment и история разбора.
-- Личный кабинет клиента: остатки, заявки, услуги, статусы.
+- Личный кабинет клиента: остатки, услуги, статусы исполнения и уведомления.
 - Сборка, batch picking, упаковка и отгрузка.
 - Биллинг: услуги, тарифы, хранение за литр, счета, акты, оплаты.
 - Логистика: заявки на доставку, статусы рейсов и связь с биллингом.

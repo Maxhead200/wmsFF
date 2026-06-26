@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 
 const permissions = [
@@ -13,6 +13,9 @@ const permissions = [
   ['warehouse:write', 'Изменение коробов, паллет и зон'],
   ['stock:read', 'Просмотр остатков'],
   ['stock:write', 'Складские операции и ledger'],
+  ['client-requests:read', 'Просмотр клиентских заявок'],
+  ['client-requests:write', 'Создание клиентских заявок'],
+  ['client-requests:status', 'Изменение статусов клиентских заявок'],
   ['imports:write', 'Загрузка XLSX-импортов'],
   ['logistics:read', 'Просмотр тарифов и расчет логистики'],
   ['logistics:write', 'Загрузка и изменение тарифов логистики'],
@@ -36,6 +39,9 @@ const rolePermissions: Record<string, { name: string; permissions: string[] }> =
       'warehouse:write',
       'stock:read',
       'stock:write',
+      'client-requests:read',
+      'client-requests:write',
+      'client-requests:status',
       'imports:write',
       'logistics:read',
       'logistics:write',
@@ -51,6 +57,8 @@ const rolePermissions: Record<string, { name: string; permissions: string[] }> =
       'warehouse:write',
       'stock:read',
       'stock:write',
+      'client-requests:read',
+      'client-requests:status',
       'imports:write',
       'logistics:read',
       'print:write',
@@ -58,13 +66,18 @@ const rolePermissions: Record<string, { name: string; permissions: string[] }> =
   },
   CLIENT: {
     name: 'Клиент',
-    permissions: ['stock:read', 'logistics:read'],
+    permissions: ['clients:read', 'stock:read', 'client-requests:read', 'client-requests:write', 'logistics:read'],
   },
 };
 
 @Injectable()
-export class AccessModelService {
+export class AccessModelService implements OnModuleInit {
   constructor(private readonly prisma: PrismaService) {}
+
+  async onModuleInit() {
+    // Русский комментарий: при деплое новых модулей права должны появляться без ручного вызова справочника ролей.
+    await this.seedDefaultAccessModel();
+  }
 
   async seedDefaultAccessModel() {
     for (const [code, name] of permissions) {

@@ -325,6 +325,10 @@ model TsdOperation {
   status         TsdOperationStatus @default(ACCEPTED)
   serverMessage  String?
   createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([status, createdAt])
+  @@index([deviceId])
 }
 
 model TsdDevice {

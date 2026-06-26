@@ -1,21 +1,24 @@
-import { Database, RefreshCw, ShieldCheck, Truck, UsersRound } from 'lucide-react';
+import { AlertTriangle, Database, RefreshCw, ShieldCheck, Truck, UsersRound } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   fetchClients,
   fetchLogisticsTariffSets,
   fetchRoles,
   fetchStockBalances,
+  fetchTsdReviewQueue,
   type AuthSession,
   type AuthUser,
   type ClientSummary,
   type LogisticsTariffSetSummary,
   type RoleSummary,
   type StockBalance,
+  type TsdReviewOperation,
 } from '../lib/api';
 
 const dataTabs = [
   { id: 'clients', label: 'Клиенты', permission: 'clients:read', icon: UsersRound },
   { id: 'stock', label: 'Остатки', permission: 'stock:read', icon: Database },
+  { id: 'tsdReview', label: 'Разбор ТСД', permission: 'stock:write', icon: AlertTriangle },
   { id: 'roles', label: 'Роли', permission: 'users:read', icon: ShieldCheck },
   { id: 'tariffs', label: 'Логистика', permission: 'logistics:read', icon: Truck },
 ] as const;
@@ -42,6 +45,7 @@ export function DashboardDataPanel({ session }: DashboardDataPanelProps) {
   const [activeTab, setActiveTab] = useState<DataTab>('clients');
   const [clients, setClients] = useState<LoadState<ClientSummary>>({ status: 'idle', data: [] });
   const [stock, setStock] = useState<LoadState<StockBalance>>({ status: 'idle', data: [] });
+  const [tsdReview, setTsdReview] = useState<LoadState<TsdReviewOperation>>({ status: 'idle', data: [] });
   const [roles, setRoles] = useState<LoadState<RoleSummary>>({ status: 'idle', data: [] });
   const [tariffs, setTariffs] = useState<LoadState<LogisticsTariffSetSummary>>({ status: 'idle', data: [] });
 
@@ -90,6 +94,19 @@ export function DashboardDataPanel({ session }: DashboardDataPanelProps) {
       }
     }
 
+    if (tab === 'tsdReview') {
+      if (!force && tsdReview.status !== 'idle') {
+        return;
+      }
+
+      setTsdReview((current) => ({ ...current, status: 'loading', error: undefined }));
+      try {
+        setTsdReview({ status: 'ready', data: await fetchTsdReviewQueue(session.accessToken) });
+      } catch (caught) {
+        setTsdReview((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
+      }
+    }
+
     if (tab === 'roles') {
       if (!force && roles.status !== 'idle') {
         return;
@@ -128,6 +145,10 @@ export function DashboardDataPanel({ session }: DashboardDataPanelProps) {
 
     if (activeTab === 'stock') {
       return renderLoadState(stock, 'Остатки появятся после импорта или приемки.', renderStock);
+    }
+
+    if (activeTab === 'tsdReview') {
+      return renderLoadState(tsdReview, 'Операций ТСД на разборе нет.', renderTsdReview);
     }
 
     if (activeTab === 'roles') {
@@ -326,6 +347,38 @@ function renderTariffs(items: LogisticsTariffSetSummary[]) {
   );
 }
 
+function renderTsdReview(items: TsdReviewOperation[]) {
+  return (
+    <div className="data-table-wrap">
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th>Операция</th>
+            <th>ТСД</th>
+            <th>Payload</th>
+            <th>Причина</th>
+            <th>Создана</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((operation) => (
+            <tr key={operation.id}>
+              <td>
+                <strong>{operation.operationType}</strong>
+                <span>{operation.operationKey}</span>
+              </td>
+              <td>{operation.deviceId}</td>
+              <td>{payloadSummary(operation.payload)}</td>
+              <td>{operation.serverMessage ?? '-'}</td>
+              <td>{formatDate(operation.createdAt)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function PanelMessage({ text, tone = 'neutral' }: { text: string; tone?: 'neutral' | 'error' }) {
   return <p className={`panel-message panel-message--${tone}`}>{text}</p>;
 }
@@ -348,4 +401,12 @@ function formatDate(value: string | null) {
 
 function primaryBarcode(balance: StockBalance) {
   return balance.sku.barcodes.find((barcode) => barcode.isPrimary)?.value ?? balance.sku.barcodes[0]?.value;
+}
+
+function payloadSummary(payload: Record<string, unknown>) {
+  const fields = ['clientId', 'barcode', 'skuId', 'boxCode', 'fromBoxCode', 'toBoxCode', 'quantity', 'countedQuantity'];
+  return fields
+    .map((field) => (payload[field] == null ? '' : `${field}: ${String(payload[field])}`))
+    .filter(Boolean)
+    .join(' · ');
 }

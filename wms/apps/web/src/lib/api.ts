@@ -239,6 +239,18 @@ export type CreatedTsdDevice = Omit<TsdDeviceSummary, 'lastLoginAt' | 'lastSeenA
   deviceSecret: string;
 };
 
+export type TsdReviewOperation = {
+  id: string;
+  deviceId: string;
+  operationKey: string;
+  operationType: string;
+  payload: Record<string, unknown>;
+  status: 'ACCEPTED' | 'NEEDS_REVIEW' | 'REJECTED';
+  serverMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type LogisticsTariffSetSummary = {
   id: string;
   name: string;
@@ -497,6 +509,12 @@ export async function createTsdDevice(accessToken: string, payload: CreateTsdDev
   return request<CreatedTsdDevice>('/tsd/devices', {
     method: 'POST',
     body: payload,
+    accessToken,
+  });
+}
+
+export async function fetchTsdReviewQueue(accessToken: string) {
+  return request<TsdReviewOperation[]>('/tsd/review', {
     accessToken,
   });
 }

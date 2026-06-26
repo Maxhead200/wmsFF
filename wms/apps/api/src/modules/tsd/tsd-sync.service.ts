@@ -1,34 +1,24 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { StockStatus } from '@prisma/client';
+import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
+import { ClientScopeService } from '../auth/client-scope.service';
 import { StockOperationsService } from '../stock/stock-operations.service';
 import { ScanOperationDto, SyncTsdOperationsDto } from './dto/scan-operation.dto';
 import { TsdDeviceService } from './tsd-device.service';
-
-type TsdOperationResult = {
-  operationKey: string;
-  operationType: ScanOperationDto['operationType'];
-  status: 'ACCEPTED' | 'APPLIED' | 'ALREADY_APPLIED' | 'REJECTED';
-  message?: string;
-  serverTime: string;
-};
-
-type MoveScanPayload = {
-  clientId: string;
-  barcode?: string;
-  skuId?: string;
-  fromBoxCode: string;
-  toBoxCode: string;
-  quantity: number;
-  status?: StockStatus;
-  comment?: string;
-};
+import { TsdOperationLogService } from './tsd-operation-log.service';
+import { TsdOperationResult } from './tsd-operation.types';
+import { TsdPayloadParser } from './tsd-payload.parser';
 
 @Injectable()
 export class TsdSyncService {
   constructor(
     private readonly stockOperations: StockOperationsService,
     private readonly devices: TsdDeviceService,
+    private readonly prisma: PrismaService,
+    private readonly clientScopes: ClientScopeService,
+    private readonly payloadParser: TsdPayloadParser,
+    private readonly operationLog: TsdOperationLogService,
   ) {}
 
   async acceptOperation(operation: ScanOperationDto, user: AuthUser) {
@@ -48,25 +38,45 @@ export class TsdSyncService {
     return results;
   }
 
+  listReviewQueue(user: AuthUser) {
+    return this.operationLog.listReviewQueue(user);
+  }
+
   private async applyOperation(operation: ScanOperationDto, user: AuthUser): Promise<TsdOperationResult> {
     try {
       if (user.deviceCode && operation.deviceId !== user.deviceCode) {
-        return this.result(operation, 'REJECTED', 'Операция пришла не от устройства из access token.');
+        return await this.operationLog.recordResult(
+          operation,
+          'REJECTED',
+          'Операция пришла не от устройства из access token.',
+        );
+      }
+
+      const existing = await this.operationLog.findExisting(operation.operationKey);
+      if (existing) {
+        return this.operationLog.existingResult(operation, existing.status, existing.serverMessage ?? undefined);
       }
 
       if (operation.operationType === 'move_scan') {
         return await this.applyMoveScan(operation, user);
       }
 
-      // Русский комментарий: receipt/inventory пока подтверждаем как принятые в очередь; бизнес-обработка будет отдельным срезом.
-      return this.result(operation, 'ACCEPTED');
+      if (operation.operationType === 'receipt_scan') {
+        return await this.applyReceiptScan(operation, user);
+      }
+
+      return await this.applyInventoryScan(operation, user);
     } catch (caught) {
-      return this.result(operation, 'REJECTED', caught instanceof Error ? caught.message : 'Операция ТСД отклонена.');
+      return await this.operationLog.recordResult(
+        operation,
+        'REJECTED',
+        caught instanceof Error ? caught.message : 'Операция ТСД отклонена.',
+      );
     }
   }
 
   private async applyMoveScan(operation: ScanOperationDto, user: AuthUser): Promise<TsdOperationResult> {
-    const payload = this.parseMovePayload(operation.payload);
+    const payload = this.payloadParser.parseMovePayload(operation.payload);
     const transfer = await this.stockOperations.transferBetweenBoxes(
       {
         clientId: payload.clientId,
@@ -82,73 +92,95 @@ export class TsdSyncService {
       user,
     );
 
-    return this.result(operation, transfer.status === 'ALREADY_APPLIED' ? 'ALREADY_APPLIED' : 'APPLIED');
+    return this.operationLog.recordResult(
+      operation,
+      transfer.status === 'ALREADY_APPLIED' ? 'ALREADY_APPLIED' : 'APPLIED',
+    );
   }
 
-  private parseMovePayload(payload: Record<string, unknown>): MoveScanPayload {
-    const clientId = this.stringValue(payload.clientId, 'clientId');
-    const fromBoxCode = this.stringValue(payload.fromBoxCode, 'fromBoxCode');
-    const toBoxCode = this.stringValue(payload.toBoxCode, 'toBoxCode');
-    const quantity = this.numberValue(payload.quantity, 'quantity');
-    const barcode = this.optionalStringValue(payload.barcode);
-    const skuId = this.optionalStringValue(payload.skuId);
+  private async applyReceiptScan(operation: ScanOperationDto, user: AuthUser): Promise<TsdOperationResult> {
+    const payload = this.payloadParser.parseReceiptPayload(operation.payload);
 
-    if (!barcode && !skuId) {
-      throw new BadRequestException('Для move_scan нужен barcode или skuId.');
+    try {
+      const receipt = await this.stockOperations.receiveIntoBox(
+        {
+          clientId: payload.clientId,
+          barcode: payload.barcode,
+          skuId: payload.skuId,
+          boxCode: payload.boxCode,
+          quantity: payload.quantity,
+          status: payload.status,
+          sourceDocument: payload.sourceDocument,
+          idempotencyKey: operation.operationKey,
+          comment: payload.comment ?? `Приемка ТСД ${operation.deviceId}`,
+        },
+        user,
+      );
+
+      return this.operationLog.recordResult(
+        operation,
+        receipt.status === 'ALREADY_APPLIED' ? 'ALREADY_APPLIED' : 'APPLIED',
+      );
+    } catch (caught) {
+      return this.operationLog.recordResult(
+        operation,
+        'NEEDS_REVIEW',
+        caught instanceof Error ? caught.message : 'Приемка ТСД требует разбора.',
+      );
+    }
+  }
+
+  private async applyInventoryScan(operation: ScanOperationDto, user: AuthUser): Promise<TsdOperationResult> {
+    const payload = this.payloadParser.parseInventoryPayload(operation.payload);
+    this.clientScopes.requireClientAccess(user, payload.clientId, 'write');
+
+    const sku = await this.findSku(payload.clientId, payload);
+    if (!sku) {
+      return this.operationLog.recordResult(operation, 'NEEDS_REVIEW', 'SKU или штрихкод не найден у клиента.');
     }
 
-    return {
-      clientId,
-      barcode,
-      skuId,
-      fromBoxCode,
-      toBoxCode,
-      quantity,
-      status: this.optionalStockStatus(payload.status),
-      comment: this.optionalStringValue(payload.comment),
-    };
-  }
-
-  private stringValue(value: unknown, field: string) {
-    if (typeof value !== 'string' || !value.trim()) {
-      throw new BadRequestException(`Поле ${field} обязательно для операции ТСД.`);
+    const box = await this.prisma.box.findUnique({
+      where: { clientId_code: { clientId: payload.clientId, code: payload.boxCode } },
+    });
+    if (!box) {
+      return this.operationLog.recordResult(operation, 'NEEDS_REVIEW', `Короб ${payload.boxCode} не найден.`);
     }
 
-    return value.trim();
-  }
+    const status = payload.status ?? StockStatus.AVAILABLE;
+    const balance = await this.prisma.stockBalance.findFirst({
+      where: {
+        clientId: payload.clientId,
+        skuId: sku.id,
+        boxId: box.id,
+        status,
+      },
+    });
+    const currentQuantity = balance?.quantity ?? 0;
 
-  private optionalStringValue(value: unknown) {
-    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
-  }
-
-  private optionalStockStatus(value: unknown) {
-    if (value == null || value === '') {
-      return undefined;
+    if (currentQuantity !== payload.countedQuantity) {
+      return this.operationLog.recordResult(
+        operation,
+        'NEEDS_REVIEW',
+        `Расхождение инвентаризации: в WMS ${currentQuantity}, на ТСД ${payload.countedQuantity}.`,
+      );
     }
 
-    if (typeof value !== 'string' || !Object.values(StockStatus).includes(value as StockStatus)) {
-      throw new BadRequestException('Некорректный stock status в операции ТСД.');
-    }
-
-    return value as StockStatus;
+    return this.operationLog.recordResult(operation, 'ACCEPTED', 'Инвентаризация совпала с остатком WMS.');
   }
 
-  private numberValue(value: unknown, field: string) {
-    const parsed = typeof value === 'number' ? value : Number(value);
-    if (!Number.isInteger(parsed) || parsed <= 0) {
-      throw new BadRequestException(`Поле ${field} должно быть положительным целым числом.`);
+  private findSku(clientId: string, payload: { skuId?: string; barcode?: string }) {
+    if (payload.skuId) {
+      return this.prisma.sku.findFirst({ where: { id: payload.skuId, clientId } });
     }
 
-    return parsed;
-  }
-
-  private result(operation: ScanOperationDto, status: TsdOperationResult['status'], message?: string): TsdOperationResult {
-    return {
-      operationKey: operation.operationKey,
-      operationType: operation.operationType,
-      status,
-      message,
-      serverTime: new Date().toISOString(),
-    };
+    return this.prisma.barcode
+      .findFirst({
+        where: {
+          value: payload.barcode,
+          sku: { clientId },
+        },
+        include: { sku: true },
+      })
+      .then((barcode) => barcode?.sku ?? null);
   }
 }

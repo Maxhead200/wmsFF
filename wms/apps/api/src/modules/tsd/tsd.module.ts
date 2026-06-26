@@ -3,12 +3,14 @@ import { AuthModule } from '../auth/auth.module';
 import { StockModule } from '../stock/stock.module';
 import { TsdDeviceController } from './tsd-device.controller';
 import { TsdDeviceService } from './tsd-device.service';
+import { TsdOperationLogService } from './tsd-operation-log.service';
+import { TsdPayloadParser } from './tsd-payload.parser';
 import { TsdSyncController } from './tsd-sync.controller';
 import { TsdSyncService } from './tsd-sync.service';
 
 @Module({
   imports: [AuthModule, StockModule],
   controllers: [TsdDeviceController, TsdSyncController],
-  providers: [TsdDeviceService, TsdSyncService],
+  providers: [TsdDeviceService, TsdOperationLogService, TsdPayloadParser, TsdSyncService],
 })
 export class TsdModule {}

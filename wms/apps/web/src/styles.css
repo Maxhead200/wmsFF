@@ -602,7 +602,7 @@ h1 {
 
 .data-tabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
   gap: 4px;
   margin-bottom: 16px;
   padding: 4px;

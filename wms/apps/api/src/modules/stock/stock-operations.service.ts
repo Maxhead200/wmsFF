@@ -6,6 +6,18 @@ import { ClientScopeService } from '../auth/client-scope.service';
 import { TransferBetweenBoxesDto } from './dto/transfer-between-boxes.dto';
 import { StockBalancesService } from './stock-balances.service';
 
+export type ReceiveIntoBoxInput = {
+  clientId: string;
+  skuId?: string;
+  barcode?: string;
+  boxCode: string;
+  quantity: number;
+  status?: StockStatus;
+  idempotencyKey: string;
+  sourceDocument?: string;
+  comment?: string;
+};
+
 @Injectable()
 export class StockOperationsService {
   constructor(
@@ -98,6 +110,61 @@ export class StockOperationsService {
     });
   }
 
+  receiveIntoBox(dto: ReceiveIntoBoxInput, user: AuthUser) {
+    this.clientScopes.requireClientAccess(user, dto.clientId, 'write');
+
+    return this.prisma.$transaction(async (tx) => {
+      const existingMovement = await tx.stockMovement.findUnique({
+        where: { idempotencyKey: dto.idempotencyKey },
+      });
+
+      if (existingMovement) {
+        // Русский комментарий: повтор receipt_scan с тем же ключом не создает второй приход.
+        return {
+          idempotencyKey: dto.idempotencyKey,
+          status: 'ALREADY_APPLIED',
+        };
+      }
+
+      const sku = await this.resolveSku(tx, dto);
+      const box = await this.ensureTargetBox(tx, dto.clientId, dto.boxCode);
+      const status = dto.status ?? StockStatus.RECEIVING;
+
+      const targetBalance = await this.incrementTargetBalance(tx, {
+        clientId: dto.clientId,
+        skuId: sku.id,
+        boxId: box.id,
+        palletId: box.palletId,
+        status,
+        quantity: dto.quantity,
+      });
+
+      await tx.stockMovement.create({
+        data: {
+          clientId: dto.clientId,
+          skuId: sku.id,
+          boxId: box.id,
+          palletId: box.palletId,
+          type: 'RECEIPT',
+          status,
+          quantity: dto.quantity,
+          sourceDocument: dto.sourceDocument,
+          idempotencyKey: dto.idempotencyKey,
+          comment: dto.comment ?? `Приемка ТСД в короб ${box.code}`,
+        },
+      });
+
+      return {
+        idempotencyKey: dto.idempotencyKey,
+        status: 'APPLIED',
+        skuId: sku.id,
+        box: box.code,
+        quantity: dto.quantity,
+        targetBalance,
+      };
+    });
+  }
+
   planTransferQuantities(sourceQuantity: number, targetQuantity: number, requestedQuantity: number) {
     if (requestedQuantity <= 0) {
       throw new BadRequestException('Количество должно быть больше нуля.');
@@ -113,7 +180,7 @@ export class StockOperationsService {
     };
   }
 
-  private async resolveSku(tx: Prisma.TransactionClient, dto: TransferBetweenBoxesDto) {
+  private async resolveSku(tx: Prisma.TransactionClient, dto: { clientId: string; skuId?: string; barcode?: string }) {
     if (dto.skuId) {
       const sku = await tx.sku.findFirst({ where: { id: dto.skuId, clientId: dto.clientId } });
       if (!sku) {

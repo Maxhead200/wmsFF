@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -11,6 +11,12 @@ import { TsdSyncService } from './tsd-sync.service';
 @Controller('tsd')
 export class TsdSyncController {
   constructor(private readonly sync: TsdSyncService) {}
+
+  @Get('review')
+  @RequirePermissions('stock:write')
+  listReviewQueue(@CurrentUser() user: AuthUser) {
+    return this.sync.listReviewQueue(user);
+  }
 
   @Post('operations')
   acceptOperation(@Body() operation: ScanOperationDto, @CurrentUser() user: AuthUser) {

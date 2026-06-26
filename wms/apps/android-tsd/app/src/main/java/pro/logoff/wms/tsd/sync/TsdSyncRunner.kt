@@ -59,6 +59,11 @@ class TsdSyncRunner(
                         rejected += 1
                     }
 
+                    "NEEDS_REVIEW" -> {
+                        outbox.markRejected(operation.operationKey, response.message ?: "Операция требует разбора")
+                        rejected += 1
+                    }
+
                     else -> {
                         // Русский комментарий: неизвестный или отсутствующий ответ оставляем в pending, чтобы повторить sync.
                         outbox.markRetry(operation.operationKey, response?.message ?: "Нет ответа по операции")

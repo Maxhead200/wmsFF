@@ -1,6 +1,7 @@
 import { ClipboardList, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  cancelClientRequest,
   downloadPickInstructionXlsx,
   fetchClientRequestDocument,
   fetchClientRequests,
@@ -85,6 +86,24 @@ export function ClientRequestsPanel({ session }: ClientRequestsPanelProps) {
       setRequests((current) => ({
         ...current,
         data: current.data.map((request) => (request.id === updated.id ? updated : request)),
+      }));
+    } catch (caught) {
+      setError(errorMessage(caught));
+    }
+  }
+
+  async function cancelRequest(request: ClientRequestSummary) {
+    if (!window.confirm(`Отменить заявку "${request.title}"?`)) {
+      return;
+    }
+
+    setError(null);
+
+    try {
+      const updated = await cancelClientRequest(session.accessToken, request.id);
+      setRequests((current) => ({
+        ...current,
+        data: current.data.map((item) => (item.id === updated.id ? updated : item)),
       }));
     } catch (caught) {
       setError(errorMessage(caught));
@@ -217,7 +236,9 @@ export function ClientRequestsPanel({ session }: ClientRequestsPanelProps) {
           requests,
           canChangeStatus,
           canPickOutbound,
+          canWrite,
           (requestId, status) => void changeStatus(requestId, status),
+          (request) => void cancelRequest(request),
           (request) => void openRequestDocument(request),
           (request) => void openPickInstruction(request),
           (request) => void downloadPickInstruction(request),
@@ -247,7 +268,9 @@ function renderRequests(
   state: LoadState<ClientRequestSummary>,
   canChangeStatus: boolean,
   canPickOutbound: boolean,
+  canCancelRequests: boolean,
   onStatusChange: (requestId: string, status: ClientRequestStatus) => void,
+  onCancelRequest: (request: ClientRequestSummary) => void,
   onOpenDocument: (request: ClientRequestSummary) => void,
   onOpenPickInstruction: (request: ClientRequestSummary) => void,
   onDownloadPickInstruction: (request: ClientRequestSummary) => void,
@@ -279,7 +302,9 @@ function renderRequests(
         items={state.data}
         canChangeStatus={canChangeStatus}
         canPickOutbound={canPickOutbound}
+        canCancelRequests={canCancelRequests}
         onStatusChange={onStatusChange}
+        onCancelRequest={onCancelRequest}
         onOpenDocument={onOpenDocument}
         onOpenPickInstruction={onOpenPickInstruction}
         onDownloadPickInstruction={onDownloadPickInstruction}

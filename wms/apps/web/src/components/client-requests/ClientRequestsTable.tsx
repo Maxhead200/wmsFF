@@ -1,4 +1,4 @@
-import { CheckCircle2, ClipboardList, FileDown, FileText, PackageCheck, Send, Truck } from 'lucide-react';
+import { CheckCircle2, ClipboardList, FileDown, FileText, PackageCheck, Send, Truck, XCircle } from 'lucide-react';
 import { type ClientRequestStatus, type ClientRequestSummary } from '../../lib/api';
 import {
   requestPriorityLabel,
@@ -12,7 +12,9 @@ type ClientRequestsTableProps = {
   items: ClientRequestSummary[];
   canChangeStatus: boolean;
   canPickOutbound: boolean;
+  canCancelRequests: boolean;
   onStatusChange: (requestId: string, status: ClientRequestStatus) => void;
+  onCancelRequest: (request: ClientRequestSummary) => void;
   onOpenDocument?: (request: ClientRequestSummary) => void;
   onOpenPickInstruction?: (request: ClientRequestSummary) => void;
   onDownloadPickInstruction?: (request: ClientRequestSummary) => void;
@@ -31,7 +33,9 @@ export function ClientRequestsTable({
   items,
   canChangeStatus,
   canPickOutbound,
+  canCancelRequests,
   onStatusChange,
+  onCancelRequest,
   onOpenDocument,
   onOpenPickInstruction,
   onDownloadPickInstruction,
@@ -50,6 +54,7 @@ export function ClientRequestsTable({
             <th>Срок</th>
             <th>Статус</th>
             {canPickOutbound ? <th>Склад</th> : null}
+            {canCancelRequests ? <th>Действия</th> : null}
             {canChangeStatus ? <th>Процесс</th> : null}
           </tr>
         </thead>
@@ -156,6 +161,23 @@ export function ClientRequestsTable({
                   )}
                 </td>
               ) : null}
+              {canCancelRequests ? (
+                <td>
+                  {canCancelRequest(request) ? (
+                    <button
+                      className="client-request-action-button client-request-action-button--cancel"
+                      type="button"
+                      onClick={() => onCancelRequest(request)}
+                      title="Отменить заявку"
+                    >
+                      <XCircle size={15} aria-hidden="true" />
+                      <span>Отменить</span>
+                    </button>
+                  ) : (
+                    '-'
+                  )}
+                </td>
+              ) : null}
               {canChangeStatus ? (
                 <td>
                   <label className="client-request-status-select">
@@ -195,6 +217,10 @@ function canShipRequest(request: ClientRequestSummary) {
 
 function canRunFulfillment(request: ClientRequestSummary) {
   return canPickRequest(request) || canPackageRequest(request) || canShipRequest(request);
+}
+
+function canCancelRequest(request: ClientRequestSummary) {
+  return request.type === 'OUTBOUND' && ['SUBMITTED', 'IN_REVIEW', 'APPROVED'].includes(request.status);
 }
 
 function itemsSummary(request: ClientRequestSummary) {

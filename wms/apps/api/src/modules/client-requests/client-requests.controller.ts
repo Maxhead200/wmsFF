@@ -158,6 +158,12 @@ export class ClientRequestsController {
     return this.history.addComment(id, dto, user);
   }
 
+  @Post(':id/cancel')
+  @RequirePermissions('client-requests:write')
+  cancel(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.clientRequests.cancel(id, user);
+  }
+
   @Patch(':id/status')
   @RequirePermissions('client-requests:status')
   updateStatus(

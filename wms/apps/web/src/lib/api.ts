@@ -1901,6 +1901,13 @@ export async function updateClientRequestStatus(
   });
 }
 
+export async function cancelClientRequest(accessToken: string, requestId: string) {
+  return request<ClientRequestSummary>(`/client-requests/${requestId}/cancel`, {
+    method: 'POST',
+    accessToken,
+  });
+}
+
 export async function createClient(accessToken: string, payload: CreateClientPayload) {
   return request<ClientSummary>('/clients', {
     method: 'POST',

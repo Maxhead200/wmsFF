@@ -93,6 +93,77 @@ describe('ClientRequestsService', () => {
       ),
     ).rejects.toThrow(BadRequestException);
   });
+
+  it('позволяет клиенту отменить свою заявку до начала сборки', async () => {
+    const tx = {
+      clientRequest: {
+        update: vi.fn().mockResolvedValue({ id: 'request-1', clientId: 'client-1', status: ClientRequestStatus.CANCELLED }),
+      },
+      clientRequestEvent: {
+        create: vi.fn().mockResolvedValue({ id: 'event-1' }),
+      },
+      clientNotificationPreference: {
+        findUnique: vi.fn().mockResolvedValue(null),
+      },
+      clientNotification: {
+        create: vi.fn().mockResolvedValue({ id: 'notification-1' }),
+      },
+    };
+    const prisma = {
+      clientRequest: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'request-1',
+          clientId: 'client-1',
+          status: ClientRequestStatus.SUBMITTED,
+          title: 'Сборка',
+        }),
+      },
+      $transaction: vi.fn((callback) => callback(tx)),
+    };
+    const service = new ClientRequestsService(prisma as never, new ClientScopeService());
+
+    const updated = await service.cancel('request-1', user({ clientIds: ['client-1'], writableClientIds: ['client-1'] }));
+
+    expect(updated).toMatchObject({ id: 'request-1', status: ClientRequestStatus.CANCELLED });
+    expect(tx.clientRequest.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'request-1' },
+        data: expect.objectContaining({
+          status: ClientRequestStatus.CANCELLED,
+          managerComment: 'Отменено клиентом.',
+          assignedToUserId: null,
+        }),
+      }),
+    );
+    expect(tx.clientRequestEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          eventType: ClientRequestEventType.STATUS_CHANGED,
+          title: 'Заявка отменена клиентом',
+          statusFrom: ClientRequestStatus.SUBMITTED,
+          statusTo: ClientRequestStatus.CANCELLED,
+        }),
+      }),
+    );
+  });
+
+  it('запрещает клиенту отменить заявку после старта сборки', async () => {
+    const prisma = {
+      clientRequest: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'request-1',
+          clientId: 'client-1',
+          status: ClientRequestStatus.IN_WORK,
+          title: 'Сборка',
+        }),
+      },
+    };
+    const service = new ClientRequestsService(prisma as never, new ClientScopeService());
+
+    await expect(
+      service.cancel('request-1', user({ clientIds: ['client-1'], writableClientIds: ['client-1'] })),
+    ).rejects.toThrow(BadRequestException);
+  });
 });
 
 function user(overrides: Partial<AuthUser>): AuthUser {

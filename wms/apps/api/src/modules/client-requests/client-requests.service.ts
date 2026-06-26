@@ -228,6 +228,67 @@ export class ClientRequestsService {
     });
   }
 
+  async cancel(id: string, user: AuthUser) {
+    const request = await this.prisma.clientRequest.findUnique({
+      where: { id },
+      select: { id: true, clientId: true, status: true, title: true },
+    });
+
+    if (!request) {
+      throw new NotFoundException('Клиентская заявка не найдена.');
+    }
+
+    this.clientScopes.requireClientAccess(user, request.clientId, 'write');
+
+    if (request.status === ClientRequestStatus.CANCELLED) {
+      return this.get(id, user);
+    }
+
+    if (!clientCancelableStatuses.has(request.status)) {
+      throw new BadRequestException('Заявку нельзя отменить: склад уже начал обработку.');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.clientRequest.update({
+        where: { id },
+        data: {
+          status: ClientRequestStatus.CANCELLED,
+          managerComment: 'Отменено клиентом.',
+          assignedToUserId: null,
+        },
+        include: clientRequestInclude,
+      });
+
+      await tx.clientRequestEvent.create({
+        data: {
+          requestId: id,
+          clientId: request.clientId,
+          eventType: ClientRequestEventType.STATUS_CHANGED,
+          title: 'Заявка отменена клиентом',
+          body: 'Отменено клиентом.',
+          statusFrom: request.status,
+          statusTo: ClientRequestStatus.CANCELLED,
+          createdByUserId: user.id,
+        },
+      });
+
+      if (await isClientNotificationEnabled(tx, request.clientId, ClientNotificationEvent.REQUEST_STATUS_CHANGED)) {
+        await tx.clientNotification.create({
+          data: {
+            clientId: request.clientId,
+            requestId: id,
+            title: 'Заявка отменена клиентом',
+            body: request.title,
+            severity: 'WARNING',
+            createdByUserId: user.id,
+          },
+        });
+      }
+
+      return updated;
+    });
+  }
+
   private async ensureSkuItemsBelongToClient(clientId: string, items: Array<{ skuId?: string }>) {
     const skuIds = [...new Set(items.map((item) => item.skuId).filter(Boolean))] as string[];
     if (skuIds.length === 0) {
@@ -461,6 +522,12 @@ const activeRequestStatuses = [
   ClientRequestStatus.IN_WORK,
   ClientRequestStatus.PACKED,
 ];
+
+const clientCancelableStatuses = new Set<ClientRequestStatus>([
+  ClientRequestStatus.SUBMITTED,
+  ClientRequestStatus.IN_REVIEW,
+  ClientRequestStatus.APPROVED,
+]);
 
 const clientRequestInclude = {
   client: {

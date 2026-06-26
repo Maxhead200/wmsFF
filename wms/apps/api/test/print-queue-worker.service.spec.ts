@@ -40,7 +40,7 @@ describe('PrintQueueWorkerService', () => {
         update: vi.fn().mockResolvedValue({ id: 'job-1' }),
       },
     };
-    const service = new PrintQueueWorkerService(prisma as never, { get: vi.fn() } as never);
+    const service = new PrintQueueWorkerService(prisma as never, { get: vi.fn() } as never, {} as never);
 
     const result = await service.processQueued(10);
 
@@ -74,7 +74,7 @@ describe('PrintQueueWorkerService', () => {
         findMany: vi.fn(),
       },
     };
-    const service = new PrintQueueWorkerService(prisma as never, { get: vi.fn() } as never);
+    const service = new PrintQueueWorkerService(prisma as never, { get: vi.fn() } as never, {} as never);
 
     await expect(service.processQueued()).resolves.toEqual({ processed: 0, printed: 0, sent: 0, failed: 0, skipped: 0 });
     expect(prisma.printJob.findMany).not.toHaveBeenCalled();
@@ -117,7 +117,7 @@ describe('PrintQueueWorkerService', () => {
         update: vi.fn(),
       },
     };
-    const service = new PrintQueueWorkerService(prisma as never, { get: vi.fn() } as never);
+    const service = new PrintQueueWorkerService(prisma as never, { get: vi.fn() } as never, {} as never);
 
     await expect(service.processQueued()).resolves.toEqual({ processed: 0, printed: 0, sent: 0, failed: 0, skipped: 1 });
     expect(prisma.printJob.update).not.toHaveBeenCalled();

@@ -213,6 +213,7 @@ model User {
   status                 UserStatus       @default(ACTIVE)
   roles                  UserRole[]
   clientScopes           UserClient[]
+  printerScopes          UserPrinterGroup[]
   tsdDevices             TsdDevice[]
   createdClientRequests  ClientRequest[]  @relation("ClientRequestCreatedBy")
   assignedClientRequests ClientRequest[]  @relation("ClientRequestAssignedTo")
@@ -269,6 +270,18 @@ model UserClient {
 
   @@id([userId, clientId])
   @@index([clientId])
+}
+
+model UserPrinterGroup {
+  userId    String
+  groupCode String
+  canPrint  Boolean @default(true)
+  canManage Boolean @default(false)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([userId, groupCode])
+  @@index([groupCode])
 }
 
 model RolePermission {
@@ -936,6 +949,7 @@ model PrintJob {
 model PrintPrinter {
   id             String   @id @default(uuid())
   code           String   @unique
+  groupCode      String   @default("DEFAULT")
   name           String
   connectionType String   @default("dry_run")
   host           String?
@@ -946,6 +960,7 @@ model PrintPrinter {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  @@index([groupCode, isActive, autoProcess])
   @@index([isActive, autoProcess])
 }
 

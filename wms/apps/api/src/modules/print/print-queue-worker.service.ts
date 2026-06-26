@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { Prisma, type PrintJob, type PrintPrinter } from '@prisma/client';
 import { createConnection } from 'node:net';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import type { AuthUser } from '../auth/auth.types';
+import { PrinterScopeService } from '../auth/printer-scope.service';
 
 type ProcessQueueResult = {
   processed: number;
@@ -23,6 +25,7 @@ export class PrintQueueWorkerService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly printerScopes: PrinterScopeService,
   ) {}
 
   onModuleInit() {
@@ -49,7 +52,7 @@ export class PrintQueueWorkerService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async processQueued(limit = 20): Promise<ProcessQueueResult> {
+  async processQueued(limit = 20, user?: AuthUser, groupCode?: string): Promise<ProcessQueueResult> {
     if (this.isProcessing) {
       return { processed: 0, printed: 0, sent: 0, failed: 0, skipped: 1 };
     }
@@ -57,8 +60,17 @@ export class PrintQueueWorkerService implements OnModuleInit, OnModuleDestroy {
     this.isProcessing = true;
     try {
       const printers = await this.prisma.printPrinter.findMany({
-        where: { isActive: true, autoProcess: true },
+        where: {
+          isActive: true,
+          autoProcess: true,
+          groupCode: user ? this.printerScopes.resolvePrinterGroupFilter(user, groupCode, 'manage') : undefined,
+        },
       });
+      if (user) {
+        for (const printer of printers) {
+          this.printerScopes.requirePrinterGroupAccess(user, printer.groupCode, 'manage');
+        }
+      }
       const printerByCode = new Map(printers.map((printer) => [printer.code, printer]));
       if (printerByCode.size === 0) {
         return { processed: 0, printed: 0, sent: 0, failed: 0, skipped: 0 };

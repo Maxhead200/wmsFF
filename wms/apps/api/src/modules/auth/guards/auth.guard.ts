@@ -32,6 +32,7 @@ export class AuthGuard implements CanActivate {
       where: { id: payload.sub },
       include: {
         clientScopes: true,
+        printerScopes: true,
         roles: {
           include: {
             role: {
@@ -68,6 +69,11 @@ export class AuthGuard implements CanActivate {
       clientScopeMode: this.clientScopeMode(roleCodes, permissionCodes, user.clientScopes.length),
       clientIds: user.clientScopes.filter((scope) => scope.canRead).map((scope) => scope.clientId),
       writableClientIds: user.clientScopes.filter((scope) => scope.canWrite).map((scope) => scope.clientId),
+      printerGroups: user.printerScopes.map((scope) => ({
+        groupCode: scope.groupCode,
+        canPrint: scope.canPrint,
+        canManage: scope.canManage,
+      })),
       deviceId: payload.deviceId,
       deviceCode: payload.deviceCode,
     };

@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import type { AuthUser } from '../auth/auth.types';
+import { PrinterScopeService } from '../auth/printer-scope.service';
 import { CreatePrintJobFromTemplateDto } from './dto/create-print-job.dto';
 import { ListPrintJobsDto } from './dto/list-print-jobs.dto';
 import { ReprintPrintJobDto } from './dto/reprint-print-job.dto';
@@ -14,23 +16,28 @@ export class PrintJobService {
     private readonly prisma: PrismaService,
     private readonly templates: LabelTemplateService,
     private readonly printers: PrintPrinterService,
+    private readonly printerScopes: PrinterScopeService,
   ) {}
 
-  listJobs(query: ListPrintJobsDto) {
+  async listJobs(query: ListPrintJobsDto, user: AuthUser) {
+    const printerCodes = await this.resolvePrinterCodesForScope(user, query.groupCode);
+
     return this.prisma.printJob.findMany({
       where: {
         status: query.status,
+        printerCode: printerCodes ? { in: printerCodes } : undefined,
       },
       orderBy: { createdAt: 'desc' },
       take: query.limit ?? 100,
     });
   }
 
-  async createFromTemplate(templateId: string, dto: CreatePrintJobFromTemplateDto) {
+  async createFromTemplate(templateId: string, dto: CreatePrintJobFromTemplateDto, user: AuthUser) {
     const printerCode = normalizePrinterCode(dto.printerCode);
     const copies = dto.copies ?? 1;
     const template = await this.templates.getTemplateOrThrow(templateId);
-    await this.printers.getActivePrinterOrThrow(printerCode);
+    const printer = await this.printers.getActivePrinterOrThrow(printerCode);
+    this.printerScopes.requirePrinterGroupAccess(user, printer.groupCode, 'print');
 
     if (!template.isActive) {
       throw new BadRequestException('Шаблон этикетки отключен.');
@@ -59,15 +66,18 @@ export class PrintJobService {
     });
   }
 
-  async updateStatus(jobId: string, dto: UpdatePrintJobStatusDto) {
+  async updateStatus(jobId: string, dto: UpdatePrintJobStatusDto, user: AuthUser) {
     const job = await this.prisma.printJob.findUnique({
       where: { id: jobId },
-      select: { id: true, payload: true },
+      select: { id: true, payload: true, printerCode: true },
     });
 
     if (!job) {
       throw new NotFoundException('Задание печати не найдено.');
     }
+
+    const printer = await this.printers.getActivePrinterOrThrow(job.printerCode);
+    this.printerScopes.requirePrinterGroupAccess(user, printer.groupCode, 'manage');
 
     return this.prisma.printJob.update({
       where: { id: jobId },
@@ -78,7 +88,7 @@ export class PrintJobService {
     });
   }
 
-  async reprintJob(jobId: string, dto: ReprintPrintJobDto = {}) {
+  async reprintJob(jobId: string, dto: ReprintPrintJobDto, user: AuthUser) {
     const job = await this.prisma.printJob.findUnique({
       where: { id: jobId },
     });
@@ -87,7 +97,8 @@ export class PrintJobService {
       throw new NotFoundException('Задание печати не найдено.');
     }
 
-    await this.printers.getActivePrinterOrThrow(job.printerCode);
+    const printer = await this.printers.getActivePrinterOrThrow(job.printerCode);
+    this.printerScopes.requirePrinterGroupAccess(user, printer.groupCode, 'print');
 
     // Русский комментарий: перепечатка создает новое задание, а связь с оригиналом хранится в payload для аудита.
     return this.prisma.printJob.create({
@@ -99,6 +110,20 @@ export class PrintJobService {
         status: 'queued',
       },
     });
+  }
+
+  private async resolvePrinterCodesForScope(user: AuthUser, requestedGroupCode?: string) {
+    const groupCode = this.printerScopes.resolvePrinterGroupFilter(user, requestedGroupCode);
+    if (!groupCode) {
+      return undefined;
+    }
+
+    const printers = await this.prisma.printPrinter.findMany({
+      where: { groupCode },
+      select: { code: true },
+    });
+
+    return printers.map((printer) => printer.code);
   }
 }
 

@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserClientScopesDto } from './dto/update-user-client-scopes.dto';
+import { UpdateUserPrinterScopesDto } from './dto/update-user-printer-scopes.dto';
 import { UpdateUserRolesDto } from './dto/update-user-roles.dto';
 import { UsersService } from './users.service';
 
@@ -28,6 +29,12 @@ export class UsersController {
   @RequirePermissions('users:write')
   updateClientScopes(@Param('id') id: string, @Body() dto: UpdateUserClientScopesDto) {
     return this.users.updateClientScopes(id, dto);
+  }
+
+  @Patch(':id/printer-scopes')
+  @RequirePermissions('users:write')
+  updatePrinterScopes(@Param('id') id: string, @Body() dto: UpdateUserPrinterScopesDto) {
+    return this.users.updatePrinterScopes(id, dto);
   }
 
   @Patch(':id/roles')

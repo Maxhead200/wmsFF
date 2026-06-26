@@ -16,6 +16,7 @@ type UserWithAccess = {
   passwordHash: string;
   status: UserStatus;
   clientScopes: Array<{ clientId: string; canRead: boolean; canWrite: boolean }>;
+  printerScopes: Array<{ groupCode: string; canPrint: boolean; canManage: boolean }>;
   roles: Array<{
     role: {
       code: string;
@@ -107,12 +108,18 @@ export class AuthService {
       clientScopeMode: this.clientScopeMode(roleCodes, permissionCodes, user.clientScopes.length),
       clientIds: user.clientScopes.filter((scope) => scope.canRead).map((scope) => scope.clientId),
       writableClientIds: user.clientScopes.filter((scope) => scope.canWrite).map((scope) => scope.clientId),
+      printerGroups: user.printerScopes.map((scope) => ({
+        groupCode: scope.groupCode,
+        canPrint: scope.canPrint,
+        canManage: scope.canManage,
+      })),
     };
   }
 
   private userAccessInclude() {
     return {
       clientScopes: true,
+      printerScopes: true,
       roles: {
         include: {
           role: {

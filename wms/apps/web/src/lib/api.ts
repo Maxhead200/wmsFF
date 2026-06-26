@@ -7,6 +7,7 @@ export type AuthUser = {
   clientScopeMode: 'ALL' | 'LIMITED';
   clientIds: string[];
   writableClientIds: string[];
+  printerGroups?: UserPrinterScope[];
 };
 
 export type AuthSession = {
@@ -928,6 +929,12 @@ export type UserClientScope = {
   client: Pick<ClientSummary, 'id' | 'code' | 'name'>;
 };
 
+export type UserPrinterScope = {
+  groupCode: string;
+  canPrint: boolean;
+  canManage: boolean;
+};
+
 export type UserSummary = {
   id: string;
   email: string;
@@ -941,6 +948,7 @@ export type UserSummary = {
     };
   }>;
   clientScopes: UserClientScope[];
+  printerScopes: UserPrinterScope[];
 };
 
 export type CreateUserPayload = {
@@ -962,6 +970,14 @@ export type UpdateUserClientScopesPayload = {
 
 export type UpdateUserRolesPayload = {
   roleCodes: string[];
+};
+
+export type UpdateUserPrinterScopesPayload = {
+  scopes: Array<{
+    groupCode: string;
+    canPrint?: boolean;
+    canManage?: boolean;
+  }>;
 };
 
 export type TsdDeviceSummary = {
@@ -1180,6 +1196,7 @@ export type PrintPrinterConnectionType = 'dry_run' | 'tcp';
 export type PrintPrinterSummary = {
   id: string;
   code: string;
+  groupCode: string;
   name: string;
   connectionType: PrintPrinterConnectionType;
   host: string | null;
@@ -1194,11 +1211,16 @@ export type PrintPrinterSummary = {
 export type UpsertPrintPrinterPayload = {
   code: string;
   name: string;
+  groupCode?: string;
   connectionType?: PrintPrinterConnectionType;
   host?: string;
   port?: number;
   isActive?: boolean;
   autoProcess?: boolean;
+};
+
+export type PrintPrinterGroupSummary = {
+  groupCode: string;
 };
 
 export type ProcessPrintQueueResult = {
@@ -1789,6 +1811,18 @@ export async function updateUserRoles(accessToken: string, userId: string, paylo
   });
 }
 
+export async function updateUserPrinterScopes(
+  accessToken: string,
+  userId: string,
+  payload: UpdateUserPrinterScopesPayload,
+) {
+  return request<UserSummary>(`/users/${userId}/printer-scopes`, {
+    method: 'PATCH',
+    body: payload,
+    accessToken,
+  });
+}
+
 export async function fetchTsdDevices(accessToken: string) {
   return request<TsdDeviceSummary[]>('/tsd/devices', {
     accessToken,
@@ -2003,7 +2037,10 @@ export async function previewLabelTemplate(accessToken: string, templateId: stri
   });
 }
 
-export async function fetchPrintJobs(accessToken: string, filter: { status?: PrintJobStatus; limit?: string } = {}) {
+export async function fetchPrintJobs(
+  accessToken: string,
+  filter: { status?: PrintJobStatus; limit?: string; groupCode?: string } = {},
+) {
   return request<PrintJobSummary[]>(withQuery('/print/jobs', filter), {
     accessToken,
   });
@@ -2011,6 +2048,12 @@ export async function fetchPrintJobs(accessToken: string, filter: { status?: Pri
 
 export async function fetchPrintPrinters(accessToken: string) {
   return request<PrintPrinterSummary[]>('/print/printers', {
+    accessToken,
+  });
+}
+
+export async function fetchPrintPrinterGroups(accessToken: string) {
+  return request<PrintPrinterGroupSummary[]>('/print/printer-groups', {
     accessToken,
   });
 }
@@ -2023,7 +2066,7 @@ export async function upsertPrintPrinter(accessToken: string, payload: UpsertPri
   });
 }
 
-export async function processPrintQueue(accessToken: string, payload: { limit?: number } = {}) {
+export async function processPrintQueue(accessToken: string, payload: { limit?: number; groupCode?: string } = {}) {
   return request<ProcessPrintQueueResult>('/print/jobs/process', {
     method: 'POST',
     body: payload,

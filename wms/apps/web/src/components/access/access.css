@@ -22,7 +22,7 @@
 }
 
 .access-tabs {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   margin-bottom: 16px;
 }
 
@@ -150,6 +150,26 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.access-scope-switches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.access-scope-switches label {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfdff;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  padding: 0 11px;
 }
 
 .scope-row {

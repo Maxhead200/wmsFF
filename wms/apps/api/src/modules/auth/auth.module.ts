@@ -4,6 +4,7 @@ import { AccessTokenService } from './access-token.service';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { ClientScopeService } from './client-scope.service';
+import { PrinterScopeService } from './printer-scope.service';
 import { AuthGuard } from './guards/auth.guard';
 import { PermissionsGuard } from './guards/permissions.guard';
 import { PasswordService } from './password.service';
@@ -16,9 +17,18 @@ import { PasswordService } from './password.service';
     AuthGuard,
     AuthService,
     ClientScopeService,
+    PrinterScopeService,
     PasswordService,
     PermissionsGuard,
   ],
-  exports: [AccessModelService, AccessTokenService, AuthGuard, ClientScopeService, PasswordService, PermissionsGuard],
+  exports: [
+    AccessModelService,
+    AccessTokenService,
+    AuthGuard,
+    ClientScopeService,
+    PrinterScopeService,
+    PasswordService,
+    PermissionsGuard,
+  ],
 })
 export class AuthModule {}

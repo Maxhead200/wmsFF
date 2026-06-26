@@ -22,6 +22,7 @@ const dateTimeFormatter = new Intl.DateTimeFormat('ru-RU', {
 export function PrintPrinterPanel({ session }: PrintPrinterPanelProps) {
   const [printers, setPrinters] = useState<PrintPrinterSummary[]>([]);
   const [code, setCode] = useState('TSC-01');
+  const [groupCode, setGroupCode] = useState('DEFAULT');
   const [name, setName] = useState('TSC dry-run');
   const [connectionType, setConnectionType] = useState<PrintPrinterConnectionType>('dry_run');
   const [host, setHost] = useState('');
@@ -60,6 +61,7 @@ export function PrintPrinterPanel({ session }: PrintPrinterPanelProps) {
     try {
       const saved = await upsertPrintPrinter(session.accessToken, {
         code,
+        groupCode,
         name,
         connectionType,
         host: connectionType === 'tcp' ? host.trim() : undefined,
@@ -78,6 +80,7 @@ export function PrintPrinterPanel({ session }: PrintPrinterPanelProps) {
 
   function editPrinter(printer: PrintPrinterSummary) {
     setCode(printer.code);
+    setGroupCode(printer.groupCode);
     setName(printer.name);
     setConnectionType(printer.connectionType);
     setHost(printer.host ?? '');
@@ -103,6 +106,10 @@ export function PrintPrinterPanel({ session }: PrintPrinterPanelProps) {
           <label>
             <span>Код</span>
             <input value={code} onChange={(event) => setCode(event.target.value)} required />
+          </label>
+          <label>
+            <span>Группа</span>
+            <input value={groupCode} onChange={(event) => setGroupCode(event.target.value)} required />
           </label>
           <label>
             <span>Название</span>
@@ -168,6 +175,7 @@ export function PrintPrinterPanel({ session }: PrintPrinterPanelProps) {
                   {printer.isActive ? 'активен' : 'отключен'}
                 </span>
                 <strong>{printer.code}</strong>
+                <small>Группа {printer.groupCode}</small>
                 <small>
                   {printer.name} · {printer.connectionType}
                   {printer.host ? ` · ${printer.host}:${printer.port}` : ''}

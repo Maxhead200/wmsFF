@@ -5,7 +5,9 @@ import { PasswordService } from '../auth/password.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserClientScopesDto } from './dto/update-user-client-scopes.dto';
+import { UpdateUserPrinterScopesDto } from './dto/update-user-printer-scopes.dto';
 import { UpdateUserRolesDto } from './dto/update-user-roles.dto';
+import { normalizePrinterGroupCode } from '../auth/printer-scope.service';
 
 @Injectable()
 export class UsersService {
@@ -88,6 +90,36 @@ export class UsersService {
 
       if (scopes.length > 0) {
         await tx.userClient.createMany({
+          data: scopes.map((scope) => ({
+            userId,
+            ...scope,
+          })),
+          skipDuplicates: true,
+        });
+      }
+    });
+
+    return this.findUserSummary(userId);
+  }
+
+  async updatePrinterScopes(userId: string, dto: UpdateUserPrinterScopesDto) {
+    const scopes = [...new Map(dto.scopes.map((scope) => [normalizePrinterGroupCode(scope.groupCode), scope])).values()].map(
+      (scope) => ({
+        groupCode: normalizePrinterGroupCode(scope.groupCode),
+        canManage: scope.canManage ?? false,
+        canPrint: (scope.canPrint ?? true) || (scope.canManage ?? false),
+      }),
+    );
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.findUniqueOrThrow({
+        where: { id: userId },
+        select: { id: true },
+      });
+      await tx.userPrinterGroup.deleteMany({ where: { userId } });
+
+      if (scopes.length > 0) {
+        await tx.userPrinterGroup.createMany({
           data: scopes.map((scope) => ({
             userId,
             ...scope,
@@ -263,6 +295,13 @@ export class UsersService {
               name: true,
             },
           },
+        },
+      },
+      printerScopes: {
+        select: {
+          groupCode: true,
+          canPrint: true,
+          canManage: true,
         },
       },
     } as const;

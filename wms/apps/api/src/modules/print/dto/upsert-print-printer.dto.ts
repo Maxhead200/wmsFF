@@ -9,6 +9,11 @@ export class UpsertPrintPrinterDto {
   @Length(2, 80)
   code!: string;
 
+  @IsOptional()
+  @IsString()
+  @Length(2, 80)
+  groupCode?: string;
+
   @IsString()
   @Length(2, 160)
   name!: string;

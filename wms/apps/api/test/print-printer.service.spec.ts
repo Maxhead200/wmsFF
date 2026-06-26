@@ -6,10 +6,11 @@ describe('PrintPrinterService', () => {
   it('upsert-ит dry-run принтер с нормализованным кодом', async () => {
     const prisma = {
       printPrinter: {
+        findUnique: vi.fn().mockResolvedValue(null),
         upsert: vi.fn().mockImplementation(({ create }) => ({ id: 'printer-1', ...create })),
       },
     };
-    const service = new PrintPrinterService(prisma as never, { get: vi.fn() } as never);
+    const service = new PrintPrinterService(prisma as never, { get: vi.fn() } as never, {} as never);
 
     const printer = await service.upsertPrinter({
       code: ' tsc-01 ',
@@ -31,7 +32,11 @@ describe('PrintPrinterService', () => {
   });
 
   it('требует host и port для tcp-принтера', async () => {
-    const service = new PrintPrinterService({ printPrinter: { upsert: vi.fn() } } as never, { get: vi.fn() } as never);
+    const service = new PrintPrinterService(
+      { printPrinter: { findUnique: vi.fn().mockResolvedValue(null), upsert: vi.fn() } } as never,
+      { get: vi.fn() } as never,
+      {} as never,
+    );
 
     await expect(
       service.upsertPrinter({

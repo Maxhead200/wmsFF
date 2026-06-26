@@ -1,17 +1,18 @@
-import { KeyRound, ShieldCheck, Smartphone, UserPlus } from 'lucide-react';
+import { KeyRound, Printer, ShieldCheck, Smartphone, UserPlus } from 'lucide-react';
 import { useState } from 'react';
 import type { AuthSession, AuthUser } from '../../lib/api';
 import './access.css';
 import { TsdDeviceAdminPanel } from './TsdDeviceAdminPanel';
 import { UserCreateForm } from './UserCreateForm';
 import { UserRoleEditor } from './UserRoleEditor';
+import { UserPrinterScopeEditor } from './UserPrinterScopeEditor';
 import { UserScopeEditor } from './UserScopeEditor';
 
 type AccessAdminPanelProps = {
   session: AuthSession;
 };
 
-type AccessTab = 'create' | 'roles' | 'scopes' | 'tsd';
+type AccessTab = 'create' | 'roles' | 'scopes' | 'printers' | 'tsd';
 
 export function AccessAdminPanel({ session }: AccessAdminPanelProps) {
   const [activeTab, setActiveTab] = useState<AccessTab>('create');
@@ -70,11 +71,22 @@ export function AccessAdminPanel({ session }: AccessAdminPanelProps) {
           <Smartphone size={16} aria-hidden="true" />
           <span>ТСД</span>
         </button>
+        <button
+          aria-selected={activeTab === 'printers'}
+          className={activeTab === 'printers' ? 'active' : ''}
+          onClick={() => setActiveTab('printers')}
+          role="tab"
+          type="button"
+        >
+          <Printer size={16} aria-hidden="true" />
+          <span>Принтеры</span>
+        </button>
       </div>
 
       {activeTab === 'create' ? <UserCreateForm session={session} /> : null}
       {activeTab === 'roles' ? <UserRoleEditor session={session} /> : null}
       {activeTab === 'scopes' ? <UserScopeEditor session={session} /> : null}
+      {activeTab === 'printers' ? <UserPrinterScopeEditor session={session} /> : null}
       {activeTab === 'tsd' ? <TsdDeviceAdminPanel session={session} /> : null}
     </section>
   );

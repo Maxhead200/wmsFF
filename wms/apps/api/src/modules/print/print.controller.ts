@@ -1,5 +1,7 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import type { AuthUser } from '../auth/auth.types';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { CreateLabelTemplateDto } from './dto/create-label-template.dto';
 import { CreatePrintJobFromTemplateDto } from './dto/create-print-job.dto';
@@ -33,13 +35,18 @@ export class PrintController {
   ) {}
 
   @Get('printers')
-  listPrinters() {
-    return this.printers.listPrinters();
+  listPrinters(@CurrentUser() user: AuthUser) {
+    return this.printers.listPrinters(user);
+  }
+
+  @Get('printer-groups')
+  listPrinterGroups(@CurrentUser() user: AuthUser) {
+    return this.printers.listPrinterGroups(user);
   }
 
   @Post('printers')
-  upsertPrinter(@Body() body: UpsertPrintPrinterDto) {
-    return this.printers.upsertPrinter(body);
+  upsertPrinter(@Body() body: UpsertPrintPrinterDto, @CurrentUser() user: AuthUser) {
+    return this.printers.upsertPrinter(body, user);
   }
 
   @Get('templates')
@@ -68,28 +75,32 @@ export class PrintController {
   }
 
   @Post('templates/:id/jobs')
-  createJobFromTemplate(@Param('id') templateId: string, @Body() body: CreatePrintJobFromTemplateDto) {
-    return this.jobs.createFromTemplate(templateId, body);
+  createJobFromTemplate(
+    @Param('id') templateId: string,
+    @Body() body: CreatePrintJobFromTemplateDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.jobs.createFromTemplate(templateId, body, user);
   }
 
   @Get('jobs')
-  listJobs(@Query() query: ListPrintJobsDto) {
-    return this.jobs.listJobs(query);
+  listJobs(@Query() query: ListPrintJobsDto, @CurrentUser() user: AuthUser) {
+    return this.jobs.listJobs(query, user);
   }
 
   @Patch('jobs/:id/status')
-  updateJobStatus(@Param('id') jobId: string, @Body() body: UpdatePrintJobStatusDto) {
-    return this.jobs.updateStatus(jobId, body);
+  updateJobStatus(@Param('id') jobId: string, @Body() body: UpdatePrintJobStatusDto, @CurrentUser() user: AuthUser) {
+    return this.jobs.updateStatus(jobId, body, user);
   }
 
   @Post('jobs/:id/reprint')
-  reprintJob(@Param('id') jobId: string, @Body() body: ReprintPrintJobDto = {}) {
-    return this.jobs.reprintJob(jobId, body);
+  reprintJob(@Param('id') jobId: string, @CurrentUser() user: AuthUser, @Body() body: ReprintPrintJobDto = {}) {
+    return this.jobs.reprintJob(jobId, body, user);
   }
 
   @Post('jobs/process')
-  processQueue(@Body() body: ProcessPrintQueueDto = {}) {
-    return this.queue.processQueued(body.limit);
+  processQueue(@Body() body: ProcessPrintQueueDto = {}, @CurrentUser() user: AuthUser) {
+    return this.queue.processQueued(body.limit, user, body.groupCode);
   }
 
   @Post('box-label/preview')

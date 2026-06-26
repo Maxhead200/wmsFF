@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { LabelTemplateType } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import { PrismaService } from '../src/common/prisma/prisma.service';
+import type { AuthUser } from '../src/modules/auth/auth.types';
 import { LabelTemplateService } from '../src/modules/print/label-template.service';
 import { PrintJobService } from '../src/modules/print/print-job.service';
 
@@ -10,6 +11,7 @@ describe('PrintJobService', () => {
     const prisma = {
       printJob: {
         create: vi.fn().mockImplementation(({ data }) => ({ id: 'job-1', createdAt: new Date(), ...data })),
+        findMany: vi.fn().mockResolvedValue([]),
         findUnique: vi.fn().mockResolvedValue({
           id: 'job-1',
           printerCode: 'TSC-01',
@@ -35,10 +37,20 @@ describe('PrintJobService', () => {
       renderTspl: vi.fn().mockReturnValue('TEXT 10,10,"2",0,1,1,"BOX-001"'),
     } as unknown as LabelTemplateService;
     const printers = {
-      getActivePrinterOrThrow: vi.fn().mockResolvedValue({ code: 'TSC-01' }),
+      getActivePrinterOrThrow: vi.fn().mockResolvedValue({ code: 'TSC-01', groupCode: 'DEFAULT' }),
+    };
+    const printerScopes = {
+      requirePrinterGroupAccess: vi.fn(),
+      resolvePrinterGroupFilter: vi.fn().mockReturnValue(undefined),
     };
 
-    return { service: new PrintJobService(prisma, templates, printers as never), prisma, templates, printers };
+    return {
+      service: new PrintJobService(prisma, templates, printers as never, printerScopes as never),
+      prisma,
+      templates,
+      printers,
+      printerScopes,
+    };
   }
 
   it('ставит готовый TSPL из шаблона в очередь печати', async () => {
@@ -48,7 +60,7 @@ describe('PrintJobService', () => {
       printerCode: 'TSC-01',
       variables: { boxCode: 'BOX-001' },
       copies: 2,
-    });
+    }, adminUser());
 
     expect(job.printerCode).toBe('TSC-01');
     expect(job.labelType).toBe(LabelTemplateType.BOX);
@@ -66,7 +78,7 @@ describe('PrintJobService', () => {
       service.createFromTemplate('tpl-1', {
         printerCode: 'TSC-01',
         variables: { boxCode: 'BOX-001' },
-      }),
+      }, adminUser()),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -76,7 +88,7 @@ describe('PrintJobService', () => {
     const job = await service.updateStatus('job-1', {
       status: 'failed',
       message: 'Нет бумаги',
-    });
+    }, adminUser());
 
     expect(job.status).toBe('failed');
     expect(job.payload).toMatchObject({
@@ -90,7 +102,7 @@ describe('PrintJobService', () => {
 
     const job = await service.reprintJob('job-1', {
       reason: 'Этикетка испорчена',
-    });
+    }, adminUser());
 
     expect(printers.getActivePrinterOrThrow).toHaveBeenCalledWith('TSC-01');
     expect(prisma.printJob.create).toHaveBeenCalledWith(
@@ -115,3 +127,17 @@ describe('PrintJobService', () => {
     });
   });
 });
+
+function adminUser(): AuthUser {
+  return {
+    id: 'user-1',
+    email: 'admin',
+    name: 'Admin',
+    roleCodes: ['ADMIN'],
+    permissionCodes: ['system:admin', 'print:write'],
+    clientScopeMode: 'ALL',
+    clientIds: [],
+    writableClientIds: [],
+    printerGroups: [],
+  };
+}

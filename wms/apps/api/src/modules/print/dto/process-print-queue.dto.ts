@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class ProcessPrintQueueDto {
   @IsOptional()
@@ -8,4 +8,8 @@ export class ProcessPrintQueueDto {
   @Min(1)
   @Max(100)
   limit?: number;
+
+  @IsOptional()
+  @IsString()
+  groupCode?: string;
 }

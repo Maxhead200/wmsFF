@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { AuthModule } from '../auth/auth.module';
 import { LabelTemplateService } from './label-template.service';
 import { PrintJobService } from './print-job.service';
 import { PrintPrinterService } from './print-printer.service';
@@ -8,7 +9,7 @@ import { PrintController } from './print.controller';
 import { TsplLabelService } from './tspl-label.service';
 
 @Module({
-  imports: [ConfigModule],
+  imports: [AuthModule, ConfigModule],
   controllers: [PrintController],
   providers: [LabelTemplateService, PrintJobService, PrintPrinterService, PrintQueueWorkerService, TsplLabelService],
   exports: [LabelTemplateService, PrintJobService, PrintPrinterService, PrintQueueWorkerService, TsplLabelService],

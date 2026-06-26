@@ -7,8 +7,15 @@ export type AuthUser = {
   clientScopeMode: 'ALL' | 'LIMITED';
   clientIds: string[];
   writableClientIds: string[];
+  printerGroups?: UserPrinterGroupScope[];
   deviceId?: string;
   deviceCode?: string;
+};
+
+export type UserPrinterGroupScope = {
+  groupCode: string;
+  canPrint: boolean;
+  canManage: boolean;
 };
 
 export type TokenPayload = {

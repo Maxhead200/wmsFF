@@ -5,7 +5,7 @@ import java.util.UUID
 data class PendingOperation(
     val operationKey: String,
     val operationType: String,
-    val barcode: String,
+    val payload: Map<String, String>,
     val createdAt: Long,
 )
 
@@ -17,7 +17,31 @@ class OperationOutbox {
         val operation = PendingOperation(
             operationKey = UUID.randomUUID().toString(),
             operationType = "receipt_scan",
-            barcode = barcode,
+            payload = mapOf("barcode" to barcode),
+            createdAt = System.currentTimeMillis(),
+        )
+        items += operation
+        return operation
+    }
+
+    fun enqueueMove(
+        clientId: String,
+        barcode: String,
+        fromBoxCode: String,
+        toBoxCode: String,
+        quantity: Int,
+    ): PendingOperation {
+        val operation = PendingOperation(
+            operationKey = UUID.randomUUID().toString(),
+            operationType = "move_scan",
+            // Русский комментарий: payload совпадает с backend DTO, чтобы offline outbox не требовал трансформаций при sync.
+            payload = mapOf(
+                "clientId" to clientId,
+                "barcode" to barcode,
+                "fromBoxCode" to fromBoxCode,
+                "toBoxCode" to toBoxCode,
+                "quantity" to quantity.toString(),
+            ),
             createdAt = System.currentTimeMillis(),
         )
         items += operation

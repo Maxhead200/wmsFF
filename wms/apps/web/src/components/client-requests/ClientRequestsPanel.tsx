@@ -17,6 +17,7 @@ import {
 } from '../../lib/api';
 import { ClientRequestCreateForm } from './ClientRequestCreateForm';
 import { ClientRequestDocumentPreview } from './ClientRequestDocumentPreview';
+import { ClientRequestXlsxImportForm } from './ClientRequestXlsxImportForm';
 import './client-requests.css';
 import { ClientRequestsTable } from './ClientRequestsTable';
 
@@ -177,7 +178,10 @@ export function ClientRequestsPanel({ session }: ClientRequestsPanelProps) {
       </div>
 
       {canWrite && clients.status === 'ready' ? (
-        <ClientRequestCreateForm clients={visibleClients} session={session} onCreated={acceptCreated} />
+        <>
+          <ClientRequestXlsxImportForm clients={visibleClients} session={session} onCreated={acceptCreated} />
+          <ClientRequestCreateForm clients={visibleClients} session={session} onCreated={acceptCreated} />
+        </>
       ) : null}
 
       {error ? <p className="form-error">{error}</p> : null}

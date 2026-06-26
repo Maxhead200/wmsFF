@@ -19,6 +19,33 @@
   padding-bottom: 16px;
 }
 
+.client-request-xlsx-form {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 16px;
+}
+
+.client-request-xlsx-form__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.client-request-xlsx-form__header h3 {
+  font-size: 17px;
+}
+
+.client-request-xlsx-form__header span {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .client-request-fields {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -60,8 +87,79 @@
   grid-column: span 2;
 }
 
+.client-request-fields--xlsx {
+  grid-template-columns: minmax(180px, 1fr) minmax(140px, 0.8fr) minmax(140px, 0.8fr) minmax(220px, 1.2fr);
+}
+
 .client-request-submit {
   width: fit-content;
+}
+
+.client-request-xlsx-preview {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdff;
+  padding: 12px;
+}
+
+.client-request-xlsx-summary,
+.client-request-xlsx-issues,
+.client-request-xlsx-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.client-request-xlsx-summary span {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--muted);
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.client-request-xlsx-lines {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.client-request-xlsx-line {
+  display: grid;
+  gap: 3px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 9px;
+}
+
+.client-request-xlsx-line strong,
+.client-request-xlsx-line span,
+.client-request-xlsx-line small {
+  overflow-wrap: anywhere;
+}
+
+.client-request-xlsx-line span,
+.client-request-xlsx-line small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.client-request-xlsx-actions {
+  align-items: center;
+}
+
+.client-request-secondary-button {
+  border-color: var(--line);
+  background: #ffffff;
+  color: var(--ink);
 }
 
 .client-request-items-editor {
@@ -241,6 +339,10 @@
   .client-request-fields {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .client-request-fields--xlsx {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 620px) {
@@ -252,11 +354,20 @@
     grid-template-columns: 1fr;
   }
 
+  .client-request-fields--xlsx,
+  .client-request-xlsx-lines {
+    grid-template-columns: 1fr;
+  }
+
   .client-request-fields__wide {
     grid-column: auto;
   }
 
   .client-request-submit {
+    width: 100%;
+  }
+
+  .client-request-xlsx-actions .primary-button {
     width: 100%;
   }
 

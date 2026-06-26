@@ -20,9 +20,11 @@ import { RequirePermissions } from '../auth/decorators/require-permissions.decor
 import { ClientRequestFilesService } from './client-request-files.service';
 import { ClientRequestHistoryService } from './client-request-history.service';
 import { ClientRequestDocumentService } from './client-request-document.service';
+import { ClientRequestXlsxService } from './client-request-xlsx.service';
 import { ClientRequestsService } from './client-requests.service';
 import { CreateClientRequestCommentDto } from './dto/create-client-request-comment.dto';
 import { CreateClientRequestDto } from './dto/create-client-request.dto';
+import { ImportOutboundRequestXlsxDto } from './dto/import-outbound-request-xlsx.dto';
 import { ListClientRequestsDto } from './dto/list-client-requests.dto';
 import { UpdateClientRequestStatusDto } from './dto/update-client-request-status.dto';
 
@@ -35,6 +37,7 @@ export class ClientRequestsController {
     private readonly documents: ClientRequestDocumentService,
     private readonly files: ClientRequestFilesService,
     private readonly history: ClientRequestHistoryService,
+    private readonly xlsx: ClientRequestXlsxService,
   ) {}
 
   @Get()
@@ -81,6 +84,32 @@ export class ClientRequestsController {
   @RequirePermissions('client-requests:write')
   create(@Body() dto: CreateClientRequestDto, @CurrentUser() user: AuthUser) {
     return this.clientRequests.create(dto, user);
+  }
+
+  @Post('outbound-xlsx/preview')
+  @RequirePermissions('client-requests:write')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({ description: 'Excel-файл сборки: баркод товара и количество.' })
+  @UseInterceptors(FileInterceptor('file'))
+  previewOutboundXlsx(
+    @UploadedFile() file: Express.Multer.File,
+    @Body() dto: ImportOutboundRequestXlsxDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.xlsx.previewOutboundRequest(file, dto, user);
+  }
+
+  @Post('outbound-xlsx/commit')
+  @RequirePermissions('client-requests:write')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({ description: 'Создание outbound-заявки из Excel-файла сборки.' })
+  @UseInterceptors(FileInterceptor('file'))
+  createOutboundFromXlsx(
+    @UploadedFile() file: Express.Multer.File,
+    @Body() dto: ImportOutboundRequestXlsxDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.xlsx.createOutboundRequest(file, dto, user);
   }
 
   @Post(':id/files')

@@ -494,6 +494,45 @@ export type ClientRequestSummary = {
   packages: ClientRequestPackage[];
 };
 
+export type OutboundRequestXlsxIssue = {
+  row: number;
+  barcode?: string;
+  message: string;
+  severity: 'warning' | 'error';
+};
+
+export type OutboundRequestXlsxLine = {
+  barcode: string;
+  requestedQuantity: number;
+  availableQuantity: number;
+  shortageQuantity: number;
+  sourceRows: number[];
+  skuId: string | null;
+  internalSku: string | null;
+  name: string | null;
+  canFulfill: boolean;
+};
+
+export type OutboundRequestXlsxPreview = {
+  clientId: string;
+  title: string;
+  canCommit: boolean;
+  summary: {
+    sourceRows: number;
+    lines: number;
+    totalQuantity: number;
+    availableQuantity: number;
+    shortageQuantity: number;
+  };
+  issues: OutboundRequestXlsxIssue[];
+  lines: OutboundRequestXlsxLine[];
+};
+
+export type CommitOutboundRequestXlsxResult = {
+  request: ClientRequestSummary;
+  preview: OutboundRequestXlsxPreview;
+};
+
 export type ClientRequestPackageItem = {
   id: string;
   packageId: string;
@@ -631,6 +670,18 @@ export type CreateClientRequestPayload = {
     quantity: number;
     comment?: string;
   }>;
+};
+
+export type OutboundRequestXlsxPayload = {
+  file: File;
+  clientId: string;
+  title?: string;
+  priority?: ClientRequestPriority;
+  comment?: string;
+  contactName?: string;
+  contactPhone?: string;
+  deliveryAddress?: string;
+  desiredDate?: string;
 };
 
 export type CreateClientPayload = {
@@ -1581,6 +1632,22 @@ export async function createClientRequest(accessToken: string, payload: CreateCl
   });
 }
 
+export async function previewOutboundRequestXlsx(accessToken: string, payload: OutboundRequestXlsxPayload) {
+  return requestMultipart<OutboundRequestXlsxPreview>(
+    '/client-requests/outbound-xlsx/preview',
+    outboundRequestXlsxForm(payload),
+    accessToken,
+  );
+}
+
+export async function commitOutboundRequestXlsx(accessToken: string, payload: OutboundRequestXlsxPayload) {
+  return requestMultipart<CommitOutboundRequestXlsxResult>(
+    '/client-requests/outbound-xlsx/commit',
+    outboundRequestXlsxForm(payload),
+    accessToken,
+  );
+}
+
 export async function updateClientRequestStatus(
   accessToken: string,
   requestId: string,
@@ -2050,6 +2117,26 @@ export async function shipClientRequest(
     body: payload,
     accessToken,
   });
+}
+
+function outboundRequestXlsxForm(payload: OutboundRequestXlsxPayload) {
+  const form = new FormData();
+  form.append('file', payload.file);
+  form.append('clientId', payload.clientId);
+  appendOptional(form, 'title', payload.title);
+  appendOptional(form, 'priority', payload.priority);
+  appendOptional(form, 'comment', payload.comment);
+  appendOptional(form, 'contactName', payload.contactName);
+  appendOptional(form, 'contactPhone', payload.contactPhone);
+  appendOptional(form, 'deliveryAddress', payload.deliveryAddress);
+  appendOptional(form, 'desiredDate', payload.desiredDate);
+  return form;
+}
+
+function appendOptional(form: FormData, key: string, value?: string) {
+  if (value?.trim()) {
+    form.append(key, value.trim());
+  }
 }
 
 async function request<T>(

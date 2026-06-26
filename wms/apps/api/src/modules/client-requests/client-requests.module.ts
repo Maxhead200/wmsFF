@@ -4,12 +4,19 @@ import { AuthModule } from '../auth/auth.module';
 import { ClientRequestDocumentService } from './client-request-document.service';
 import { ClientRequestFilesService } from './client-request-files.service';
 import { ClientRequestHistoryService } from './client-request-history.service';
+import { ClientRequestXlsxService } from './client-request-xlsx.service';
 import { ClientRequestsController } from './client-requests.controller';
 import { ClientRequestsService } from './client-requests.service';
 
 @Module({
   imports: [AuthModule, CommonModule],
   controllers: [ClientRequestsController],
-  providers: [ClientRequestsService, ClientRequestDocumentService, ClientRequestFilesService, ClientRequestHistoryService],
+  providers: [
+    ClientRequestsService,
+    ClientRequestDocumentService,
+    ClientRequestFilesService,
+    ClientRequestHistoryService,
+    ClientRequestXlsxService,
+  ],
 })
 export class ClientRequestsModule {}

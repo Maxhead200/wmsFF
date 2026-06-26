@@ -18,6 +18,8 @@ data class TsdOperationResponse(
     val operationType: String,
     val status: String,
     val message: String? = null,
+    val reviewReason: String? = null,
+    val resolutionMessage: String? = null,
     val serverTime: String,
 )
 

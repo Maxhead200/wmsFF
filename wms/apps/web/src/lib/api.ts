@@ -786,6 +786,16 @@ export type CreatedTsdDevice = Omit<TsdDeviceSummary, 'lastLoginAt' | 'lastSeenA
   deviceSecret: string;
 };
 
+export type TsdReviewReason =
+  | 'INVENTORY_MISMATCH'
+  | 'SKU_NOT_FOUND'
+  | 'BOX_NOT_FOUND'
+  | 'RECEIPT_FAILED'
+  | 'DEVICE_MISMATCH'
+  | 'VALIDATION_ERROR'
+  | 'MANUAL_REJECT'
+  | 'OTHER';
+
 export type TsdReviewOperation = {
   id: string;
   deviceId: string;
@@ -794,6 +804,8 @@ export type TsdReviewOperation = {
   payload: Record<string, unknown>;
   status: 'ACCEPTED' | 'NEEDS_REVIEW' | 'REJECTED';
   serverMessage: string | null;
+  reviewReason: TsdReviewReason | null;
+  resolutionMessage: string | null;
   reviewAction: 'APPLY_INVENTORY_ADJUSTMENT' | 'REJECT' | null;
   reviewComment: string | null;
   reviewedByUserId: string | null;
@@ -810,6 +822,7 @@ export type TsdReviewOperation = {
 export type ResolveTsdReviewPayload = {
   action: 'APPLY_INVENTORY_ADJUSTMENT' | 'REJECT';
   comment?: string;
+  reason?: TsdReviewReason;
 };
 
 export type ResolveTsdReviewResult = {

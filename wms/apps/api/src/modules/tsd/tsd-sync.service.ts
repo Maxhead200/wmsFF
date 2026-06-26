@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { StockStatus } from '@prisma/client';
+import { StockStatus, TsdReviewReason } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
@@ -49,12 +49,13 @@ export class TsdSyncService {
           operation,
           'REJECTED',
           'Операция пришла не от устройства из access token.',
+          TsdReviewReason.DEVICE_MISMATCH,
         );
       }
 
       const existing = await this.operationLog.findExisting(operation.operationKey);
       if (existing) {
-        return this.operationLog.existingResult(operation, existing.status, existing.serverMessage ?? undefined);
+        return this.operationLog.existingResult(operation, existing);
       }
 
       if (operation.operationType === 'move_scan') {
@@ -71,6 +72,7 @@ export class TsdSyncService {
         operation,
         'REJECTED',
         caught instanceof Error ? caught.message : 'Операция ТСД отклонена.',
+        TsdReviewReason.VALIDATION_ERROR,
       );
     }
   }
@@ -126,6 +128,7 @@ export class TsdSyncService {
         operation,
         'NEEDS_REVIEW',
         caught instanceof Error ? caught.message : 'Приемка ТСД требует разбора.',
+        TsdReviewReason.RECEIPT_FAILED,
       );
     }
   }
@@ -136,14 +139,24 @@ export class TsdSyncService {
 
     const sku = await this.findSku(payload.clientId, payload);
     if (!sku) {
-      return this.operationLog.recordResult(operation, 'NEEDS_REVIEW', 'SKU или штрихкод не найден у клиента.');
+      return this.operationLog.recordResult(
+        operation,
+        'NEEDS_REVIEW',
+        'SKU или штрихкод не найден у клиента.',
+        TsdReviewReason.SKU_NOT_FOUND,
+      );
     }
 
     const box = await this.prisma.box.findUnique({
       where: { clientId_code: { clientId: payload.clientId, code: payload.boxCode } },
     });
     if (!box) {
-      return this.operationLog.recordResult(operation, 'NEEDS_REVIEW', `Короб ${payload.boxCode} не найден.`);
+      return this.operationLog.recordResult(
+        operation,
+        'NEEDS_REVIEW',
+        `Короб ${payload.boxCode} не найден.`,
+        TsdReviewReason.BOX_NOT_FOUND,
+      );
     }
 
     const status = payload.status ?? StockStatus.AVAILABLE;
@@ -162,6 +175,7 @@ export class TsdSyncService {
         operation,
         'NEEDS_REVIEW',
         `Расхождение инвентаризации: в WMS ${currentQuantity}, на ТСД ${payload.countedQuantity}.`,
+        TsdReviewReason.INVENTORY_MISMATCH,
       );
     }
 

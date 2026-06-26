@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, TsdOperationStatus } from '@prisma/client';
+import { Prisma, TsdOperationStatus, TsdReviewReason } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
@@ -27,7 +27,13 @@ export class TsdOperationLogService {
     });
   }
 
-  async recordResult(operation: ScanOperationDto, status: TsdOperationResult['status'], message?: string) {
+  async recordResult(
+    operation: ScanOperationDto,
+    status: TsdOperationResult['status'],
+    message?: string,
+    reviewReason?: TsdReviewReason,
+    resolutionMessage?: string,
+  ) {
     const persistedStatus = this.toPersistedStatus(status);
 
     await this.prisma.tsdOperation.upsert({
@@ -35,6 +41,8 @@ export class TsdOperationLogService {
       update: {
         status: persistedStatus,
         serverMessage: message,
+        reviewReason,
+        resolutionMessage,
       },
       create: {
         deviceId: operation.deviceId,
@@ -43,26 +51,48 @@ export class TsdOperationLogService {
         payload: operation.payload as Prisma.InputJsonValue,
         status: persistedStatus,
         serverMessage: message,
+        reviewReason,
+        resolutionMessage,
       },
     });
 
-    return this.result(operation, status, message);
+    return this.result(operation, status, message, reviewReason, resolutionMessage);
   }
 
-  existingResult(operation: ScanOperationDto, status: TsdOperationStatus, message?: string): TsdOperationResult {
-    if (status === TsdOperationStatus.ACCEPTED) {
-      return this.result(operation, 'ALREADY_APPLIED', message);
+  existingResult(
+    operation: ScanOperationDto,
+    existing: {
+      status: TsdOperationStatus;
+      serverMessage?: string | null;
+      reviewReason?: TsdReviewReason | null;
+      resolutionMessage?: string | null;
+    },
+  ): TsdOperationResult {
+    const message = existing.resolutionMessage ?? existing.serverMessage ?? undefined;
+    const reviewReason = existing.reviewReason ?? undefined;
+    const resolutionMessage = existing.resolutionMessage ?? undefined;
+
+    if (existing.status === TsdOperationStatus.ACCEPTED) {
+      return this.result(operation, 'ALREADY_APPLIED', message, reviewReason, resolutionMessage);
     }
 
-    return this.result(operation, status, message);
+    return this.result(operation, existing.status, message, reviewReason, resolutionMessage);
   }
 
-  result(operation: ScanOperationDto, status: TsdOperationResult['status'], message?: string): TsdOperationResult {
+  result(
+    operation: ScanOperationDto,
+    status: TsdOperationResult['status'],
+    message?: string,
+    reviewReason?: TsdReviewReason,
+    resolutionMessage?: string,
+  ): TsdOperationResult {
     return {
       operationKey: operation.operationKey,
       operationType: operation.operationType,
       status,
       message,
+      reviewReason,
+      resolutionMessage,
       serverTime: new Date().toISOString(),
     };
   }

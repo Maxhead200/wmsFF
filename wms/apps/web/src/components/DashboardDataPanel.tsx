@@ -26,6 +26,7 @@ import {
   type RoleSummary,
   type StockBalance,
   type TsdReviewOperation,
+  type TsdReviewReason,
 } from '../lib/api';
 
 const dataTabs = [
@@ -38,6 +39,17 @@ const dataTabs = [
 ] as const;
 
 type DataTab = (typeof dataTabs)[number]['id'];
+
+const tsdReviewReasonOptions: TsdReviewReason[] = [
+  'INVENTORY_MISMATCH',
+  'SKU_NOT_FOUND',
+  'BOX_NOT_FOUND',
+  'RECEIPT_FAILED',
+  'DEVICE_MISMATCH',
+  'VALIDATION_ERROR',
+  'MANUAL_REJECT',
+  'OTHER',
+];
 
 type LoadState<T> = {
   status: 'idle' | 'loading' | 'ready' | 'error';
@@ -63,6 +75,7 @@ export function DashboardDataPanel({ session }: DashboardDataPanelProps) {
   const [tsdHistory, setTsdHistory] = useState<LoadState<TsdReviewOperation>>({ status: 'idle', data: [] });
   const [roles, setRoles] = useState<LoadState<RoleSummary>>({ status: 'idle', data: [] });
   const [tariffs, setTariffs] = useState<LoadState<LogisticsTariffSetSummary>>({ status: 'idle', data: [] });
+  const [rejectReasons, setRejectReasons] = useState<Record<string, TsdReviewReason>>({});
 
   const availableTabs = useMemo(
     () => dataTabs.filter((tab) => canUse(session.user, tab.permission)),
@@ -162,7 +175,11 @@ export function DashboardDataPanel({ session }: DashboardDataPanelProps) {
     }
   }
 
-  async function resolveReview(operation: TsdReviewOperation, action: ResolveTsdReviewPayload['action']) {
+  async function resolveReview(
+    operation: TsdReviewOperation,
+    action: ResolveTsdReviewPayload['action'],
+    reason?: TsdReviewReason,
+  ) {
     setTsdReview((current) => ({ ...current, status: 'loading', error: undefined }));
 
     try {
@@ -172,11 +189,17 @@ export function DashboardDataPanel({ session }: DashboardDataPanelProps) {
           action === 'APPLY_INVENTORY_ADJUSTMENT'
             ? 'Подтверждено оператором WMS.'
             : 'Отклонено оператором WMS.',
+        reason: action === 'REJECT' ? reason ?? defaultRejectReason(operation) : undefined,
       });
       setTsdReview((current) => ({
         status: 'ready',
         data: current.data.filter((item) => item.id !== operation.id),
       }));
+      setRejectReasons((current) => {
+        const next = { ...current };
+        delete next[operation.id];
+        return next;
+      });
     } catch (caught) {
       setTsdReview((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
     }
@@ -197,7 +220,16 @@ export function DashboardDataPanel({ session }: DashboardDataPanelProps) {
 
     if (activeTab === 'tsdReview') {
       return renderLoadState(tsdReview, 'Операций ТСД на разборе нет.', (items) =>
-        renderTsdReview(items, (operation, action) => void resolveReview(operation, action)),
+        renderTsdReview(
+          items,
+          rejectReasons,
+          (operation, reason) =>
+            setRejectReasons((current) => ({
+              ...current,
+              [operation.id]: reason,
+            })),
+          (operation, action, reason) => void resolveReview(operation, action, reason),
+        ),
       );
     }
 
@@ -403,7 +435,9 @@ function renderTariffs(items: LogisticsTariffSetSummary[]) {
 
 function renderTsdReview(
   items: TsdReviewOperation[],
-  onResolve: (operation: TsdReviewOperation, action: ResolveTsdReviewPayload['action']) => void,
+  rejectReasons: Record<string, TsdReviewReason>,
+  onRejectReasonChange: (operation: TsdReviewOperation, reason: TsdReviewReason) => void,
+  onResolve: (operation: TsdReviewOperation, action: ResolveTsdReviewPayload['action'], reason?: TsdReviewReason) => void,
 ) {
   return (
     <div className="data-table-wrap">
@@ -427,7 +461,10 @@ function renderTsdReview(
               </td>
               <td>{operation.deviceId}</td>
               <td>{payloadSummary(operation.payload)}</td>
-              <td>{operation.serverMessage ?? '-'}</td>
+              <td>
+                <strong>{reviewReasonLabel(operation.reviewReason)}</strong>
+                <span>{operation.serverMessage ?? '-'}</span>
+              </td>
               <td>{formatDate(operation.createdAt)}</td>
               <td>
                 <div className="review-actions">
@@ -441,10 +478,22 @@ function renderTsdReview(
                       <span>Принять</span>
                     </button>
                   ) : null}
+                  <select
+                    className="review-reason-select"
+                    value={rejectReasons[operation.id] ?? defaultRejectReason(operation)}
+                    onChange={(event) => onRejectReasonChange(operation, event.target.value as TsdReviewReason)}
+                    aria-label="Причина отклонения"
+                  >
+                    {tsdReviewReasonOptions.map((reason) => (
+                      <option key={reason} value={reason}>
+                        {reviewReasonLabel(reason)}
+                      </option>
+                    ))}
+                  </select>
                   <button
                     className="review-action review-action--reject"
                     type="button"
-                    onClick={() => onResolve(operation, 'REJECT')}
+                    onClick={() => onResolve(operation, 'REJECT', rejectReasons[operation.id] ?? defaultRejectReason(operation))}
                   >
                     <XCircle size={15} aria-hidden="true" />
                     <span>Отклонить</span>
@@ -469,6 +518,7 @@ function renderTsdReviewHistory(items: TsdReviewOperation[]) {
             <th>Решение</th>
             <th>Оператор</th>
             <th>Payload</th>
+            <th>Причина</th>
             <th>Комментарий</th>
             <th>Дата</th>
           </tr>
@@ -490,7 +540,11 @@ function renderTsdReviewHistory(items: TsdReviewOperation[]) {
                 {operation.reviewedBy?.email ? <span>{operation.reviewedBy.email}</span> : null}
               </td>
               <td>{payloadSummary(operation.payload)}</td>
-              <td>{operation.reviewComment ?? operation.serverMessage ?? '-'}</td>
+              <td>
+                <strong>{reviewReasonLabel(operation.reviewReason)}</strong>
+                <span>{operation.serverMessage ?? '-'}</span>
+              </td>
+              <td>{operation.resolutionMessage ?? operation.reviewComment ?? operation.serverMessage ?? '-'}</td>
               <td>{formatDate(operation.reviewedAt)}</td>
             </tr>
           ))}
@@ -530,6 +584,29 @@ function payloadSummary(payload: Record<string, unknown>) {
     .map((field) => (payload[field] == null ? '' : `${field}: ${String(payload[field])}`))
     .filter(Boolean)
     .join(' · ');
+}
+
+function defaultRejectReason(operation: TsdReviewOperation): TsdReviewReason {
+  return operation.reviewReason ?? 'MANUAL_REJECT';
+}
+
+function reviewReasonLabel(reason: TsdReviewReason | null) {
+  if (!reason) {
+    return 'Причина не задана';
+  }
+
+  const labels: Record<TsdReviewReason, string> = {
+    INVENTORY_MISMATCH: 'Расхождение инвентаризации',
+    SKU_NOT_FOUND: 'SKU не найден',
+    BOX_NOT_FOUND: 'Короб не найден',
+    RECEIPT_FAILED: 'Ошибка приемки',
+    DEVICE_MISMATCH: 'Не тот ТСД',
+    VALIDATION_ERROR: 'Ошибка данных',
+    MANUAL_REJECT: 'Ручное отклонение',
+    OTHER: 'Другая причина',
+  };
+
+  return labels[reason];
 }
 
 function reviewActionLabel(operation: TsdReviewOperation) {

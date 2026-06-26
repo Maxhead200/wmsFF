@@ -1,4 +1,4 @@
-import { StockStatus } from '@prisma/client';
+import { StockStatus, TsdReviewReason } from '@prisma/client';
 import { ScanOperationDto } from './dto/scan-operation.dto';
 
 export type TsdOperationResult = {
@@ -6,6 +6,8 @@ export type TsdOperationResult = {
   operationType: ScanOperationDto['operationType'];
   status: 'ACCEPTED' | 'APPLIED' | 'ALREADY_APPLIED' | 'NEEDS_REVIEW' | 'REJECTED';
   message?: string;
+  reviewReason?: TsdReviewReason;
+  resolutionMessage?: string;
   serverTime: string;
 };
 

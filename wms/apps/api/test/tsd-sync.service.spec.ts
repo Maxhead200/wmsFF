@@ -1,3 +1,4 @@
+import { TsdOperationStatus, TsdReviewReason } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthUser } from '../src/modules/auth/auth.types';
 import { TsdOperationLogService } from '../src/modules/tsd/tsd-operation-log.service';
@@ -146,6 +147,7 @@ describe('TsdSyncService', () => {
     expect(result).toMatchObject({
       operationKey: 'inventory-mismatch',
       status: 'NEEDS_REVIEW',
+      reviewReason: TsdReviewReason.INVENTORY_MISMATCH,
     });
   });
 
@@ -167,8 +169,46 @@ describe('TsdSyncService', () => {
       { ...user, deviceId: 'device-db-id', deviceCode: 'tsd-1' },
     );
 
-    expect(result).toMatchObject({ status: 'REJECTED' });
+    expect(result).toMatchObject({ status: 'REJECTED', reviewReason: TsdReviewReason.DEVICE_MISMATCH });
     expect(transferBetweenBoxes).not.toHaveBeenCalled();
+  });
+
+  it('возвращает итог ручного разбора для повторной операции ТСД', async () => {
+    const service = createService({
+      prisma: {
+        tsdOperation: {
+          findUnique: vi.fn().mockResolvedValue({
+            status: TsdOperationStatus.REJECTED,
+            serverMessage: 'Расхождение инвентаризации: в WMS 5, на ТСД 3.',
+            reviewReason: TsdReviewReason.INVENTORY_MISMATCH,
+            resolutionMessage: 'Отклонено: нужен повторный пересчет',
+          }),
+          upsert: vi.fn().mockResolvedValue(undefined),
+        },
+      },
+    });
+
+    const [result] = await service.syncOperations(
+      {
+        operations: [
+          {
+            deviceId: 'tsd-1',
+            operationKey: 'inventory-reviewed',
+            operationType: 'inventory_scan',
+            payload: { clientId: 'client-1', barcode: '4600002', boxCode: 'BOX-1', countedQuantity: 3 },
+          },
+        ],
+      },
+      user,
+    );
+
+    expect(result).toMatchObject({
+      operationKey: 'inventory-reviewed',
+      status: 'REJECTED',
+      message: 'Отклонено: нужен повторный пересчет',
+      reviewReason: TsdReviewReason.INVENTORY_MISMATCH,
+      resolutionMessage: 'Отклонено: нужен повторный пересчет',
+    });
   });
 });
 

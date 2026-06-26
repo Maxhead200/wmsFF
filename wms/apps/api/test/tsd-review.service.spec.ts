@@ -1,4 +1,4 @@
-import { TsdOperationStatus } from '@prisma/client';
+import { TsdOperationStatus, TsdReviewReason } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthUser } from '../src/modules/auth/auth.types';
 import { TsdPayloadParser } from '../src/modules/tsd/tsd-payload.parser';
@@ -9,7 +9,7 @@ describe('TsdReviewService', () => {
     const prisma = {
       tsdOperation: {
         findUnique: vi.fn().mockResolvedValue(reviewOperation()),
-        update: vi.fn().mockResolvedValue({ ...reviewOperation(), status: TsdOperationStatus.ACCEPTED }),
+        update: vi.fn().mockImplementation(({ data }) => Promise.resolve({ ...reviewOperation(), ...data })),
       },
     };
     const stockOperations = {
@@ -54,13 +54,23 @@ describe('TsdReviewService', () => {
       }),
       expect.objectContaining({ id: 'user-1' }),
     );
+    expect(prisma.tsdOperation.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: TsdOperationStatus.ACCEPTED,
+          reviewReason: TsdReviewReason.INVENTORY_MISMATCH,
+          resolutionMessage: 'Разбор подтвержден: дельта -2.',
+          reviewAction: 'APPLY_INVENTORY_ADJUSTMENT',
+        }),
+      }),
+    );
   });
 
   it('отклоняет операцию без изменения stock ledger', async () => {
     const prisma = {
       tsdOperation: {
         findUnique: vi.fn().mockResolvedValue(reviewOperation()),
-        update: vi.fn().mockResolvedValue({ ...reviewOperation(), status: TsdOperationStatus.REJECTED }),
+        update: vi.fn().mockImplementation(({ data }) => Promise.resolve({ ...reviewOperation(), ...data })),
       },
     };
     const stockOperations = {
@@ -77,10 +87,16 @@ describe('TsdReviewService', () => {
     );
 
     await expect(
-      service.resolveReviewOperation('operation-1', { action: 'REJECT', comment: 'Пересчитать повторно' }, user()),
+      service.resolveReviewOperation(
+        'operation-1',
+        { action: 'REJECT', comment: 'Пересчитать повторно', reason: TsdReviewReason.OTHER },
+        user(),
+      ),
     ).resolves.toMatchObject({
       operation: {
         status: TsdOperationStatus.REJECTED,
+        reviewReason: TsdReviewReason.OTHER,
+        resolutionMessage: 'Отклонено: Пересчитать повторно',
       },
       resolution: {
         action: 'REJECT',
@@ -88,6 +104,14 @@ describe('TsdReviewService', () => {
     });
     expect(stockOperations.adjustInventoryToCounted).not.toHaveBeenCalled();
     expect(clientScopes.requireClientAccess).toHaveBeenCalledWith(expect.objectContaining({ id: 'user-1' }), 'client-1', 'write');
+    expect(prisma.tsdOperation.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          reviewReason: TsdReviewReason.OTHER,
+          resolutionMessage: 'Отклонено: Пересчитать повторно',
+        }),
+      }),
+    );
   });
 
   it('отдает историю разобранных операций ТСД', async () => {
@@ -136,6 +160,12 @@ function reviewOperation() {
     },
     status: TsdOperationStatus.NEEDS_REVIEW,
     serverMessage: 'Расхождение инвентаризации: в WMS 5, на ТСД 3.',
+    reviewReason: TsdReviewReason.INVENTORY_MISMATCH,
+    resolutionMessage: null,
+    reviewAction: null,
+    reviewComment: null,
+    reviewedByUserId: null,
+    reviewedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };

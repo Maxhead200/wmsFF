@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { TsdOperationStatus } from '@prisma/client';
+import { TsdOperationStatus, TsdReviewReason } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
@@ -27,14 +27,20 @@ export class TsdReviewService {
 
     if (dto.action === 'REJECT') {
       this.clientScopes.requireClientAccess(user, this.reviewClientId(operation.operationType, operation.payload), 'write');
+      const reviewReason = dto.reason ?? operation.reviewReason ?? TsdReviewReason.MANUAL_REJECT;
+      const reviewComment = dto.comment?.trim();
+      const resolutionMessage = reviewComment
+        ? `Отклонено: ${reviewComment}`
+        : `Отклонено: ${this.reviewReasonLabel(reviewReason)}.`;
 
       const updated = await this.prisma.tsdOperation.update({
         where: { id: operation.id },
         data: {
           status: TsdOperationStatus.REJECTED,
-          serverMessage: dto.comment?.trim() || 'Операция отклонена после ручного разбора.',
+          reviewReason,
+          resolutionMessage,
           reviewAction: dto.action,
-          reviewComment: dto.comment?.trim(),
+          reviewComment,
           reviewedByUserId: user.id,
           reviewedAt: new Date(),
         },
@@ -70,11 +76,13 @@ export class TsdReviewService {
     );
 
     // Русский комментарий: после подтверждения расхождение закрывается, а изменение остатка уже отражено в stock ledger.
+    const resolutionMessage = `Разбор подтвержден: дельта ${adjustment.delta}.`;
     const updated = await this.prisma.tsdOperation.update({
       where: { id: operation.id },
       data: {
         status: TsdOperationStatus.ACCEPTED,
-        serverMessage: `Разбор подтвержден: дельта ${adjustment.delta}.`,
+        reviewReason: operation.reviewReason ?? TsdReviewReason.INVENTORY_MISMATCH,
+        resolutionMessage,
         reviewAction: dto.action,
         reviewComment: dto.comment?.trim(),
         reviewedByUserId: user.id,
@@ -126,5 +134,20 @@ export class TsdReviewService {
     }
 
     return this.payloadParser.parseInventoryPayload(rawPayload).clientId;
+  }
+
+  private reviewReasonLabel(reason: TsdReviewReason) {
+    const labels: Record<TsdReviewReason, string> = {
+      INVENTORY_MISMATCH: 'расхождение инвентаризации',
+      SKU_NOT_FOUND: 'SKU или штрихкод не найден',
+      BOX_NOT_FOUND: 'короб не найден',
+      RECEIPT_FAILED: 'приемка требует разбора',
+      DEVICE_MISMATCH: 'операция пришла не от этого ТСД',
+      VALIDATION_ERROR: 'ошибка данных операции',
+      MANUAL_REJECT: 'ручное отклонение оператором',
+      OTHER: 'другая причина',
+    };
+
+    return labels[reason];
   }
 }

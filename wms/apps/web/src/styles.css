@@ -1110,6 +1110,18 @@ h1 {
   gap: 6px;
 }
 
+.review-reason-select {
+  min-height: 32px;
+  max-width: 190px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .review-action {
   display: inline-flex;
   min-height: 32px;

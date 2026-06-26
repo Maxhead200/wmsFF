@@ -1,4 +1,5 @@
 import {
+  BriefcaseBusiness,
   Boxes,
   Calculator,
   ClipboardList,
@@ -15,6 +16,7 @@ import type { AuthUser } from './api';
 
 export type WorkspaceId =
   | 'overview'
+  | 'cabinet'
   | 'access'
   | 'directories'
   | 'imports'
@@ -31,8 +33,10 @@ export type WorkspaceNavItem = {
   eyebrow: string;
   description: string;
   permissions: string[];
+  permissionMode?: 'any' | 'all';
   icon: LucideIcon;
   status: 'ready' | 'in-progress' | 'planned';
+  audience?: 'all' | 'internal' | 'client';
 };
 
 export const workspaceNav: WorkspaceNavItem[] = [
@@ -44,6 +48,18 @@ export const workspaceNav: WorkspaceNavItem[] = [
     permissions: [],
     icon: LayoutDashboard,
     status: 'ready',
+    audience: 'all',
+  },
+  {
+    id: 'cabinet',
+    title: 'Кабинет',
+    eyebrow: 'Клиент',
+    description: 'Остатки, заявки, счета и начисления по доступным клиентам.',
+    permissions: ['stock:read', 'client-requests:read', 'billing:read'],
+    permissionMode: 'all',
+    icon: BriefcaseBusiness,
+    status: 'in-progress',
+    audience: 'client',
   },
   {
     id: 'access',
@@ -53,24 +69,27 @@ export const workspaceNav: WorkspaceNavItem[] = [
     permissions: ['users:read', 'users:write'],
     icon: ShieldCheck,
     status: 'ready',
+    audience: 'internal',
   },
   {
     id: 'directories',
     title: 'Справочники',
     eyebrow: 'Клиенты и SKU',
     description: 'Клиенты, товары, штрихкоды, габариты и литраж.',
-    permissions: ['clients:read', 'clients:write', 'skus:read', 'skus:write'],
+    permissions: ['clients:write', 'skus:write'],
     icon: FolderCog,
     status: 'in-progress',
+    audience: 'internal',
   },
   {
     id: 'warehouse',
     title: 'Склад',
     eyebrow: 'Операции',
     description: 'Короба, перемещения и текущая складская работа.',
-    permissions: ['warehouse:read', 'warehouse:write', 'stock:read', 'stock:write'],
+    permissions: ['warehouse:read', 'warehouse:write', 'stock:write'],
     icon: Boxes,
     status: 'in-progress',
+    audience: 'internal',
   },
   {
     id: 'requests',
@@ -80,6 +99,7 @@ export const workspaceNav: WorkspaceNavItem[] = [
     permissions: ['client-requests:read', 'client-requests:write', 'client-requests:status'],
     icon: ClipboardList,
     status: 'in-progress',
+    audience: 'all',
   },
   {
     id: 'imports',
@@ -89,6 +109,7 @@ export const workspaceNav: WorkspaceNavItem[] = [
     permissions: ['imports:write'],
     icon: Upload,
     status: 'ready',
+    audience: 'internal',
   },
   {
     id: 'logistics',
@@ -98,6 +119,7 @@ export const workspaceNav: WorkspaceNavItem[] = [
     permissions: ['logistics:read', 'logistics:write'],
     icon: Truck,
     status: 'ready',
+    audience: 'all',
   },
   {
     id: 'billing',
@@ -107,6 +129,7 @@ export const workspaceNav: WorkspaceNavItem[] = [
     permissions: ['billing:read', 'billing:write'],
     icon: Calculator,
     status: 'in-progress',
+    audience: 'all',
   },
   {
     id: 'print',
@@ -116,6 +139,7 @@ export const workspaceNav: WorkspaceNavItem[] = [
     permissions: ['print:write'],
     icon: Printer,
     status: 'ready',
+    audience: 'internal',
   },
   {
     id: 'data',
@@ -125,13 +149,27 @@ export const workspaceNav: WorkspaceNavItem[] = [
     permissions: ['clients:read', 'skus:read', 'stock:read'],
     icon: Database,
     status: 'ready',
+    audience: 'internal',
   },
 ];
 
 export function canOpenWorkspace(user: AuthUser, item: WorkspaceNavItem) {
+  if (isClientOnlyUser(user) && item.audience === 'internal') {
+    return false;
+  }
+
   if (item.permissions.length === 0 || user.permissionCodes.includes('system:admin')) {
     return true;
   }
 
+  if (item.permissionMode === 'all') {
+    return item.permissions.every((permission) => user.permissionCodes.includes(permission));
+  }
+
   return item.permissions.some((permission) => user.permissionCodes.includes(permission));
+}
+
+function isClientOnlyUser(user: AuthUser) {
+  const internalRoles = ['ADMIN', 'MANAGER', 'OPERATOR'];
+  return user.roleCodes.includes('CLIENT') && !user.roleCodes.some((roleCode) => internalRoles.includes(roleCode));
 }

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AccessAdminPanel } from './components/access/AccessAdminPanel';
 import { AuthPanel } from './components/AuthPanel';
 import { BillingPanel } from './components/billing/BillingPanel';
+import { ClientCabinetPanel } from './components/client-cabinet/ClientCabinetPanel';
 import { ClientRequestsPanel } from './components/client-requests/ClientRequestsPanel';
 import { DashboardDataPanel } from './components/DashboardDataPanel';
 import { DirectoryPanel } from './components/directories/DirectoryPanel';
@@ -178,6 +179,8 @@ function renderWorkspace(
   setActiveWorkspaceId: (id: WorkspaceId) => void,
 ) {
   switch (activeWorkspaceId) {
+    case 'cabinet':
+      return <ClientCabinetPanel session={session} />;
     case 'access':
       return <AccessAdminPanel session={session} />;
     case 'directories':

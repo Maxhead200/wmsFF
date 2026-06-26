@@ -1,3 +1,13 @@
 .DS_Store
 Thumbs.db
 *.log
+
+# WMS runtime/build artifacts
+wms/**/node_modules/
+wms/**/dist/
+wms/**/.turbo/
+wms/**/.vite/
+wms/**/coverage/
+wms/**/.env
+wms/infra/data/
+wms/infra/backups/

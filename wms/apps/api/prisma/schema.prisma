@@ -1,0 +1,313 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+}
+
+enum ClientStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum StockStatus {
+  AVAILABLE
+  RESERVED
+  RECEIVING
+  PACKING
+  SHIPPING
+  BLOCKED
+  DEFECT
+  QUARANTINE
+  UNMARKED
+  NEEDS_LABEL
+  NEEDS_RELABEL
+}
+
+enum VolumeSource {
+  MANUAL
+  CALCULATED
+  MARKETPLACE
+  NOT_REQUIRED
+}
+
+enum MovementType {
+  INITIAL_IMPORT
+  RECEIPT
+  MOVE
+  RESERVE
+  PICK
+  PACK
+  SHIP
+  RETURN
+  INVENTORY_ADJUSTMENT
+}
+
+enum TsdOperationStatus {
+  ACCEPTED
+  NEEDS_REVIEW
+  REJECTED
+}
+
+model User {
+  id           String     @id @default(uuid())
+  email        String     @unique
+  passwordHash String
+  name         String
+  status       UserStatus @default(ACTIVE)
+  roles        UserRole[]
+  auditLogs    AuditLog[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model Role {
+  id          String           @id @default(uuid())
+  code        String           @unique
+  name        String
+  users       UserRole[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id    String           @id @default(uuid())
+  code  String           @unique
+  name  String
+  roles RolePermission[]
+}
+
+model UserRole {
+  userId String
+  roleId String
+  user   User   @relation(fields: [userId], references: [id])
+  role   Role   @relation(fields: [roleId], references: [id])
+
+  @@id([userId, roleId])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+}
+
+model Client {
+  id            String       @id @default(uuid())
+  code          String       @unique
+  name          String
+  inn           String?
+  kpp           String?
+  legalAddress  String?
+  actualAddress String?
+  phone         String?
+  email         String?
+  status        ClientStatus @default(ACTIVE)
+  skus          Sku[]
+  boxes         Box[]
+  pallets       Pallet[]
+  movements     StockMovement[]
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+}
+
+model Warehouse {
+  id        String @id @default(uuid())
+  code      String @unique
+  name      String
+  zones     Zone[]
+  createdAt DateTime @default(now())
+}
+
+model Zone {
+  id          String @id @default(uuid())
+  warehouseId String
+  code        String
+  name        String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  boxes       Box[]
+  pallets     Pallet[]
+
+  @@unique([warehouseId, code])
+}
+
+model Sku {
+  id              String       @id @default(uuid())
+  clientId        String
+  internalSku     String
+  clientSku       String?
+  article         String?
+  name            String
+  brand           String?
+  category        String?
+  color           String?
+  size            String?
+  weightGrams     Int?
+  lengthCm        Decimal?     @db.Decimal(10, 2)
+  widthCm         Decimal?     @db.Decimal(10, 2)
+  heightCm        Decimal?     @db.Decimal(10, 2)
+  volumeLiters    Decimal?     @db.Decimal(12, 3)
+  volumeSource    VolumeSource @default(CALCULATED)
+  needsChestnyZnak Boolean     @default(false)
+  isUnmarked      Boolean      @default(false)
+  needsLabel      Boolean      @default(false)
+  needsRelabel    Boolean      @default(false)
+  client          Client       @relation(fields: [clientId], references: [id])
+  barcodes        Barcode[]
+  movements       StockMovement[]
+  balances        StockBalance[]
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([clientId, internalSku])
+}
+
+model Barcode {
+  id        String  @id @default(uuid())
+  skuId     String
+  value     String
+  isPrimary Boolean @default(false)
+  sku       Sku     @relation(fields: [skuId], references: [id])
+
+  @@unique([skuId, value])
+}
+
+model Box {
+  id        String  @id @default(uuid())
+  clientId  String
+  zoneId    String?
+  palletId  String?
+  code      String
+  status    String  @default("active")
+  client    Client  @relation(fields: [clientId], references: [id])
+  zone      Zone?   @relation(fields: [zoneId], references: [id])
+  pallet    Pallet? @relation(fields: [palletId], references: [id])
+  movements StockMovement[]
+  balances  StockBalance[]
+
+  @@unique([clientId, code])
+}
+
+model Pallet {
+  id        String @id @default(uuid())
+  clientId  String
+  zoneId    String?
+  code      String
+  status    String @default("active")
+  client    Client @relation(fields: [clientId], references: [id])
+  zone      Zone?  @relation(fields: [zoneId], references: [id])
+  boxes     Box[]
+  balances  StockBalance[]
+
+  @@unique([clientId, code])
+}
+
+model StockMovement {
+  id              String       @id @default(uuid())
+  clientId        String
+  skuId           String
+  boxId           String?
+  palletId        String?
+  type            MovementType
+  status          StockStatus
+  quantity        Int
+  sourceDocument  String?
+  idempotencyKey  String?      @unique
+  comment         String?
+  client          Client       @relation(fields: [clientId], references: [id])
+  sku             Sku          @relation(fields: [skuId], references: [id])
+  box             Box?         @relation(fields: [boxId], references: [id])
+  createdAt       DateTime     @default(now())
+
+  @@index([clientId, skuId, status])
+  @@index([boxId])
+}
+
+model StockBalance {
+  id        String      @id @default(uuid())
+  clientId  String
+  skuId     String
+  boxId     String?
+  palletId  String?
+  status    StockStatus
+  quantity  Int
+  sku       Sku         @relation(fields: [skuId], references: [id])
+  box       Box?        @relation(fields: [boxId], references: [id])
+  pallet    Pallet?     @relation(fields: [palletId], references: [id])
+  updatedAt DateTime    @updatedAt
+
+  @@unique([clientId, skuId, boxId, palletId, status])
+}
+
+model LogisticsTariffSet {
+  id          String @id @default(uuid())
+  name        String
+  sourceFile  String?
+  activeFrom  DateTime?
+  activeTo    DateTime?
+  directions  LogisticsDirection[]
+  createdAt   DateTime @default(now())
+}
+
+model LogisticsDirection {
+  id          String @id @default(uuid())
+  tariffSetId String
+  origin      String
+  destination String
+  note        String?
+  tariffSet   LogisticsTariffSet @relation(fields: [tariffSetId], references: [id])
+  tiers       LogisticsRateTier[]
+}
+
+model LogisticsRateTier {
+  id          String @id @default(uuid())
+  directionId String
+  label       String
+  minPallets  Int?
+  maxPallets  Int?
+  maxBoxes    Int?
+  priceRub    Decimal @db.Decimal(12, 2)
+  direction   LogisticsDirection @relation(fields: [directionId], references: [id])
+}
+
+model TsdOperation {
+  id             String             @id @default(uuid())
+  deviceId       String
+  operationKey   String             @unique
+  operationType  String
+  payload        Json
+  status         TsdOperationStatus @default(ACCEPTED)
+  serverMessage  String?
+  createdAt      DateTime           @default(now())
+}
+
+model PrintJob {
+  id          String   @id @default(uuid())
+  printerCode String
+  labelType   String
+  payload     Json
+  tspl        String
+  status      String   @default("queued")
+  createdAt   DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  payload   Json?
+  user      User?    @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+}

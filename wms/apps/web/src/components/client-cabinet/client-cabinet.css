@@ -321,6 +321,11 @@
   opacity: 0.55;
 }
 
+.client-cabinet-exports__message {
+  grid-column: 2 / 4;
+  margin: 0;
+}
+
 .client-cabinet-metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -831,6 +836,10 @@
   }
 
   .client-cabinet-presets__message {
+    grid-column: auto;
+  }
+
+  .client-cabinet-exports__message {
     grid-column: auto;
   }
 

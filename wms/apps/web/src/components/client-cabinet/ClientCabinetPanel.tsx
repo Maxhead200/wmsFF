@@ -375,6 +375,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
             onApply={setFilters}
           />
           <ClientCabinetExports
+            accessToken={session.accessToken}
             client={view.client}
             filters={filters}
             requests={view.requests}

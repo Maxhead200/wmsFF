@@ -1,4 +1,5 @@
-import { FileDown, ReceiptText } from 'lucide-react';
+import { FileDown, Files, ReceiptText } from 'lucide-react';
+import { useState } from 'react';
 import type {
   BillingChargeSummary,
   BillingInvoiceSummary,
@@ -12,8 +13,10 @@ import {
   downloadClientCabinetFinanceCsv,
   type ClientCabinetExportData,
 } from './clientCabinetCsvExport';
+import { downloadClientCabinetHtmlPackage, type ClientCabinetHtmlPackageData } from './clientCabinetHtmlPackage';
 
 type ClientCabinetExportsProps = {
+  accessToken: string;
   client: ClientSummary;
   filters: ClientCabinetFiltersValue;
   requests: ClientRequestSummary[];
@@ -23,6 +26,7 @@ type ClientCabinetExportsProps = {
 };
 
 export function ClientCabinetExports({
+  accessToken,
   client,
   filters,
   requests,
@@ -30,9 +34,26 @@ export function ClientCabinetExports({
   charges,
   serviceHistory,
 }: ClientCabinetExportsProps) {
+  const [isPackaging, setPackaging] = useState(false);
+  const [message, setMessage] = useState('');
   const exportData: ClientCabinetExportData = { client, filters, requests, invoices, charges, serviceHistory };
+  const htmlPackageData: ClientCabinetHtmlPackageData = { client, filters, requests, invoices };
   const documentsCount = requests.length + invoices.length * 2;
   const financeRowsCount = charges.length + invoices.length + invoices.reduce((total, invoice) => total + invoice.payments.length, 0);
+
+  async function downloadHtmlPackage() {
+    setPackaging(true);
+    setMessage('');
+
+    try {
+      const count = await downloadClientCabinetHtmlPackage(accessToken, htmlPackageData);
+      setMessage(`HTML-пакет готов: ${count} документов.`);
+    } catch (caught) {
+      setMessage(caught instanceof Error ? caught.message : 'Не удалось подготовить HTML-пакет.');
+    } finally {
+      setPackaging(false);
+    }
+  }
 
   return (
     <section className="client-cabinet-exports" aria-label="Выгрузки клиентского кабинета">
@@ -62,6 +83,15 @@ export function ClientCabinetExports({
         <button
           className="icon-text-button"
           type="button"
+          onClick={() => void downloadHtmlPackage()}
+          disabled={documentsCount === 0 || isPackaging}
+        >
+          <Files size={15} aria-hidden="true" />
+          <span>{isPackaging ? 'Готовлю HTML' : 'Пакет HTML'}</span>
+        </button>
+        <button
+          className="icon-text-button"
+          type="button"
           onClick={() => downloadClientCabinetFinanceCsv(exportData)}
           disabled={financeRowsCount === 0}
         >
@@ -69,6 +99,8 @@ export function ClientCabinetExports({
           <span>Финансы CSV</span>
         </button>
       </div>
+
+      {message ? <p className="inline-status client-cabinet-exports__message">{message}</p> : null}
     </section>
   );
 }

@@ -495,6 +495,44 @@
   align-items: center;
 }
 
+.client-period-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.client-period-filter,
+.client-period-detail-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.client-period-filter button,
+.client-period-detail-buttons button {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--ink);
+  font-weight: 800;
+  padding: 0 10px;
+}
+
+.client-period-filter button:hover,
+.client-period-filter button.is-active,
+.client-period-detail-buttons button:hover {
+  border-color: rgb(215 25 32 / 0.36);
+  background: #fff7f7;
+  color: var(--red-dark);
+}
+
 .client-period-detail__heading div,
 .client-period-detail-row div {
   display: grid;
@@ -520,7 +558,7 @@
 
 .client-period-detail-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 10px;
 }
 

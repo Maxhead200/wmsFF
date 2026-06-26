@@ -178,32 +178,59 @@ export class BillingService {
       throw new BadRequestException('Начисление хранения за этот период уже создано.');
     }
 
-    const [storageService, balances] = await Promise.all([
-      this.ensureStorageService(),
-      this.prisma.stockBalance.findMany({
-        where: {
-          clientId: dto.clientId,
-          quantity: { gt: 0 },
-        },
-        include: {
-          sku: {
-            select: {
-              id: true,
-              internalSku: true,
-              name: true,
-              volumeLiters: true,
-            },
+    const storageService = await this.ensureStorageService();
+    const movements = await this.prisma.stockMovement.findMany({
+      where: {
+        clientId: dto.clientId,
+        createdAt: { lte: periodTo },
+      },
+      select: {
+        skuId: true,
+        status: true,
+        quantity: true,
+        createdAt: true,
+        sku: {
+          select: {
+            id: true,
+            internalSku: true,
+            name: true,
+            volumeLiters: true,
           },
         },
-      }),
-    ]);
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+
+    const balances =
+      movements.length === 0
+        ? await this.prisma.stockBalance.findMany({
+            where: {
+              clientId: dto.clientId,
+              quantity: { gt: 0 },
+            },
+            include: {
+              sku: {
+                select: {
+                  id: true,
+                  internalSku: true,
+                  name: true,
+                  volumeLiters: true,
+                },
+              },
+            },
+          })
+        : [];
 
     const unitPriceRub = dto.unitPriceRub ?? decimalToNumber(storageService.defaultPriceRub);
     if (unitPriceRub == null) {
       throw new BadRequestException('Для хранения нужна цена за литро-день.');
     }
 
-    const details = calculateStorageDetails(balances, countInclusiveDays(periodFrom, periodTo));
+    const details =
+      movements.length > 0
+        ? calculateHistoricalStorageDetails(movements, periodFrom, periodTo)
+        : calculateStorageDetails(balances, countInclusiveDays(periodFrom, periodTo));
+
     if (details.literDays <= 0) {
       throw new BadRequestException('Нет остатков с заполненным литражом для начисления хранения.');
     }
@@ -228,11 +255,14 @@ export class BillingService {
         metadata: {
           periodFrom: formatDateKey(periodFrom),
           periodTo: formatDateKey(periodTo),
+          calculationMode: details.calculationMode,
           days: details.days,
           totalLiters: details.totalLiters,
           literDays: details.literDays,
           balancesCount: details.balancesCount,
           skippedWithoutVolume: details.skippedWithoutVolume,
+          daily: details.daily,
+          skuTotals: details.skuTotals,
         },
         comment: normalizeText(dto.comment),
         createdByUserId: user.id,
@@ -942,12 +972,154 @@ function calculateStorageDetails(
 
   const roundedLiters = roundQuantity(totalLiters);
   return {
+    calculationMode: 'SNAPSHOT',
     days,
     totalLiters: roundedLiters,
     literDays: roundQuantity(roundedLiters * days),
     balancesCount: balances.length,
     skippedWithoutVolume,
+    daily: [],
+    skuTotals: [],
   };
+}
+
+function calculateHistoricalStorageDetails(
+  movements: Array<{
+    skuId: string;
+    status: string;
+    quantity: number;
+    createdAt: Date;
+    sku: {
+      id: string;
+      internalSku: string;
+      name: string;
+      volumeLiters: Prisma.Decimal | string | number | null;
+    };
+  }>,
+  periodFrom: Date,
+  periodTo: Date,
+) {
+  const sorted = [...movements].sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
+  const quantities = new Map<string, HistoricalBalanceState>();
+  const skuTotals = new Map<string, HistoricalSkuTotal>();
+  const daily: Array<{ date: string; totalLiters: number; literDays: number; positions: number }> = [];
+  let movementIndex = 0;
+  let skippedWithoutVolume = 0;
+  let literDays = 0;
+  let totalLitersSum = 0;
+  const days = listPeriodDays(periodFrom, periodTo);
+
+  days.forEach((day) => {
+    const dayEnd = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), 23, 59, 59, 999));
+
+    while (movementIndex < sorted.length && sorted[movementIndex].createdAt <= dayEnd) {
+      const movement = sorted[movementIndex];
+      const volumeLiters = decimalToNumber(movement.sku.volumeLiters) ?? null;
+      const key = `${movement.skuId}:${movement.status}`;
+      const current =
+        quantities.get(key) ??
+        ({
+          skuId: movement.skuId,
+          status: movement.status,
+          internalSku: movement.sku.internalSku,
+          name: movement.sku.name,
+          volumeLiters,
+          quantity: 0,
+        } satisfies HistoricalBalanceState);
+      current.quantity += movement.quantity;
+      quantities.set(key, current);
+
+      if (!volumeLiters || volumeLiters <= 0) {
+        skippedWithoutVolume += 1;
+      }
+
+      movementIndex += 1;
+    }
+
+    let dayLiters = 0;
+    let positions = 0;
+    quantities.forEach((state) => {
+      if (state.quantity <= 0 || !state.volumeLiters || state.volumeLiters <= 0) {
+        return;
+      }
+
+      const rowLiters = state.quantity * state.volumeLiters;
+      dayLiters += rowLiters;
+      positions += 1;
+
+      const skuTotal =
+        skuTotals.get(state.skuId) ??
+        ({
+          skuId: state.skuId,
+          internalSku: state.internalSku,
+          name: state.name,
+          volumeLiters: state.volumeLiters,
+          literDays: 0,
+        } satisfies HistoricalSkuTotal);
+      skuTotal.literDays += rowLiters;
+      skuTotals.set(state.skuId, skuTotal);
+    });
+
+    const roundedDayLiters = roundQuantity(dayLiters);
+    totalLitersSum += roundedDayLiters;
+    literDays += roundedDayLiters;
+    daily.push({
+      date: formatDateKey(day),
+      totalLiters: roundedDayLiters,
+      literDays: roundedDayLiters,
+      positions,
+    });
+  });
+
+  return {
+    calculationMode: 'LEDGER',
+    days: days.length,
+    totalLiters: roundQuantity(totalLitersSum / Math.max(days.length, 1)),
+    literDays: roundQuantity(literDays),
+    balancesCount: quantities.size,
+    skippedWithoutVolume,
+    daily,
+    skuTotals: [...skuTotals.values()]
+      .map((item) => ({
+        skuId: item.skuId,
+        internalSku: item.internalSku,
+        name: item.name,
+        volumeLiters: item.volumeLiters,
+        literDays: roundQuantity(item.literDays),
+      }))
+      .sort((left, right) => right.literDays - left.literDays)
+      .slice(0, 50),
+  };
+}
+
+type HistoricalBalanceState = {
+  skuId: string;
+  status: string;
+  internalSku: string;
+  name: string;
+  volumeLiters: number | null;
+  quantity: number;
+};
+
+type HistoricalSkuTotal = {
+  skuId: string;
+  internalSku: string;
+  name: string;
+  volumeLiters: number;
+  literDays: number;
+};
+
+function listPeriodDays(periodFrom: Date, periodTo: Date) {
+  const days: Date[] = [];
+  const cursor = new Date(Date.UTC(periodFrom.getUTCFullYear(), periodFrom.getUTCMonth(), periodFrom.getUTCDate()));
+  const end = Date.UTC(periodTo.getUTCFullYear(), periodTo.getUTCMonth(), periodTo.getUTCDate());
+
+  while (cursor.getTime() <= end) {
+    days.push(new Date(cursor));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return days;
 }
 
 function storageSourceKey(clientId: string, periodFrom: Date, periodTo: Date) {

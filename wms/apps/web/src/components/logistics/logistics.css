@@ -328,6 +328,47 @@
   padding: 12px;
 }
 
+.logistics-summary__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.logistics-summary__toolbar div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.logistics-summary__toolbar strong {
+  color: var(--ink);
+}
+
+.logistics-summary__toolbar span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.logistics-summary__toolbar button {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgb(215 25 32 / 0.28);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--red-dark);
+  font-weight: 800;
+  padding: 0 10px;
+}
+
+.logistics-summary__toolbar button:hover {
+  background: #fff7f7;
+}
+
 .logistics-summary__metrics,
 .logistics-summary__grid {
   display: grid;
@@ -335,11 +376,11 @@
 }
 
 .logistics-summary__metrics {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
 .logistics-summary__grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
 .logistics-summary-metric {

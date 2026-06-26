@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, Route, Truck } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock3, Download, Route, Truck } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { LogisticsCarrierSummary, LogisticsDeliveryRequestSummary, LogisticsTripSummary } from '../../lib/api';
 import { logisticsDeliveryStatusLabel, logisticsTripStatusLabel } from './logisticsMeta';
@@ -28,14 +28,33 @@ export function LogisticsOperationsSummary({ carriers, trips, deliveries }: Logi
 
   return (
     <section className="logistics-summary" aria-label="Сводка логистики">
+      <div className="logistics-summary__toolbar">
+        <div>
+          <strong>SLA логистики</strong>
+          <span>
+            {summary.slaTotal} доставок с датой SLA · средняя задержка {summary.averageDelayDays} дн.
+          </span>
+        </div>
+        <button type="button" onClick={() => downloadLogisticsCsv(deliveries)}>
+          <Download size={16} aria-hidden="true" />
+          Экспорт CSV
+        </button>
+      </div>
+
       <div className="logistics-summary__metrics">
         <SummaryMetric icon={<Route size={18} />} label="Заявки" value={String(deliveries.length)} hint={`${summary.unassignedCount} без рейса`} />
         <SummaryMetric icon={<Truck size={18} />} label="Рейсы" value={String(trips.length)} hint={`${summary.activeTripsCount} активных`} />
         <SummaryMetric
+          icon={<Clock3 size={18} />}
+          label="SLA"
+          value={`${summary.slaPercent}%`}
+          hint={`${summary.onTimeCount} в срок, ${summary.lateDeliveredCount} поздно`}
+        />
+        <SummaryMetric
           icon={<AlertTriangle size={18} />}
-          label="Проверка"
-          value={String(summary.manualReviewCount)}
-          hint={`${formatMoney(summary.estimatedRub)} ₽ расчет`}
+          label="Контроль"
+          value={String(summary.overdueOpenCount + summary.manualReviewCount)}
+          hint={`${summary.overdueOpenCount} просрочено, ${summary.manualReviewCount} проверок`}
         />
         <SummaryMetric
           icon={<CheckCircle2 size={18} />}
@@ -90,6 +109,22 @@ export function LogisticsOperationsSummary({ carriers, trips, deliveries }: Logi
             </div>
           ))}
         </SummaryColumn>
+
+        <SummaryColumn title="SLA контроль" emptyText="Просроченных доставок нет.">
+          {summary.slaProblems.slice(0, 6).map((delivery) => (
+            <div className="logistics-summary-row" key={delivery.id}>
+              <div>
+                <strong>
+                  {delivery.client.code} · {delivery.destination}
+                </strong>
+                <span>
+                  {formatDate(delivery.desiredShipDate)} · {deliverySlaLabel(delivery)}
+                </span>
+              </div>
+              <strong>{delayDays(delivery)} дн.</strong>
+            </div>
+          ))}
+        </SummaryColumn>
       </div>
     </section>
   );
@@ -125,6 +160,16 @@ function buildLogisticsSummary(
   deliveries: LogisticsDeliveryRequestSummary[],
 ) {
   const carrierGroups = new Map<string, CarrierOpsGroup>();
+  const slaDeliveries = deliveries.filter((delivery) => Boolean(delivery.desiredShipDate) && delivery.status === 'DELIVERED');
+  const onTimeCount = slaDeliveries.filter((delivery) => !isDeliveryLate(delivery)).length;
+  const lateDeliveredCount = slaDeliveries.length - onTimeCount;
+  const overdueOpenCount = deliveries.filter(
+    (delivery) => Boolean(delivery.desiredShipDate) && !isDeliveryClosed(delivery) && isDeliveryLate(delivery),
+  ).length;
+  const slaProblems = deliveries
+    .filter((delivery) => Boolean(delivery.desiredShipDate) && isDeliveryLate(delivery))
+    .sort((left, right) => delayDays(right) - delayDays(left));
+  const totalDelayDays = slaProblems.reduce((sum, delivery) => sum + delayDays(delivery), 0);
 
   carriers.forEach((carrier) => {
     carrierGroups.set(carrier.id, {
@@ -164,6 +209,13 @@ function buildLogisticsSummary(
     estimatedRub: deliveries.reduce((sum, delivery) => sum + Number(delivery.estimatedTotalRub ?? 0), 0),
     billedRub: deliveries.reduce((sum, delivery) => sum + Number(delivery.billingCharge?.totalRub ?? 0), 0),
     billedCount: deliveries.filter((delivery) => Boolean(delivery.billingCharge)).length,
+    slaTotal: slaDeliveries.length,
+    onTimeCount,
+    lateDeliveredCount,
+    overdueOpenCount,
+    slaPercent: slaDeliveries.length > 0 ? Math.round((onTimeCount / slaDeliveries.length) * 100) : 100,
+    averageDelayDays: slaProblems.length > 0 ? Math.round((totalDelayDays / slaProblems.length) * 10) / 10 : 0,
+    slaProblems,
     carriers: [...carrierGroups.values()].sort(
       (left, right) => right.deliveriesCount - left.deliveriesCount || right.tripsCount - left.tripsCount,
     ),
@@ -196,10 +248,98 @@ function ensureCarrierGroup(groups: Map<string, CarrierOpsGroup>, key: string, t
   return created;
 }
 
+function downloadLogisticsCsv(deliveries: LogisticsDeliveryRequestSummary[]) {
+  const rows = [
+    [
+      'Клиент',
+      'Маршрут',
+      'Желаемая дата',
+      'Плановая дата',
+      'Статус',
+      'SLA',
+      'Рейс',
+      'Перевозчик',
+      'Коробки',
+      'Паллеты',
+      'Расчет, ₽',
+      'Начислено, ₽',
+      'Ручная проверка',
+    ],
+    ...deliveries.map((delivery) => [
+      `${delivery.client.code} ${delivery.client.name}`,
+      `${delivery.origin} - ${delivery.destination}`,
+      formatDate(delivery.desiredShipDate),
+      formatDate(delivery.plannedShipDate ?? delivery.trip?.plannedDate ?? null),
+      logisticsDeliveryStatusLabel(delivery.status),
+      deliverySlaLabel(delivery),
+      delivery.trip?.code ?? '',
+      delivery.trip?.carrier?.name ?? '',
+      String(delivery.boxes ?? ''),
+      String(delivery.pallets ?? ''),
+      delivery.estimatedTotalRub == null ? '' : formatMoney(delivery.estimatedTotalRub),
+      delivery.billingCharge?.totalRub == null ? '' : formatMoney(delivery.billingCharge.totalRub),
+      delivery.requiresManualReview ? 'Да' : 'Нет',
+    ]),
+  ];
+  const csv = rows.map((row) => row.map(csvCell).join(';')).join('\n');
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'logistics-sla-report.csv';
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function deliverySlaLabel(delivery: LogisticsDeliveryRequestSummary) {
+  if (!delivery.desiredShipDate) {
+    return 'Дата SLA не задана';
+  }
+  if (isDeliveryLate(delivery)) {
+    return isDeliveryClosed(delivery) ? 'Доставлено с задержкой' : 'Просрочено';
+  }
+  if (delivery.status === 'DELIVERED') {
+    return 'В срок';
+  }
+  return 'В работе';
+}
+
+function isDeliveryClosed(delivery: LogisticsDeliveryRequestSummary) {
+  return delivery.status === 'DELIVERED' || delivery.status === 'CANCELLED';
+}
+
+function isDeliveryLate(delivery: LogisticsDeliveryRequestSummary) {
+  if (!delivery.desiredShipDate || delivery.status === 'CANCELLED') {
+    return false;
+  }
+  const dueEnd = endOfDay(delivery.desiredShipDate).getTime();
+  const actual = delivery.status === 'DELIVERED' ? new Date(delivery.updatedAt).getTime() : Date.now();
+  return actual > dueEnd;
+}
+
+function delayDays(delivery: LogisticsDeliveryRequestSummary) {
+  if (!delivery.desiredShipDate || !isDeliveryLate(delivery)) {
+    return 0;
+  }
+  const dueEnd = endOfDay(delivery.desiredShipDate).getTime();
+  const actual = delivery.status === 'DELIVERED' ? new Date(delivery.updatedAt).getTime() : Date.now();
+  return Math.max(1, Math.ceil((actual - dueEnd) / 86_400_000));
+}
+
+function endOfDay(value: string) {
+  const date = new Date(value);
+  date.setHours(23, 59, 59, 999);
+  return date;
+}
+
 function formatMoney(value: string | number) {
   return moneyFormatter.format(Number(value));
 }
 
 function formatDate(value: string | null) {
   return value ? dateFormatter.format(new Date(value)) : '-';
+}
+
+function csvCell(value: string) {
+  return `"${value.replace(/"/g, '""')}"`;
 }

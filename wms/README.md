@@ -34,3 +34,5 @@ cd /tmp
 curl -fsSL https://raw.githubusercontent.com/Maxhead200/wmsFF/codex/wms-foundation/wms/infra/scripts/deploy-vps.sh -o deploy-vps.sh
 sh deploy-vps.sh
 ```
+
+После успешного health-check deploy чистит неиспользуемые Docker images/containers/build cache, но не трогает volumes с данными. Отключить можно через `DOCKER_CLEANUP_AFTER_DEPLOY=0`, возраст build cache задается через `DOCKER_BUILD_CACHE_MAX_AGE` (по умолчанию `24h`).

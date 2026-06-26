@@ -41,6 +41,7 @@
 - `GET /api/v1/tsd/review` - очередь операций ТСД со статусом `NEEDS_REVIEW`.
 - Android-ТСД хранит pending/rejected операции в Room, входит по device secret, повторяет pending batch и показывает оператору отклоненные операции.
 - `receipt_scan` создает приход в короб через ledger, а `inventory_scan` с расхождением попадает в разбор без автоматической правки остатка.
+- VPS deploy после успешных health-check чистит неиспользуемые Docker images/containers/build cache без удаления volumes PostgreSQL/Redis.
 
 ## Следующие этапы
 

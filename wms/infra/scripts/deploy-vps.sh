@@ -9,6 +9,25 @@ COMPOSE_DIR="$APP_DIR/wms/infra"
 ENV_FILE="$APP_DIR/wms/.env"
 HOST_NGINX_AVAILABLE="/etc/nginx/sites-available/wms.logoff.pro"
 HOST_NGINX_ENABLED="/etc/nginx/sites-enabled/wms.logoff.pro"
+DOCKER_CLEANUP_AFTER_DEPLOY="${DOCKER_CLEANUP_AFTER_DEPLOY:-1}"
+DOCKER_BUILD_CACHE_MAX_AGE="${DOCKER_BUILD_CACHE_MAX_AGE:-24h}"
+
+cleanup_docker_after_deploy() {
+  if [ "$DOCKER_CLEANUP_AFTER_DEPLOY" != "1" ]; then
+    return
+  fi
+
+  echo "--- docker disk before cleanup ---"
+  docker system df || true
+
+  # Русский комментарий: чистим только неиспользуемые слои/кэш; volumes с PostgreSQL и Redis не трогаем.
+  docker image prune -f || true
+  docker container prune -f --filter "until=$DOCKER_BUILD_CACHE_MAX_AGE" || true
+  docker builder prune -af --filter "until=$DOCKER_BUILD_CACHE_MAX_AGE" || true
+
+  echo "--- docker disk after cleanup ---"
+  docker system df || true
+}
 
 if ! command -v git >/dev/null 2>&1; then
   apt-get update
@@ -74,4 +93,5 @@ systemctl reload nginx
 
 curl -fsS http://127.0.0.1:3000/api/v1/health >/dev/null
 curl -fsS http://127.0.0.1:3080 >/dev/null
+cleanup_docker_after_deploy
 docker compose --env-file ../.env ps

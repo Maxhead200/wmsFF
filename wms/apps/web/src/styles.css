@@ -832,6 +832,17 @@ h1 {
   color: var(--red-dark);
 }
 
+.import-clear-action {
+  border-color: var(--line);
+  background: #f8fafc;
+  color: var(--muted);
+}
+
+.import-clear-action:hover:not(:disabled) {
+  color: var(--red-dark);
+  background: #fff7f7;
+}
+
 .import-result {
   display: grid;
   gap: 12px;

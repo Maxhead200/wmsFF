@@ -1,5 +1,5 @@
-import { CheckCircle2, FileSearch, UploadCloud } from 'lucide-react';
-import { ChangeEvent, useEffect, useState } from 'react';
+import { CheckCircle2, FileSearch, RotateCcw, UploadCloud } from 'lucide-react';
+import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import {
   commitStockImport,
   fetchClients,
@@ -27,6 +27,7 @@ export function StockImportForm({ session }: StockImportFormProps) {
   const [commitResult, setCommitResult] = useState<StockImportCommitResult | null>(null);
   const [error, setError] = useState('');
   const [busyAction, setBusyAction] = useState<BusyAction>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     let isActive = true;
@@ -63,6 +64,18 @@ export function StockImportForm({ session }: StockImportFormProps) {
 
     if (nextFile && !sourceDocument) {
       setSourceDocument(nextFile.name);
+    }
+  }
+
+  function clearImport() {
+    setFile(null);
+    setSourceDocument('');
+    setPreview(null);
+    setCommitResult(null);
+    setError('');
+    setBusyAction(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   }
 
@@ -141,7 +154,7 @@ export function StockImportForm({ session }: StockImportFormProps) {
         <label className="file-field">
           <UploadCloud size={18} aria-hidden="true" />
           <span>{file?.name ?? 'Выберите XLSX-файл остатков'}</span>
-          <input accept=".xlsx,.xls" type="file" onChange={changeFile} />
+          <input ref={fileInputRef} accept=".xlsx,.xls" type="file" onChange={changeFile} />
         </label>
       </div>
 
@@ -156,6 +169,15 @@ export function StockImportForm({ session }: StockImportFormProps) {
         <button className="primary-button secondary-action" type="button" onClick={runCommit} disabled={!canSubmit || hasErrors}>
           <CheckCircle2 size={16} aria-hidden="true" />
           <span>{busyAction === 'commit' ? 'Загрузка' : 'Записать в WMS'}</span>
+        </button>
+        <button
+          className="primary-button import-clear-action"
+          type="button"
+          onClick={clearImport}
+          disabled={isBusy || (!file && !preview && !commitResult && !error)}
+        >
+          <RotateCcw size={16} aria-hidden="true" />
+          <span>Отменить / очистить</span>
         </button>
       </div>
 

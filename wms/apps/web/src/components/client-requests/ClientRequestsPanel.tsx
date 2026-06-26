@@ -3,7 +3,9 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   fetchClientRequests,
   fetchClients,
+  packageClientRequest,
   pickClientRequest,
+  shipClientRequest,
   updateClientRequestStatus,
   type AuthSession,
   type AuthUser,
@@ -97,6 +99,42 @@ export function ClientRequestsPanel({ session }: ClientRequestsPanelProps) {
     }
   }
 
+  async function packageOutboundRequest(request: ClientRequestSummary) {
+    setError(null);
+
+    try {
+      await packageClientRequest(session.accessToken, {
+        requestId: request.id,
+        idempotencyKey: `web-pack:${request.id}`,
+        comment: 'Упаковка выполнена из web-интерфейса.',
+      });
+      setRequests((current) => ({
+        ...current,
+        data: current.data.map((item) => (item.id === request.id ? { ...item, status: 'PACKED' } : item)),
+      }));
+    } catch (caught) {
+      setError(errorMessage(caught));
+    }
+  }
+
+  async function shipOutboundRequest(request: ClientRequestSummary) {
+    setError(null);
+
+    try {
+      await shipClientRequest(session.accessToken, {
+        requestId: request.id,
+        idempotencyKey: `web-ship:${request.id}`,
+        comment: 'Отгрузка закрыта из web-интерфейса.',
+      });
+      setRequests((current) => ({
+        ...current,
+        data: current.data.map((item) => (item.id === request.id ? { ...item, status: 'DONE' } : item)),
+      }));
+    } catch (caught) {
+      setError(errorMessage(caught));
+    }
+  }
+
   function acceptCreated(request: ClientRequestSummary) {
     setRequests((current) => ({
       status: 'ready',
@@ -135,6 +173,8 @@ export function ClientRequestsPanel({ session }: ClientRequestsPanelProps) {
           canPickOutbound,
           (requestId, status) => void changeStatus(requestId, status),
           (request) => void pickOutboundRequest(request),
+          (request) => void packageOutboundRequest(request),
+          (request) => void shipOutboundRequest(request),
         )}
       </div>
     </section>
@@ -147,6 +187,8 @@ function renderRequests(
   canPickOutbound: boolean,
   onStatusChange: (requestId: string, status: ClientRequestStatus) => void,
   onPickOutbound: (request: ClientRequestSummary) => void,
+  onPackageOutbound: (request: ClientRequestSummary) => void,
+  onShipOutbound: (request: ClientRequestSummary) => void,
 ) {
   if (state.status === 'idle' || (state.status === 'loading' && state.data.length === 0)) {
     return (
@@ -174,6 +216,8 @@ function renderRequests(
         canPickOutbound={canPickOutbound}
         onStatusChange={onStatusChange}
         onPickOutbound={onPickOutbound}
+        onPackageOutbound={onPackageOutbound}
+        onShipOutbound={onShipOutbound}
       />
     </>
   );

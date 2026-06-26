@@ -32,6 +32,7 @@ enum ClientRequestStatus {
   IN_REVIEW
   APPROVED
   IN_WORK
+  PACKED
   DONE
   CANCELLED
   REJECTED

@@ -1,4 +1,4 @@
-import { CheckCircle2, PackageCheck } from 'lucide-react';
+import { CheckCircle2, PackageCheck, Send, Truck } from 'lucide-react';
 import { type ClientRequestStatus, type ClientRequestSummary } from '../../lib/api';
 import {
   requestPriorityLabel,
@@ -14,6 +14,8 @@ type ClientRequestsTableProps = {
   canPickOutbound: boolean;
   onStatusChange: (requestId: string, status: ClientRequestStatus) => void;
   onPickOutbound: (request: ClientRequestSummary) => void;
+  onPackageOutbound: (request: ClientRequestSummary) => void;
+  onShipOutbound: (request: ClientRequestSummary) => void;
 };
 
 const dateFormatter = new Intl.DateTimeFormat('ru-RU', {
@@ -28,6 +30,8 @@ export function ClientRequestsTable({
   canPickOutbound,
   onStatusChange,
   onPickOutbound,
+  onPackageOutbound,
+  onShipOutbound,
 }: ClientRequestsTableProps) {
   return (
     <div className="client-request-table-wrap">
@@ -39,7 +43,7 @@ export function ClientRequestsTable({
             <th>Состав</th>
             <th>Срок</th>
             <th>Статус</th>
-            {canPickOutbound ? <th>Сборка</th> : null}
+            {canPickOutbound ? <th>Склад</th> : null}
             {canChangeStatus ? <th>Workflow</th> : null}
           </tr>
         </thead>
@@ -67,11 +71,42 @@ export function ClientRequestsTable({
               </td>
               {canPickOutbound ? (
                 <td>
-                  {canPickRequest(request) ? (
-                    <button className="client-request-pick-button" type="button" onClick={() => onPickOutbound(request)}>
-                      <PackageCheck size={15} aria-hidden="true" />
-                      <span>Собрать</span>
-                    </button>
+                  {canRunFulfillment(request) ? (
+                    <div className="client-request-actions">
+                      {canPickRequest(request) ? (
+                        <button
+                          className="client-request-action-button client-request-action-button--pick"
+                          type="button"
+                          onClick={() => onPickOutbound(request)}
+                          title="Собрать заявку"
+                        >
+                          <PackageCheck size={15} aria-hidden="true" />
+                          <span>Собрать</span>
+                        </button>
+                      ) : null}
+                      {canPackageRequest(request) ? (
+                        <button
+                          className="client-request-action-button client-request-action-button--pack"
+                          type="button"
+                          onClick={() => onPackageOutbound(request)}
+                          title="Упаковать заявку"
+                        >
+                          <Send size={15} aria-hidden="true" />
+                          <span>Упаковать</span>
+                        </button>
+                      ) : null}
+                      {canShipRequest(request) ? (
+                        <button
+                          className="client-request-action-button client-request-action-button--ship"
+                          type="button"
+                          onClick={() => onShipOutbound(request)}
+                          title="Закрыть отгрузку"
+                        >
+                          <Truck size={15} aria-hidden="true" />
+                          <span>Отгрузить</span>
+                        </button>
+                      ) : null}
+                    </div>
                   ) : (
                     '-'
                   )}
@@ -103,7 +138,19 @@ export function ClientRequestsTable({
 }
 
 function canPickRequest(request: ClientRequestSummary) {
-  return request.type === 'OUTBOUND' && !['DONE', 'CANCELLED', 'REJECTED'].includes(request.status);
+  return request.type === 'OUTBOUND' && ['SUBMITTED', 'IN_REVIEW', 'APPROVED'].includes(request.status);
+}
+
+function canPackageRequest(request: ClientRequestSummary) {
+  return request.type === 'OUTBOUND' && request.status === 'IN_WORK';
+}
+
+function canShipRequest(request: ClientRequestSummary) {
+  return request.type === 'OUTBOUND' && request.status === 'PACKED';
+}
+
+function canRunFulfillment(request: ClientRequestSummary) {
+  return canPickRequest(request) || canPackageRequest(request) || canShipRequest(request);
 }
 
 function itemsSummary(request: ClientRequestSummary) {

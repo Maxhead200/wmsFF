@@ -1,8 +1,16 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { ClientRequestStatus, ClientRequestType, Prisma, StockBalance, StockStatus } from '@prisma/client';
+import {
+  ClientRequestStatus,
+  ClientRequestType,
+  MovementType,
+  Prisma,
+  StockBalance,
+  StockStatus,
+} from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
+import { FulfillClientRequestDto } from './dto/fulfill-client-request.dto';
 import { PickClientRequestDto } from './dto/pick-client-request.dto';
 import { TransferBetweenBoxesDto } from './dto/transfer-between-boxes.dto';
 import { StockBalancesService } from './stock-balances.service';
@@ -28,6 +36,22 @@ export type AdjustInventoryInput = {
   status?: StockStatus;
   idempotencyKey: string;
   comment?: string;
+};
+
+type RequestItemForAllocation = {
+  id: string;
+  skuId: string | null;
+  barcode: string | null;
+  quantity: number;
+};
+
+type RequestAllocationPlan = {
+  lines: Array<{
+    itemId: string;
+    skuId: string;
+    requestedQuantity: number;
+    allocations: Array<{ balance: StockBalance; quantity: number }>;
+  }>;
 };
 
 @Injectable()
@@ -159,6 +183,14 @@ export class StockOperationsService {
         throw new BadRequestException('Нельзя собирать отмененную или отклоненную заявку.');
       }
 
+      if (
+        request.status !== ClientRequestStatus.SUBMITTED &&
+        request.status !== ClientRequestStatus.IN_REVIEW &&
+        request.status !== ClientRequestStatus.APPROVED
+      ) {
+        throw new BadRequestException('Сборку можно запускать только для новой, проверяемой или согласованной заявки.');
+      }
+
       if (request.items.length === 0) {
         throw new BadRequestException('В заявке нет товарных позиций для сборки.');
       }
@@ -225,17 +257,134 @@ export class StockOperationsService {
         status: 'APPLIED',
         requestId: request.id,
         clientId: request.clientId,
-        pickedLines: plan.lines.map((line) => ({
-          itemId: line.itemId,
-          skuId: line.skuId,
-          requestedQuantity: line.requestedQuantity,
-          pickedQuantity: line.allocations.reduce((sum, allocation) => sum + allocation.quantity, 0),
-          allocations: line.allocations.map((allocation) => ({
-            boxId: allocation.balance.boxId,
-            palletId: allocation.balance.palletId,
-            quantity: allocation.quantity,
-          })),
-        })),
+        pickedLines: this.formatFulfillmentLines(plan, 'pickedQuantity'),
+      };
+    });
+  }
+
+  packageClientRequest(dto: FulfillClientRequestDto, user: AuthUser) {
+    const baseKey = dto.idempotencyKey ?? `pack-request:${dto.requestId}`;
+
+    return this.prisma.$transaction(async (tx) => {
+      const existingMovement = await tx.stockMovement.findFirst({
+        where: { idempotencyKey: { startsWith: `${baseKey}:` } },
+      });
+
+      if (existingMovement) {
+        return {
+          idempotencyKey: baseKey,
+          status: 'ALREADY_APPLIED',
+          requestId: dto.requestId,
+        };
+      }
+
+      const request = await this.loadOutboundRequest(tx, dto.requestId, user, 'Упаковка');
+      this.ensureRequestCanMove(request, 'упаковывать');
+
+      if (request.status !== ClientRequestStatus.IN_WORK) {
+        throw new BadRequestException('Упаковка доступна только после сборки заявки.');
+      }
+
+      const plan = await this.planRequestAllocations(tx, request.clientId, request.items, StockStatus.PACKING);
+
+      // Русский комментарий: упаковка переводит уже собранный товар из PACKING в SHIPPING,
+      // чтобы отгрузка работала только с упакованным остатком.
+      await this.applyStatusMove(tx, {
+        request,
+        plan,
+        baseKey,
+        movementType: MovementType.PACK,
+        sourceStatus: StockStatus.PACKING,
+        targetStatus: StockStatus.SHIPPING,
+        sourceComment: dto.comment ?? `Упаковка заявки ${request.title}`,
+        targetComment: dto.comment ?? `Передано в отгрузку по заявке ${request.title}`,
+      });
+
+      await tx.clientRequest.update({
+        where: { id: request.id },
+        data: {
+          status: ClientRequestStatus.PACKED,
+          assignedToUserId: user.id,
+          managerComment: dto.comment ?? 'Заявка упакована и готова к отгрузке.',
+        },
+      });
+
+      return {
+        idempotencyKey: baseKey,
+        status: 'APPLIED',
+        requestId: request.id,
+        clientId: request.clientId,
+        packedLines: this.formatFulfillmentLines(plan, 'packedQuantity'),
+      };
+    });
+  }
+
+  shipClientRequest(dto: FulfillClientRequestDto, user: AuthUser) {
+    const baseKey = dto.idempotencyKey ?? `ship-request:${dto.requestId}`;
+
+    return this.prisma.$transaction(async (tx) => {
+      const existingMovement = await tx.stockMovement.findFirst({
+        where: { idempotencyKey: { startsWith: `${baseKey}:` } },
+      });
+
+      if (existingMovement) {
+        return {
+          idempotencyKey: baseKey,
+          status: 'ALREADY_APPLIED',
+          requestId: dto.requestId,
+        };
+      }
+
+      const request = await this.loadOutboundRequest(tx, dto.requestId, user, 'Отгрузка');
+
+      if (request.status === ClientRequestStatus.DONE) {
+        throw new BadRequestException('Заявка уже закрыта как отгруженная.');
+      }
+
+      this.ensureRequestCanMove(request, 'отгружать');
+
+      if (request.status !== ClientRequestStatus.PACKED) {
+        throw new BadRequestException('Отгрузка доступна только после упаковки заявки.');
+      }
+
+      const plan = await this.planRequestAllocations(tx, request.clientId, request.items, StockStatus.SHIPPING);
+
+      for (const line of plan.lines) {
+        for (const allocation of line.allocations) {
+          await this.decrementSourceBalance(tx, allocation.balance, allocation.quantity);
+
+          await tx.stockMovement.create({
+            data: {
+              clientId: request.clientId,
+              skuId: line.skuId,
+              boxId: allocation.balance.boxId,
+              palletId: allocation.balance.palletId,
+              type: MovementType.SHIP,
+              status: StockStatus.SHIPPING,
+              quantity: -allocation.quantity,
+              sourceDocument: request.id,
+              idempotencyKey: `${baseKey}:${line.itemId}:${allocation.balance.id}:out`,
+              comment: dto.comment ?? `Отгрузка заявки ${request.title}`,
+            },
+          });
+        }
+      }
+
+      await tx.clientRequest.update({
+        where: { id: request.id },
+        data: {
+          status: ClientRequestStatus.DONE,
+          assignedToUserId: user.id,
+          managerComment: dto.comment ?? 'Заявка отгружена со склада.',
+        },
+      });
+
+      return {
+        idempotencyKey: baseKey,
+        status: 'APPLIED',
+        requestId: request.id,
+        clientId: request.clientId,
+        shippedLines: this.formatFulfillmentLines(plan, 'shippedQuantity'),
       };
     });
   }
@@ -386,9 +535,19 @@ export class StockOperationsService {
   private async planRequestPick(
     tx: Prisma.TransactionClient,
     clientId: string,
-    items: Array<{ id: string; skuId: string | null; barcode: string | null; quantity: number }>,
+    items: RequestItemForAllocation[],
   ) {
+    return this.planRequestAllocations(tx, clientId, items, StockStatus.AVAILABLE);
+  }
+
+  private async planRequestAllocations(
+    tx: Prisma.TransactionClient,
+    clientId: string,
+    items: RequestItemForAllocation[],
+    sourceStatus: StockStatus,
+  ): Promise<RequestAllocationPlan> {
     const lines = [];
+    const balanceRemaining = new Map<string, number>();
 
     for (const item of items) {
       const sku = await this.resolveSku(tx, {
@@ -400,7 +559,7 @@ export class StockOperationsService {
         where: {
           clientId,
           skuId: sku.id,
-          status: StockStatus.AVAILABLE,
+          status: sourceStatus,
           quantity: { gt: 0 },
           boxId: { not: null },
         },
@@ -414,13 +573,19 @@ export class StockOperationsService {
           break;
         }
 
-        const quantity = Math.min(balance.quantity, remaining);
+        const available = balanceRemaining.has(balance.id) ? balanceRemaining.get(balance.id)! : balance.quantity;
+        if (available <= 0) {
+          continue;
+        }
+
+        const quantity = Math.min(available, remaining);
         allocations.push({ balance, quantity });
+        balanceRemaining.set(balance.id, available - quantity);
         remaining -= quantity;
       }
 
       if (remaining > 0) {
-        throw new BadRequestException(`Недостаточно доступного остатка для позиции ${sku.internalSku}.`);
+        throw new BadRequestException(`Недостаточно остатка ${sourceStatus} для позиции ${sku.internalSku}.`);
       }
 
       lines.push({
@@ -432,6 +597,120 @@ export class StockOperationsService {
     }
 
     return { lines };
+  }
+
+  private async loadOutboundRequest(
+    tx: Prisma.TransactionClient,
+    requestId: string,
+    user: AuthUser,
+    operationName: string,
+  ) {
+    const request = await tx.clientRequest.findUnique({
+      where: { id: requestId },
+      include: {
+        items: true,
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException('Клиентская заявка не найдена.');
+    }
+
+    this.clientScopes.requireClientAccess(user, request.clientId, 'write');
+
+    if (request.type !== ClientRequestType.OUTBOUND) {
+      throw new BadRequestException(`${operationName} доступна только для заявок на отгрузку.`);
+    }
+
+    return request;
+  }
+
+  private ensureRequestCanMove(
+    request: {
+      status: ClientRequestStatus;
+      items: RequestItemForAllocation[];
+    },
+    action: string,
+  ) {
+    if (request.status === ClientRequestStatus.CANCELLED || request.status === ClientRequestStatus.REJECTED) {
+      throw new BadRequestException(`Нельзя ${action} отмененную или отклоненную заявку.`);
+    }
+
+    if (request.items.length === 0) {
+      throw new BadRequestException('В заявке нет товарных позиций для складской операции.');
+    }
+  }
+
+  private async applyStatusMove(
+    tx: Prisma.TransactionClient,
+    input: {
+      request: { id: string; clientId: string };
+      plan: RequestAllocationPlan;
+      baseKey: string;
+      movementType: MovementType;
+      sourceStatus: StockStatus;
+      targetStatus: StockStatus;
+      sourceComment: string;
+      targetComment: string;
+    },
+  ) {
+    for (const line of input.plan.lines) {
+      for (const allocation of line.allocations) {
+        await this.decrementSourceBalance(tx, allocation.balance, allocation.quantity);
+        await this.incrementTargetBalance(tx, {
+          clientId: input.request.clientId,
+          skuId: line.skuId,
+          boxId: allocation.balance.boxId!,
+          palletId: allocation.balance.palletId,
+          status: input.targetStatus,
+          quantity: allocation.quantity,
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            clientId: input.request.clientId,
+            skuId: line.skuId,
+            boxId: allocation.balance.boxId,
+            palletId: allocation.balance.palletId,
+            type: input.movementType,
+            status: input.sourceStatus,
+            quantity: -allocation.quantity,
+            sourceDocument: input.request.id,
+            idempotencyKey: `${input.baseKey}:${line.itemId}:${allocation.balance.id}:out`,
+            comment: input.sourceComment,
+          },
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            clientId: input.request.clientId,
+            skuId: line.skuId,
+            boxId: allocation.balance.boxId,
+            palletId: allocation.balance.palletId,
+            type: input.movementType,
+            status: input.targetStatus,
+            quantity: allocation.quantity,
+            sourceDocument: input.request.id,
+            idempotencyKey: `${input.baseKey}:${line.itemId}:${allocation.balance.id}:in`,
+            comment: input.targetComment,
+          },
+        });
+      }
+    }
+  }
+
+  private formatFulfillmentLines(plan: RequestAllocationPlan, quantityKey: string) {
+    return plan.lines.map((line) => ({
+      itemId: line.itemId,
+      skuId: line.skuId,
+      requestedQuantity: line.requestedQuantity,
+      [quantityKey]: line.allocations.reduce((sum, allocation) => sum + allocation.quantity, 0),
+      allocations: line.allocations.map((allocation) => ({
+        boxId: allocation.balance.boxId,
+        palletId: allocation.balance.palletId,
+        quantity: allocation.quantity,
+      })),
+    }));
   }
 
   private async resolveSku(tx: Prisma.TransactionClient, dto: { clientId: string; skuId?: string; barcode?: string }) {
@@ -483,15 +762,18 @@ export class StockOperationsService {
   }
 
   private async decrementSourceBalance(tx: Prisma.TransactionClient, balance: StockBalance, quantity: number) {
-    if (balance.quantity === quantity) {
-      await tx.stockBalance.delete({ where: { id: balance.id } });
-      return;
-    }
-
-    await tx.stockBalance.update({
+    const updatedBalance = await tx.stockBalance.update({
       where: { id: balance.id },
       data: { quantity: { decrement: quantity } },
     });
+
+    if (updatedBalance.quantity < 0) {
+      throw new BadRequestException('Складская операция увела остаток в минус.');
+    }
+
+    if (updatedBalance.quantity === 0) {
+      await tx.stockBalance.delete({ where: { id: balance.id } });
+    }
   }
 
   private incrementTargetBalance(

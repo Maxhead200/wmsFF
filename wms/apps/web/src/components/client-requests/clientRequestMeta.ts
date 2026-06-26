@@ -14,6 +14,7 @@ export const requestStatusOptions: Array<{ value: ClientRequestStatus; label: st
   { value: 'IN_REVIEW', label: 'На проверке' },
   { value: 'APPROVED', label: 'Согласована' },
   { value: 'IN_WORK', label: 'В работе' },
+  { value: 'PACKED', label: 'Упакована' },
   { value: 'DONE', label: 'Готово' },
   { value: 'CANCELLED', label: 'Отменена' },
   { value: 'REJECTED', label: 'Отклонена' },
@@ -39,7 +40,7 @@ export function requestPriorityLabel(value: ClientRequestPriority) {
 }
 
 export function requestStatusTone(status: ClientRequestStatus) {
-  if (status === 'DONE' || status === 'APPROVED') {
+  if (status === 'DONE' || status === 'APPROVED' || status === 'PACKED') {
     return 'ready';
   }
 

@@ -27,7 +27,15 @@ export type ClientSummary = {
 
 export type ClientRequestType = 'INBOUND' | 'OUTBOUND' | 'RETURN' | 'DELIVERY' | 'SERVICE' | 'OTHER';
 
-export type ClientRequestStatus = 'SUBMITTED' | 'IN_REVIEW' | 'APPROVED' | 'IN_WORK' | 'DONE' | 'CANCELLED' | 'REJECTED';
+export type ClientRequestStatus =
+  | 'SUBMITTED'
+  | 'IN_REVIEW'
+  | 'APPROVED'
+  | 'IN_WORK'
+  | 'PACKED'
+  | 'DONE'
+  | 'CANCELLED'
+  | 'REJECTED';
 
 export type ClientRequestPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
 
@@ -440,22 +448,46 @@ export type TransferBetweenBoxesResult = {
   };
 };
 
+type FulfillmentAllocation = {
+  boxId: string | null;
+  palletId: string | null;
+  quantity: number;
+};
+
+type FulfillmentLineBase = {
+  itemId: string;
+  skuId: string;
+  requestedQuantity: number;
+  allocations: FulfillmentAllocation[];
+};
+
 export type PickClientRequestResult = {
   idempotencyKey: string;
   status: 'APPLIED' | 'ALREADY_APPLIED';
   requestId: string;
   clientId?: string;
-  pickedLines?: Array<{
-    itemId: string;
-    skuId: string;
-    requestedQuantity: number;
+  pickedLines?: Array<
+    FulfillmentLineBase & {
     pickedQuantity: number;
-    allocations: Array<{
-      boxId: string | null;
-      palletId: string | null;
-      quantity: number;
-    }>;
-  }>;
+    }
+  >;
+};
+
+export type FulfillClientRequestResult = {
+  idempotencyKey: string;
+  status: 'APPLIED' | 'ALREADY_APPLIED';
+  requestId: string;
+  clientId?: string;
+  packedLines?: Array<
+    FulfillmentLineBase & {
+      packedQuantity: number;
+    }
+  >;
+  shippedLines?: Array<
+    FulfillmentLineBase & {
+      shippedQuantity: number;
+    }
+  >;
 };
 
 export type RoleSummary = {
@@ -1067,6 +1099,28 @@ export async function pickClientRequest(
   payload: { requestId: string; idempotencyKey?: string; comment?: string },
 ) {
   return request<PickClientRequestResult>('/stock/fulfillment/pick-request', {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function packageClientRequest(
+  accessToken: string,
+  payload: { requestId: string; idempotencyKey?: string; comment?: string },
+) {
+  return request<FulfillClientRequestResult>('/stock/fulfillment/package-request', {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function shipClientRequest(
+  accessToken: string,
+  payload: { requestId: string; idempotencyKey?: string; comment?: string },
+) {
+  return request<FulfillClientRequestResult>('/stock/fulfillment/ship-request', {
     method: 'POST',
     body: payload,
     accessToken,

@@ -195,7 +195,13 @@
   flex: 0 0 auto;
 }
 
-.client-request-pick-button {
+.client-request-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.client-request-action-button {
   display: inline-flex;
   min-height: 32px;
   align-items: center;
@@ -210,8 +216,20 @@
   font-weight: 800;
 }
 
-.client-request-pick-button svg {
+.client-request-action-button svg {
   flex: 0 0 auto;
+}
+
+.client-request-action-button--pack {
+  border-color: #bae6fd;
+  background: #f0f9ff;
+  color: #0369a1;
+}
+
+.client-request-action-button--ship {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
 }
 
 @media (max-width: 980px) {

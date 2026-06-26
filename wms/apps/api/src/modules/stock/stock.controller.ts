@@ -4,6 +4,7 @@ import { ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { FulfillClientRequestDto } from './dto/fulfill-client-request.dto';
 import { ListStockBalancesDto } from './dto/list-stock-balances.dto';
 import { PickClientRequestDto } from './dto/pick-client-request.dto';
 import { TransferBetweenBoxesDto } from './dto/transfer-between-boxes.dto';
@@ -34,5 +35,17 @@ export class StockController {
   @RequirePermissions('stock:write')
   pickClientRequest(@Body() dto: PickClientRequestDto, @CurrentUser() user: AuthUser) {
     return this.operations.pickClientRequest(dto, user);
+  }
+
+  @Post('fulfillment/package-request')
+  @RequirePermissions('stock:write')
+  packageClientRequest(@Body() dto: FulfillClientRequestDto, @CurrentUser() user: AuthUser) {
+    return this.operations.packageClientRequest(dto, user);
+  }
+
+  @Post('fulfillment/ship-request')
+  @RequirePermissions('stock:write')
+  shipClientRequest(@Body() dto: FulfillClientRequestDto, @CurrentUser() user: AuthUser) {
+    return this.operations.shipClientRequest(dto, user);
   }
 }

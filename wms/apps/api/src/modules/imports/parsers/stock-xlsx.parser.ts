@@ -56,6 +56,7 @@ export function parseStockSheet(rows: SheetMatrix, options: StockParseOptions) {
     const quantityText = text(row[columns.quantity]);
     const quantity = numberValue(row[columns.quantity]);
     const hasProductData = Boolean(barcode || name || color || size || quantityText);
+    const hasProductIdentity = !isMissingImportText(barcode) || !isMissingImportText(name);
 
     if (looksLikeHeader(row)) {
       return;
@@ -63,6 +64,11 @@ export function parseStockSheet(rows: SheetMatrix, options: StockParseOptions) {
 
     if (boxCode && !hasProductData) {
       // Русский комментарий: в примере короб идёт отдельной строкой-заголовком перед товарами.
+      currentBoxCode = boxCode;
+      return;
+    }
+
+    if (boxCode && !hasProductIdentity && isMissingImportText(color) && isMissingImportText(size)) {
       currentBoxCode = boxCode;
       return;
     }
@@ -152,6 +158,11 @@ function looksLikeHeader(row: SheetCell[]) {
 
 function text(value: SheetCell) {
   return value == null ? '' : String(value).trim();
+}
+
+function isMissingImportText(value: string) {
+  const normalized = value.trim().toUpperCase();
+  return !normalized || normalized === '#N/A' || normalized === 'N/A';
 }
 
 function numberValue(value: SheetCell) {

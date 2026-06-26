@@ -8,6 +8,7 @@ import { PrintModule } from './modules/print/print.module';
 import { SkusModule } from './modules/skus/skus.module';
 import { StockModule } from './modules/stock/stock.module';
 import { TsdModule } from './modules/tsd/tsd.module';
+import { WarehouseModule } from './modules/warehouse/warehouse.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { TsdModule } from './modules/tsd/tsd.module';
     CommonModule,
     ClientsModule,
     SkusModule,
+    WarehouseModule,
     StockModule,
     ImportsModule,
     PrintModule,

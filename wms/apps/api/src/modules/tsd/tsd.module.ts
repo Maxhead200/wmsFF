@@ -1,11 +1,14 @@
 import { Module } from '@nestjs/common';
+import { AuthModule } from '../auth/auth.module';
 import { StockModule } from '../stock/stock.module';
+import { TsdDeviceController } from './tsd-device.controller';
+import { TsdDeviceService } from './tsd-device.service';
 import { TsdSyncController } from './tsd-sync.controller';
 import { TsdSyncService } from './tsd-sync.service';
 
 @Module({
-  imports: [StockModule],
-  controllers: [TsdSyncController],
-  providers: [TsdSyncService],
+  imports: [AuthModule, StockModule],
+  controllers: [TsdDeviceController, TsdSyncController],
+  providers: [TsdDeviceService, TsdSyncService],
 })
 export class TsdModule {}

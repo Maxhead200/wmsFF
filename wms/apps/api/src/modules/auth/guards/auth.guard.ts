@@ -68,6 +68,8 @@ export class AuthGuard implements CanActivate {
       clientScopeMode: this.clientScopeMode(roleCodes, permissionCodes, user.clientScopes.length),
       clientIds: user.clientScopes.filter((scope) => scope.canRead).map((scope) => scope.clientId),
       writableClientIds: user.clientScopes.filter((scope) => scope.canWrite).map((scope) => scope.clientId),
+      deviceId: payload.deviceId,
+      deviceCode: payload.deviceCode,
     };
 
     return true;

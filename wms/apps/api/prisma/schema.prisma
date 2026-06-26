@@ -57,6 +57,11 @@ enum TsdOperationStatus {
   REJECTED
 }
 
+enum TsdDeviceStatus {
+  ACTIVE
+  BLOCKED
+}
+
 enum LogisticsPricingMode {
   TOTAL
   PER_PALLET
@@ -71,6 +76,7 @@ model User {
   status       UserStatus @default(ACTIVE)
   roles        UserRole[]
   clientScopes UserClient[]
+  tsdDevices   TsdDevice[]
   auditLogs    AuditLog[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
@@ -319,6 +325,23 @@ model TsdOperation {
   status         TsdOperationStatus @default(ACCEPTED)
   serverMessage  String?
   createdAt      DateTime           @default(now())
+}
+
+model TsdDevice {
+  id             String          @id @default(uuid())
+  code           String          @unique
+  name           String
+  secretHash     String
+  status         TsdDeviceStatus @default(ACTIVE)
+  userId         String
+  user           User            @relation(fields: [userId], references: [id])
+  lastLoginAt    DateTime?
+  lastSeenAt     DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([userId])
+  @@index([status])
 }
 
 model PrintJob {

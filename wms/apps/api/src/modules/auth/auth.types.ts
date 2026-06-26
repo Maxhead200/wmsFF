@@ -7,10 +7,14 @@ export type AuthUser = {
   clientScopeMode: 'ALL' | 'LIMITED';
   clientIds: string[];
   writableClientIds: string[];
+  deviceId?: string;
+  deviceCode?: string;
 };
 
 export type TokenPayload = {
   sub: string;
+  deviceId?: string;
+  deviceCode?: string;
   iat: number;
   exp: number;
 };

@@ -1,7 +1,6 @@
 package pro.logoff.wms.tsd
 
 import android.os.Bundle
-import android.provider.Settings
 import android.text.InputType
 import android.view.KeyEvent
 import android.widget.Button
@@ -12,36 +11,41 @@ import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
+import pro.logoff.wms.tsd.auth.TsdSessionStore
 import pro.logoff.wms.tsd.data.OperationOutbox
 import pro.logoff.wms.tsd.data.PendingOperation
 import pro.logoff.wms.tsd.data.TsdDatabase
+import pro.logoff.wms.tsd.network.TsdLoginRequest
 import pro.logoff.wms.tsd.network.WmsApiFactory
 import pro.logoff.wms.tsd.sync.TsdSyncRunner
 
 class MainActivity : ComponentActivity() {
     private lateinit var outbox: OperationOutbox
+    private lateinit var sessionStore: TsdSessionStore
     private lateinit var statusView: TextView
+    private lateinit var sessionView: TextView
     private lateinit var countsView: TextView
     private lateinit var rejectedView: TextView
     private lateinit var scanInput: EditText
     private lateinit var baseUrlInput: EditText
-    private lateinit var tokenInput: EditText
+    private lateinit var deviceCodeInput: EditText
+    private lateinit var deviceSecretInput: EditText
+    private lateinit var loginButton: Button
+    private lateinit var logoutButton: Button
     private lateinit var syncButton: Button
     private lateinit var retryRejectedButton: Button
-
-    private val deviceId: String by lazy {
-        Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID) ?: "android-tsd"
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         outbox = OperationOutbox(TsdDatabase.get(this).operationDao())
+        sessionStore = TsdSessionStore(this)
 
         // Русский комментарий: MVP использует scanner keyboard wedge, поэтому сканер пишет прямо в EditText.
         statusView = TextView(this).apply {
             text = "Готово к сканированию"
             textSize = 18f
         }
+        sessionView = TextView(this).apply { textSize = 16f }
         countsView = TextView(this).apply { textSize = 16f }
         rejectedView = TextView(this).apply { textSize = 14f }
 
@@ -51,8 +55,13 @@ class MainActivity : ComponentActivity() {
             setSingleLine(true)
         }
 
-        tokenInput = EditText(this).apply {
-            hint = "Bearer token"
+        deviceCodeInput = EditText(this).apply {
+            hint = "Код ТСД"
+            setSingleLine(true)
+        }
+
+        deviceSecretInput = EditText(this).apply {
+            hint = "Секрет ТСД"
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
             setSingleLine(true)
         }
@@ -64,6 +73,16 @@ class MainActivity : ComponentActivity() {
                 submitScan()
                 true
             }
+        }
+
+        loginButton = Button(this).apply {
+            text = "Войти на ТСД"
+            setOnClickListener { loginDevice() }
+        }
+
+        logoutButton = Button(this).apply {
+            text = "Сбросить вход"
+            setOnClickListener { clearSession() }
         }
 
         syncButton = Button(this).apply {
@@ -80,9 +99,13 @@ class MainActivity : ComponentActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(32, 32, 32, 32)
             addView(statusView)
+            addView(sessionView)
             addView(countsView)
             addView(baseUrlInput)
-            addView(tokenInput)
+            addView(deviceCodeInput)
+            addView(deviceSecretInput)
+            addView(loginButton)
+            addView(logoutButton)
             addView(scanInput)
             addView(syncButton)
             addView(retryRejectedButton)
@@ -116,10 +139,42 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun loginDevice() {
+        val code = deviceCodeInput.text.toString().trim()
+        val secret = deviceSecretInput.text.toString().trim()
+        if (code.isEmpty() || secret.isEmpty()) {
+            statusView.text = "Укажите код и секрет ТСД"
+            return
+        }
+
+        loginButton.isEnabled = false
+        lifecycleScope.launch {
+            val result = runCatching {
+                val api = WmsApiFactory.create(baseUrlInput.text.toString().trim())
+                api.login(TsdLoginRequest(code = code, secret = secret))
+            }
+
+            loginButton.isEnabled = true
+            result.onSuccess { response ->
+                sessionStore.save(response)
+                deviceSecretInput.setText("")
+                refreshQueue("ТСД вошёл: ${response.device.name}")
+            }.onFailure { error ->
+                refreshQueue(error.message ?: "Не удалось войти на ТСД")
+            }
+        }
+    }
+
+    private fun clearSession() {
+        sessionStore.clear()
+        statusView.text = "Вход ТСД сброшен"
+        lifecycleScope.launch { refreshQueue() }
+    }
+
     private fun syncPending() {
-        val token = tokenInput.text.toString().trim()
-        if (token.isEmpty()) {
-            statusView.text = "Укажите bearer token для синхронизации"
+        val session = sessionStore.load()
+        if (session == null) {
+            statusView.text = "Сначала войдите по коду и секрету ТСД"
             return
         }
 
@@ -133,7 +188,8 @@ class MainActivity : ComponentActivity() {
                 return@launch
             }
 
-            val summary = TsdSyncRunner(outbox, api, deviceId).syncPending("Bearer $token")
+            val summary = TsdSyncRunner(outbox, api, session.deviceCode)
+                .syncPending("${session.tokenType} ${session.accessToken}")
             syncButton.isEnabled = true
             refreshQueue(
                 "${summary.message}: отправлено ${summary.sent}, принято ${summary.applied}, " +
@@ -156,6 +212,9 @@ class MainActivity : ComponentActivity() {
         if (message != null) {
             statusView.text = message
         }
+        sessionView.text = sessionStore.load()?.let { session ->
+            "ТСД: ${session.deviceName} (${session.deviceCode})"
+        } ?: "ТСД не авторизован"
         countsView.text = "В очереди: ${counts.pending}; отклонено: ${counts.rejected}"
         rejectedView.text =
             if (rejected.isEmpty()) {

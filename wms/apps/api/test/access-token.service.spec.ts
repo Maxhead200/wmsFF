@@ -13,6 +13,16 @@ describe('AccessTokenService', () => {
     expect(service.verify(token)).toMatchObject({ sub: 'user-1' });
   });
 
+  it('сохраняет claims устройства в access token ТСД', () => {
+    const token = service.sign('user-1', { deviceId: 'device-1', deviceCode: 'TSD-01' });
+
+    expect(service.verify(token)).toMatchObject({
+      sub: 'user-1',
+      deviceId: 'device-1',
+      deviceCode: 'TSD-01',
+    });
+  });
+
   it('отклоняет токен с измененной подписью', () => {
     const token = service.sign('user-1');
     const tampered = `${token.slice(0, -1)}x`;

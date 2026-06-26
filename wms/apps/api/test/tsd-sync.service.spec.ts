@@ -15,7 +15,7 @@ describe('TsdSyncService', () => {
   };
 
   it('принимает receipt_scan как queued операцию', async () => {
-    const service = new TsdSyncService({ transferBetweenBoxes: vi.fn() } as never);
+    const service = createService();
 
     await expect(
       service.acceptOperation(
@@ -36,7 +36,7 @@ describe('TsdSyncService', () => {
 
   it('применяет move_scan через stock transfer', async () => {
     const transferBetweenBoxes = vi.fn().mockResolvedValue({ status: 'APPLIED' });
-    const service = new TsdSyncService({ transferBetweenBoxes } as never);
+    const service = createService({ transferBetweenBoxes });
 
     const [result] = await service.syncOperations(
       {
@@ -73,7 +73,7 @@ describe('TsdSyncService', () => {
   });
 
   it('возвращает REJECTED для некорректного move_scan и продолжает batch', async () => {
-    const service = new TsdSyncService({ transferBetweenBoxes: vi.fn() } as never);
+    const service = createService();
 
     const results = await service.syncOperations(
       {
@@ -99,4 +99,33 @@ describe('TsdSyncService', () => {
     expect(results[0]).toMatchObject({ operationKey: 'bad-move', status: 'REJECTED' });
     expect(results[1]).toMatchObject({ operationKey: 'inventory-1', status: 'ACCEPTED' });
   });
+
+  it('отклоняет операцию, если device token не совпадает с deviceId операции', async () => {
+    const transferBetweenBoxes = vi.fn();
+    const service = createService({ transferBetweenBoxes });
+
+    const [result] = await service.syncOperations(
+      {
+        operations: [
+          {
+            deviceId: 'other-tsd',
+            operationKey: 'receipt-2',
+            operationType: 'receipt_scan',
+            payload: { barcode: '4600003' },
+          },
+        ],
+      },
+      { ...user, deviceId: 'device-db-id', deviceCode: 'tsd-1' },
+    );
+
+    expect(result).toMatchObject({ status: 'REJECTED' });
+    expect(transferBetweenBoxes).not.toHaveBeenCalled();
+  });
 });
+
+function createService(overrides: { transferBetweenBoxes?: ReturnType<typeof vi.fn> } = {}) {
+  return new TsdSyncService(
+    { transferBetweenBoxes: overrides.transferBetweenBoxes ?? vi.fn() } as never,
+    { touchActiveDevice: vi.fn().mockResolvedValue(undefined) } as never,
+  );
+}

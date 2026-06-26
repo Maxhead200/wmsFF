@@ -5,14 +5,21 @@ import type { TokenPayload } from './auth.types';
 
 const TOKEN_TTL_SECONDS = 60 * 60 * 8;
 
+export type AccessTokenOptions = {
+  deviceId?: string;
+  deviceCode?: string;
+};
+
 @Injectable()
 export class AccessTokenService {
   constructor(private readonly config: ConfigService) {}
 
-  sign(userId: string) {
+  sign(userId: string, options: AccessTokenOptions = {}) {
     const now = Math.floor(Date.now() / 1000);
     const payload: TokenPayload = {
       sub: userId,
+      deviceId: options.deviceId,
+      deviceCode: options.deviceCode,
       iat: now,
       exp: now + TOKEN_TTL_SECONDS,
     };

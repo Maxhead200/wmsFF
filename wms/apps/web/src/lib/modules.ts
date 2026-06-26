@@ -33,10 +33,10 @@ export const mvpModules: WmsModuleCard[] = [
     description: 'Наборы тарифов, направления, ступени и предварительный расчёт доставки.',
   },
   {
-    title: 'ТСД online',
+    title: 'ТСД offline',
     status: 'in-progress',
     icon: Smartphone,
-    description: 'Native Kotlin приложение, scanner keyboard wedge и sync API.',
+    description: 'Native Kotlin приложение, device-login, Room outbox и batch sync API.',
   },
   {
     title: 'Печать TSC',

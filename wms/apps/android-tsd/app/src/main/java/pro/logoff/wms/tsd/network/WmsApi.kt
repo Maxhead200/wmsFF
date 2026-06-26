@@ -26,7 +26,27 @@ data class TsdSyncRequest(
     val deviceClock: String? = null,
 )
 
+data class TsdLoginRequest(
+    val code: String,
+    val secret: String,
+)
+
+data class TsdDeviceInfo(
+    val id: String,
+    val code: String,
+    val name: String,
+)
+
+data class TsdLoginResponse(
+    val accessToken: String,
+    val tokenType: String,
+    val device: TsdDeviceInfo,
+)
+
 interface WmsApi {
+    @POST("api/v1/tsd/login")
+    suspend fun login(@Body request: TsdLoginRequest): TsdLoginResponse
+
     @POST("api/v1/tsd/operations")
     suspend fun sendOperation(
         @Header("Authorization") authorization: String,

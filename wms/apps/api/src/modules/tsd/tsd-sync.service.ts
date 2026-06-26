@@ -3,6 +3,7 @@ import { StockStatus } from '@prisma/client';
 import type { AuthUser } from '../auth/auth.types';
 import { StockOperationsService } from '../stock/stock-operations.service';
 import { ScanOperationDto, SyncTsdOperationsDto } from './dto/scan-operation.dto';
+import { TsdDeviceService } from './tsd-device.service';
 
 type TsdOperationResult = {
   operationKey: string;
@@ -25,7 +26,10 @@ type MoveScanPayload = {
 
 @Injectable()
 export class TsdSyncService {
-  constructor(private readonly stockOperations: StockOperationsService) {}
+  constructor(
+    private readonly stockOperations: StockOperationsService,
+    private readonly devices: TsdDeviceService,
+  ) {}
 
   async acceptOperation(operation: ScanOperationDto, user: AuthUser) {
     const [result] = await this.syncOperations({ operations: [operation] }, user);
@@ -33,6 +37,8 @@ export class TsdSyncService {
   }
 
   async syncOperations(dto: SyncTsdOperationsDto, user: AuthUser) {
+    await this.devices.touchActiveDevice(user.deviceId);
+
     const results: TsdOperationResult[] = [];
 
     for (const operation of dto.operations) {
@@ -44,6 +50,10 @@ export class TsdSyncService {
 
   private async applyOperation(operation: ScanOperationDto, user: AuthUser): Promise<TsdOperationResult> {
     try {
+      if (user.deviceCode && operation.deviceId !== user.deviceCode) {
+        return this.result(operation, 'REJECTED', 'Операция пришла не от устройства из access token.');
+      }
+
       if (operation.operationType === 'move_scan') {
         return await this.applyMoveScan(operation, user);
       }

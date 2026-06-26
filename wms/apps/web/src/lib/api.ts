@@ -212,6 +212,33 @@ export type UpdateUserClientScopesPayload = {
   }>;
 };
 
+export type TsdDeviceSummary = {
+  id: string;
+  code: string;
+  name: string;
+  status: string;
+  lastLoginAt: string | null;
+  lastSeenAt: string | null;
+  createdAt: string;
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    status: string;
+  };
+};
+
+export type CreateTsdDevicePayload = {
+  code: string;
+  name: string;
+  userId: string;
+};
+
+export type CreatedTsdDevice = Omit<TsdDeviceSummary, 'lastLoginAt' | 'lastSeenAt' | 'user'> & {
+  userId: string;
+  deviceSecret: string;
+};
+
 export type LogisticsTariffSetSummary = {
   id: string;
   name: string;
@@ -458,6 +485,20 @@ export async function updateUserClientScopes(
       accessToken,
     },
   );
+}
+
+export async function fetchTsdDevices(accessToken: string) {
+  return request<TsdDeviceSummary[]>('/tsd/devices', {
+    accessToken,
+  });
+}
+
+export async function createTsdDevice(accessToken: string, payload: CreateTsdDevicePayload) {
+  return request<CreatedTsdDevice>('/tsd/devices', {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
 }
 
 export async function fetchLogisticsTariffSets(accessToken: string) {

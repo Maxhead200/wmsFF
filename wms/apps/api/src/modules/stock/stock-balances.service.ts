@@ -21,11 +21,29 @@ export class StockBalancesService {
   ) {}
 
   list(filter: ListStockBalancesDto, user: AuthUser) {
+    const search = filter.search?.trim();
+    const skuWhere: Prisma.SkuWhereInput | undefined =
+      filter.barcode || search
+        ? {
+            ...(filter.barcode ? { barcodes: { some: { value: filter.barcode } } } : {}),
+            ...(search
+              ? {
+                  OR: [
+                    { name: { contains: search, mode: 'insensitive' } },
+                    { internalSku: { contains: search, mode: 'insensitive' } },
+                    { clientSku: { contains: search, mode: 'insensitive' } },
+                    { article: { contains: search, mode: 'insensitive' } },
+                    { barcodes: { some: { value: { contains: search } } } },
+                  ],
+                }
+              : {}),
+          }
+        : undefined;
     const where: Prisma.StockBalanceWhereInput = {
       clientId: this.clientScopes.resolveClientFilter(user, filter.clientId),
       skuId: filter.skuId,
       box: filter.boxCode ? { code: filter.boxCode } : undefined,
-      sku: filter.barcode ? { barcodes: { some: { value: filter.barcode } } } : undefined,
+      sku: skuWhere,
     };
 
     return this.prisma.stockBalance.findMany({
@@ -36,6 +54,7 @@ export class StockBalancesService {
         pallet: true,
       },
       orderBy: [{ updatedAt: 'desc' }],
+      take: search ? 100 : undefined,
     });
   }
 

@@ -1,6 +1,6 @@
 import { ClipboardPaste, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { fetchSkus, type ClientRequestAvailabilityPreview, type SkuSummary } from '../../lib/api';
+import { fetchStockBalances, type ClientRequestAvailabilityPreview, type StockBalance } from '../../lib/api';
 import {
   emptyClientRequestItem,
   MAX_CLIENT_REQUEST_ITEMS,
@@ -18,6 +18,14 @@ type ClientRequestItemsEditorProps = {
   onError: (message: string | null) => void;
 };
 
+type StockSuggestion = {
+  skuId: string;
+  internalSku: string;
+  name: string;
+  barcode: string;
+  availableQuantity: number;
+};
+
 export function ClientRequestItemsEditor({
   items,
   accessToken,
@@ -29,7 +37,7 @@ export function ClientRequestItemsEditor({
 }: ClientRequestItemsEditorProps) {
   const [pasteText, setPasteText] = useState('');
   const [activeSuggest, setActiveSuggest] = useState<{ index: number; query: string } | null>(null);
-  const [suggestions, setSuggestions] = useState<SkuSummary[]>([]);
+  const [suggestions, setSuggestions] = useState<StockSuggestion[]>([]);
   const [isSuggesting, setSuggesting] = useState(false);
   const availabilityByIndex = new Map((availability?.lines ?? []).map((line) => [line.index, line]));
   const suggestionsId = useMemo(() => `client-request-sku-suggestions-${Math.random().toString(36).slice(2)}`, []);
@@ -43,8 +51,8 @@ export function ClientRequestItemsEditor({
 
     const timeoutId = window.setTimeout(() => {
       setSuggesting(true);
-      fetchSkus(accessToken, { clientId, search: query })
-        .then((items) => setSuggestions(items.slice(0, 8)))
+      fetchStockBalances(accessToken, { clientId, search: query })
+        .then((balances) => setSuggestions(buildStockSuggestions(balances).slice(0, 8)))
         .catch(() => setSuggestions([]))
         .finally(() => setSuggesting(false));
     }, 180);
@@ -77,16 +85,15 @@ export function ClientRequestItemsEditor({
     }
   }
 
-  function selectSku(index: number, sku: SkuSummary) {
-    const primaryBarcode = sku.barcodes.find((barcode) => barcode.isPrimary)?.value ?? sku.barcodes[0]?.value ?? '';
+  function selectSku(index: number, sku: StockSuggestion) {
     onError(null);
     onChange(
       items.map((item, itemIndex) =>
         itemIndex === index
           ? {
               ...item,
-              skuId: sku.id,
-              barcode: primaryBarcode,
+              skuId: sku.skuId,
+              barcode: sku.barcode,
               name: sku.name,
             }
           : item,
@@ -191,10 +198,10 @@ export function ClientRequestItemsEditor({
               {activeSuggest?.index === index && suggestions.length > 0 ? (
                 <div className="client-request-sku-suggestions">
                   {suggestions.map((sku) => (
-                    <button key={sku.id} type="button" onClick={() => selectSku(index, sku)}>
+                    <button key={sku.skuId} type="button" onClick={() => selectSku(index, sku)}>
                       <strong>{sku.internalSku}</strong>
                       <span>{sku.name}</span>
-                      <small>{sku.barcodes[0]?.value ?? 'без штрихкода'}</small>
+                      <small>{sku.barcode || 'без штрихкода'} · {sku.availableQuantity} шт.</small>
                     </button>
                   ))}
                 </div>
@@ -210,7 +217,7 @@ export function ClientRequestItemsEditor({
 
       <datalist id={suggestionsId}>
         {suggestions.map((sku) => (
-          <option key={sku.id} value={sku.barcodes[0]?.value ?? sku.internalSku}>
+          <option key={sku.skuId} value={sku.barcode || sku.internalSku}>
             {sku.internalSku} · {sku.name}
           </option>
         ))}
@@ -237,6 +244,40 @@ export function ClientRequestItemsEditor({
       </div>
     </section>
   );
+}
+
+function buildStockSuggestions(balances: StockBalance[]) {
+  const bySku = new Map<string, StockSuggestion>();
+
+  for (const balance of balances) {
+    if (balance.status !== 'AVAILABLE' || balance.quantity <= 0) {
+      continue;
+    }
+
+    const existing = bySku.get(balance.skuId);
+    const barcode = primaryBarcode(balance);
+    if (existing) {
+      existing.availableQuantity += balance.quantity;
+      if (!existing.barcode && barcode) {
+        existing.barcode = barcode;
+      }
+      continue;
+    }
+
+    bySku.set(balance.skuId, {
+      skuId: balance.skuId,
+      internalSku: balance.sku.internalSku,
+      name: balance.sku.name,
+      barcode,
+      availableQuantity: balance.quantity,
+    });
+  }
+
+  return Array.from(bySku.values()).sort((left, right) => right.availableQuantity - left.availableQuantity);
+}
+
+function primaryBarcode(balance: StockBalance) {
+  return balance.sku.barcodes.find((barcode) => barcode.isPrimary)?.value ?? balance.sku.barcodes[0]?.value ?? '';
 }
 
 function availabilityClassName(line: ClientRequestAvailabilityPreview['lines'][number] | undefined) {

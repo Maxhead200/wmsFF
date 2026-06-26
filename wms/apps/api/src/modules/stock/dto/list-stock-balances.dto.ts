@@ -16,4 +16,8 @@ export class ListStockBalancesDto {
   @IsOptional()
   @IsString()
   barcode?: string;
+
+  @IsOptional()
+  @IsString()
+  search?: string;
 }

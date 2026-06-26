@@ -1931,7 +1931,7 @@ export async function createSku(accessToken: string, payload: CreateSkuPayload) 
   });
 }
 
-export async function fetchStockBalances(accessToken: string, filter: { clientId?: string } = {}) {
+export async function fetchStockBalances(accessToken: string, filter: { clientId?: string; search?: string } = {}) {
   return request<StockBalance[]>(withQuery('/stock/balances', filter), {
     accessToken,
   });

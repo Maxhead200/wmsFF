@@ -958,11 +958,33 @@ model LabelTemplate {
   widthMm     Int               @default(80)
   heightMm    Int               @default(50)
   tspl        String
+  version     Int               @default(1)
   isActive    Boolean           @default(true)
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
+  versions    LabelTemplateVersion[]
 
   @@index([type, isActive])
+}
+
+model LabelTemplateVersion {
+  id           String            @id @default(uuid())
+  templateId   String
+  version      Int
+  code         String
+  name         String
+  type         LabelTemplateType
+  description  String?
+  widthMm      Int
+  heightMm     Int
+  tspl         String
+  isActive     Boolean
+  changeReason String?
+  createdAt    DateTime          @default(now())
+  template     LabelTemplate     @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, version])
+  @@index([templateId, createdAt])
 }
 
 model AuditLog {

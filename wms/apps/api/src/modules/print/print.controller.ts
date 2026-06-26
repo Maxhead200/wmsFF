@@ -11,6 +11,7 @@ import { PreviewBoxLabelDto } from './dto/preview-box-label.dto';
 import { PreviewPalletLabelDto } from './dto/preview-pallet-label.dto';
 import { PreviewSkuLabelDto } from './dto/preview-sku-label.dto';
 import { ReprintPrintJobDto } from './dto/reprint-print-job.dto';
+import { UpdateLabelTemplateDto } from './dto/update-label-template.dto';
 import { UpdatePrintJobStatusDto } from './dto/update-print-job-status.dto';
 import { UpsertPrintPrinterDto } from './dto/upsert-print-printer.dto';
 import { LabelTemplateService } from './label-template.service';
@@ -49,6 +50,16 @@ export class PrintController {
   @Post('templates')
   createTemplate(@Body() body: CreateLabelTemplateDto) {
     return this.templates.createTemplate(body);
+  }
+
+  @Patch('templates/:id')
+  updateTemplate(@Param('id') templateId: string, @Body() body: UpdateLabelTemplateDto) {
+    return this.templates.updateTemplate(templateId, body);
+  }
+
+  @Get('templates/:id/versions')
+  listTemplateVersions(@Param('id') templateId: string) {
+    return this.templates.listTemplateVersions(templateId);
   }
 
   @Post('templates/:id/preview')

@@ -49,6 +49,7 @@ export class PrintJobService {
           templateId: template.id,
           templateCode: template.code,
           templateName: template.name,
+          templateVersion: template.version,
           variables,
           copies,
         } satisfies Prisma.InputJsonValue,

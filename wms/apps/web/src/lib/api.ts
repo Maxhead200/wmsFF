@@ -1104,6 +1104,7 @@ export type BoxLabelPreviewPayload = {
 export type LabelPreview = {
   printerLanguage: 'TSPL';
   tspl: string;
+  templateVersion?: number;
 };
 
 export type BoxLabelPreview = LabelPreview;
@@ -1119,9 +1120,26 @@ export type LabelTemplateSummary = {
   widthMm: number;
   heightMm: number;
   tspl: string;
+  version: number;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+};
+
+export type LabelTemplateVersionSummary = {
+  id: string;
+  templateId: string;
+  version: number;
+  code: string;
+  name: string;
+  type: LabelTemplateType;
+  description: string | null;
+  widthMm: number;
+  heightMm: number;
+  tspl: string;
+  isActive: boolean;
+  changeReason: string | null;
+  createdAt: string;
 };
 
 export type CreateLabelTemplatePayload = {
@@ -1133,6 +1151,10 @@ export type CreateLabelTemplatePayload = {
   heightMm?: number;
   tspl: string;
   isActive?: boolean;
+};
+
+export type UpdateLabelTemplatePayload = Partial<CreateLabelTemplatePayload> & {
+  changeReason?: string;
 };
 
 export type PreviewLabelTemplatePayload = {
@@ -1955,6 +1977,20 @@ export async function createLabelTemplate(accessToken: string, payload: CreateLa
   return request<LabelTemplateSummary>('/print/templates', {
     method: 'POST',
     body: payload,
+    accessToken,
+  });
+}
+
+export async function updateLabelTemplate(accessToken: string, templateId: string, payload: UpdateLabelTemplatePayload) {
+  return request<LabelTemplateSummary>(`/print/templates/${templateId}`, {
+    method: 'PATCH',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function fetchLabelTemplateVersions(accessToken: string, templateId: string) {
+  return request<LabelTemplateVersionSummary[]>(`/print/templates/${templateId}/versions`, {
     accessToken,
   });
 }

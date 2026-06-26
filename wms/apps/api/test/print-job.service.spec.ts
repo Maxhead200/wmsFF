@@ -29,6 +29,7 @@ describe('PrintJobService', () => {
         name: 'Box standard',
         type: LabelTemplateType.BOX,
         tspl: 'TEXT 10,10,"2",0,1,1,"{{boxCode}}"',
+        version: 3,
         isActive: options.isActive ?? true,
       }),
       renderTspl: vi.fn().mockReturnValue('TEXT 10,10,"2",0,1,1,"BOX-001"'),
@@ -53,6 +54,7 @@ describe('PrintJobService', () => {
     expect(job.labelType).toBe(LabelTemplateType.BOX);
     expect(job.status).toBe('queued');
     expect(job.tspl).toContain('BOX-001');
+    expect(job.payload).toMatchObject({ templateCode: 'BOX_STANDARD', templateVersion: 3 });
     expect(printers.getActivePrinterOrThrow).toHaveBeenCalledWith('TSC-01');
     expect(templates.renderTspl).toHaveBeenCalledWith('TEXT 10,10,"2",0,1,1,"{{boxCode}}"', { boxCode: 'BOX-001' });
   });

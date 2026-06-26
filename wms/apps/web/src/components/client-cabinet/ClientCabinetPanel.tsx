@@ -35,6 +35,7 @@ import {
 import { BillingInvoiceDocumentPreview } from '../billing/BillingInvoiceDocumentPreview';
 import { ClientRequestDocumentPreview } from '../client-requests/ClientRequestDocumentPreview';
 import './client-cabinet.css';
+import { ClientCabinetExports } from './ClientCabinetExports';
 import { ClientCabinetMetrics } from './ClientCabinetMetrics';
 import { ClientCabinetTables } from './ClientCabinetTables';
 import { ClientCabinetFilterPresets } from './ClientCabinetFilterPresets';
@@ -372,6 +373,14 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
             clientId={view.client.id}
             value={filters}
             onApply={setFilters}
+          />
+          <ClientCabinetExports
+            client={view.client}
+            filters={filters}
+            requests={view.requests}
+            invoices={view.invoices}
+            charges={view.charges}
+            serviceHistory={view.serviceHistory}
           />
           <ClientCabinetMetrics stock={view.stock} requests={view.requests} invoices={view.invoices} />
           <ClientCabinetTables

@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { BillingChargeStatus, BillingInvoiceStatus, BillingUnit, Prisma } from '@prisma/client';
+import { BillingChargeSource, BillingChargeStatus, BillingInvoiceStatus, BillingUnit, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
@@ -7,6 +7,7 @@ import { CreateBillingChargeDto } from './dto/create-billing-charge.dto';
 import { CreateBillingInvoiceDto } from './dto/create-billing-invoice.dto';
 import { CreateBillingPaymentDto } from './dto/create-billing-payment.dto';
 import { CreateBillingServiceDto } from './dto/create-billing-service.dto';
+import { GenerateStorageChargeDto } from './dto/generate-storage-charge.dto';
 import { ListBillingChargesDto } from './dto/list-billing-charges.dto';
 import { ListBillingInvoicesDto } from './dto/list-billing-invoices.dto';
 import { UpdateBillingChargeStatusDto } from './dto/update-billing-charge-status.dto';
@@ -96,6 +97,89 @@ export class BillingService {
         serviceDate: dto.serviceDate ? new Date(dto.serviceDate) : undefined,
         comment: normalizeText(dto.comment),
         createdByUserId: user.id,
+      },
+      include: billingChargeInclude,
+    });
+  }
+
+  async generateStorageCharge(dto: GenerateStorageChargeDto, user: AuthUser) {
+    this.clientScopes.requireClientAccess(user, dto.clientId, 'write');
+
+    const periodFrom = parseDate(dto.periodFrom);
+    const periodTo = parseDate(dto.periodTo, 'endOfDay');
+    if (periodFrom > periodTo) {
+      throw new BadRequestException('Дата начала периода не может быть позже даты окончания.');
+    }
+
+    const sourceKey = storageSourceKey(dto.clientId, periodFrom, periodTo);
+    const existingCharge = await this.prisma.billingCharge.findUnique({
+      where: { sourceKey },
+      include: billingChargeInclude,
+    });
+    if (existingCharge) {
+      throw new BadRequestException('Начисление хранения за этот период уже создано.');
+    }
+
+    const [storageService, balances] = await Promise.all([
+      this.ensureStorageService(),
+      this.prisma.stockBalance.findMany({
+        where: {
+          clientId: dto.clientId,
+          quantity: { gt: 0 },
+        },
+        include: {
+          sku: {
+            select: {
+              id: true,
+              internalSku: true,
+              name: true,
+              volumeLiters: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    const unitPriceRub = dto.unitPriceRub ?? decimalToNumber(storageService.defaultPriceRub);
+    if (unitPriceRub == null) {
+      throw new BadRequestException('Для хранения нужна цена за литро-день.');
+    }
+
+    const details = calculateStorageDetails(balances, countInclusiveDays(periodFrom, periodTo));
+    if (details.literDays <= 0) {
+      throw new BadRequestException('Нет остатков с заполненным литражом для начисления хранения.');
+    }
+
+    const totalRub = roundMoney(details.literDays * unitPriceRub);
+    const isApproved = dto.approve === true;
+
+    // Русский комментарий: автоматическое хранение пишем одним начислением за период, а детализацию держим в metadata.
+    return this.prisma.billingCharge.create({
+      data: {
+        clientId: dto.clientId,
+        serviceId: storageService.id,
+        description: `Хранение по литражу ${formatDateKey(periodFrom)} - ${formatDateKey(periodTo)}`,
+        unit: BillingUnit.LITER_DAY,
+        quantity: details.literDays,
+        unitPriceRub,
+        totalRub,
+        status: isApproved ? BillingChargeStatus.APPROVED : BillingChargeStatus.DRAFT,
+        serviceDate: dto.serviceDate ? parseDate(dto.serviceDate) : periodTo,
+        source: BillingChargeSource.STORAGE,
+        sourceKey,
+        metadata: {
+          periodFrom: formatDateKey(periodFrom),
+          periodTo: formatDateKey(periodTo),
+          days: details.days,
+          totalLiters: details.totalLiters,
+          literDays: details.literDays,
+          balancesCount: details.balancesCount,
+          skippedWithoutVolume: details.skippedWithoutVolume,
+        },
+        comment: normalizeText(dto.comment),
+        createdByUserId: user.id,
+        approvedByUserId: isApproved ? user.id : undefined,
+        approvedAt: isApproved ? new Date() : undefined,
       },
       include: billingChargeInclude,
     });
@@ -351,7 +435,26 @@ export class BillingService {
 
     return `${prefix}-${String(count + 1).padStart(4, '0')}`;
   }
+
+  private ensureStorageService() {
+    return this.prisma.billingService.upsert({
+      where: { code: STORAGE_SERVICE_CODE },
+      update: {
+        name: 'Хранение по литражу',
+        unit: BillingUnit.LITER_DAY,
+        isActive: true,
+      },
+      create: {
+        code: STORAGE_SERVICE_CODE,
+        name: 'Хранение по литражу',
+        unit: BillingUnit.LITER_DAY,
+        isActive: true,
+      },
+    });
+  }
 }
+
+const STORAGE_SERVICE_CODE = 'STORAGE_LITER_DAY';
 
 const billingChargeInclude = {
   client: {
@@ -431,6 +534,10 @@ function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+function roundQuantity(value: number) {
+  return Math.round((value + Number.EPSILON) * 1000) / 1000;
+}
+
 function parseDate(value: string, mode: 'startOfDay' | 'endOfDay' = 'startOfDay') {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -446,4 +553,45 @@ function parseDate(value: string, mode: 'startOfDay' | 'endOfDay' = 'startOfDay'
   }
 
   return date;
+}
+
+function countInclusiveDays(periodFrom: Date, periodTo: Date) {
+  const from = Date.UTC(periodFrom.getUTCFullYear(), periodFrom.getUTCMonth(), periodFrom.getUTCDate());
+  const to = Date.UTC(periodTo.getUTCFullYear(), periodTo.getUTCMonth(), periodTo.getUTCDate());
+  return Math.floor((to - from) / 86_400_000) + 1;
+}
+
+function calculateStorageDetails(
+  balances: Array<{ quantity: number; sku: { volumeLiters: Prisma.Decimal | string | number | null } }>,
+  days: number,
+) {
+  let totalLiters = 0;
+  let skippedWithoutVolume = 0;
+
+  balances.forEach((balance) => {
+    const volumeLiters = decimalToNumber(balance.sku.volumeLiters);
+    if (!volumeLiters || volumeLiters <= 0) {
+      skippedWithoutVolume += 1;
+      return;
+    }
+
+    totalLiters += balance.quantity * volumeLiters;
+  });
+
+  const roundedLiters = roundQuantity(totalLiters);
+  return {
+    days,
+    totalLiters: roundedLiters,
+    literDays: roundQuantity(roundedLiters * days),
+    balancesCount: balances.length,
+    skippedWithoutVolume,
+  };
+}
+
+function storageSourceKey(clientId: string, periodFrom: Date, periodTo: Date) {
+  return `storage:${clientId}:${formatDateKey(periodFrom)}:${formatDateKey(periodTo)}`;
+}
+
+function formatDateKey(date: Date) {
+  return date.toISOString().slice(0, 10);
 }

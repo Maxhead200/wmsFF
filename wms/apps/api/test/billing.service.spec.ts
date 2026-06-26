@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { BillingChargeStatus, BillingInvoiceStatus, BillingUnit } from '@prisma/client';
+import { BillingChargeSource, BillingChargeStatus, BillingInvoiceStatus, BillingUnit } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthUser } from '../src/modules/auth/auth.types';
 import { BillingService } from '../src/modules/billing/billing.service';
@@ -86,6 +86,103 @@ describe('BillingService', () => {
           description: 'Ручная услуга',
           quantity: 1,
           unitPriceRub: 100,
+        },
+        user({ clientIds: ['client-1'], writableClientIds: ['client-1'] }),
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('создает автоматическое начисление хранения по литражу', async () => {
+    const prisma = {
+      billingService: {
+        upsert: vi.fn().mockResolvedValue({
+          id: 'service-storage',
+          code: 'STORAGE_LITER_DAY',
+          defaultPriceRub: null,
+        }),
+      },
+      billingCharge: {
+        findUnique: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({ id: 'charge-storage' }),
+      },
+      stockBalance: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            quantity: 2,
+            sku: { volumeLiters: '1.500' },
+          },
+          {
+            quantity: 3,
+            sku: { volumeLiters: '2.000' },
+          },
+          {
+            quantity: 1,
+            sku: { volumeLiters: null },
+          },
+        ]),
+      },
+    };
+    const service = new BillingService(prisma as never, clientScopes());
+
+    await service.generateStorageCharge(
+      {
+        clientId: 'client-1',
+        periodFrom: '2026-06-01',
+        periodTo: '2026-06-03',
+        unitPriceRub: 0.5,
+        approve: true,
+      },
+      user({ clientIds: ['client-1'], writableClientIds: ['client-1'] }),
+    );
+
+    expect(prisma.stockBalance.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          clientId: 'client-1',
+          quantity: { gt: 0 },
+        }),
+      }),
+    );
+    expect(prisma.billingCharge.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          clientId: 'client-1',
+          serviceId: 'service-storage',
+          unit: BillingUnit.LITER_DAY,
+          quantity: 27,
+          unitPriceRub: 0.5,
+          totalRub: 13.5,
+          status: BillingChargeStatus.APPROVED,
+          source: BillingChargeSource.STORAGE,
+          sourceKey: 'storage:client-1:2026-06-01:2026-06-03',
+          approvedByUserId: 'user-1',
+          metadata: expect.objectContaining({
+            days: 3,
+            totalLiters: 9,
+            literDays: 27,
+            balancesCount: 3,
+            skippedWithoutVolume: 1,
+          }),
+        }),
+      }),
+    );
+  });
+
+  it('не дублирует автоматическое хранение за тот же период', async () => {
+    const prisma = {
+      billingCharge: {
+        findUnique: vi.fn().mockResolvedValue({ id: 'existing-storage' }),
+      },
+    };
+    const service = new BillingService(prisma as never, clientScopes());
+
+    await expect(
+      service.generateStorageCharge(
+        {
+          clientId: 'client-1',
+          periodFrom: '2026-06-01',
+          periodTo: '2026-06-03',
+          unitPriceRub: 0.5,
         },
         user({ clientIds: ['client-1'], writableClientIds: ['client-1'] }),
       ),

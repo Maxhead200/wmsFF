@@ -25,6 +25,7 @@ import { BillingInvoiceForm } from './BillingInvoiceForm';
 import { BillingInvoicesTable } from './BillingInvoicesTable';
 import { BillingPaymentForm } from './BillingPaymentForm';
 import { BillingServiceForm } from './BillingServiceForm';
+import { BillingStorageChargeForm } from './BillingStorageChargeForm';
 
 type LoadState<T> = {
   status: 'idle' | 'loading' | 'ready' | 'error';
@@ -163,6 +164,10 @@ export function BillingPanel({ session }: BillingPanelProps) {
           session={session}
           onCreated={acceptCharge}
         />
+      ) : null}
+
+      {canWrite && clients.status === 'ready' ? (
+        <BillingStorageChargeForm clients={clients.data} session={session} onCreated={acceptCharge} />
       ) : null}
 
       {canWrite && clients.status === 'ready' ? (

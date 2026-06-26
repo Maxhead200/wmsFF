@@ -31,9 +31,11 @@ export type ClientRequestStatus = 'SUBMITTED' | 'IN_REVIEW' | 'APPROVED' | 'IN_W
 
 export type ClientRequestPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
 
-export type BillingUnit = 'SERVICE' | 'PIECE' | 'BOX' | 'PALLET' | 'LITER' | 'DAY' | 'HOUR';
+export type BillingUnit = 'SERVICE' | 'PIECE' | 'BOX' | 'PALLET' | 'LITER' | 'LITER_DAY' | 'DAY' | 'HOUR';
 
 export type BillingChargeStatus = 'DRAFT' | 'APPROVED' | 'CANCELLED';
+
+export type BillingChargeSource = 'MANUAL' | 'STORAGE';
 
 export type BillingInvoiceStatus = 'DRAFT' | 'ISSUED' | 'PAID' | 'CANCELLED';
 
@@ -62,6 +64,9 @@ export type BillingChargeSummary = {
   totalRub: string | number;
   status: BillingChargeStatus;
   serviceDate: string;
+  source: BillingChargeSource;
+  sourceKey: string | null;
+  metadata: Record<string, unknown> | null;
   comment: string | null;
   approvedAt: string | null;
   createdAt: string;
@@ -160,6 +165,16 @@ export type CreateBillingInvoicePayload = {
   periodTo: string;
   dueDate?: string;
   chargeIds?: string[];
+  comment?: string;
+};
+
+export type GenerateStorageChargePayload = {
+  clientId: string;
+  periodFrom: string;
+  periodTo: string;
+  unitPriceRub?: number;
+  serviceDate?: string;
+  approve?: boolean;
   comment?: string;
 };
 
@@ -717,6 +732,14 @@ export async function updateBillingChargeStatus(
 ) {
   return request<BillingChargeSummary>(`/billing/charges/${chargeId}/status`, {
     method: 'PATCH',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function generateStorageCharge(accessToken: string, payload: GenerateStorageChargePayload) {
+  return request<BillingChargeSummary>('/billing/charges/storage', {
+    method: 'POST',
     body: payload,
     accessToken,
   });

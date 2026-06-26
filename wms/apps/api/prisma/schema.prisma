@@ -105,6 +105,7 @@ enum BillingUnit {
   BOX
   PALLET
   LITER
+  LITER_DAY
   DAY
   HOUR
 }
@@ -113,6 +114,11 @@ enum BillingChargeStatus {
   DRAFT
   APPROVED
   CANCELLED
+}
+
+enum BillingChargeSource {
+  MANUAL
+  STORAGE
 }
 
 enum BillingInvoiceStatus {
@@ -417,6 +423,9 @@ model BillingCharge {
   totalRub         Decimal              @db.Decimal(14, 2)
   status           BillingChargeStatus  @default(DRAFT)
   serviceDate      DateTime             @default(now())
+  source           BillingChargeSource  @default(MANUAL)
+  sourceKey        String?              @unique
+  metadata         Json?
   comment          String?
   createdByUserId  String?
   approvedByUserId String?
@@ -434,6 +443,7 @@ model BillingCharge {
   @@index([requestId])
   @@index([serviceId])
   @@index([approvedByUserId])
+  @@index([source, serviceDate])
 }
 
 model BillingInvoice {

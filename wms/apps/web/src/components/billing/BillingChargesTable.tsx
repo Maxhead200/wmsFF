@@ -40,6 +40,7 @@ export function BillingChargesTable({ charges, canWrite, onStatusChange }: Billi
               <td>
                 <strong>{charge.description}</strong>
                 <span>{charge.request?.title ?? charge.service?.code ?? 'ручное начисление'}</span>
+                <span>{charge.source === 'STORAGE' ? 'авто: хранение' : 'ручное'}</span>
                 <span>{formatDate(charge.serviceDate)}</span>
               </td>
               <td>

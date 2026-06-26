@@ -8,6 +8,7 @@ import { CreateBillingChargeDto } from './dto/create-billing-charge.dto';
 import { CreateBillingInvoiceDto } from './dto/create-billing-invoice.dto';
 import { CreateBillingPaymentDto } from './dto/create-billing-payment.dto';
 import { CreateBillingServiceDto } from './dto/create-billing-service.dto';
+import { GenerateStorageChargeDto } from './dto/generate-storage-charge.dto';
 import { ListBillingChargesDto } from './dto/list-billing-charges.dto';
 import { ListBillingInvoicesDto } from './dto/list-billing-invoices.dto';
 import { UpdateBillingChargeStatusDto } from './dto/update-billing-charge-status.dto';
@@ -39,6 +40,12 @@ export class BillingController {
   @RequirePermissions('billing:write')
   createCharge(@Body() dto: CreateBillingChargeDto, @CurrentUser() user: AuthUser) {
     return this.billing.createCharge(dto, user);
+  }
+
+  @Post('charges/storage')
+  @RequirePermissions('billing:write')
+  generateStorageCharge(@Body() dto: GenerateStorageChargeDto, @CurrentUser() user: AuthUser) {
+    return this.billing.generateStorageCharge(dto, user);
   }
 
   @Patch('charges/:id/status')

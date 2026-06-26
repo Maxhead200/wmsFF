@@ -6,6 +6,7 @@ export const billingUnitOptions: Array<{ value: BillingUnit; label: string }> = 
   { value: 'BOX', label: 'Короб' },
   { value: 'PALLET', label: 'Паллет' },
   { value: 'LITER', label: 'Литр' },
+  { value: 'LITER_DAY', label: 'Литро-день' },
   { value: 'DAY', label: 'День' },
   { value: 'HOUR', label: 'Час' },
 ];

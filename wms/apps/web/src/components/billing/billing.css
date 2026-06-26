@@ -41,6 +41,10 @@
   grid-template-columns: minmax(180px, 1.3fr) repeat(4, minmax(120px, 0.8fr));
 }
 
+.billing-fields--storage {
+  grid-template-columns: minmax(180px, 1.3fr) repeat(4, minmax(120px, 0.8fr));
+}
+
 .billing-fields label {
   display: grid;
   gap: 6px;
@@ -73,6 +77,18 @@
 
 .billing-fields__wide {
   grid-column: span 2;
+}
+
+.billing-checkbox {
+  display: flex !important;
+  min-height: 40px;
+  align-items: center;
+  gap: 8px !important;
+}
+
+.billing-checkbox input {
+  width: 18px;
+  min-height: 18px;
 }
 
 .billing-submit {
@@ -121,7 +137,8 @@
   .billing-fields--service,
   .billing-fields--charge,
   .billing-fields--invoice,
-  .billing-fields--payment {
+  .billing-fields--payment,
+  .billing-fields--storage {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -134,7 +151,8 @@
   .billing-fields--service,
   .billing-fields--charge,
   .billing-fields--invoice,
-  .billing-fields--payment {
+  .billing-fields--payment,
+  .billing-fields--storage {
     grid-template-columns: 1fr;
   }
 

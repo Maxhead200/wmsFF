@@ -22,32 +22,53 @@ export type StockParseOptions = {
   clientId: string;
 };
 
+type StockColumnMap = {
+  box: number;
+  barcode: number;
+  name: number;
+  color: number;
+  size: number;
+  quantity: number;
+};
+
+const DEFAULT_COLUMNS: StockColumnMap = {
+  box: 0,
+  barcode: 3,
+  name: 4,
+  color: 6,
+  size: 7,
+  quantity: 8,
+};
+
 export function parseStockSheet(rows: SheetMatrix, options: StockParseOptions) {
   const items: StockImportItem[] = [];
   const issues: StockImportIssue[] = [];
   let currentBoxCode = '';
+  const columns = detectColumns(rows);
 
   rows.forEach((row, index) => {
     const sourceRow = index + 1;
-    const boxCode = text(row[0]);
-    const barcode = text(row[3]);
-    const name = text(row[4]);
-    const color = text(row[6]);
-    const size = text(row[7]);
-    const quantity = numberValue(row[8]);
+    const boxCode = text(row[columns.box]);
+    const barcode = text(row[columns.barcode]);
+    const name = text(row[columns.name]);
+    const color = text(row[columns.color]);
+    const size = text(row[columns.size]);
+    const quantityText = text(row[columns.quantity]);
+    const quantity = numberValue(row[columns.quantity]);
+    const hasProductData = Boolean(barcode || name || color || size || quantityText);
 
     if (looksLikeHeader(row)) {
       return;
     }
 
-    if (boxCode && !barcode && !name && !quantity) {
+    if (boxCode && !hasProductData) {
       // Русский комментарий: в примере короб идёт отдельной строкой-заголовком перед товарами.
       currentBoxCode = boxCode;
       return;
     }
 
     const effectiveBox = boxCode || currentBoxCode;
-    if (!barcode && !name && !quantity) {
+    if (!hasProductData) {
       return;
     }
 
@@ -98,6 +119,31 @@ export function parseStockSheet(rows: SheetMatrix, options: StockParseOptions) {
       totalQuantity,
     },
   };
+}
+
+function detectColumns(rows: SheetMatrix): StockColumnMap {
+  for (const row of rows) {
+    const normalized = Array.from(row, (cell) => text(cell).toLowerCase());
+    if (!normalized.some((cell) => cell.includes('штрих'))) {
+      continue;
+    }
+
+    return {
+      box: findColumn(normalized, ['короб']) ?? DEFAULT_COLUMNS.box,
+      barcode: findColumn(normalized, ['штрих']) ?? DEFAULT_COLUMNS.barcode,
+      name: findColumn(normalized, ['наименование']) ?? DEFAULT_COLUMNS.name,
+      color: findColumn(normalized, ['цвет']) ?? DEFAULT_COLUMNS.color,
+      size: findColumn(normalized, ['размер']) ?? DEFAULT_COLUMNS.size,
+      quantity: findColumn(normalized, ['количество', 'остаток']) ?? DEFAULT_COLUMNS.quantity,
+    };
+  }
+
+  return DEFAULT_COLUMNS;
+}
+
+function findColumn(cells: string[], needles: string[]) {
+  const index = cells.findIndex((cell) => needles.some((needle) => (cell ?? '').includes(needle)));
+  return index >= 0 ? index : undefined;
 }
 
 function looksLikeHeader(row: SheetCell[]) {

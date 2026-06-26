@@ -9,5 +9,8 @@ export class CreatePickWaveDto {
   @IsOptional()
   @IsString()
   comment?: string;
-}
 
+  @IsOptional()
+  @IsString()
+  assignedPickerUserId?: string;
+}

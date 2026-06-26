@@ -5,6 +5,7 @@ import {
   PickWaveRequestStatus,
   PickWaveStatus,
   Prisma,
+  UserStatus,
 } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
@@ -49,6 +50,7 @@ export class FulfillmentWaveService {
 
   async createWave(dto: CreatePickWaveDto, user: AuthUser) {
     const requestIds = [...new Set(dto.requestIds.map((id) => id.trim()).filter(Boolean))];
+    const assignedPickerUserId = await this.resolveAssignedPickerId(dto.assignedPickerUserId);
     if (requestIds.length === 0) {
       throw new BadRequestException('Для волны сборки нужна хотя бы одна заявка.');
     }
@@ -91,6 +93,7 @@ export class FulfillmentWaveService {
         status: PickWaveStatus.PLANNED,
         comment: dto.comment?.trim() || undefined,
         createdByUserId: user.id,
+        assignedPickerUserId,
         requests: {
           create: requestIds.map((requestId) => ({ requestId })),
         },
@@ -183,6 +186,23 @@ export class FulfillmentWaveService {
       wave: updatedWave,
       results: runResults,
     };
+  }
+
+  private async resolveAssignedPickerId(input?: string) {
+    const assignedPickerUserId = input?.trim();
+    if (!assignedPickerUserId) {
+      return undefined;
+    }
+
+    const picker = await this.prisma.user.findUnique({
+      where: { id: assignedPickerUserId },
+      select: { id: true, status: true },
+    });
+    if (!picker || picker.status !== UserStatus.ACTIVE) {
+      throw new BadRequestException('Ответственный сборщик для волны не найден или заблокирован.');
+    }
+
+    return picker.id;
   }
 
   private nextWaveNumber() {

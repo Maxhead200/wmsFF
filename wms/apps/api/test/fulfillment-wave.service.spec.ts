@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { ClientRequestStatus, ClientRequestType, PickWaveRequestStatus, PickWaveStatus } from '@prisma/client';
+import { ClientRequestStatus, ClientRequestType, PickWaveRequestStatus, PickWaveStatus, UserStatus } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthUser } from '../src/modules/auth/auth.types';
 import { FulfillmentWaveService } from '../src/modules/stock/fulfillment-wave.service';
@@ -58,6 +58,59 @@ describe('FulfillmentWaveService', () => {
     );
 
     await expect(service.createWave({ requestIds: ['request-1'] }, user())).rejects.toThrow(BadRequestException);
+  });
+
+  it('сохраняет ответственного сборщика для волны', async () => {
+    const prisma = {
+      user: {
+        findUnique: vi.fn().mockResolvedValue({ id: 'picker-1', status: UserStatus.ACTIVE }),
+      },
+      clientRequest: {
+        findMany: vi.fn().mockResolvedValue([requestFixture('request-1')]),
+      },
+      pickWaveRequest: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      pickWave: {
+        create: vi.fn().mockResolvedValue({ id: 'wave-1', waveNumber: 'WAVE-1', assignedPickerUserId: 'picker-1' }),
+      },
+    };
+    const service = new FulfillmentWaveService(
+      prisma as never,
+      { requireClientAccess: vi.fn(), resolveClientFilter: vi.fn() } as never,
+      { pickClientRequest: vi.fn() } as never,
+    );
+
+    await service.createWave({ requestIds: ['request-1'], assignedPickerUserId: ' picker-1 ' }, user());
+
+    expect(prisma.user.findUnique).toHaveBeenCalledWith({
+      where: { id: 'picker-1' },
+      select: { id: true, status: true },
+    });
+    expect(prisma.pickWave.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          assignedPickerUserId: 'picker-1',
+        }),
+      }),
+    );
+  });
+
+  it('не назначает заблокированного сборщика на волну', async () => {
+    const prisma = {
+      user: {
+        findUnique: vi.fn().mockResolvedValue({ id: 'picker-1', status: UserStatus.BLOCKED }),
+      },
+    };
+    const service = new FulfillmentWaveService(
+      prisma as never,
+      { requireClientAccess: vi.fn(), resolveClientFilter: vi.fn() } as never,
+      { pickClientRequest: vi.fn() } as never,
+    );
+
+    await expect(service.createWave({ requestIds: ['request-1'], assignedPickerUserId: 'picker-1' }, user())).rejects.toThrow(
+      BadRequestException,
+    );
   });
 
   it('запускает волну через idempotent pick-request и закрывает строки', async () => {
@@ -148,4 +201,3 @@ function user(): AuthUser {
     writableClientIds: [],
   };
 }
-

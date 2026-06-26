@@ -659,9 +659,15 @@ export type PickWaveSummary = {
   status: PickWaveStatus;
   comment: string | null;
   createdByUserId: string | null;
+  assignedPickerUserId: string | null;
   createdAt: string;
   updatedAt: string;
   createdBy: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+  assignedPicker: {
     id: string;
     email: string;
     name: string;
@@ -689,6 +695,11 @@ export type PickWaveDocument = {
   createdAt: string;
   updatedAt: string;
   generatedAt: string;
+  assignedPicker: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
   requestsCount: number;
   rowsCount: number;
   totalRequested: number;
@@ -2286,7 +2297,7 @@ export async function fetchPickWaves(accessToken: string, filter: { status?: Pic
 
 export async function createPickWave(
   accessToken: string,
-  payload: { requestIds: string[]; comment?: string },
+  payload: { requestIds: string[]; comment?: string; assignedPickerUserId?: string },
 ) {
   return request<PickWaveSummary>('/stock/fulfillment/waves', {
     method: 'POST',

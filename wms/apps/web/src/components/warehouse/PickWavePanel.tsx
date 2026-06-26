@@ -6,11 +6,13 @@ import {
   fetchClientRequests,
   fetchPickWaveDocument,
   fetchPickWaves,
+  fetchUsers,
   runPickWave,
   type AuthSession,
   type ClientRequestSummary,
   type PickWaveDocument,
   type PickWaveSummary,
+  type UserSummary,
 } from '../../lib/api';
 import { requestPriorityLabel, requestStatusLabel } from '../client-requests/clientRequestMeta';
 import { HtmlDocumentPreview } from '../documents/HtmlDocumentPreview';
@@ -30,7 +32,9 @@ const eligibleStatuses = ['SUBMITTED', 'IN_REVIEW', 'APPROVED'];
 export function PickWavePanel({ session }: PickWavePanelProps) {
   const [requests, setRequests] = useState<LoadState<ClientRequestSummary>>({ status: 'idle', data: [] });
   const [waves, setWaves] = useState<LoadState<PickWaveSummary>>({ status: 'idle', data: [] });
+  const [users, setUsers] = useState<UserSummary[]>([]);
   const [selectedRequestIds, setSelectedRequestIds] = useState<string[]>([]);
+  const [assignedPickerUserId, setAssignedPickerUserId] = useState(session.user.id);
   const [comment, setComment] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [isSubmitting, setSubmitting] = useState(false);
@@ -56,9 +60,14 @@ export function PickWavePanel({ session }: PickWavePanelProps) {
         fetchClientRequests(session.accessToken, { type: 'OUTBOUND' }),
         fetchPickWaves(session.accessToken),
       ]);
+      const nextUsers = canReadUsers(session)
+        ? await fetchUsers(session.accessToken).catch(() => [] as UserSummary[])
+        : [];
       setRequests({ status: 'ready', data: nextRequests });
       setWaves({ status: 'ready', data: nextWaves });
+      setUsers(nextUsers);
       setSelectedRequestIds((current) => current.filter((id) => nextRequests.some((request) => request.id === id)));
+      setAssignedPickerUserId((current) => current || session.user.id);
     } catch (caught) {
       const error = errorMessage(caught);
       setRequests((current) => ({ ...current, status: 'error', error }));
@@ -76,11 +85,13 @@ export function PickWavePanel({ session }: PickWavePanelProps) {
       const wave = await createPickWave(session.accessToken, {
         requestIds: selectedRequestIds,
         comment: comment.trim() || undefined,
+        assignedPickerUserId: assignedPickerUserId || undefined,
       });
       setWaves((current) => ({ status: 'ready', data: [wave, ...current.data] }));
       setSelectedRequestIds([]);
+      setAssignedPickerUserId(session.user.id);
       setComment('');
-      setMessage(`Волна ${wave.waveNumber} создана.`);
+      setMessage(`Волна ${wave.waveNumber} создана${wave.assignedPicker ? `, сборщик ${wave.assignedPicker.name}` : ''}.`);
     } catch (caught) {
       setMessage(errorMessage(caught));
     } finally {
@@ -187,6 +198,17 @@ export function PickWavePanel({ session }: PickWavePanelProps) {
             <span>Комментарий</span>
             <input value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Например: первая волна WB" />
           </label>
+          <label className="warehouse-comment">
+            <span>Сборщик</span>
+            <select value={assignedPickerUserId} onChange={(event) => setAssignedPickerUserId(event.target.value)}>
+              {pickerOptions(session, users).map((user) => (
+                <option key={user.id} value={user.id}>
+                  {userLabel(user)}
+                </option>
+              ))}
+              <option value="">Не назначать</option>
+            </select>
+          </label>
           <button
             className="primary-button"
             type="button"
@@ -209,6 +231,7 @@ export function PickWavePanel({ session }: PickWavePanelProps) {
                     <span className={`status status--${waveStatusTone(wave.status)}`}>{waveStatusLabel(wave.status)}</span>
                   </div>
                   <p>{wave.requests.length} заявок · {wavePickedCount(wave)} собрано · {waveFailedCount(wave)} ошибок</p>
+                  <p>Сборщик: {wave.assignedPicker ? userLabel(wave.assignedPicker) : 'не назначен'}</p>
                   <div className="pick-wave-actions">
                     <button
                       className="review-action"
@@ -315,4 +338,24 @@ function safeDownloadName(value: string) {
 
 function errorMessage(caught: unknown) {
   return caught instanceof Error ? caught.message : 'Не удалось выполнить операцию с волной.';
+}
+
+function canReadUsers(session: AuthSession) {
+  return session.user.permissionCodes.includes('system:admin') || session.user.permissionCodes.includes('users:read');
+}
+
+function pickerOptions(session: AuthSession, users: UserSummary[]) {
+  const currentUser = {
+    id: session.user.id,
+    email: session.user.email,
+    name: session.user.name,
+    status: 'ACTIVE',
+  } as UserSummary;
+  const activeUsers = users.filter((user) => user.status === 'ACTIVE' && user.id !== session.user.id);
+
+  return [currentUser, ...activeUsers];
+}
+
+function userLabel(user: Pick<UserSummary, 'email' | 'name'>) {
+  return `${user.name} · ${user.email}`;
 }

@@ -43,6 +43,11 @@ export type PickWaveDocumentPayload = {
     email: string;
     name: string;
   } | null;
+  assignedPicker: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
   requestsCount: number;
   rowsCount: number;
   totalRequested: number;

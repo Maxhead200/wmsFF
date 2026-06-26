@@ -8,6 +8,13 @@ export const pickWaveInclude = {
       name: true,
     },
   },
+  assignedPicker: {
+    select: {
+      id: true,
+      email: true,
+      name: true,
+    },
+  },
   requests: {
     include: {
       request: {
@@ -47,4 +54,3 @@ export const pickWaveInclude = {
     },
   },
 } satisfies Prisma.PickWaveInclude;
-

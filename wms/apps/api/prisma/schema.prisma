@@ -209,33 +209,34 @@ enum ClientNotificationEvent {
 }
 
 model User {
-  id                     String           @id @default(uuid())
-  email                  String           @unique
-  passwordHash           String
-  name                   String
-  status                 UserStatus       @default(ACTIVE)
-  roles                  UserRole[]
-  clientScopes           UserClient[]
-  printerScopes          UserPrinterGroup[]
-  tsdDevices             TsdDevice[]
-  createdClientRequests  ClientRequest[]  @relation("ClientRequestCreatedBy")
-  assignedClientRequests ClientRequest[]  @relation("ClientRequestAssignedTo")
-  reviewedTsdOperations  TsdOperation[]   @relation("TsdOperationReviewedBy")
-  createdBillingCharges  BillingCharge[]  @relation("BillingChargeCreatedBy")
-  approvedBillingCharges BillingCharge[]  @relation("BillingChargeApprovedBy")
-  createdBillingInvoices BillingInvoice[] @relation("BillingInvoiceCreatedBy")
-  createdBillingPayments BillingPayment[] @relation("BillingPaymentCreatedBy")
-  createdDeliveries       LogisticsDeliveryRequest[] @relation("LogisticsDeliveryCreatedBy")
-  uploadedRequestFiles   ClientRequestFile[] @relation("ClientRequestFileUploadedBy")
-  createdRequestPackages ClientRequestPackage[] @relation("ClientRequestPackageCreatedBy")
-  createdPickWaves       PickWave[] @relation("PickWaveCreatedBy")
-  createdNotifications   ClientNotification[] @relation("ClientNotificationCreatedBy")
+  id                             String                         @id @default(uuid())
+  email                          String                         @unique
+  passwordHash                   String
+  name                           String
+  status                         UserStatus                     @default(ACTIVE)
+  roles                          UserRole[]
+  clientScopes                   UserClient[]
+  printerScopes                  UserPrinterGroup[]
+  tsdDevices                     TsdDevice[]
+  createdClientRequests          ClientRequest[]                @relation("ClientRequestCreatedBy")
+  assignedClientRequests         ClientRequest[]                @relation("ClientRequestAssignedTo")
+  reviewedTsdOperations          TsdOperation[]                 @relation("TsdOperationReviewedBy")
+  createdBillingCharges          BillingCharge[]                @relation("BillingChargeCreatedBy")
+  approvedBillingCharges         BillingCharge[]                @relation("BillingChargeApprovedBy")
+  createdBillingInvoices         BillingInvoice[]               @relation("BillingInvoiceCreatedBy")
+  createdBillingPayments         BillingPayment[]               @relation("BillingPaymentCreatedBy")
+  createdDeliveries              LogisticsDeliveryRequest[]     @relation("LogisticsDeliveryCreatedBy")
+  uploadedRequestFiles           ClientRequestFile[]            @relation("ClientRequestFileUploadedBy")
+  createdRequestPackages         ClientRequestPackage[]         @relation("ClientRequestPackageCreatedBy")
+  createdPickWaves               PickWave[]                     @relation("PickWaveCreatedBy")
+  assignedPickWaves              PickWave[]                     @relation("PickWaveAssignedPicker")
+  createdNotifications           ClientNotification[]           @relation("ClientNotificationCreatedBy")
   updatedNotificationPreferences ClientNotificationPreference[] @relation("ClientNotificationPreferenceUpdatedBy")
-  authoredRequestComments ClientRequestComment[] @relation("ClientRequestCommentAuthor")
-  createdRequestEvents   ClientRequestEvent[] @relation("ClientRequestEventCreatedBy")
-  auditLogs              AuditLog[]
-  createdAt              DateTime         @default(now())
-  updatedAt              DateTime         @updatedAt
+  authoredRequestComments        ClientRequestComment[]         @relation("ClientRequestCommentAuthor")
+  createdRequestEvents           ClientRequestEvent[]           @relation("ClientRequestEventCreatedBy")
+  auditLogs                      AuditLog[]
+  createdAt                      DateTime                       @default(now())
+  updatedAt                      DateTime                       @updatedAt
 }
 
 model Role {
@@ -278,9 +279,9 @@ model UserClient {
 model UserPrinterGroup {
   userId    String
   groupCode String
-  canPrint  Boolean @default(true)
-  canManage Boolean @default(false)
-  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  canPrint  Boolean  @default(true)
+  canManage Boolean  @default(false)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 
   @@id([userId, groupCode])
@@ -297,40 +298,40 @@ model RolePermission {
 }
 
 model Client {
-  id              String           @id @default(uuid())
-  code            String           @unique
-  name            String
-  legalName       String?
-  inn             String?
-  kpp             String?
-  ogrn            String?
-  legalAddress    String?
-  actualAddress   String?
-  phone           String?
-  email           String?
-  bankName        String?
-  bankBik         String?
-  bankAccount     String?
-  correspondentAccount String?
-  status          ClientStatus     @default(ACTIVE)
-  skus            Sku[]
-  boxes           Box[]
-  pallets         Pallet[]
-  movements       StockMovement[]
-  userScopes      UserClient[]
-  requests        ClientRequest[]
-  billingCharges  BillingCharge[]
-  billingInvoices BillingInvoice[]
-  billingPayments BillingPayment[]
-  deliveryRequests LogisticsDeliveryRequest[]
-  requestFiles    ClientRequestFile[]
-  requestPackages ClientRequestPackage[]
-  notifications   ClientNotification[]
+  id                      String                         @id @default(uuid())
+  code                    String                         @unique
+  name                    String
+  legalName               String?
+  inn                     String?
+  kpp                     String?
+  ogrn                    String?
+  legalAddress            String?
+  actualAddress           String?
+  phone                   String?
+  email                   String?
+  bankName                String?
+  bankBik                 String?
+  bankAccount             String?
+  correspondentAccount    String?
+  status                  ClientStatus                   @default(ACTIVE)
+  skus                    Sku[]
+  boxes                   Box[]
+  pallets                 Pallet[]
+  movements               StockMovement[]
+  userScopes              UserClient[]
+  requests                ClientRequest[]
+  billingCharges          BillingCharge[]
+  billingInvoices         BillingInvoice[]
+  billingPayments         BillingPayment[]
+  deliveryRequests        LogisticsDeliveryRequest[]
+  requestFiles            ClientRequestFile[]
+  requestPackages         ClientRequestPackage[]
+  notifications           ClientNotification[]
   notificationPreferences ClientNotificationPreference[]
-  requestComments ClientRequestComment[]
-  requestEvents   ClientRequestEvent[]
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  requestComments         ClientRequestComment[]
+  requestEvents           ClientRequestEvent[]
+  createdAt               DateTime                       @default(now())
+  updatedAt               DateTime                       @updatedAt
 }
 
 model Warehouse {
@@ -354,7 +355,7 @@ model Zone {
 }
 
 model Sku {
-  id                 String              @id @default(uuid())
+  id                 String                     @id @default(uuid())
   clientId           String
   internalSku        String
   clientSku          String?
@@ -365,23 +366,23 @@ model Sku {
   color              String?
   size               String?
   weightGrams        Int?
-  lengthCm           Decimal?            @db.Decimal(10, 2)
-  widthCm            Decimal?            @db.Decimal(10, 2)
-  heightCm           Decimal?            @db.Decimal(10, 2)
-  volumeLiters       Decimal?            @db.Decimal(12, 3)
-  volumeSource       VolumeSource        @default(CALCULATED)
-  needsChestnyZnak   Boolean             @default(false)
-  isUnmarked         Boolean             @default(false)
-  needsLabel         Boolean             @default(false)
-  needsRelabel       Boolean             @default(false)
-  client             Client              @relation(fields: [clientId], references: [id])
+  lengthCm           Decimal?                   @db.Decimal(10, 2)
+  widthCm            Decimal?                   @db.Decimal(10, 2)
+  heightCm           Decimal?                   @db.Decimal(10, 2)
+  volumeLiters       Decimal?                   @db.Decimal(12, 3)
+  volumeSource       VolumeSource               @default(CALCULATED)
+  needsChestnyZnak   Boolean                    @default(false)
+  isUnmarked         Boolean                    @default(false)
+  needsLabel         Boolean                    @default(false)
+  needsRelabel       Boolean                    @default(false)
+  client             Client                     @relation(fields: [clientId], references: [id])
   barcodes           Barcode[]
   movements          StockMovement[]
   balances           StockBalance[]
   clientRequestItems ClientRequestItem[]
   packageItems       ClientRequestPackageItem[]
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
 
   @@unique([clientId, internalSku])
 }
@@ -466,11 +467,11 @@ model StockBalance {
 }
 
 model ClientRequest {
-  id               String                @id @default(uuid())
+  id               String                     @id @default(uuid())
   clientId         String
   type             ClientRequestType
-  status           ClientRequestStatus   @default(SUBMITTED)
-  priority         ClientRequestPriority @default(NORMAL)
+  status           ClientRequestStatus        @default(SUBMITTED)
+  priority         ClientRequestPriority      @default(NORMAL)
   title            String
   comment          String?
   contactName      String?
@@ -480,9 +481,9 @@ model ClientRequest {
   managerComment   String?
   createdByUserId  String?
   assignedToUserId String?
-  client           Client                @relation(fields: [clientId], references: [id])
-  createdBy        User?                 @relation("ClientRequestCreatedBy", fields: [createdByUserId], references: [id])
-  assignedTo       User?                 @relation("ClientRequestAssignedTo", fields: [assignedToUserId], references: [id])
+  client           Client                     @relation(fields: [clientId], references: [id])
+  createdBy        User?                      @relation("ClientRequestCreatedBy", fields: [createdByUserId], references: [id])
+  assignedTo       User?                      @relation("ClientRequestAssignedTo", fields: [assignedToUserId], references: [id])
   items            ClientRequestItem[]
   files            ClientRequestFile[]
   notifications    ClientNotification[]
@@ -492,8 +493,8 @@ model ClientRequest {
   pickWaveRequests PickWaveRequest[]
   billingCharges   BillingCharge[]
   deliveryRequests LogisticsDeliveryRequest[]
-  createdAt        DateTime              @default(now())
-  updatedAt        DateTime              @updatedAt
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
 
   @@index([clientId, status, createdAt])
   @@index([type, status])
@@ -502,15 +503,15 @@ model ClientRequest {
 }
 
 model ClientRequestItem {
-  id        String        @id @default(uuid())
-  requestId String
-  skuId     String?
-  barcode   String?
-  name      String?
-  quantity  Int
-  comment   String?
-  request   ClientRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  sku       Sku?          @relation(fields: [skuId], references: [id])
+  id           String                     @id @default(uuid())
+  requestId    String
+  skuId        String?
+  barcode      String?
+  name         String?
+  quantity     Int
+  comment      String?
+  request      ClientRequest              @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  sku          Sku?                       @relation(fields: [skuId], references: [id])
   packageItems ClientRequestPackageItem[]
 
   @@index([requestId])
@@ -518,18 +519,21 @@ model ClientRequestItem {
 }
 
 model PickWave {
-  id              String            @id @default(uuid())
-  waveNumber      String            @unique
-  status          PickWaveStatus    @default(PLANNED)
-  comment         String?
-  createdByUserId String?
-  createdBy       User?             @relation("PickWaveCreatedBy", fields: [createdByUserId], references: [id])
-  requests        PickWaveRequest[]
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  id                   String            @id @default(uuid())
+  waveNumber           String            @unique
+  status               PickWaveStatus    @default(PLANNED)
+  comment              String?
+  createdByUserId      String?
+  assignedPickerUserId String?
+  createdBy            User?             @relation("PickWaveCreatedBy", fields: [createdByUserId], references: [id])
+  assignedPicker       User?             @relation("PickWaveAssignedPicker", fields: [assignedPickerUserId], references: [id])
+  requests             PickWaveRequest[]
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
 
   @@index([status, createdAt])
   @@index([createdByUserId])
+  @@index([assignedPickerUserId])
 }
 
 model PickWaveRequest {
@@ -692,33 +696,33 @@ model BillingService {
 }
 
 model BillingCharge {
-  id               String               @id @default(uuid())
+  id               String                     @id @default(uuid())
   clientId         String
   serviceId        String?
   requestId        String?
   description      String
-  unit             BillingUnit          @default(SERVICE)
-  quantity         Decimal              @db.Decimal(12, 3)
-  unitPriceRub     Decimal              @db.Decimal(12, 2)
-  totalRub         Decimal              @db.Decimal(14, 2)
-  status           BillingChargeStatus  @default(DRAFT)
-  serviceDate      DateTime             @default(now())
-  source           BillingChargeSource  @default(MANUAL)
-  sourceKey        String?              @unique
+  unit             BillingUnit                @default(SERVICE)
+  quantity         Decimal                    @db.Decimal(12, 3)
+  unitPriceRub     Decimal                    @db.Decimal(12, 2)
+  totalRub         Decimal                    @db.Decimal(14, 2)
+  status           BillingChargeStatus        @default(DRAFT)
+  serviceDate      DateTime                   @default(now())
+  source           BillingChargeSource        @default(MANUAL)
+  sourceKey        String?                    @unique
   metadata         Json?
   comment          String?
   createdByUserId  String?
   approvedByUserId String?
   approvedAt       DateTime?
-  client           Client               @relation(fields: [clientId], references: [id])
-  service          BillingService?      @relation(fields: [serviceId], references: [id])
-  request          ClientRequest?       @relation(fields: [requestId], references: [id])
-  createdBy        User?                @relation("BillingChargeCreatedBy", fields: [createdByUserId], references: [id])
-  approvedBy       User?                @relation("BillingChargeApprovedBy", fields: [approvedByUserId], references: [id])
+  client           Client                     @relation(fields: [clientId], references: [id])
+  service          BillingService?            @relation(fields: [serviceId], references: [id])
+  request          ClientRequest?             @relation(fields: [requestId], references: [id])
+  createdBy        User?                      @relation("BillingChargeCreatedBy", fields: [createdByUserId], references: [id])
+  approvedBy       User?                      @relation("BillingChargeApprovedBy", fields: [approvedByUserId], references: [id])
   invoiceItems     BillingInvoiceItem[]
   deliveryRequests LogisticsDeliveryRequest[]
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
 
   @@index([clientId, status, serviceDate])
   @@index([requestId])
@@ -793,15 +797,15 @@ model BillingPayment {
 }
 
 model LogisticsTariffSet {
-  id         String               @id @default(uuid())
-  name       String
-  sourceFile String?
-  note       String?
-  activeFrom DateTime?
-  activeTo   DateTime?
-  directions LogisticsDirection[]
+  id               String                     @id @default(uuid())
+  name             String
+  sourceFile       String?
+  note             String?
+  activeFrom       DateTime?
+  activeTo         DateTime?
+  directions       LogisticsDirection[]
   deliveryRequests LogisticsDeliveryRequest[]
-  createdAt  DateTime             @default(now())
+  createdAt        DateTime                   @default(now())
 }
 
 model LogisticsDirection {
@@ -846,19 +850,19 @@ model LogisticsCarrier {
 }
 
 model LogisticsTrip {
-  id            String                    @id @default(uuid())
-  code          String                    @unique
+  id            String                     @id @default(uuid())
+  code          String                     @unique
   carrierId     String?
   plannedDate   DateTime?
   vehicleNumber String?
   driverName    String?
   driverPhone   String?
-  status        LogisticsTripStatus       @default(PLANNED)
+  status        LogisticsTripStatus        @default(PLANNED)
   comment       String?
-  carrier       LogisticsCarrier?         @relation(fields: [carrierId], references: [id])
+  carrier       LogisticsCarrier?          @relation(fields: [carrierId], references: [id])
   deliveries    LogisticsDeliveryRequest[]
-  createdAt     DateTime                  @default(now())
-  updatedAt     DateTime                  @updatedAt
+  createdAt     DateTime                   @default(now())
+  updatedAt     DateTime                   @updatedAt
 
   @@index([status, plannedDate])
   @@index([carrierId])
@@ -942,50 +946,50 @@ model TsdDevice {
 }
 
 model PrintJob {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   printerCode String
   labelType   String
   payload     Json
   tspl        String
-  status      String   @default("queued")
-  attempts    Int      @default(0)
+  status      String    @default("queued")
+  attempts    Int       @default(0)
   processedAt DateTime?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
 
   @@index([printerCode, status, createdAt])
 }
 
 model PrintPrinter {
-  id             String   @id @default(uuid())
-  code           String   @unique
-  groupCode      String   @default("DEFAULT")
+  id             String    @id @default(uuid())
+  code           String    @unique
+  groupCode      String    @default("DEFAULT")
   name           String
-  connectionType String   @default("dry_run")
+  connectionType String    @default("dry_run")
   host           String?
   port           Int?
-  isActive       Boolean  @default(true)
-  autoProcess    Boolean  @default(true)
+  isActive       Boolean   @default(true)
+  autoProcess    Boolean   @default(true)
   lastSeenAt     DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([groupCode, isActive, autoProcess])
   @@index([isActive, autoProcess])
 }
 
 model LabelTemplate {
-  id          String            @id @default(uuid())
-  code        String            @unique
+  id          String                 @id @default(uuid())
+  code        String                 @unique
   name        String
   type        LabelTemplateType
   description String?
-  widthMm     Int               @default(80)
-  heightMm    Int               @default(50)
+  widthMm     Int                    @default(80)
+  heightMm    Int                    @default(50)
   tspl        String
-  version     Int               @default(1)
-  isActive    Boolean           @default(true)
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  version     Int                    @default(1)
+  isActive    Boolean                @default(true)
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
   versions    LabelTemplateVersion[]
 
   @@index([type, isActive])

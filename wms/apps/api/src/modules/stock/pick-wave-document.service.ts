@@ -103,6 +103,13 @@ export class PickWaveDocumentService {
             name: wave.createdBy.name,
           }
         : null,
+      assignedPicker: wave.assignedPicker
+        ? {
+            id: wave.assignedPicker.id,
+            email: wave.assignedPicker.email,
+            name: wave.assignedPicker.name,
+          }
+        : null,
       requestsCount: wave.requests.length,
       rowsCount: documentRows.length,
       totalRequested: documentRows.reduce((sum, row) => sum + row.requestedQuantity, 0),
@@ -281,6 +288,13 @@ const pickWaveDocumentInclude = {
       name: true,
     },
   },
+  assignedPicker: {
+    select: {
+      id: true,
+      email: true,
+      name: true,
+    },
+  },
   requests: {
     include: {
       request: {
@@ -361,6 +375,7 @@ function renderWaveHtml(document: PickWaveDocumentPayload) {
     <strong>Комментарий</strong>
     <p>${escapeHtml(document.comment ?? '-')}</p>
     <p class="muted">Создал: ${escapeHtml(document.createdBy?.name ?? document.createdBy?.email ?? '-')}</p>
+    <p class="muted">Сборщик: ${escapeHtml(document.assignedPicker?.name ?? document.assignedPicker?.email ?? 'не назначен')}</p>
   </section>
   <h2>Маршрут сборки</h2>
   <table>

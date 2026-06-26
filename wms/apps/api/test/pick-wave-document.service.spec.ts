@@ -43,6 +43,9 @@ describe('PickWaveDocumentService', () => {
     expect(document).toMatchObject({
       waveId: 'wave-1',
       waveNumber: 'WAVE-1',
+      assignedPicker: {
+        name: 'Сборщик',
+      },
       rowsCount: 1,
       totalRequested: 3,
       totalPicked: 0,
@@ -56,6 +59,7 @@ describe('PickWaveDocumentService', () => {
       }),
     ]);
     expect(document.html).toContain('Лист сборки WAVE-1');
+    expect(document.html).toContain('Сборщик');
     expect(document.html).toContain('BOX-A1 / PAL-01');
   });
 
@@ -143,9 +147,11 @@ describe('PickWaveDocumentService', () => {
     expect(file.fileName).toBe('pick-wave-WAVE-1.xlsx');
     expect(file.mimeType).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     expect(workbook.SheetNames).toEqual(['Сводка', 'Маршрут', 'Короба', 'Проблемы']);
+    const summaryRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['Сводка'], { defval: '' });
     const routeRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['Маршрут'], { defval: '' });
     const boxRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['Короба'], { defval: '' });
 
+    expect(summaryRows).toContainEqual({ Параметр: 'Сборщик', Значение: 'Сборщик' });
     expect(routeRows[0]).toMatchObject({ Волна: 'WAVE-1', Заявка: 'Отгрузка', Взять: 3 });
     expect(boxRows[0]).toMatchObject({ Короб: 'BOX-A1', Паллета: 'PAL-01', Количество: 3 });
   });
@@ -172,6 +178,11 @@ function waveFixture(overrides: { status?: PickWaveStatus; linkStatus?: PickWave
       id: 'user-1',
       email: 'operator@example.com',
       name: 'Operator',
+    },
+    assignedPicker: {
+      id: 'picker-1',
+      email: 'picker@example.com',
+      name: 'Сборщик',
     },
     requests: [
       {

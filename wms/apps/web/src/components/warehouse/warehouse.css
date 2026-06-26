@@ -42,7 +42,8 @@
 
 .warehouse-fields input,
 .warehouse-fields select,
-.warehouse-comment input {
+.warehouse-comment input,
+.warehouse-comment select {
   width: 100%;
   min-height: 40px;
   border: 1px solid var(--line);
@@ -54,7 +55,8 @@
 
 .warehouse-fields input:focus,
 .warehouse-fields select:focus,
-.warehouse-comment input:focus {
+.warehouse-comment input:focus,
+.warehouse-comment select:focus {
   border-color: var(--red-dark);
   outline: 3px solid rgb(215 25 32 / 0.14);
 }

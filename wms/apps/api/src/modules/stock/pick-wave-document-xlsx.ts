@@ -39,6 +39,7 @@ function summaryRows(document: PickWaveDocumentPayload): CellValue[][] {
     ['Создана', formatDateTime(document.createdAt)],
     ['Сформировано', formatDateTime(document.generatedAt)],
     ['Создал', document.createdBy?.name ?? document.createdBy?.email ?? '-'],
+    ['Сборщик', document.assignedPicker?.name ?? document.assignedPicker?.email ?? 'не назначен'],
   ];
 }
 

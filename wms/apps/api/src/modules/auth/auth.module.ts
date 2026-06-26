@@ -3,13 +3,22 @@ import { AccessModelService } from './access-model.service';
 import { AccessTokenService } from './access-token.service';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { ClientScopeService } from './client-scope.service';
 import { AuthGuard } from './guards/auth.guard';
 import { PermissionsGuard } from './guards/permissions.guard';
 import { PasswordService } from './password.service';
 
 @Module({
   controllers: [AuthController],
-  providers: [AccessModelService, AccessTokenService, AuthGuard, AuthService, PasswordService, PermissionsGuard],
-  exports: [AccessModelService, AccessTokenService, AuthGuard, PasswordService, PermissionsGuard],
+  providers: [
+    AccessModelService,
+    AccessTokenService,
+    AuthGuard,
+    AuthService,
+    ClientScopeService,
+    PasswordService,
+    PermissionsGuard,
+  ],
+  exports: [AccessModelService, AccessTokenService, AuthGuard, ClientScopeService, PasswordService, PermissionsGuard],
 })
 export class AuthModule {}

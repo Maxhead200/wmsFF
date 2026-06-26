@@ -17,4 +17,16 @@ export class CreateUserDto {
   @ArrayNotEmpty()
   @IsString({ each: true })
   roleCodes?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsString({ each: true })
+  clientIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsString({ each: true })
+  writableClientIds?: string[];
 }

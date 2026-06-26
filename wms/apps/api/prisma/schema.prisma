@@ -70,6 +70,7 @@ model User {
   name         String
   status       UserStatus @default(ACTIVE)
   roles        UserRole[]
+  clientScopes UserClient[]
   auditLogs    AuditLog[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
@@ -99,6 +100,19 @@ model UserRole {
   @@id([userId, roleId])
 }
 
+model UserClient {
+  userId    String
+  clientId  String
+  canRead   Boolean  @default(true)
+  canWrite  Boolean  @default(false)
+  user      User     @relation(fields: [userId], references: [id])
+  client    Client   @relation(fields: [clientId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@id([userId, clientId])
+  @@index([clientId])
+}
+
 model RolePermission {
   roleId       String
   permissionId String
@@ -123,6 +137,7 @@ model Client {
   boxes         Box[]
   pallets       Pallet[]
   movements     StockMovement[]
+  userScopes    UserClient[]
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 }

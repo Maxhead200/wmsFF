@@ -1,13 +1,21 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { AuthUser } from '../auth/auth.types';
+import { ClientScopeService } from '../auth/client-scope.service';
 import { CreateClientDto } from './dto/create-client.dto';
 
 @Injectable()
 export class ClientsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly clientScopes: ClientScopeService,
+  ) {}
 
-  list() {
+  list(user: AuthUser) {
     return this.prisma.client.findMany({
+      where: {
+        id: this.clientScopes.resolveClientFilter(user),
+      },
       orderBy: { name: 'asc' },
       select: {
         id: true,
@@ -21,7 +29,9 @@ export class ClientsService {
     });
   }
 
-  async get(id: string) {
+  async get(id: string, user: AuthUser) {
+    this.clientScopes.requireClientAccess(user, id, 'read');
+
     const client = await this.prisma.client.findUnique({
       where: { id },
       include: {
@@ -43,7 +53,9 @@ export class ClientsService {
     return client;
   }
 
-  create(dto: CreateClientDto) {
+  create(dto: CreateClientDto, user: AuthUser) {
+    this.clientScopes.requireGlobalClientAccess(user);
+
     // Русский комментарий: код клиента нужен для Excel-импортов и быстрых фильтров операторов.
     return this.prisma.client.create({
       data: {

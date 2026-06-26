@@ -1,5 +1,7 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import type { AuthUser } from '../auth/auth.types';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { CreateWarehouseDto } from './dto/create-warehouse.dto';
 import { CreateZoneDto } from './dto/create-zone.dto';
@@ -36,24 +38,24 @@ export class WarehouseController {
   }
 
   @Get('boxes')
-  listBoxes(@Query('clientId') clientId?: string, @Query('code') code?: string) {
-    return this.warehouse.listBoxes({ clientId, code });
+  listBoxes(@CurrentUser() user: AuthUser, @Query('clientId') clientId?: string, @Query('code') code?: string) {
+    return this.warehouse.listBoxes({ clientId, code }, user);
   }
 
   @Post('boxes')
   @RequirePermissions('warehouse:write')
-  upsertBox(@Body() dto: UpsertBoxDto) {
-    return this.warehouse.upsertBox(dto);
+  upsertBox(@Body() dto: UpsertBoxDto, @CurrentUser() user: AuthUser) {
+    return this.warehouse.upsertBox(dto, user);
   }
 
   @Get('pallets')
-  listPallets(@Query('clientId') clientId?: string) {
-    return this.warehouse.listPallets(clientId);
+  listPallets(@CurrentUser() user: AuthUser, @Query('clientId') clientId?: string) {
+    return this.warehouse.listPallets(clientId, user);
   }
 
   @Post('pallets')
   @RequirePermissions('warehouse:write')
-  upsertPallet(@Body() dto: UpsertPalletDto) {
-    return this.warehouse.upsertPallet(dto);
+  upsertPallet(@Body() dto: UpsertPalletDto, @CurrentUser() user: AuthUser) {
+    return this.warehouse.upsertPallet(dto, user);
   }
 }

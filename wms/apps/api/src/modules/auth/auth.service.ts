@@ -15,6 +15,7 @@ type UserWithAccess = {
   name: string;
   passwordHash: string;
   status: UserStatus;
+  clientScopes: Array<{ clientId: string; canRead: boolean; canWrite: boolean }>;
   roles: Array<{
     role: {
       code: string;
@@ -92,19 +93,26 @@ export class AuthService {
   }
 
   private toAuthUser(user: UserWithAccess): AuthUser {
+    const roleCodes = user.roles.map((item) => item.role.code);
+    const permissionCodes = [
+      ...new Set(user.roles.flatMap((item) => item.role.permissions.map((permission) => permission.permission.code))),
+    ];
+
     return {
       id: user.id,
       email: user.email,
       name: user.name,
-      roleCodes: user.roles.map((item) => item.role.code),
-      permissionCodes: [
-        ...new Set(user.roles.flatMap((item) => item.role.permissions.map((permission) => permission.permission.code))),
-      ],
+      roleCodes,
+      permissionCodes,
+      clientScopeMode: this.clientScopeMode(roleCodes, permissionCodes, user.clientScopes.length),
+      clientIds: user.clientScopes.filter((scope) => scope.canRead).map((scope) => scope.clientId),
+      writableClientIds: user.clientScopes.filter((scope) => scope.canWrite).map((scope) => scope.clientId),
     };
   }
 
   private userAccessInclude() {
     return {
+      clientScopes: true,
       roles: {
         include: {
           role: {
@@ -128,5 +136,17 @@ export class AuthService {
 
   private normalizeEmail(email: string) {
     return email.trim().toLowerCase();
+  }
+
+  private clientScopeMode(roleCodes: string[], permissionCodes: string[], clientScopesCount: number) {
+    if (permissionCodes.includes('system:admin')) {
+      return 'ALL';
+    }
+
+    if (!roleCodes.includes('CLIENT') && clientScopesCount === 0) {
+      return 'ALL';
+    }
+
+    return 'LIMITED';
   }
 }

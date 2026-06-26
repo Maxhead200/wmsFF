@@ -2,6 +2,8 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma, StockStatus } from '@prisma/client';
 import * as XLSX from 'xlsx';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import type { AuthUser } from '../auth/auth.types';
+import { ClientScopeService } from '../auth/client-scope.service';
 import { LogisticsService } from '../logistics/logistics.service';
 import { StockBalancesService } from '../stock/stock-balances.service';
 import { parseLogisticsTariffSheet } from './parsers/logistics-xlsx.parser';
@@ -10,6 +12,7 @@ import { parseStockSheet, type SheetMatrix, type StockImportItem } from './parse
 type CommitStockOptions = {
   clientId: string;
   sourceDocument: string;
+  user: AuthUser;
 };
 
 type CommitLogisticsOptions = {
@@ -24,10 +27,13 @@ export class ImportsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly balances: StockBalancesService,
+    private readonly clientScopes: ClientScopeService,
     private readonly logistics: LogisticsService,
   ) {}
 
-  previewStockWorkbook(buffer: Buffer, clientId: string) {
+  previewStockWorkbook(buffer: Buffer, clientId: string, user: AuthUser) {
+    this.clientScopes.requireClientAccess(user, clientId, 'write');
+
     const rows = this.readFirstSheet(buffer);
     const parsed = parseStockSheet(rows, { clientId });
 
@@ -66,6 +72,8 @@ export class ImportsService {
   }
 
   async commitStockWorkbook(buffer: Buffer, options: CommitStockOptions) {
+    this.clientScopes.requireClientAccess(options.user, options.clientId, 'write');
+
     const rows = this.readFirstSheet(buffer);
     const parsed = parseStockSheet(rows, { clientId: options.clientId });
     const errors = parsed.issues.filter((issue) => issue.severity === 'error');

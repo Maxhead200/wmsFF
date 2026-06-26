@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import type { AuthUser } from '../auth/auth.types';
+import { ClientScopeService } from '../auth/client-scope.service';
 import { CreateWarehouseDto } from './dto/create-warehouse.dto';
 import { CreateZoneDto } from './dto/create-zone.dto';
 import { UpsertBoxDto } from './dto/upsert-box.dto';
@@ -8,7 +10,10 @@ import { UpsertPalletDto } from './dto/upsert-pallet.dto';
 
 @Injectable()
 export class WarehouseService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly clientScopes: ClientScopeService,
+  ) {}
 
   listWarehouses() {
     return this.prisma.warehouse.findMany({
@@ -45,9 +50,9 @@ export class WarehouseService {
     });
   }
 
-  listBoxes(filter: { clientId?: string; code?: string }) {
+  listBoxes(filter: { clientId?: string; code?: string }, user: AuthUser) {
     const where: Prisma.BoxWhereInput = {
-      clientId: filter.clientId,
+      clientId: this.clientScopes.resolveClientFilter(user, filter.clientId),
       code: filter.code ? { contains: filter.code, mode: 'insensitive' } : undefined,
     };
 
@@ -64,7 +69,9 @@ export class WarehouseService {
     });
   }
 
-  upsertBox(dto: UpsertBoxDto) {
+  upsertBox(dto: UpsertBoxDto, user: AuthUser) {
+    this.clientScopes.requireClientAccess(user, dto.clientId, 'write');
+
     return this.prisma.box.upsert({
       where: {
         clientId_code: {
@@ -89,9 +96,9 @@ export class WarehouseService {
     });
   }
 
-  listPallets(clientId?: string) {
+  listPallets(clientId: string | undefined, user: AuthUser) {
     return this.prisma.pallet.findMany({
-      where: { clientId },
+      where: { clientId: this.clientScopes.resolveClientFilter(user, clientId) },
       include: {
         client: true,
         zone: true,
@@ -103,7 +110,9 @@ export class WarehouseService {
     });
   }
 
-  upsertPallet(dto: UpsertPalletDto) {
+  upsertPallet(dto: UpsertPalletDto, user: AuthUser) {
+    this.clientScopes.requireClientAccess(user, dto.clientId, 'write');
+
     return this.prisma.pallet.upsert({
       where: {
         clientId_code: {

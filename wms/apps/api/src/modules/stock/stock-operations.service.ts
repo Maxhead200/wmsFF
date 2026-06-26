@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, StockBalance, StockStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import type { AuthUser } from '../auth/auth.types';
+import { ClientScopeService } from '../auth/client-scope.service';
 import { TransferBetweenBoxesDto } from './dto/transfer-between-boxes.dto';
 import { StockBalancesService } from './stock-balances.service';
 
@@ -8,10 +10,13 @@ import { StockBalancesService } from './stock-balances.service';
 export class StockOperationsService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly clientScopes: ClientScopeService,
     private readonly balances: StockBalancesService,
   ) {}
 
-  transferBetweenBoxes(dto: TransferBetweenBoxesDto) {
+  transferBetweenBoxes(dto: TransferBetweenBoxesDto, user: AuthUser) {
+    this.clientScopes.requireClientAccess(user, dto.clientId, 'write');
+
     return this.prisma.$transaction(async (tx) => {
       const existingMovement = await tx.stockMovement.findUnique({
         where: { idempotencyKey: `${dto.idempotencyKey}:out` },

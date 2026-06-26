@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { StockBalancesService } from '../src/modules/stock/stock-balances.service';
 
 describe('StockBalancesService', () => {
-  const service = new StockBalancesService({} as never);
+  const service = new StockBalancesService({} as never, {} as never);
 
   it('строит стабильный ключ баланса без SQL NULL-неоднозначности', () => {
     expect(

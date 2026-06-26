@@ -31,6 +31,7 @@ export class AuthGuard implements CanActivate {
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
       include: {
+        clientScopes: true,
         roles: {
           include: {
             role: {
@@ -53,16 +54,20 @@ export class AuthGuard implements CanActivate {
       throw new ForbiddenException('Пользователь заблокирован.');
     }
 
+    const roleCodes = user.roles.map((item) => item.role.code);
+    const permissionCodes = [
+      ...new Set(user.roles.flatMap((item) => item.role.permissions.map((permission) => permission.permission.code))),
+    ];
+
     request.user = {
       id: user.id,
       email: user.email,
       name: user.name,
-      roleCodes: user.roles.map((item) => item.role.code),
-      permissionCodes: [
-        ...new Set(
-          user.roles.flatMap((item) => item.role.permissions.map((permission) => permission.permission.code)),
-        ),
-      ],
+      roleCodes,
+      permissionCodes,
+      clientScopeMode: this.clientScopeMode(roleCodes, permissionCodes, user.clientScopes.length),
+      clientIds: user.clientScopes.filter((scope) => scope.canRead).map((scope) => scope.clientId),
+      writableClientIds: user.clientScopes.filter((scope) => scope.canWrite).map((scope) => scope.clientId),
     };
 
     return true;
@@ -75,5 +80,18 @@ export class AuthGuard implements CanActivate {
     }
 
     return token;
+  }
+
+  private clientScopeMode(roleCodes: string[], permissionCodes: string[], clientScopesCount: number) {
+    if (permissionCodes.includes('system:admin')) {
+      return 'ALL';
+    }
+
+    // Русский комментарий: внутренние роли без назначенных scope пока видят всех клиентов; клиентская роль всегда ограничена.
+    if (!roleCodes.includes('CLIENT') && clientScopesCount === 0) {
+      return 'ALL';
+    }
+
+    return 'LIMITED';
   }
 }

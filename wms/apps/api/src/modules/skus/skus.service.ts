@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import type { AuthUser } from '../auth/auth.types';
+import { ClientScopeService } from '../auth/client-scope.service';
 import { VolumeService } from '../stock/volume.service';
 import { CreateSkuDto } from './dto/create-sku.dto';
 
@@ -8,12 +10,13 @@ import { CreateSkuDto } from './dto/create-sku.dto';
 export class SkusService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly clientScopes: ClientScopeService,
     private readonly volumes: VolumeService,
   ) {}
 
-  list(filter: { clientId?: string; search?: string }) {
+  list(filter: { clientId?: string; search?: string }, user: AuthUser) {
     const where: Prisma.SkuWhereInput = {
-      clientId: filter.clientId,
+      clientId: this.clientScopes.resolveClientFilter(user, filter.clientId),
       OR: filter.search
         ? [
             { name: { contains: filter.search, mode: 'insensitive' } },
@@ -34,9 +37,12 @@ export class SkusService {
     });
   }
 
-  async get(id: string) {
-    const sku = await this.prisma.sku.findUnique({
-      where: { id },
+  async get(id: string, user: AuthUser) {
+    const sku = await this.prisma.sku.findFirst({
+      where: {
+        id,
+        clientId: this.clientScopes.resolveClientFilter(user),
+      },
       include: {
         barcodes: true,
         balances: true,
@@ -50,7 +56,8 @@ export class SkusService {
     return sku;
   }
 
-  async create(dto: CreateSkuDto) {
+  async create(dto: CreateSkuDto, user: AuthUser) {
+    this.clientScopes.requireClientAccess(user, dto.clientId, 'write');
     const volume = this.tryCalculateVolume(dto);
 
     // Русский комментарий: карточка SKU и основной штрихкод создаются одной транзакцией, чтобы не ловить "висячие" barcode.

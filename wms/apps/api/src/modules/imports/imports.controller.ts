@@ -1,6 +1,8 @@
 import { Body, Controller, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
+import type { AuthUser } from '../auth/auth.types';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { ImportsService } from './imports.service';
 
@@ -14,8 +16,12 @@ export class ImportsController {
   @ApiConsumes('multipart/form-data')
   @ApiBody({ description: 'XLSX-файл остатков и clientId' })
   @UseInterceptors(FileInterceptor('file'))
-  previewStockFile(@UploadedFile() file: Express.Multer.File, @Body('clientId') clientId: string) {
-    return this.importsService.previewStockWorkbook(file.buffer, clientId);
+  previewStockFile(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('clientId') clientId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.importsService.previewStockWorkbook(file.buffer, clientId, user);
   }
 
   @Post('stocks/commit')
@@ -25,11 +31,13 @@ export class ImportsController {
   commitStockFile(
     @UploadedFile() file: Express.Multer.File,
     @Body('clientId') clientId: string,
+    @CurrentUser() user: AuthUser,
     @Body('sourceDocument') sourceDocument?: string,
   ) {
     return this.importsService.commitStockWorkbook(file.buffer, {
       clientId,
       sourceDocument: sourceDocument || file.originalname,
+      user,
     });
   }
 

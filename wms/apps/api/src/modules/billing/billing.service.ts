@@ -10,6 +10,7 @@ import { CreateBillingServiceDto } from './dto/create-billing-service.dto';
 import { GenerateStorageChargeDto } from './dto/generate-storage-charge.dto';
 import { ListBillingChargesDto } from './dto/list-billing-charges.dto';
 import { ListBillingInvoicesDto } from './dto/list-billing-invoices.dto';
+import { ListBillingServiceHistoryDto } from './dto/list-billing-service-history.dto';
 import { UpdateBillingChargeStatusDto } from './dto/update-billing-charge-status.dto';
 import { UpdateBillingInvoiceStatusDto } from './dto/update-billing-invoice-status.dto';
 
@@ -53,6 +54,32 @@ export class BillingService {
       orderBy: [{ serviceDate: 'desc' }, { createdAt: 'desc' }],
       take: 300,
     });
+  }
+
+  async listServiceHistory(query: ListBillingServiceHistoryDto, user: AuthUser) {
+    const periodFrom = query.periodFrom ? parseDate(query.periodFrom) : undefined;
+    const periodTo = query.periodTo ? parseDate(query.periodTo, 'endOfDay') : undefined;
+    if (periodFrom && periodTo && periodFrom > periodTo) {
+      throw new BadRequestException('Дата начала периода не может быть позже даты окончания.');
+    }
+
+    const charges = await this.prisma.billingCharge.findMany({
+      where: {
+        clientId: this.clientScopes.resolveClientFilter(user, query.clientId),
+        serviceDate:
+          periodFrom || periodTo
+            ? {
+                gte: periodFrom,
+                lte: periodTo,
+              }
+            : undefined,
+      },
+      include: billingChargeInclude,
+      orderBy: [{ serviceDate: 'desc' }, { createdAt: 'desc' }],
+      take: 500,
+    });
+
+    return buildServiceHistory(charges, periodFrom, periodTo);
   }
 
   async createCharge(dto: CreateBillingChargeDto, user: AuthUser) {
@@ -521,6 +548,111 @@ const billingInvoiceInclude = {
   },
 } satisfies Prisma.BillingInvoiceInclude;
 
+type BillingChargeWithRelations = Prisma.BillingChargeGetPayload<{ include: typeof billingChargeInclude }>;
+
+type ServiceHistoryGroup = {
+  key: string;
+  clientId: string;
+  serviceId: string | null;
+  serviceCode: string;
+  serviceName: string;
+  source: BillingChargeSource;
+  unit: BillingUnit;
+  chargesCount: number;
+  quantity: number;
+  totalRub: number;
+  draftRub: number;
+  approvedRub: number;
+  cancelledRub: number;
+  firstServiceDate: string;
+  lastServiceDate: string;
+  latestStatus: BillingChargeStatus;
+  charges: BillingChargeWithRelations[];
+};
+
+function buildServiceHistory(charges: BillingChargeWithRelations[], periodFrom?: Date, periodTo?: Date) {
+  const groups = new Map<string, ServiceHistoryGroup>();
+  const totals = {
+    chargesCount: charges.length,
+    totalRub: 0,
+    draftRub: 0,
+    approvedRub: 0,
+    cancelledRub: 0,
+  };
+
+  charges.forEach((charge) => {
+    const totalRub = decimalToNumber(charge.totalRub) ?? 0;
+    const quantity = decimalToNumber(charge.quantity) ?? 0;
+    const key = [
+      charge.clientId,
+      charge.serviceId ?? 'manual',
+      charge.source,
+      charge.unit,
+      charge.serviceId ? '' : charge.description,
+    ].join(':');
+
+    totals.totalRub = roundMoney(totals.totalRub + totalRub);
+    if (charge.status === BillingChargeStatus.APPROVED) {
+      totals.approvedRub = roundMoney(totals.approvedRub + totalRub);
+    } else if (charge.status === BillingChargeStatus.CANCELLED) {
+      totals.cancelledRub = roundMoney(totals.cancelledRub + totalRub);
+    } else {
+      totals.draftRub = roundMoney(totals.draftRub + totalRub);
+    }
+
+    const serviceName = charge.service?.name ?? charge.description;
+    const serviceCode = charge.service?.code ?? sourceCode(charge.source);
+    const serviceDate = charge.serviceDate.toISOString();
+    const existing = groups.get(key);
+
+    if (!existing) {
+      groups.set(key, {
+        key,
+        clientId: charge.clientId,
+        serviceId: charge.serviceId,
+        serviceCode,
+        serviceName,
+        source: charge.source,
+        unit: charge.unit,
+        chargesCount: 1,
+        quantity,
+        totalRub,
+        draftRub: charge.status === BillingChargeStatus.DRAFT ? totalRub : 0,
+        approvedRub: charge.status === BillingChargeStatus.APPROVED ? totalRub : 0,
+        cancelledRub: charge.status === BillingChargeStatus.CANCELLED ? totalRub : 0,
+        firstServiceDate: serviceDate,
+        lastServiceDate: serviceDate,
+        latestStatus: charge.status,
+        charges: [charge],
+      });
+      return;
+    }
+
+    existing.chargesCount += 1;
+    existing.quantity = roundQuantity(existing.quantity + quantity);
+    existing.totalRub = roundMoney(existing.totalRub + totalRub);
+    existing.draftRub = roundMoney(existing.draftRub + (charge.status === BillingChargeStatus.DRAFT ? totalRub : 0));
+    existing.approvedRub = roundMoney(
+      existing.approvedRub + (charge.status === BillingChargeStatus.APPROVED ? totalRub : 0),
+    );
+    existing.cancelledRub = roundMoney(
+      existing.cancelledRub + (charge.status === BillingChargeStatus.CANCELLED ? totalRub : 0),
+    );
+    existing.firstServiceDate = serviceDate < existing.firstServiceDate ? serviceDate : existing.firstServiceDate;
+    existing.lastServiceDate = serviceDate > existing.lastServiceDate ? serviceDate : existing.lastServiceDate;
+    existing.latestStatus = serviceDate >= existing.lastServiceDate ? charge.status : existing.latestStatus;
+    existing.charges.push(charge);
+  });
+
+  return {
+    periodFrom: periodFrom?.toISOString() ?? null,
+    periodTo: periodTo?.toISOString() ?? null,
+    generatedAt: new Date().toISOString(),
+    totals,
+    groups: [...groups.values()].sort((left, right) => right.lastServiceDate.localeCompare(left.lastServiceDate)),
+  };
+}
+
 function normalizeText(value?: string) {
   const normalized = value?.trim();
   return normalized ? normalized : undefined;
@@ -594,4 +726,16 @@ function storageSourceKey(clientId: string, periodFrom: Date, periodTo: Date) {
 
 function formatDateKey(date: Date) {
   return date.toISOString().slice(0, 10);
+}
+
+function sourceCode(source: BillingChargeSource) {
+  if (source === BillingChargeSource.STORAGE) {
+    return 'STORAGE';
+  }
+
+  if (source === BillingChargeSource.LOGISTICS) {
+    return 'LOGISTICS';
+  }
+
+  return 'MANUAL';
 }

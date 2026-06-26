@@ -4,6 +4,7 @@ import {
   fetchBillingCharges,
   fetchBillingInvoiceDocument,
   fetchBillingInvoices,
+  fetchBillingServiceHistory,
   downloadClientRequestFile,
   fetchClientNotifications,
   fetchClientNotificationPreferences,
@@ -20,6 +21,7 @@ import {
   type BillingChargeSummary,
   type BillingInvoiceDocument,
   type BillingInvoiceSummary,
+  type BillingServiceHistory,
   type ClientNotificationPreferenceSummary,
   type ClientNotificationSummary,
   type ClientRequestFileSummary,
@@ -42,6 +44,7 @@ type CabinetData = {
   requests: ClientRequestSummary[];
   invoices: BillingInvoiceSummary[];
   charges: BillingChargeSummary[];
+  serviceHistory: BillingServiceHistory | null;
   notifications: ClientNotificationSummary[];
   notificationPreferences: ClientNotificationPreferenceSummary[];
 };
@@ -62,6 +65,7 @@ const emptyData: CabinetData = {
   requests: [],
   invoices: [],
   charges: [],
+  serviceHistory: null,
   notifications: [],
   notificationPreferences: [],
 };
@@ -109,6 +113,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
         state.data.charges.filter((charge) => !clientId || charge.clientId === clientId),
         (charge) => charge.serviceDate,
       ),
+      serviceHistory: filterServiceHistory(state.data.serviceHistory, clientId),
       notifications: sortByDate(
         state.data.notifications.filter((notification) => !clientId || notification.clientId === clientId),
         (notification) => notification.createdAt,
@@ -126,19 +131,29 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
     try {
       // Русский комментарий: кабинет клиента собирает read-only витрину из существующих API,
       // чтобы клиент видел только данные, отфильтрованные серверным client scope.
-      const [clients, stock, requests, invoices, charges, notifications, notificationPreferences] = await Promise.all([
+      const [
+        clients,
+        stock,
+        requests,
+        invoices,
+        charges,
+        serviceHistory,
+        notifications,
+        notificationPreferences,
+      ] = await Promise.all([
         fetchClients(session.accessToken),
         fetchStockBalances(session.accessToken),
         fetchClientRequests(session.accessToken),
         fetchBillingInvoices(session.accessToken),
         fetchBillingCharges(session.accessToken),
+        fetchBillingServiceHistory(session.accessToken),
         fetchClientNotifications(session.accessToken),
         fetchClientNotificationPreferences(session.accessToken),
       ]);
 
       setState({
         status: 'ready',
-        data: { clients, stock, requests, invoices, charges, notifications, notificationPreferences },
+        data: { clients, stock, requests, invoices, charges, serviceHistory, notifications, notificationPreferences },
       });
     } catch (caught) {
       setState((current) => ({
@@ -328,6 +343,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
             requests={view.requests}
             invoices={view.invoices}
             charges={view.charges}
+            serviceHistory={view.serviceHistory}
             notifications={view.notifications}
             notificationPreferences={view.notificationPreferences}
             onOpenRequestDocument={(request) => void openRequestDocument(request)}
@@ -368,4 +384,30 @@ function sortByDate<T>(items: T[], getValue: (item: T) => string | null | undefi
     const rightTime = new Date(getValue(right) ?? '').getTime();
     return rightTime - leftTime;
   });
+}
+
+function filterServiceHistory(history: BillingServiceHistory | null, clientId: string): BillingServiceHistory | null {
+  if (!history) {
+    return null;
+  }
+
+  const groups = history.groups.filter((group) => !clientId || group.clientId === clientId);
+  return {
+    ...history,
+    totals: groups.reduce(
+      (totals, group) => ({
+        chargesCount: totals.chargesCount + group.chargesCount,
+        totalRub: roundMoney(totals.totalRub + group.totalRub),
+        draftRub: roundMoney(totals.draftRub + group.draftRub),
+        approvedRub: roundMoney(totals.approvedRub + group.approvedRub),
+        cancelledRub: roundMoney(totals.cancelledRub + group.cancelledRub),
+      }),
+      { chargesCount: 0, totalRub: 0, draftRub: 0, approvedRub: 0, cancelledRub: 0 },
+    ),
+    groups,
+  };
+}
+
+function roundMoney(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
 }

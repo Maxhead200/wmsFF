@@ -237,6 +237,100 @@
   border-left: 4px solid #dc2626;
 }
 
+.client-service-history {
+  display: grid;
+  gap: 10px;
+}
+
+.client-service-history-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.client-service-history-metric {
+  display: grid;
+  min-height: 70px;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 8px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.client-service-history-metric svg {
+  grid-row: 1 / span 2;
+  color: var(--red-dark);
+}
+
+.client-service-history-metric span,
+.client-service-history-metric strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.client-service-history-metric span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.client-service-history-metric strong {
+  font-size: 16px;
+}
+
+.client-service-history-list {
+  display: grid;
+  gap: 8px;
+}
+
+.client-service-history-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1.4fr) minmax(140px, 0.7fr) minmax(180px, 0.8fr);
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.client-service-history-item > svg {
+  color: var(--red-dark);
+}
+
+.client-service-history-item div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.client-service-history-item strong,
+.client-service-history-item span,
+.client-service-history-item small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.client-service-history-item span,
+.client-service-history-item small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.client-service-history-item__numbers {
+  justify-items: end;
+}
+
+.client-service-history-item__status {
+  justify-items: end;
+}
+
 .icon-text-button {
   display: inline-flex;
   min-height: 32px;
@@ -480,6 +574,20 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .client-service-history-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .client-service-history-item {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .client-service-history-item__numbers,
+  .client-service-history-item__status {
+    grid-column: 2;
+    justify-items: start;
+  }
+
   .client-cabinet-notification .icon-text-button,
   .client-cabinet-notification .status {
     grid-column: 2;
@@ -524,6 +632,10 @@
   }
 
   .client-notification-preferences {
+    grid-template-columns: 1fr;
+  }
+
+  .client-service-history-metrics {
     grid-template-columns: 1fr;
   }
 }

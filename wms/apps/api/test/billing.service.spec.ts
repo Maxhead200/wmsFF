@@ -379,6 +379,78 @@ describe('BillingService', () => {
       }),
     );
   });
+
+  it('groups client service history by service and source', async () => {
+    const prisma = {
+      billingCharge: {
+        findMany: vi.fn().mockResolvedValue([
+          billingCharge({
+            id: 'charge-1',
+            serviceId: 'service-1',
+            description: 'Приемка коробов',
+            quantity: '2',
+            totalRub: '200',
+            status: BillingChargeStatus.APPROVED,
+            serviceDate: new Date('2026-06-20T00:00:00.000Z'),
+            service: {
+              id: 'service-1',
+              code: 'RECEIVING',
+              name: 'Приемка коробов',
+              unit: BillingUnit.BOX,
+            },
+          }),
+          billingCharge({
+            id: 'charge-2',
+            serviceId: 'service-1',
+            description: 'Приемка коробов',
+            quantity: '3',
+            totalRub: '300',
+            status: BillingChargeStatus.DRAFT,
+            serviceDate: new Date('2026-06-21T00:00:00.000Z'),
+            service: {
+              id: 'service-1',
+              code: 'RECEIVING',
+              name: 'Приемка коробов',
+              unit: BillingUnit.BOX,
+            },
+          }),
+        ]),
+      },
+    };
+    const service = new BillingService(prisma as never, clientScopes());
+
+    const history = await service.listServiceHistory(
+      { clientId: 'client-1', periodFrom: '2026-06-01', periodTo: '2026-06-30' },
+      user({ clientIds: ['client-1'] }),
+    );
+
+    expect(prisma.billingCharge.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          clientId: 'client-1',
+          serviceDate: expect.objectContaining({
+            gte: expect.any(Date),
+            lte: expect.any(Date),
+          }),
+        }),
+      }),
+    );
+    expect(history.totals).toMatchObject({
+      chargesCount: 2,
+      totalRub: 500,
+      approvedRub: 200,
+      draftRub: 300,
+    });
+    expect(history.groups).toHaveLength(1);
+    expect(history.groups[0]).toMatchObject({
+      serviceCode: 'RECEIVING',
+      serviceName: 'Приемка коробов',
+      chargesCount: 2,
+      quantity: 5,
+      totalRub: 500,
+      latestStatus: BillingChargeStatus.DRAFT,
+    });
+  });
 });
 
 function clientScopes() {
@@ -400,6 +472,35 @@ function user(overrides: Partial<AuthUser>): AuthUser {
     clientScopeMode: 'LIMITED',
     clientIds: [],
     writableClientIds: [],
+    ...overrides,
+  };
+}
+
+function billingCharge(overrides: Record<string, unknown>) {
+  return {
+    id: 'charge',
+    clientId: 'client-1',
+    serviceId: null,
+    requestId: null,
+    description: 'Услуга',
+    unit: BillingUnit.SERVICE,
+    quantity: '1',
+    unitPriceRub: '100',
+    totalRub: '100',
+    status: BillingChargeStatus.DRAFT,
+    serviceDate: new Date('2026-06-20T00:00:00.000Z'),
+    source: BillingChargeSource.MANUAL,
+    sourceKey: null,
+    metadata: null,
+    comment: null,
+    approvedAt: null,
+    createdAt: new Date('2026-06-20T00:00:00.000Z'),
+    updatedAt: new Date('2026-06-20T00:00:00.000Z'),
+    client: { id: 'client-1', code: 'CLIENT', name: 'Client' },
+    service: null,
+    request: null,
+    createdBy: null,
+    approvedBy: null,
     ...overrides,
   };
 }

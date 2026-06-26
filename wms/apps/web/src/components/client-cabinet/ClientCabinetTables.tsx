@@ -3,6 +3,7 @@ import { FileText, MessageSquareText, ReceiptText } from 'lucide-react';
 import type {
   BillingChargeSummary,
   BillingInvoiceSummary,
+  BillingServiceHistory,
   ClientNotificationPreferenceSummary,
   ClientNotificationSummary,
   ClientRequestFileSummary,
@@ -18,6 +19,7 @@ import {
   primaryBarcode,
 } from './clientCabinetFormat';
 import { ClientCabinetNotifications } from './ClientCabinetNotifications';
+import { ClientCabinetServiceHistory } from './ClientCabinetServiceHistory';
 import { ClientRequestFilesCell } from './ClientRequestFilesCell';
 
 type ClientCabinetTablesProps = {
@@ -25,6 +27,7 @@ type ClientCabinetTablesProps = {
   requests: ClientRequestSummary[];
   invoices: BillingInvoiceSummary[];
   charges: BillingChargeSummary[];
+  serviceHistory: BillingServiceHistory | null;
   notifications: ClientNotificationSummary[];
   notificationPreferences: ClientNotificationPreferenceSummary[];
   onOpenRequestDocument: (request: ClientRequestSummary) => void;
@@ -41,6 +44,7 @@ export function ClientCabinetTables({
   requests,
   invoices,
   charges,
+  serviceHistory,
   notifications,
   notificationPreferences,
   onOpenRequestDocument,
@@ -59,6 +63,8 @@ export function ClientCabinetTables({
         onMarkRead={onMarkNotificationRead}
         onTogglePreference={onToggleNotificationPreference}
       />
+
+      <ClientCabinetServiceHistory history={serviceHistory} />
 
       <CabinetSection title="Остатки" emptyText="Остатков пока нет." hasItems={stock.length > 0}>
         {renderStockTable(stock)}

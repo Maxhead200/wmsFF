@@ -12,6 +12,7 @@ import { CreateBillingServiceDto } from './dto/create-billing-service.dto';
 import { GenerateStorageChargeDto } from './dto/generate-storage-charge.dto';
 import { ListBillingChargesDto } from './dto/list-billing-charges.dto';
 import { ListBillingInvoicesDto } from './dto/list-billing-invoices.dto';
+import { ListBillingServiceHistoryDto } from './dto/list-billing-service-history.dto';
 import { UpdateBillingChargeStatusDto } from './dto/update-billing-charge-status.dto';
 import { UpdateBillingInvoiceStatusDto } from './dto/update-billing-invoice-status.dto';
 
@@ -38,6 +39,11 @@ export class BillingController {
   @Get('charges')
   listCharges(@Query() query: ListBillingChargesDto, @CurrentUser() user: AuthUser) {
     return this.billing.listCharges(query, user);
+  }
+
+  @Get('service-history')
+  listServiceHistory(@Query() query: ListBillingServiceHistoryDto, @CurrentUser() user: AuthUser) {
+    return this.billing.listServiceHistory(query, user);
   }
 
   @Post('charges')

@@ -104,6 +104,40 @@ export type BillingChargeSummary = {
   } | null;
 };
 
+export type BillingServiceHistoryGroup = {
+  key: string;
+  clientId: string;
+  serviceId: string | null;
+  serviceCode: string;
+  serviceName: string;
+  source: BillingChargeSource;
+  unit: BillingUnit;
+  chargesCount: number;
+  quantity: number;
+  totalRub: number;
+  draftRub: number;
+  approvedRub: number;
+  cancelledRub: number;
+  firstServiceDate: string;
+  lastServiceDate: string;
+  latestStatus: BillingChargeStatus;
+  charges: BillingChargeSummary[];
+};
+
+export type BillingServiceHistory = {
+  periodFrom: string | null;
+  periodTo: string | null;
+  generatedAt: string;
+  totals: {
+    chargesCount: number;
+    totalRub: number;
+    draftRub: number;
+    approvedRub: number;
+    cancelledRub: number;
+  };
+  groups: BillingServiceHistoryGroup[];
+};
+
 export type BillingInvoiceItemSummary = {
   id: string;
   invoiceId: string;
@@ -1270,6 +1304,15 @@ export async function fetchBillingCharges(
   filter: { clientId?: string; status?: BillingChargeStatus } = {},
 ) {
   return request<BillingChargeSummary[]>(withQuery('/billing/charges', filter), {
+    accessToken,
+  });
+}
+
+export async function fetchBillingServiceHistory(
+  accessToken: string,
+  filter: { clientId?: string; periodFrom?: string; periodTo?: string } = {},
+) {
+  return request<BillingServiceHistory>(withQuery('/billing/service-history', filter), {
     accessToken,
   });
 }

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   fetchClientRequests,
   fetchClients,
+  pickClientRequest,
   updateClientRequestStatus,
   type AuthSession,
   type AuthUser,
@@ -28,6 +29,7 @@ export function ClientRequestsPanel({ session }: ClientRequestsPanelProps) {
   const canRead = canUse(session.user, 'client-requests:read');
   const canWrite = canUse(session.user, 'client-requests:write');
   const canChangeStatus = canUse(session.user, 'client-requests:status');
+  const canPickOutbound = canUse(session.user, 'stock:write');
   const [requests, setRequests] = useState<LoadState<ClientRequestSummary>>({ status: 'idle', data: [] });
   const [clients, setClients] = useState<LoadState<ClientSummary>>({ status: 'idle', data: [] });
   const [error, setError] = useState<string | null>(null);
@@ -77,6 +79,24 @@ export function ClientRequestsPanel({ session }: ClientRequestsPanelProps) {
     }
   }
 
+  async function pickOutboundRequest(request: ClientRequestSummary) {
+    setError(null);
+
+    try {
+      await pickClientRequest(session.accessToken, {
+        requestId: request.id,
+        idempotencyKey: `web-pick:${request.id}`,
+        comment: 'Сборка запущена из web-интерфейса.',
+      });
+      setRequests((current) => ({
+        ...current,
+        data: current.data.map((item) => (item.id === request.id ? { ...item, status: 'IN_WORK' } : item)),
+      }));
+    } catch (caught) {
+      setError(errorMessage(caught));
+    }
+  }
+
   function acceptCreated(request: ClientRequestSummary) {
     setRequests((current) => ({
       status: 'ready',
@@ -109,7 +129,13 @@ export function ClientRequestsPanel({ session }: ClientRequestsPanelProps) {
       {error ? <p className="form-error">{error}</p> : null}
 
       <div className="client-requests-panel__list">
-        {renderRequests(requests, canChangeStatus, (requestId, status) => void changeStatus(requestId, status))}
+        {renderRequests(
+          requests,
+          canChangeStatus,
+          canPickOutbound,
+          (requestId, status) => void changeStatus(requestId, status),
+          (request) => void pickOutboundRequest(request),
+        )}
       </div>
     </section>
   );
@@ -118,7 +144,9 @@ export function ClientRequestsPanel({ session }: ClientRequestsPanelProps) {
 function renderRequests(
   state: LoadState<ClientRequestSummary>,
   canChangeStatus: boolean,
+  canPickOutbound: boolean,
   onStatusChange: (requestId: string, status: ClientRequestStatus) => void,
+  onPickOutbound: (request: ClientRequestSummary) => void,
 ) {
   if (state.status === 'idle' || (state.status === 'loading' && state.data.length === 0)) {
     return (
@@ -140,7 +168,13 @@ function renderRequests(
   return (
     <>
       {state.status === 'loading' ? <p className="inline-status">Обновляю заявки.</p> : null}
-      <ClientRequestsTable items={state.data} canChangeStatus={canChangeStatus} onStatusChange={onStatusChange} />
+      <ClientRequestsTable
+        items={state.data}
+        canChangeStatus={canChangeStatus}
+        canPickOutbound={canPickOutbound}
+        onStatusChange={onStatusChange}
+        onPickOutbound={onPickOutbound}
+      />
     </>
   );
 }

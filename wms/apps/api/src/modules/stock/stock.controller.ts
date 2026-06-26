@@ -5,6 +5,7 @@ import type { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { ListStockBalancesDto } from './dto/list-stock-balances.dto';
+import { PickClientRequestDto } from './dto/pick-client-request.dto';
 import { TransferBetweenBoxesDto } from './dto/transfer-between-boxes.dto';
 import { StockBalancesService } from './stock-balances.service';
 import { StockOperationsService } from './stock-operations.service';
@@ -27,5 +28,11 @@ export class StockController {
   @RequirePermissions('stock:write')
   transferBetweenBoxes(@Body() dto: TransferBetweenBoxesDto, @CurrentUser() user: AuthUser) {
     return this.operations.transferBetweenBoxes(dto, user);
+  }
+
+  @Post('fulfillment/pick-request')
+  @RequirePermissions('stock:write')
+  pickClientRequest(@Body() dto: PickClientRequestDto, @CurrentUser() user: AuthUser) {
+    return this.operations.pickClientRequest(dto, user);
   }
 }

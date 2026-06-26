@@ -1,8 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, StockBalance, StockStatus } from '@prisma/client';
+import { ClientRequestStatus, ClientRequestType, Prisma, StockBalance, StockStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
+import { PickClientRequestDto } from './dto/pick-client-request.dto';
 import { TransferBetweenBoxesDto } from './dto/transfer-between-boxes.dto';
 import { StockBalancesService } from './stock-balances.service';
 
@@ -117,6 +118,124 @@ export class StockOperationsService {
         toBox: toBox.code,
         quantity: dto.quantity,
         targetBalance,
+      };
+    });
+  }
+
+  pickClientRequest(dto: PickClientRequestDto, user: AuthUser) {
+    const baseKey = dto.idempotencyKey ?? `pick-request:${dto.requestId}`;
+
+    return this.prisma.$transaction(async (tx) => {
+      const existingMovement = await tx.stockMovement.findFirst({
+        where: { idempotencyKey: { startsWith: `${baseKey}:` } },
+      });
+
+      if (existingMovement) {
+        return {
+          idempotencyKey: baseKey,
+          status: 'ALREADY_APPLIED',
+          requestId: dto.requestId,
+        };
+      }
+
+      const request = await tx.clientRequest.findUnique({
+        where: { id: dto.requestId },
+        include: {
+          items: true,
+        },
+      });
+
+      if (!request) {
+        throw new NotFoundException('Клиентская заявка не найдена.');
+      }
+
+      this.clientScopes.requireClientAccess(user, request.clientId, 'write');
+
+      if (request.type !== ClientRequestType.OUTBOUND) {
+        throw new BadRequestException('Сборка доступна только для заявок на отгрузку.');
+      }
+
+      if (request.status === ClientRequestStatus.CANCELLED || request.status === ClientRequestStatus.REJECTED) {
+        throw new BadRequestException('Нельзя собирать отмененную или отклоненную заявку.');
+      }
+
+      if (request.items.length === 0) {
+        throw new BadRequestException('В заявке нет товарных позиций для сборки.');
+      }
+
+      const plan = await this.planRequestPick(tx, request.clientId, request.items);
+
+      // Русский комментарий: сначала строим полный план по всем строкам, и только потом меняем остатки,
+      // чтобы нехватка по одной позиции не оставила заявку частично собранной.
+      for (const line of plan.lines) {
+        for (const allocation of line.allocations) {
+          await this.decrementSourceBalance(tx, allocation.balance, allocation.quantity);
+          await this.incrementTargetBalance(tx, {
+            clientId: request.clientId,
+            skuId: line.skuId,
+            boxId: allocation.balance.boxId!,
+            palletId: allocation.balance.palletId,
+            status: StockStatus.PACKING,
+            quantity: allocation.quantity,
+          });
+
+          await tx.stockMovement.create({
+            data: {
+              clientId: request.clientId,
+              skuId: line.skuId,
+              boxId: allocation.balance.boxId,
+              palletId: allocation.balance.palletId,
+              type: 'PICK',
+              status: StockStatus.AVAILABLE,
+              quantity: -allocation.quantity,
+              sourceDocument: request.id,
+              idempotencyKey: `${baseKey}:${line.itemId}:${allocation.balance.id}:out`,
+              comment: dto.comment ?? `Сборка заявки ${request.title}`,
+            },
+          });
+
+          await tx.stockMovement.create({
+            data: {
+              clientId: request.clientId,
+              skuId: line.skuId,
+              boxId: allocation.balance.boxId,
+              palletId: allocation.balance.palletId,
+              type: 'PICK',
+              status: StockStatus.PACKING,
+              quantity: allocation.quantity,
+              sourceDocument: request.id,
+              idempotencyKey: `${baseKey}:${line.itemId}:${allocation.balance.id}:in`,
+              comment: dto.comment ?? `Передано в упаковку по заявке ${request.title}`,
+            },
+          });
+        }
+      }
+
+      await tx.clientRequest.update({
+        where: { id: request.id },
+        data: {
+          status: ClientRequestStatus.IN_WORK,
+          assignedToUserId: user.id,
+          managerComment: dto.comment ?? request.managerComment,
+        },
+      });
+
+      return {
+        idempotencyKey: baseKey,
+        status: 'APPLIED',
+        requestId: request.id,
+        clientId: request.clientId,
+        pickedLines: plan.lines.map((line) => ({
+          itemId: line.itemId,
+          skuId: line.skuId,
+          requestedQuantity: line.requestedQuantity,
+          pickedQuantity: line.allocations.reduce((sum, allocation) => sum + allocation.quantity, 0),
+          allocations: line.allocations.map((allocation) => ({
+            boxId: allocation.balance.boxId,
+            palletId: allocation.balance.palletId,
+            quantity: allocation.quantity,
+          })),
+        })),
       };
     });
   }
@@ -264,6 +383,57 @@ export class StockOperationsService {
     };
   }
 
+  private async planRequestPick(
+    tx: Prisma.TransactionClient,
+    clientId: string,
+    items: Array<{ id: string; skuId: string | null; barcode: string | null; quantity: number }>,
+  ) {
+    const lines = [];
+
+    for (const item of items) {
+      const sku = await this.resolveSku(tx, {
+        clientId,
+        skuId: item.skuId ?? undefined,
+        barcode: item.barcode ?? undefined,
+      });
+      const balances = await tx.stockBalance.findMany({
+        where: {
+          clientId,
+          skuId: sku.id,
+          status: StockStatus.AVAILABLE,
+          quantity: { gt: 0 },
+          boxId: { not: null },
+        },
+        orderBy: [{ updatedAt: 'asc' }],
+      });
+      let remaining = item.quantity;
+      const allocations: Array<{ balance: StockBalance; quantity: number }> = [];
+
+      for (const balance of balances) {
+        if (remaining <= 0) {
+          break;
+        }
+
+        const quantity = Math.min(balance.quantity, remaining);
+        allocations.push({ balance, quantity });
+        remaining -= quantity;
+      }
+
+      if (remaining > 0) {
+        throw new BadRequestException(`Недостаточно доступного остатка для позиции ${sku.internalSku}.`);
+      }
+
+      lines.push({
+        itemId: item.id,
+        skuId: sku.id,
+        requestedQuantity: item.quantity,
+        allocations,
+      });
+    }
+
+    return { lines };
+  }
+
   private async resolveSku(tx: Prisma.TransactionClient, dto: { clientId: string; skuId?: string; barcode?: string }) {
     if (dto.skuId) {
       const sku = await tx.sku.findFirst({ where: { id: dto.skuId, clientId: dto.clientId } });
@@ -271,6 +441,10 @@ export class StockOperationsService {
         throw new NotFoundException('SKU не найден у клиента.');
       }
       return sku;
+    }
+
+    if (!dto.barcode) {
+      throw new BadRequestException('Для складской операции нужен SKU или штрихкод.');
     }
 
     const barcode = await tx.barcode.findFirst({

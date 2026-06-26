@@ -440,6 +440,24 @@ export type TransferBetweenBoxesResult = {
   };
 };
 
+export type PickClientRequestResult = {
+  idempotencyKey: string;
+  status: 'APPLIED' | 'ALREADY_APPLIED';
+  requestId: string;
+  clientId?: string;
+  pickedLines?: Array<{
+    itemId: string;
+    skuId: string;
+    requestedQuantity: number;
+    pickedQuantity: number;
+    allocations: Array<{
+      boxId: string | null;
+      palletId: string | null;
+      quantity: number;
+    }>;
+  }>;
+};
+
 export type RoleSummary = {
   id: string;
   code: string;
@@ -1038,6 +1056,17 @@ export async function commitLogisticsImport(
 
 export async function transferBetweenBoxes(accessToken: string, payload: TransferBetweenBoxesPayload) {
   return request<TransferBetweenBoxesResult>('/stock/transfers/box-to-box', {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function pickClientRequest(
+  accessToken: string,
+  payload: { requestId: string; idempotencyKey?: string; comment?: string },
+) {
+  return request<PickClientRequestResult>('/stock/fulfillment/pick-request', {
     method: 'POST',
     body: payload,
     accessToken,

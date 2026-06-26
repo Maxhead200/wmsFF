@@ -71,6 +71,115 @@ describe('StockOperationsService', () => {
       }),
     );
   });
+
+  it('собирает outbound-заявку в PACKING через PICK-движения', async () => {
+    const tx = {
+      stockMovement: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue(undefined),
+      },
+      clientRequest: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'request-1',
+          clientId: 'client-1',
+          type: 'OUTBOUND',
+          status: 'APPROVED',
+          title: 'Отгрузка',
+          managerComment: null,
+          items: [{ id: 'item-1', skuId: 'sku-1', barcode: null, quantity: 2 }],
+        }),
+        update: vi.fn().mockResolvedValue(undefined),
+      },
+      sku: {
+        findFirst: vi.fn().mockResolvedValue({ id: 'sku-1', internalSku: 'SKU-1' }),
+      },
+      stockBalance: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: 'balance-1',
+            balanceKey: 'client-1:sku-1:box-1:AVAILABLE',
+            clientId: 'client-1',
+            skuId: 'sku-1',
+            boxId: 'box-1',
+            palletId: null,
+            status: 'AVAILABLE',
+            quantity: 5,
+          },
+        ]),
+        update: vi.fn().mockResolvedValue(undefined),
+        upsert: vi.fn().mockResolvedValue({ id: 'packing-balance' }),
+      },
+    };
+    const pickService = new StockOperationsService(
+      { $transaction: (callback: (tx: typeof tx) => unknown) => callback(tx) } as never,
+      { requireClientAccess: vi.fn() } as never,
+      { balanceKey: vi.fn().mockReturnValue('client-1:sku-1:box-1:PACKING') } as never,
+    );
+
+    await expect(
+      pickService.pickClientRequest(
+        {
+          requestId: 'request-1',
+          idempotencyKey: 'pick-1',
+        },
+        user(),
+      ),
+    ).resolves.toMatchObject({
+      status: 'APPLIED',
+      requestId: 'request-1',
+      pickedLines: [
+        {
+          itemId: 'item-1',
+          skuId: 'sku-1',
+          requestedQuantity: 2,
+          pickedQuantity: 2,
+        },
+      ],
+    });
+
+    expect(tx.stockBalance.update).toHaveBeenCalledWith({
+      where: { id: 'balance-1' },
+      data: { quantity: { decrement: 2 } },
+    });
+    expect(tx.stockBalance.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          status: 'PACKING',
+          quantity: 2,
+        }),
+      }),
+    );
+    expect(tx.stockMovement.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: 'PICK',
+          status: 'AVAILABLE',
+          quantity: -2,
+          sourceDocument: 'request-1',
+          idempotencyKey: 'pick-1:item-1:balance-1:out',
+        }),
+      }),
+    );
+    expect(tx.stockMovement.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: 'PICK',
+          status: 'PACKING',
+          quantity: 2,
+          sourceDocument: 'request-1',
+          idempotencyKey: 'pick-1:item-1:balance-1:in',
+        }),
+      }),
+    );
+    expect(tx.clientRequest.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'IN_WORK',
+          assignedToUserId: 'user-1',
+        }),
+      }),
+    );
+  });
 });
 
 function user(): AuthUser {

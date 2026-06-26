@@ -1,4 +1,4 @@
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, PackageCheck } from 'lucide-react';
 import { type ClientRequestStatus, type ClientRequestSummary } from '../../lib/api';
 import {
   requestPriorityLabel,
@@ -11,7 +11,9 @@ import {
 type ClientRequestsTableProps = {
   items: ClientRequestSummary[];
   canChangeStatus: boolean;
+  canPickOutbound: boolean;
   onStatusChange: (requestId: string, status: ClientRequestStatus) => void;
+  onPickOutbound: (request: ClientRequestSummary) => void;
 };
 
 const dateFormatter = new Intl.DateTimeFormat('ru-RU', {
@@ -20,7 +22,13 @@ const dateFormatter = new Intl.DateTimeFormat('ru-RU', {
   year: 'numeric',
 });
 
-export function ClientRequestsTable({ items, canChangeStatus, onStatusChange }: ClientRequestsTableProps) {
+export function ClientRequestsTable({
+  items,
+  canChangeStatus,
+  canPickOutbound,
+  onStatusChange,
+  onPickOutbound,
+}: ClientRequestsTableProps) {
   return (
     <div className="client-request-table-wrap">
       <table className="data-table client-request-table">
@@ -31,6 +39,7 @@ export function ClientRequestsTable({ items, canChangeStatus, onStatusChange }: 
             <th>Состав</th>
             <th>Срок</th>
             <th>Статус</th>
+            {canPickOutbound ? <th>Сборка</th> : null}
             {canChangeStatus ? <th>Workflow</th> : null}
           </tr>
         </thead>
@@ -56,6 +65,18 @@ export function ClientRequestsTable({ items, canChangeStatus, onStatusChange }: 
                 </span>
                 {request.managerComment ? <span>{request.managerComment}</span> : null}
               </td>
+              {canPickOutbound ? (
+                <td>
+                  {canPickRequest(request) ? (
+                    <button className="client-request-pick-button" type="button" onClick={() => onPickOutbound(request)}>
+                      <PackageCheck size={15} aria-hidden="true" />
+                      <span>Собрать</span>
+                    </button>
+                  ) : (
+                    '-'
+                  )}
+                </td>
+              ) : null}
               {canChangeStatus ? (
                 <td>
                   <label className="client-request-status-select">
@@ -79,6 +100,10 @@ export function ClientRequestsTable({ items, canChangeStatus, onStatusChange }: 
       </table>
     </div>
   );
+}
+
+function canPickRequest(request: ClientRequestSummary) {
+  return request.type === 'OUTBOUND' && !['DONE', 'CANCELLED', 'REJECTED'].includes(request.status);
 }
 
 function itemsSummary(request: ClientRequestSummary) {

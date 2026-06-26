@@ -100,8 +100,12 @@ export function ClientCabinetTables({
   });
 
   const skuRows = useMemo(() => buildSkuRows(visibleStock), [visibleStock]);
+  const allSkuRows = useMemo(() => buildSkuRows(stock), [stock]);
   const activePage = pageByTab[activeSection] ?? 1;
   const activeTotal = totalForTab(activeSection, skuRows, visibleStock, requests, invoices);
+  const allTotal = totalForTab(activeSection, allSkuRows, stock, requests, invoices);
+  const activeQuantity = quantityForTab(activeSection, skuRows, visibleStock);
+  const allQuantity = quantityForTab(activeSection, allSkuRows, stock);
   const pageCount = Math.max(1, Math.ceil(activeTotal / pageSize));
   const currentPage = Math.min(activePage, pageCount);
 
@@ -151,7 +155,7 @@ export function ClientCabinetTables({
             />
           </label>
           <span className="client-cabinet-table-count">
-            Найдено {formatCabinetNumber(activeTotal)} из {formatCabinetNumber(totalForTab(activeSection, buildSkuRows(stock), stock, requests, invoices))}
+            {tableCountText(activeSection, activeTotal, allTotal, activeQuantity, allQuantity)}
           </span>
           <button
             className="icon-text-button"
@@ -183,6 +187,7 @@ export function ClientCabinetTables({
           pageCount={pageCount}
           pageSize={pageSize}
           total={activeTotal}
+          quantity={activeQuantity}
           onPageChange={changePage}
           onPageSizeChange={setPageSize}
         />
@@ -476,6 +481,7 @@ function TablePager({
   pageCount,
   pageSize,
   total,
+  quantity,
   onPageChange,
   onPageSizeChange,
 }: {
@@ -483,12 +489,13 @@ function TablePager({
   pageCount: number;
   pageSize: number;
   total: number;
+  quantity: number | null;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
 }) {
   return (
     <div className="client-cabinet-pager">
-      <span>Страница {formatCabinetNumber(page)} из {formatCabinetNumber(pageCount)}, всего {formatCabinetNumber(total)}</span>
+      <span>{pagerText(page, pageCount, total, quantity)}</span>
       <label>
         <span>На странице</span>
         <select value={pageSize} onChange={(event) => onPageSizeChange(Number(event.target.value))}>
@@ -565,6 +572,41 @@ function totalForTab(
   }
 
   return invoices.length;
+}
+
+function quantityForTab(tab: ClientCabinetMetricTarget, skuRows: SkuStockSummary[], stock: StockBalance[]) {
+  if (tab === 'skus') {
+    return skuRows.reduce((sum, row) => sum + row.quantity, 0);
+  }
+
+  if (tab === 'stock') {
+    return stock.reduce((sum, balance) => sum + Number(balance.quantity), 0);
+  }
+
+  return null;
+}
+
+function tableCountText(
+  tab: ClientCabinetMetricTarget,
+  activeTotal: number,
+  allTotal: number,
+  activeQuantity: number | null,
+  allQuantity: number | null,
+) {
+  if (tab === 'stock') {
+    return `Найдено строк ${formatCabinetNumber(activeTotal)} из ${formatCabinetNumber(allTotal)}, единиц ${formatCabinetNumber(activeQuantity ?? 0)} из ${formatCabinetNumber(allQuantity ?? 0)}`;
+  }
+
+  if (tab === 'skus') {
+    return `Найдено SKU ${formatCabinetNumber(activeTotal)} из ${formatCabinetNumber(allTotal)}, единиц ${formatCabinetNumber(activeQuantity ?? 0)} из ${formatCabinetNumber(allQuantity ?? 0)}`;
+  }
+
+  return `Найдено ${formatCabinetNumber(activeTotal)} из ${formatCabinetNumber(allTotal)}`;
+}
+
+function pagerText(page: number, pageCount: number, total: number, quantity: number | null) {
+  const base = `Страница ${formatCabinetNumber(page)} из ${formatCabinetNumber(pageCount)}, строк ${formatCabinetNumber(total)}`;
+  return quantity === null ? base : `${base}, единиц ${formatCabinetNumber(quantity)}`;
 }
 
 function paginate<T>(items: T[], page: number, pageSize: number) {

@@ -1,4 +1,4 @@
-import { Boxes, ClipboardCheck, PackageSearch, Printer, ShieldCheck, Smartphone, Upload } from 'lucide-react';
+import { Boxes, ClipboardCheck, PackageSearch, Printer, ShieldCheck, Smartphone, Truck, Upload } from 'lucide-react';
 import type { WmsModuleCard } from '../components/ModuleBoard';
 
 export const mvpModules: WmsModuleCard[] = [
@@ -24,7 +24,13 @@ export const mvpModules: WmsModuleCard[] = [
     title: 'Импорт XLSX',
     status: 'ready',
     icon: Upload,
-    description: 'Предпросмотр остатков и тарифов логистики перед записью в WMS.',
+    description: 'Предпросмотр и запись остатков, предпросмотр тарифных файлов.',
+  },
+  {
+    title: 'Логистика',
+    status: 'ready',
+    icon: Truck,
+    description: 'Наборы тарифов, направления, ступени и предварительный расчёт доставки.',
   },
   {
     title: 'ТСД online',

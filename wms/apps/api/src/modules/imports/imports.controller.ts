@@ -38,4 +38,22 @@ export class ImportsController {
   previewLogisticsFile(@UploadedFile() file: Express.Multer.File) {
     return this.importsService.previewLogisticsWorkbook(file.buffer);
   }
+
+  @Post('logistics/commit')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({ description: 'XLSX-файл тарифов логистики, имя набора и период активности' })
+  @UseInterceptors(FileInterceptor('file'))
+  commitLogisticsFile(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('name') name?: string,
+    @Body('activeFrom') activeFrom?: string,
+    @Body('activeTo') activeTo?: string,
+  ) {
+    return this.importsService.commitLogisticsWorkbook(file.buffer, {
+      name: name || file.originalname,
+      sourceFile: file.originalname,
+      activeFrom,
+      activeTo,
+    });
+  }
 }

@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma, StockStatus } from '@prisma/client';
 import * as XLSX from 'xlsx';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { LogisticsService } from '../logistics/logistics.service';
 import { StockBalancesService } from '../stock/stock-balances.service';
 import { parseLogisticsTariffSheet } from './parsers/logistics-xlsx.parser';
 import { parseStockSheet, type SheetMatrix, type StockImportItem } from './parsers/stock-xlsx.parser';
@@ -11,11 +12,19 @@ type CommitStockOptions = {
   sourceDocument: string;
 };
 
+type CommitLogisticsOptions = {
+  name: string;
+  sourceFile?: string;
+  activeFrom?: string;
+  activeTo?: string;
+};
+
 @Injectable()
 export class ImportsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly balances: StockBalancesService,
+    private readonly logistics: LogisticsService,
   ) {}
 
   previewStockWorkbook(buffer: Buffer, clientId: string) {
@@ -39,6 +48,20 @@ export class ImportsService {
       directionsCount: parsed.directions.length,
       directions: parsed.directions,
       issues: parsed.issues,
+    };
+  }
+
+  async commitLogisticsWorkbook(buffer: Buffer, options: CommitLogisticsOptions) {
+    const rows = this.readFirstSheet(buffer);
+    const parsed = parseLogisticsTariffSheet(rows);
+    const tariffSet = await this.logistics.commitTariffSet(parsed, options);
+
+    return {
+      tariffSetId: tariffSet.id,
+      name: tariffSet.name,
+      sourceFile: tariffSet.sourceFile,
+      directionsCount: tariffSet.directions.length,
+      tiersCount: tariffSet.directions.reduce((sum, direction) => sum + direction.tiers.length, 0),
     };
   }
 

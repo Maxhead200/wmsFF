@@ -57,6 +57,12 @@ enum TsdOperationStatus {
   REJECTED
 }
 
+enum LogisticsPricingMode {
+  TOTAL
+  PER_PALLET
+  MANUAL_REVIEW
+}
+
 model User {
   id           String     @id @default(uuid())
   email        String     @unique
@@ -255,6 +261,7 @@ model LogisticsTariffSet {
   id          String @id @default(uuid())
   name        String
   sourceFile  String?
+  note        String?
   activeFrom  DateTime?
   activeTo    DateTime?
   directions  LogisticsDirection[]
@@ -267,8 +274,11 @@ model LogisticsDirection {
   origin      String
   destination String
   note        String?
+  pricingMode LogisticsPricingMode @default(MANUAL_REVIEW)
   tariffSet   LogisticsTariffSet @relation(fields: [tariffSetId], references: [id])
   tiers       LogisticsRateTier[]
+
+  @@index([tariffSetId, origin, destination])
 }
 
 model LogisticsRateTier {
@@ -278,8 +288,11 @@ model LogisticsRateTier {
   minPallets  Int?
   maxPallets  Int?
   maxBoxes    Int?
+  pricingMode LogisticsPricingMode @default(MANUAL_REVIEW)
   priceRub    Decimal @db.Decimal(12, 2)
   direction   LogisticsDirection @relation(fields: [directionId], references: [id])
+
+  @@index([directionId])
 }
 
 model TsdOperation {

@@ -4,7 +4,7 @@
 
 ## Что уже заложено
 
-- `apps/api` - NestJS API, Prisma-схема, импорты XLSX, stock ledger, печать TSC и API для ТСД.
+- `apps/api` - NestJS API, Prisma-схема, импорты XLSX, логистические тарифы, stock ledger, печать TSC и API для ТСД.
 - `apps/web` - React/Vite интерфейс оператора/администратора с картой модулей.
 - `apps/android-tsd` - Kotlin native skeleton для Android-ТСД.
 - `infra` - Docker Compose, Nginx и скрипт бэкапа PostgreSQL.

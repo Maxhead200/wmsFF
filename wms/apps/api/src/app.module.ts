@@ -4,6 +4,7 @@ import { CommonModule } from './common/common.module';
 import { HealthController } from './modules/health/health.controller';
 import { ClientsModule } from './modules/clients/clients.module';
 import { ImportsModule } from './modules/imports/imports.module';
+import { LogisticsModule } from './modules/logistics/logistics.module';
 import { PrintModule } from './modules/print/print.module';
 import { SkusModule } from './modules/skus/skus.module';
 import { StockModule } from './modules/stock/stock.module';
@@ -18,6 +19,7 @@ import { WarehouseModule } from './modules/warehouse/warehouse.module';
     SkusModule,
     WarehouseModule,
     StockModule,
+    LogisticsModule,
     ImportsModule,
     PrintModule,
     TsdModule,

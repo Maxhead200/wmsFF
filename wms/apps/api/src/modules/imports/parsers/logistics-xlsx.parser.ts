@@ -6,11 +6,15 @@ export type LogisticsTier = {
   minPallets?: number;
   maxPallets?: number;
   maxBoxes?: number;
+  pricingMode: LogisticsPricingMode;
 };
+
+export type LogisticsPricingMode = 'TOTAL' | 'PER_PALLET' | 'MANUAL_REVIEW';
 
 export type LogisticsDirection = {
   origin: string;
   destination: string;
+  pricingMode: LogisticsPricingMode;
   tiers: LogisticsTier[];
 };
 
@@ -50,6 +54,7 @@ export function parseLogisticsTariffSheet(rows: SheetMatrix) {
       current = {
         origin,
         destination: cleanDestination(label),
+        pricingMode: directionPricingMode(label),
         tiers: [],
       };
       directions.push(current);
@@ -70,6 +75,7 @@ export function parseLogisticsTariffSheet(rows: SheetMatrix) {
     current.tiers.push({
       label,
       priceRub,
+      pricingMode: tierPricingMode(label, current.pricingMode),
       ...parseTierLabel(label),
     });
   });
@@ -119,6 +125,15 @@ function parseTierLabel(label: string) {
 
 function cleanDestination(label: string) {
   return label.replace(/\(цена за паллет\)/gi, '').trim();
+}
+
+function directionPricingMode(label: string): LogisticsPricingMode {
+  return label.toLowerCase().includes('цена за паллет') ? 'PER_PALLET' : 'MANUAL_REVIEW';
+}
+
+function tierPricingMode(label: string, parentMode: LogisticsPricingMode): LogisticsPricingMode {
+  // Русский комментарий: коробочные строки считаем полной стоимостью, а паллетные строки наследуют режим из заголовка направления.
+  return label.toLowerCase().includes('шт') ? 'TOTAL' : parentMode;
 }
 
 function parsePrice(value: string) {

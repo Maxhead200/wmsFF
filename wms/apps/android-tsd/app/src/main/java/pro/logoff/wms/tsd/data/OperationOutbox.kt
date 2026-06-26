@@ -18,12 +18,28 @@ data class OperationOutboxCounts(
 )
 
 class OperationOutbox(private val dao: OperationDao) {
-    suspend fun enqueueScan(barcode: String): PendingOperation {
-        // Русский комментарий: receipt_scan складываем локально, чтобы ТСД работал без связи и синхронизировался позже.
+    suspend fun enqueueReceipt(
+        clientId: String,
+        barcode: String,
+        boxCode: String,
+        quantity: Int,
+        status: String?,
+        sourceDocument: String?,
+        comment: String?,
+    ): PendingOperation {
         val operation = PendingOperation(
             operationKey = UUID.randomUUID().toString(),
             operationType = "receipt_scan",
-            payload = mapOf("barcode" to barcode),
+            // Русский комментарий: payload совпадает с backend DTO, чтобы offline outbox не требовал трансформаций при sync.
+            payload = compactPayload(
+                "clientId" to clientId,
+                "barcode" to barcode,
+                "boxCode" to boxCode,
+                "quantity" to quantity.toString(),
+                "status" to status,
+                "sourceDocument" to sourceDocument,
+                "comment" to comment,
+            ),
             createdAt = System.currentTimeMillis(),
         )
         dao.insert(OperationEntity.fromPending(operation))
@@ -36,17 +52,44 @@ class OperationOutbox(private val dao: OperationDao) {
         fromBoxCode: String,
         toBoxCode: String,
         quantity: Int,
+        status: String?,
+        comment: String?,
     ): PendingOperation {
         val operation = PendingOperation(
             operationKey = UUID.randomUUID().toString(),
             operationType = "move_scan",
             // Русский комментарий: payload совпадает с backend DTO, чтобы offline outbox не требовал трансформаций при sync.
-            payload = mapOf(
+            payload = compactPayload(
                 "clientId" to clientId,
                 "barcode" to barcode,
                 "fromBoxCode" to fromBoxCode,
                 "toBoxCode" to toBoxCode,
                 "quantity" to quantity.toString(),
+                "status" to status,
+                "comment" to comment,
+            ),
+            createdAt = System.currentTimeMillis(),
+        )
+        dao.insert(OperationEntity.fromPending(operation))
+        return operation
+    }
+
+    suspend fun enqueueInventory(
+        clientId: String,
+        barcode: String,
+        boxCode: String,
+        countedQuantity: Int,
+        status: String?,
+    ): PendingOperation {
+        val operation = PendingOperation(
+            operationKey = UUID.randomUUID().toString(),
+            operationType = "inventory_scan",
+            payload = compactPayload(
+                "clientId" to clientId,
+                "barcode" to barcode,
+                "boxCode" to boxCode,
+                "countedQuantity" to countedQuantity.toString(),
+                "status" to status,
             ),
             createdAt = System.currentTimeMillis(),
         )
@@ -81,4 +124,10 @@ class OperationOutbox(private val dao: OperationDao) {
             pending = dao.countByStatus(OperationStatus.PENDING.name),
             rejected = dao.countByStatus(OperationStatus.REJECTED.name),
         )
+
+    private fun compactPayload(vararg pairs: Pair<String, String?>): Map<String, String> =
+        pairs.mapNotNull { (key, value) ->
+            val normalized = value?.trim()
+            if (normalized.isNullOrEmpty()) null else key to normalized
+        }.toMap()
 }

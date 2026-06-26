@@ -6,7 +6,7 @@
 
 - `apps/api` - NestJS API, Prisma-схема, авторизация/RBAC, клиентские заявки, биллинг услуг/хранения/счетов/оплат, импорты XLSX, логистические тарифы, stock ledger, печать TSC и API для ТСД.
 - `apps/web` - React/Vite интерфейс оператора/администратора с картой модулей.
-- `apps/android-tsd` - Kotlin native Android-ТСД с Room outbox и batch-синхронизацией.
+- `apps/android-tsd` - Kotlin native Android-ТСД с Room outbox, batch-синхронизацией и режимами приемки, перемещения и инвентаризации. Debug APK собирается командой `gradle :app:assembleDebug` из папки приложения.
 - `infra` - Docker Compose, Nginx и скрипт бэкапа PostgreSQL.
 - `docs` - архитектура, модули и созданные отдельные чаты по модулям.
 

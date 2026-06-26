@@ -133,17 +133,62 @@
 
 .client-request-xlsx-line {
   display: grid;
-  gap: 3px;
+  grid-template-columns: minmax(0, 1fr) 86px 36px;
+  gap: 5px 8px;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: #ffffff;
   padding: 9px;
 }
 
+.client-request-xlsx-line--shortage,
+.client-request-items-grid__row--shortage {
+  border-color: rgb(220 38 38 / 0.45);
+  background: #fff1f2;
+}
+
+.client-request-xlsx-line--reserved,
+.client-request-items-grid__row--reserved {
+  border-color: rgb(37 99 235 / 0.42);
+  background: #eff6ff;
+}
+
+.client-request-xlsx-line--ok,
+.client-request-items-grid__row--ok {
+  border-color: rgb(22 163 74 / 0.28);
+  background: #ffffff;
+}
+
 .client-request-xlsx-line strong,
 .client-request-xlsx-line span,
 .client-request-xlsx-line small {
   overflow-wrap: anywhere;
+}
+
+.client-request-xlsx-line strong,
+.client-request-xlsx-line span,
+.client-request-xlsx-line small {
+  grid-column: 1;
+}
+
+.client-request-xlsx-line input {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  width: 100%;
+  min-height: 34px;
+  align-self: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--ink);
+  padding: 0 8px;
+  font: inherit;
+}
+
+.client-request-xlsx-line .client-request-row-remove {
+  grid-column: 3;
+  grid-row: 1 / span 3;
+  align-self: center;
 }
 
 .client-request-xlsx-line span,
@@ -237,6 +282,19 @@
 .client-request-items-grid__row input {
   min-height: 36px;
   padding: 0 9px;
+}
+
+.client-request-items-grid__row {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 6px;
+}
+
+.client-request-item-availability {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .client-request-row-remove {

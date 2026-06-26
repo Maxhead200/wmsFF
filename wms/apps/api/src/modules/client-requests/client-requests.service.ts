@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { ClientNotificationEvent, ClientRequestEventType, ClientRequestStatus, Prisma } from '@prisma/client';
+import { ClientNotificationEvent, ClientRequestEventType, ClientRequestStatus, ClientRequestType, Prisma, StockStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
@@ -8,6 +8,7 @@ import { clientRequestFileSummarySelect } from './client-request-files.service';
 import { clientRequestPackageInclude } from './client-request-packages.include';
 import { CreateClientRequestDto } from './dto/create-client-request.dto';
 import { ListClientRequestsDto } from './dto/list-client-requests.dto';
+import { PreviewClientRequestAvailabilityDto } from './dto/preview-client-request-availability.dto';
 import { UpdateClientRequestStatusDto } from './dto/update-client-request-status.dto';
 
 @Injectable()
@@ -44,6 +45,81 @@ export class ClientRequestsService {
 
     this.clientScopes.requireClientAccess(user, request.clientId, 'read');
     return request;
+  }
+
+  async previewAvailability(dto: PreviewClientRequestAvailabilityDto, user: AuthUser): Promise<ClientRequestAvailabilityPreview> {
+    this.clientScopes.requireClientAccess(user, dto.clientId, 'write');
+    const items = dto.items ?? [];
+
+    if (dto.type !== ClientRequestType.OUTBOUND || items.length === 0) {
+      return {
+        clientId: dto.clientId,
+        type: dto.type,
+        canCommit: true,
+        summary: {
+          lines: items.length,
+          requestedQuantity: items.reduce((sum, item) => sum + item.quantity, 0),
+          stockQuantity: 0,
+          reservedQuantity: 0,
+          availableQuantity: 0,
+          shortageQuantity: 0,
+          conflictsCount: 0,
+        },
+        lines: items.map((item, index) => this.nonOutboundAvailabilityLine(item, index)),
+      };
+    }
+
+    const resolved = await this.resolveAvailabilityItems(dto.clientId, items);
+    const skuIds = [...new Set(resolved.map((line) => line.skuId).filter(Boolean))] as string[];
+    const barcodes = [...new Set(resolved.map((line) => line.barcode).filter(Boolean))] as string[];
+    const stockBySkuId = await this.stockQuantityBySkuId(dto.clientId, skuIds);
+    const reservationsBySkuId = await this.activeReservationBySkuId(dto.clientId, skuIds, barcodes);
+
+    const lines = resolved.map((line) => {
+      if (!line.skuId) {
+        return {
+          ...line,
+          stockQuantity: 0,
+          reservedQuantity: 0,
+          availableQuantity: 0,
+          shortageQuantity: line.requestedQuantity,
+          canFulfill: false,
+          conflicts: [],
+        };
+      }
+
+      const stockQuantity = stockBySkuId.get(line.skuId) ?? 0;
+      const reservation = reservationsBySkuId.get(line.skuId);
+      const reservedQuantity = reservation?.quantity ?? 0;
+      const availableQuantity = Math.max(0, stockQuantity - reservedQuantity);
+      const shortageQuantity = Math.max(0, line.requestedQuantity - availableQuantity);
+
+      return {
+        ...line,
+        stockQuantity,
+        reservedQuantity,
+        availableQuantity,
+        shortageQuantity,
+        canFulfill: shortageQuantity === 0,
+        conflicts: reservation?.requests ?? [],
+      };
+    });
+
+    return {
+      clientId: dto.clientId,
+      type: dto.type,
+      canCommit: lines.every((line) => line.canFulfill),
+      summary: {
+        lines: lines.length,
+        requestedQuantity: lines.reduce((sum, line) => sum + line.requestedQuantity, 0),
+        stockQuantity: lines.reduce((sum, line) => sum + Math.min(line.stockQuantity, line.requestedQuantity), 0),
+        reservedQuantity: lines.reduce((sum, line) => sum + Math.min(line.reservedQuantity, line.requestedQuantity), 0),
+        availableQuantity: lines.reduce((sum, line) => sum + Math.min(line.availableQuantity, line.requestedQuantity), 0),
+        shortageQuantity: lines.reduce((sum, line) => sum + line.shortageQuantity, 0),
+        conflictsCount: lines.filter((line) => line.conflicts.length > 0).length,
+      },
+      lines,
+    };
   }
 
   async create(dto: CreateClientRequestDto, user: AuthUser) {
@@ -170,7 +246,221 @@ export class ClientRequestsService {
       throw new BadRequestException('Одна или несколько SKU в заявке не принадлежат выбранному клиенту.');
     }
   }
+
+  private nonOutboundAvailabilityLine(
+    item: { skuId?: string; barcode?: string; name?: string; quantity: number },
+    index: number,
+  ): ClientRequestAvailabilityLine {
+    return {
+      index,
+      skuId: normalizeText(item.skuId) ?? null,
+      internalSku: null,
+      name: normalizeText(item.name) ?? null,
+      barcode: normalizeText(item.barcode) ?? null,
+      requestedQuantity: item.quantity,
+      stockQuantity: 0,
+      reservedQuantity: 0,
+      availableQuantity: item.quantity,
+      shortageQuantity: 0,
+      canFulfill: true,
+      conflicts: [],
+    };
+  }
+
+  private async resolveAvailabilityItems(
+    clientId: string,
+    items: Array<{ skuId?: string; barcode?: string; name?: string; quantity: number }>,
+  ): Promise<Array<Omit<ClientRequestAvailabilityLine, 'stockQuantity' | 'reservedQuantity' | 'availableQuantity' | 'shortageQuantity' | 'canFulfill' | 'conflicts'>>> {
+    const skuIds = [...new Set(items.map((item) => normalizeText(item.skuId)).filter(Boolean))] as string[];
+    const barcodes = [...new Set(items.map((item) => normalizeText(item.barcode)).filter(Boolean))] as string[];
+    const [skus, barcodeRows] = await Promise.all([
+      skuIds.length
+        ? this.prisma.sku.findMany({
+            where: { id: { in: skuIds }, clientId },
+            select: { id: true, internalSku: true, name: true },
+          })
+        : Promise.resolve([]),
+      barcodes.length
+        ? this.prisma.barcode.findMany({
+            where: { value: { in: barcodes }, sku: { clientId } },
+            include: { sku: { select: { id: true, internalSku: true, name: true } } },
+          })
+        : Promise.resolve([]),
+    ]);
+    const skuById = new Map(skus.map((sku) => [sku.id, sku]));
+    const barcodeByValue = new Map(barcodeRows.map((row) => [row.value, row]));
+
+    return items.map((item, index) => {
+      const barcode = normalizeText(item.barcode) ?? null;
+      const sku = (item.skuId ? skuById.get(item.skuId) : null) ?? (barcode ? barcodeByValue.get(barcode)?.sku : null);
+
+      return {
+        index,
+        skuId: sku?.id ?? null,
+        internalSku: sku?.internalSku ?? null,
+        name: sku?.name ?? normalizeText(item.name) ?? null,
+        barcode,
+        requestedQuantity: item.quantity,
+      };
+    });
+  }
+
+  private async stockQuantityBySkuId(clientId: string, skuIds: string[]) {
+    if (skuIds.length === 0) {
+      return new Map<string, number>();
+    }
+
+    const stockRows = await this.prisma.stockBalance.groupBy({
+      by: ['skuId'],
+      where: {
+        clientId,
+        skuId: { in: skuIds },
+        status: StockStatus.AVAILABLE,
+        quantity: { gt: 0 },
+      },
+      _sum: { quantity: true },
+    });
+
+    return new Map(stockRows.map((row) => [row.skuId, Number(row._sum.quantity ?? 0)]));
+  }
+
+  private async activeReservationBySkuId(clientId: string, skuIds: string[], barcodes: string[]) {
+    const empty = new Map<string, { quantity: number; requests: ClientRequestAvailabilityConflict[] }>();
+    if (skuIds.length === 0 && barcodes.length === 0) {
+      return empty;
+    }
+
+    const requests = await this.prisma.clientRequest.findMany({
+      where: {
+        clientId,
+        type: ClientRequestType.OUTBOUND,
+        status: { in: activeRequestStatuses },
+        items: {
+          some: {
+            OR: [
+              ...(skuIds.length ? [{ skuId: { in: skuIds } }] : []),
+              ...(barcodes.length ? [{ barcode: { in: barcodes } }] : []),
+            ],
+          },
+        },
+      },
+      select: {
+        id: true,
+        title: true,
+        type: true,
+        status: true,
+        createdAt: true,
+        desiredDate: true,
+        items: {
+          where: {
+            OR: [
+              ...(skuIds.length ? [{ skuId: { in: skuIds } }] : []),
+              ...(barcodes.length ? [{ barcode: { in: barcodes } }] : []),
+            ],
+          },
+          select: {
+            skuId: true,
+            barcode: true,
+            quantity: true,
+          },
+        },
+      },
+    });
+    const barcodeToSkuId = await this.barcodeToSkuId(clientId, barcodes);
+    const result = new Map<string, { quantity: number; requests: ClientRequestAvailabilityConflict[] }>();
+
+    requests.forEach((request) => {
+      request.items.forEach((item) => {
+        const skuId = item.skuId ?? (item.barcode ? barcodeToSkuId.get(item.barcode) : undefined);
+        if (!skuId) {
+          return;
+        }
+
+        const current = result.get(skuId) ?? { quantity: 0, requests: [] };
+        current.quantity += item.quantity;
+        const conflict = current.requests.find((entry) => entry.requestId === request.id);
+        if (conflict) {
+          conflict.quantity += item.quantity;
+        } else {
+          current.requests.push({
+            requestId: request.id,
+            title: request.title,
+            type: request.type,
+            status: request.status,
+            createdAt: request.createdAt.toISOString(),
+            desiredDate: request.desiredDate?.toISOString() ?? null,
+            quantity: item.quantity,
+          });
+        }
+        result.set(skuId, current);
+      });
+    });
+
+    return result;
+  }
+
+  private async barcodeToSkuId(clientId: string, barcodes: string[]) {
+    if (barcodes.length === 0) {
+      return new Map<string, string>();
+    }
+
+    const rows = await this.prisma.barcode.findMany({
+      where: { value: { in: barcodes }, sku: { clientId } },
+      select: { value: true, skuId: true },
+    });
+
+    return new Map(rows.map((row) => [row.value, row.skuId]));
+  }
 }
+
+export type ClientRequestAvailabilityConflict = {
+  requestId: string;
+  title: string;
+  type: ClientRequestType;
+  status: ClientRequestStatus;
+  createdAt: string;
+  desiredDate: string | null;
+  quantity: number;
+};
+
+export type ClientRequestAvailabilityLine = {
+  index: number;
+  skuId: string | null;
+  internalSku: string | null;
+  name: string | null;
+  barcode: string | null;
+  requestedQuantity: number;
+  stockQuantity: number;
+  reservedQuantity: number;
+  availableQuantity: number;
+  shortageQuantity: number;
+  canFulfill: boolean;
+  conflicts: ClientRequestAvailabilityConflict[];
+};
+
+export type ClientRequestAvailabilityPreview = {
+  clientId: string;
+  type: ClientRequestType;
+  canCommit: boolean;
+  summary: {
+    lines: number;
+    requestedQuantity: number;
+    stockQuantity: number;
+    reservedQuantity: number;
+    availableQuantity: number;
+    shortageQuantity: number;
+    conflictsCount: number;
+  };
+  lines: ClientRequestAvailabilityLine[];
+};
+
+const activeRequestStatuses = [
+  ClientRequestStatus.SUBMITTED,
+  ClientRequestStatus.IN_REVIEW,
+  ClientRequestStatus.APPROVED,
+  ClientRequestStatus.IN_WORK,
+  ClientRequestStatus.PACKED,
+];
 
 const clientRequestInclude = {
   client: {

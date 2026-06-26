@@ -580,6 +580,8 @@ export type OutboundRequestXlsxIssue = {
 export type OutboundRequestXlsxLine = {
   barcode: string;
   requestedQuantity: number;
+  stockQuantity: number;
+  reservedQuantity: number;
   availableQuantity: number;
   shortageQuantity: number;
   sourceRows: number[];
@@ -587,6 +589,7 @@ export type OutboundRequestXlsxLine = {
   internalSku: string | null;
   name: string | null;
   canFulfill: boolean;
+  conflicts: ClientRequestAvailabilityConflict[];
 };
 
 export type OutboundRequestXlsxPreview = {
@@ -607,6 +610,47 @@ export type OutboundRequestXlsxPreview = {
 export type CommitOutboundRequestXlsxResult = {
   request: ClientRequestSummary;
   preview: OutboundRequestXlsxPreview;
+};
+
+export type ClientRequestAvailabilityConflict = {
+  requestId: string;
+  title: string;
+  type: ClientRequestType;
+  status: ClientRequestStatus;
+  createdAt: string;
+  desiredDate: string | null;
+  quantity: number;
+};
+
+export type ClientRequestAvailabilityLine = {
+  index: number;
+  skuId: string | null;
+  internalSku: string | null;
+  name: string | null;
+  barcode: string | null;
+  requestedQuantity: number;
+  stockQuantity: number;
+  reservedQuantity: number;
+  availableQuantity: number;
+  shortageQuantity: number;
+  canFulfill: boolean;
+  conflicts: ClientRequestAvailabilityConflict[];
+};
+
+export type ClientRequestAvailabilityPreview = {
+  clientId: string;
+  type: ClientRequestType;
+  canCommit: boolean;
+  summary: {
+    lines: number;
+    requestedQuantity: number;
+    stockQuantity: number;
+    reservedQuantity: number;
+    availableQuantity: number;
+    shortageQuantity: number;
+    conflictsCount: number;
+  };
+  lines: ClientRequestAvailabilityLine[];
 };
 
 export type ClientRequestPackageItem = {
@@ -782,6 +826,8 @@ export type CreateClientRequestPayload = {
     comment?: string;
   }>;
 };
+
+export type PreviewClientRequestAvailabilityPayload = Pick<CreateClientRequestPayload, 'clientId' | 'type' | 'items'>;
 
 export type OutboundRequestXlsxPayload = {
   file: File;
@@ -1810,6 +1856,17 @@ export async function createBillingPayment(accessToken: string, payload: CreateB
 
 export async function createClientRequest(accessToken: string, payload: CreateClientRequestPayload) {
   return request<ClientRequestSummary>('/client-requests', {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function previewClientRequestAvailability(
+  accessToken: string,
+  payload: PreviewClientRequestAvailabilityPayload,
+) {
+  return request<ClientRequestAvailabilityPreview>('/client-requests/availability-preview', {
     method: 'POST',
     body: payload,
     accessToken,

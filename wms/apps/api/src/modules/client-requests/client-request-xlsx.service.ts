@@ -1,10 +1,10 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { ClientRequestPriority, ClientRequestType, StockStatus } from '@prisma/client';
+import { ClientRequestPriority, ClientRequestType } from '@prisma/client';
 import * as XLSX from 'xlsx';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
-import { ClientRequestsService } from './client-requests.service';
+import { ClientRequestsService, type ClientRequestAvailabilityConflict } from './client-requests.service';
 import { ImportOutboundRequestXlsxDto } from './dto/import-outbound-request-xlsx.dto';
 import {
   parseOutboundRequestXlsxRows,
@@ -15,6 +15,8 @@ import {
 type HydratedOutboundLine = {
   barcode: string;
   requestedQuantity: number;
+  stockQuantity: number;
+  reservedQuantity: number;
   availableQuantity: number;
   shortageQuantity: number;
   sourceRows: number[];
@@ -22,6 +24,7 @@ type HydratedOutboundLine = {
   internalSku: string | null;
   name: string | null;
   canFulfill: boolean;
+  conflicts: ClientRequestAvailabilityConflict[];
 };
 
 type OutboundRequestXlsxPreview = {
@@ -122,26 +125,24 @@ export class ClientRequestXlsxService {
       barcodeMatches.set(row.value, [...(barcodeMatches.get(row.value) ?? []), row]);
     }
 
-    const resolvedSkuIds = [...new Set(barcodeRows.map((row) => row.skuId))];
-    const stockTotals = resolvedSkuIds.length
-      ? await this.prisma.stockBalance.groupBy({
-          by: ['skuId'],
-          where: {
-            clientId,
-            skuId: { in: resolvedSkuIds },
-            status: StockStatus.AVAILABLE,
-            quantity: { gt: 0 },
-          },
-          _sum: { quantity: true },
-        })
-      : [];
-    const availableBySkuId = new Map(stockTotals.map((row) => [row.skuId, row._sum.quantity ?? 0]));
+    const availability = await this.clientRequests.previewAvailability(
+      {
+        clientId,
+        type: ClientRequestType.OUTBOUND,
+        items: parsed.lines.map((line) => ({
+          barcode: line.barcode,
+          quantity: line.quantity,
+        })),
+      },
+      user,
+    );
     const issues = [...parsed.issues];
     const lines: HydratedOutboundLine[] = [];
 
-    for (const line of parsed.lines) {
+    for (const [lineIndex, line] of parsed.lines.entries()) {
       const matches = barcodeMatches.get(line.barcode) ?? [];
       const firstRow = line.sourceRows[0] ?? 1;
+      const availabilityLine = availability.lines[lineIndex];
 
       if (matches.length === 0) {
         issues.push({
@@ -166,14 +167,17 @@ export class ClientRequestXlsxService {
       }
 
       const match = matches[0];
-      const availableQuantity = availableBySkuId.get(match.skuId) ?? 0;
+      const stockQuantity = availabilityLine?.stockQuantity ?? 0;
+      const reservedQuantity = availabilityLine?.reservedQuantity ?? 0;
+      const availableQuantity = availabilityLine?.availableQuantity ?? 0;
       const shortageQuantity = Math.max(0, line.quantity - availableQuantity);
+      const conflicts = availabilityLine?.conflicts ?? [];
 
       if (shortageQuantity > 0) {
         issues.push({
           row: firstRow,
           barcode: line.barcode,
-          message: `Недостаточно доступного остатка: нужно ${line.quantity}, доступно ${availableQuantity}.`,
+          message: shortageMessage(line.quantity, availableQuantity, conflicts),
           severity: 'error',
         });
       }
@@ -181,6 +185,8 @@ export class ClientRequestXlsxService {
       lines.push({
         barcode: line.barcode,
         requestedQuantity: line.quantity,
+        stockQuantity,
+        reservedQuantity,
         availableQuantity,
         shortageQuantity,
         sourceRows: line.sourceRows,
@@ -188,6 +194,7 @@ export class ClientRequestXlsxService {
         internalSku: match.sku.internalSku,
         name: match.sku.name,
         canFulfill: shortageQuantity === 0,
+        conflicts,
       });
     }
 
@@ -228,6 +235,8 @@ export class ClientRequestXlsxService {
     return {
       barcode: line.barcode,
       requestedQuantity: line.quantity,
+      stockQuantity: 0,
+      reservedQuantity: 0,
       availableQuantity: 0,
       shortageQuantity: line.quantity,
       sourceRows: line.sourceRows,
@@ -235,6 +244,7 @@ export class ClientRequestXlsxService {
       internalSku: null,
       name: null,
       canFulfill: false,
+      conflicts: [],
     };
   }
 
@@ -280,6 +290,20 @@ function normalizeRequiredText(value: string | undefined, message: string) {
   }
 
   return normalized;
+}
+
+function shortageMessage(needed: number, available: number, conflicts: ClientRequestAvailabilityConflict[]) {
+  const base = `Недостаточно доступного остатка: нужно ${needed}, доступно ${available}.`;
+  if (conflicts.length === 0) {
+    return base;
+  }
+
+  const conflictText = conflicts
+    .slice(0, 3)
+    .map((conflict) => `${conflict.title} от ${new Date(conflict.createdAt).toLocaleDateString('ru-RU')} (${conflict.type})`)
+    .join('; ');
+
+  return `${base} Товар участвует в активной заявке: ${conflictText}.`;
 }
 
 function defaultTitle() {

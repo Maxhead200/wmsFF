@@ -6,15 +6,18 @@ import {
   parseClientRequestItemsText,
   type ClientRequestDraftItem,
 } from './clientRequestItems';
+import type { ClientRequestAvailabilityPreview } from '../../lib/api';
 
 type ClientRequestItemsEditorProps = {
   items: ClientRequestDraftItem[];
+  availability?: ClientRequestAvailabilityPreview | null;
   onChange: (items: ClientRequestDraftItem[]) => void;
   onError: (message: string | null) => void;
 };
 
-export function ClientRequestItemsEditor({ items, onChange, onError }: ClientRequestItemsEditorProps) {
+export function ClientRequestItemsEditor({ items, availability, onChange, onError }: ClientRequestItemsEditorProps) {
   const [pasteText, setPasteText] = useState('');
+  const availabilityByIndex = new Map((availability?.lines ?? []).map((line) => [line.index, line]));
 
   function updateItem(index: number, field: keyof ClientRequestDraftItem, value: string) {
     onChange(items.map((item, itemIndex) => (itemIndex === index ? { ...item, [field]: value } : item)));
@@ -72,42 +75,46 @@ export function ClientRequestItemsEditor({ items, onChange, onError }: ClientReq
           <span>Комментарий</span>
           <span />
         </div>
-        {items.map((item, index) => (
-          <div className="client-request-items-grid__row" key={index} role="row">
-            <input
-              aria-label={`Штрихкод позиции ${index + 1}`}
-              value={item.barcode}
-              onChange={(event) => updateItem(index, 'barcode', event.target.value)}
-            />
-            <input
-              aria-label={`Товар позиции ${index + 1}`}
-              value={item.name}
-              onChange={(event) => updateItem(index, 'name', event.target.value)}
-            />
-            <input
-              aria-label={`Количество позиции ${index + 1}`}
-              min="1"
-              type="number"
-              value={item.quantity}
-              onChange={(event) => updateItem(index, 'quantity', event.target.value)}
-            />
-            <input
-              aria-label={`Комментарий позиции ${index + 1}`}
-              value={item.comment}
-              onChange={(event) => updateItem(index, 'comment', event.target.value)}
-            />
-            <button
-              className="icon-button client-request-row-remove"
-              disabled={items.length === 1}
-              type="button"
-              onClick={() => removeItem(index)}
-              title="Удалить строку"
-              aria-label={`Удалить позицию ${index + 1}`}
-            >
-              <Trash2 size={15} aria-hidden="true" />
-            </button>
-          </div>
-        ))}
+        {items.map((item, index) => {
+          const line = availabilityByIndex.get(index);
+          return (
+            <div className={`client-request-items-grid__row ${availabilityClassName(line)}`} key={index} role="row">
+              <input
+                aria-label={`Штрихкод позиции ${index + 1}`}
+                value={item.barcode}
+                onChange={(event) => updateItem(index, 'barcode', event.target.value)}
+              />
+              <input
+                aria-label={`Товар позиции ${index + 1}`}
+                value={item.name}
+                onChange={(event) => updateItem(index, 'name', event.target.value)}
+              />
+              <input
+                aria-label={`Количество позиции ${index + 1}`}
+                min="1"
+                type="number"
+                value={item.quantity}
+                onChange={(event) => updateItem(index, 'quantity', event.target.value)}
+              />
+              <input
+                aria-label={`Комментарий позиции ${index + 1}`}
+                value={item.comment}
+                onChange={(event) => updateItem(index, 'comment', event.target.value)}
+              />
+              <button
+                className="icon-button client-request-row-remove"
+                disabled={items.length === 1}
+                type="button"
+                onClick={() => removeItem(index)}
+                title="Удалить строку"
+                aria-label={`Удалить позицию ${index + 1}`}
+              >
+                <Trash2 size={15} aria-hidden="true" />
+              </button>
+              {line ? <small className="client-request-item-availability">{availabilityText(line)}</small> : null}
+            </div>
+          );
+        })}
       </div>
 
       <div className="client-request-paste">
@@ -131,4 +138,35 @@ export function ClientRequestItemsEditor({ items, onChange, onError }: ClientReq
       </div>
     </section>
   );
+}
+
+function availabilityClassName(line: ClientRequestAvailabilityPreview['lines'][number] | undefined) {
+  if (!line) {
+    return '';
+  }
+
+  if (!line.canFulfill) {
+    return 'client-request-items-grid__row--shortage';
+  }
+
+  return line.conflicts.length > 0 ? 'client-request-items-grid__row--reserved' : 'client-request-items-grid__row--ok';
+}
+
+function availabilityText(line: ClientRequestAvailabilityPreview['lines'][number]) {
+  const conflictText = line.conflicts.length
+    ? ` Участвует в заявке: ${line.conflicts
+        .slice(0, 2)
+        .map((conflict) => `${conflict.title} от ${new Date(conflict.createdAt).toLocaleDateString('ru-RU')} (${conflict.type})`)
+        .join('; ')}.`
+    : '';
+
+  if (!line.skuId) {
+    return `Товар не найден в остатках клиента. Удалите строку или укажите другой штрихкод.`;
+  }
+
+  if (!line.canFulfill) {
+    return `Недостаточно: нужно ${line.requestedQuantity}, доступно ${line.availableQuantity}, занято ${line.reservedQuantity}.${conflictText}`;
+  }
+
+  return `Доступно ${line.availableQuantity}, занято ${line.reservedQuantity}.${conflictText}`;
 }

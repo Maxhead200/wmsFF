@@ -2,7 +2,9 @@ import { Send } from 'lucide-react';
 import { useMemo, useState, type FormEvent } from 'react';
 import {
   createClientRequest,
+  previewClientRequestAvailability,
   type AuthSession,
+  type ClientRequestAvailabilityPreview,
   type ClientRequestPriority,
   type ClientRequestSummary,
   type ClientRequestType,
@@ -36,6 +38,7 @@ export function ClientRequestCreateForm({ clients, session, onCreated }: ClientR
   const [contactPhone, setContactPhone] = useState('');
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [items, setItems] = useState<ClientRequestDraftItem[]>([emptyClientRequestItem()]);
+  const [availability, setAvailability] = useState<ClientRequestAvailabilityPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setSubmitting] = useState(false);
 
@@ -50,6 +53,18 @@ export function ClientRequestCreateForm({ clients, session, onCreated }: ClientR
 
     try {
       const requestItems = normalizeClientRequestItems(items);
+      const nextAvailability = await previewClientRequestAvailability(session.accessToken, {
+        clientId,
+        type,
+        items: requestItems.length > 0 ? requestItems : undefined,
+      });
+      setAvailability(nextAvailability);
+
+      if (!nextAvailability.canCommit) {
+        setError('Исправьте красные позиции: удалите строку крестиком или уменьшите количество до доступного остатка.');
+        return;
+      }
+
       const request = await createClientRequest(session.accessToken, {
         clientId,
         type,
@@ -69,6 +84,7 @@ export function ClientRequestCreateForm({ clients, session, onCreated }: ClientR
       setContactPhone('');
       setDeliveryAddress('');
       setItems([emptyClientRequestItem()]);
+      setAvailability(null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Не удалось создать заявку.');
     } finally {
@@ -81,7 +97,13 @@ export function ClientRequestCreateForm({ clients, session, onCreated }: ClientR
       <div className="client-request-fields">
         <label>
           <span>Клиент</span>
-          <select value={clientId} onChange={(event) => setClientId(event.target.value)}>
+          <select
+            value={clientId}
+            onChange={(event) => {
+              setClientId(event.target.value);
+              setAvailability(null);
+            }}
+          >
             {writableClients.map((client) => (
               <option key={client.id} value={client.id}>
                 {client.code} · {client.name}
@@ -92,7 +114,13 @@ export function ClientRequestCreateForm({ clients, session, onCreated }: ClientR
 
         <label>
           <span>Тип</span>
-          <select value={type} onChange={(event) => setType(event.target.value as ClientRequestType)}>
+          <select
+            value={type}
+            onChange={(event) => {
+              setType(event.target.value as ClientRequestType);
+              setAvailability(null);
+            }}
+          >
             {requestTypeOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -138,7 +166,15 @@ export function ClientRequestCreateForm({ clients, session, onCreated }: ClientR
         </label>
       </div>
 
-      <ClientRequestItemsEditor items={items} onChange={setItems} onError={setError} />
+      <ClientRequestItemsEditor
+        items={items}
+        availability={availability}
+        onChange={(nextItems) => {
+          setItems(nextItems);
+          setAvailability(null);
+        }}
+        onError={setError}
+      />
 
       {error ? <p className="form-error">{error}</p> : null}
 

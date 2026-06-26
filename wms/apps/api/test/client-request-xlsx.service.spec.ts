@@ -22,14 +22,38 @@ describe('ClientRequestXlsxService', () => {
           },
         ]),
       },
-      stockBalance: {
-        groupBy: vi.fn().mockResolvedValue([
-          { skuId: 'sku-1', _sum: { quantity: 5 } },
-          { skuId: 'sku-2', _sum: { quantity: 1 } },
-        ]),
-      },
     };
-    const service = new ClientRequestXlsxService(prisma as never, new ClientScopeService(), { create: vi.fn() } as never);
+    const service = new ClientRequestXlsxService(
+      prisma as never,
+      new ClientScopeService(),
+      {
+        create: vi.fn(),
+        previewAvailability: vi.fn().mockResolvedValue({
+          lines: [
+            availabilityLine({ index: 0, skuId: 'sku-1', requestedQuantity: 4, stockQuantity: 5, availableQuantity: 5 }),
+            availabilityLine({
+              index: 1,
+              skuId: 'sku-2',
+              requestedQuantity: 2,
+              stockQuantity: 3,
+              reservedQuantity: 2,
+              availableQuantity: 1,
+              conflicts: [
+                {
+                  requestId: 'request-active',
+                  title: 'Заявка 42',
+                  type: 'OUTBOUND',
+                  status: 'IN_WORK',
+                  createdAt: '2026-06-25T10:00:00.000Z',
+                  desiredDate: null,
+                  quantity: 2,
+                },
+              ],
+            }),
+          ],
+        }),
+      } as never,
+    );
 
     const preview = await service.previewOutboundRequest(
       fileFixture([
@@ -44,6 +68,7 @@ describe('ClientRequestXlsxService', () => {
     expect(preview.canCommit).toBe(false);
     expect(preview.summary).toMatchObject({ lines: 2, totalQuantity: 6, availableQuantity: 5, shortageQuantity: 1 });
     expect(preview.lines[0]).toMatchObject({ skuId: 'sku-1', requestedQuantity: 4, availableQuantity: 5, canFulfill: true });
+    expect(preview.lines[1].conflicts[0]).toMatchObject({ requestId: 'request-active', title: 'Заявка 42' });
     expect(preview.issues).toContainEqual(
       expect.objectContaining({ barcode: '460000000002', severity: 'error', message: expect.stringContaining('Недостаточно') }),
     );
@@ -52,6 +77,9 @@ describe('ClientRequestXlsxService', () => {
   it('создает outbound-заявку из валидного Excel-файла', async () => {
     const clientRequests = {
       create: vi.fn().mockResolvedValue({ id: 'request-1', title: 'Excel сборка' }),
+      previewAvailability: vi.fn().mockResolvedValue({
+        lines: [availabilityLine({ index: 0, skuId: 'sku-1', requestedQuantity: 3, stockQuantity: 7, availableQuantity: 7 })],
+      }),
     };
     const prisma = {
       barcode: {
@@ -62,9 +90,6 @@ describe('ClientRequestXlsxService', () => {
             sku: { id: 'sku-1', internalSku: 'BAR-001', name: 'Товар 1' },
           },
         ]),
-      },
-      stockBalance: {
-        groupBy: vi.fn().mockResolvedValue([{ skuId: 'sku-1', _sum: { quantity: 7 } }]),
       },
     };
     const service = new ClientRequestXlsxService(prisma as never, new ClientScopeService(), clientRequests as never);
@@ -115,6 +140,41 @@ function fileFixture(rows: unknown[][], originalname = 'request.xlsx'): Express.
     destination: '',
     filename: originalname,
     path: '',
+  };
+}
+
+function availabilityLine(overrides: {
+  index: number;
+  skuId: string;
+  requestedQuantity: number;
+  stockQuantity: number;
+  reservedQuantity?: number;
+  availableQuantity: number;
+  conflicts?: Array<{
+    requestId: string;
+    title: string;
+    type: 'OUTBOUND';
+    status: 'IN_WORK';
+    createdAt: string;
+    desiredDate: string | null;
+    quantity: number;
+  }>;
+}) {
+  const shortageQuantity = Math.max(0, overrides.requestedQuantity - overrides.availableQuantity);
+
+  return {
+    index: overrides.index,
+    skuId: overrides.skuId,
+    internalSku: null,
+    name: null,
+    barcode: null,
+    requestedQuantity: overrides.requestedQuantity,
+    stockQuantity: overrides.stockQuantity,
+    reservedQuantity: overrides.reservedQuantity ?? 0,
+    availableQuantity: overrides.availableQuantity,
+    shortageQuantity,
+    canFulfill: shortageQuantity === 0,
+    conflicts: overrides.conflicts ?? [],
   };
 }
 

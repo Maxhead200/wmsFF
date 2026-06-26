@@ -1,12 +1,13 @@
-import { AlertTriangle, CheckCircle2, FileSpreadsheet, Send, Upload } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, FileSpreadsheet, Send, Trash2, Upload } from 'lucide-react';
 import { useMemo, useState, type FormEvent } from 'react';
 import {
-  commitOutboundRequestXlsx,
+  createClientRequest,
   previewOutboundRequestXlsx,
   type AuthSession,
   type ClientRequestPriority,
   type ClientRequestSummary,
   type ClientSummary,
+  type OutboundRequestXlsxLine,
   type OutboundRequestXlsxPreview,
 } from '../../lib/api';
 import { requestPriorityOptions } from './clientRequestMeta';
@@ -33,6 +34,7 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
   const [file, setFile] = useState<File | null>(null);
   const [fileInputKey, setFileInputKey] = useState(0);
   const [preview, setPreview] = useState<OutboundRequestXlsxPreview | null>(null);
+  const [editableLines, setEditableLines] = useState<EditableXlsxLine[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [isPreviewing, setPreviewing] = useState(false);
@@ -62,6 +64,7 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
         desiredDate: desiredDate || undefined,
       });
       setPreview(nextPreview);
+      setEditableLines(nextPreview.lines.map((line, index) => ({ ...line, key: `${line.barcode}-${index}` })));
       setMessage(nextPreview.canCommit ? 'Файл готов к созданию заявки.' : 'Файл требует исправлений.');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Не удалось проверить файл.');
@@ -71,8 +74,9 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
   }
 
   async function createRequest() {
-    if (!file) {
-      setError('Выберите Excel-файл.');
+    const validLines = editableLines.filter((line) => line.skuId && adjustedCanFulfill(line));
+    if (!file || !preview || validLines.length === 0) {
+      setError('Исправьте позиции перед созданием заявки.');
       return;
     }
 
@@ -81,20 +85,29 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
     setMessage('');
 
     try {
-      const result = await commitOutboundRequestXlsx(session.accessToken, {
-        file,
+      const request = await createClientRequest(session.accessToken, {
         clientId,
-        title: title || undefined,
+        type: 'OUTBOUND',
         priority,
+        title: title || preview.title,
+        comment: `Создано из Excel: ${file.name}. Позиций: ${validLines.length}, количество: ${validLines.reduce((sum, line) => sum + line.requestedQuantity, 0)}.`,
         desiredDate: desiredDate || undefined,
+        items: validLines.map((line) => ({
+          skuId: line.skuId ?? undefined,
+          barcode: line.barcode,
+          name: line.name ?? undefined,
+          quantity: line.requestedQuantity,
+          comment: `Excel rows: ${line.sourceRows.join(', ')}`,
+        })),
       });
-      onCreated(result.request);
+      onCreated(request);
       setTitle('');
       setDesiredDate('');
       setFile(null);
       setPreview(null);
+      setEditableLines([]);
       setFileInputKey((current) => current + 1);
-      setMessage(`Заявка ${result.request.title} создана.`);
+      setMessage(`Заявка ${request.title} создана.`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Не удалось создать заявку из файла.');
     } finally {
@@ -103,7 +116,7 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
   }
 
   const issues = preview?.issues ?? [];
-  const hasErrors = issues.some((issue) => issue.severity === 'error');
+  const hasBlockingLines = editableLines.some((line) => !adjustedCanFulfill(line));
 
   return (
     <form className="client-request-xlsx-form" onSubmit={(event) => void previewFile(event)}>
@@ -153,6 +166,7 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
             onChange={(event) => {
               setFile(event.target.files?.[0] ?? null);
               setPreview(null);
+              setEditableLines([]);
               setMessage('');
             }}
           />
@@ -162,10 +176,10 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
       {preview ? (
         <div className="client-request-xlsx-preview">
           <div className="client-request-xlsx-summary">
-            <span>{preview.summary.lines} SKU</span>
-            <span>{preview.summary.totalQuantity} шт.</span>
-            <span>{preview.summary.availableQuantity} доступно</span>
-            <span>{preview.summary.shortageQuantity} дефицит</span>
+            <span>{editableLines.length} SKU</span>
+            <span>{editableLines.reduce((sum, line) => sum + line.requestedQuantity, 0)} шт.</span>
+            <span>{editableLines.reduce((sum, line) => sum + Math.min(line.availableQuantity, line.requestedQuantity), 0)} доступно</span>
+            <span>{editableLines.reduce((sum, line) => sum + adjustedShortage(line), 0)} дефицит</span>
           </div>
 
           {issues.length ? (
@@ -182,13 +196,27 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
           ) : null}
 
           <div className="client-request-xlsx-lines">
-            {preview.lines.slice(0, 8).map((line) => (
-              <div key={line.barcode} className="client-request-xlsx-line">
+            {editableLines.map((line, index) => (
+              <div key={line.key} className={`client-request-xlsx-line ${xlsxLineClassName(line)}`}>
                 <strong>{line.internalSku ?? line.barcode}</strong>
                 <span>{line.name ?? line.barcode}</span>
-                <small>
-                  {line.requestedQuantity} / {line.availableQuantity}
-                </small>
+                <input
+                  min="1"
+                  type="number"
+                  value={line.requestedQuantity}
+                  onChange={(event) => updateEditableLine(index, Number(event.target.value))}
+                  aria-label={`Количество ${line.internalSku ?? line.barcode}`}
+                />
+                <small>{xlsxLineText(line)}</small>
+                <button
+                  className="icon-button client-request-row-remove"
+                  type="button"
+                  onClick={() => removeEditableLine(index)}
+                  title="Удалить строку"
+                  aria-label={`Удалить ${line.internalSku ?? line.barcode}`}
+                >
+                  <Trash2 size={15} aria-hidden="true" />
+                </button>
               </div>
             ))}
           </div>
@@ -209,7 +237,7 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
         </button>
         <button
           className="primary-button"
-          disabled={isCommitting || !file || !preview || hasErrors}
+          disabled={isCommitting || !file || !preview || hasBlockingLines || editableLines.length === 0}
           type="button"
           onClick={() => void createRequest()}
         >
@@ -219,4 +247,54 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
       </div>
     </form>
   );
+
+  function updateEditableLine(index: number, quantity: number) {
+    const normalized = Number.isFinite(quantity) && quantity > 0 ? Math.floor(quantity) : 1;
+    setEditableLines((current) =>
+      current.map((line, lineIndex) => (lineIndex === index ? { ...line, requestedQuantity: normalized } : line)),
+    );
+  }
+
+  function removeEditableLine(index: number) {
+    setEditableLines((current) => current.filter((_, lineIndex) => lineIndex !== index));
+  }
+}
+
+type EditableXlsxLine = OutboundRequestXlsxLine & {
+  key: string;
+};
+
+function adjustedShortage(line: EditableXlsxLine) {
+  return Math.max(0, line.requestedQuantity - line.availableQuantity);
+}
+
+function adjustedCanFulfill(line: EditableXlsxLine) {
+  return Boolean(line.skuId) && adjustedShortage(line) === 0;
+}
+
+function xlsxLineClassName(line: EditableXlsxLine) {
+  if (!adjustedCanFulfill(line)) {
+    return 'client-request-xlsx-line--shortage';
+  }
+
+  return line.conflicts.length > 0 ? 'client-request-xlsx-line--reserved' : 'client-request-xlsx-line--ok';
+}
+
+function xlsxLineText(line: EditableXlsxLine) {
+  const conflictText = line.conflicts.length
+    ? ` Участвует в заявке: ${line.conflicts
+        .slice(0, 2)
+        .map((conflict) => `${conflict.title} от ${new Date(conflict.createdAt).toLocaleDateString('ru-RU')} (${conflict.type})`)
+        .join('; ')}.`
+    : '';
+
+  if (!line.skuId) {
+    return 'Товар отсутствует. Удалите строку.';
+  }
+
+  if (!adjustedCanFulfill(line)) {
+    return `Нужно ${line.requestedQuantity}, доступно ${line.availableQuantity}, занято ${line.reservedQuantity}.${conflictText}`;
+  }
+
+  return `Доступно ${line.availableQuantity}, занято ${line.reservedQuantity}.${conflictText}`;
 }

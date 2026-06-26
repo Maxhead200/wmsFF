@@ -10,8 +10,9 @@ export function buildPickWaveWorkbook(document: PickWaveDocumentPayload) {
 
   // Русский комментарий: лист волны нужен для batch picking, поэтому разделяем сводку, маршрут и контроль проблем.
   XLSX.utils.book_append_sheet(workbook, sheetFromRows(summaryRows(document), [24, 46]), 'Сводка');
-  XLSX.utils.book_append_sheet(workbook, sheetFromRows(routeRows(document), [5, 7, 18, 22, 16, 18, 34, 18, 12, 12, 18, 22, 34]), 'Маршрут');
-  XLSX.utils.book_append_sheet(workbook, sheetFromRows(boxRows(document), [20, 18, 16, 14, 14, 14, 42]), 'Короба');
+  XLSX.utils.book_append_sheet(workbook, sheetFromRows(routeRows(document), [5, 7, 18, 22, 16, 18, 18, 34, 18, 12, 12, 18, 22, 34]), 'Маршрут');
+  XLSX.utils.book_append_sheet(workbook, sheetFromRows(zoneRows(document), [18, 28, 16, 14, 14, 18, 42]), 'Зоны');
+  XLSX.utils.book_append_sheet(workbook, sheetFromRows(boxRows(document), [18, 20, 18, 16, 14, 14, 14, 42]), 'Короба');
   XLSX.utils.book_append_sheet(workbook, sheetFromRows(problemRows(document), [7, 18, 22, 16, 18, 34, 12, 12, 12, 42]), 'Проблемы');
 
   return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
@@ -45,7 +46,7 @@ function summaryRows(document: PickWaveDocumentPayload): CellValue[][] {
 
 function routeRows(document: PickWaveDocumentPayload): CellValue[][] {
   const rows: CellValue[][] = [
-    ['✓', '№', 'Волна', 'Заявка', 'Клиент', 'SKU', 'Товар', 'Баркод', 'Нужно', 'Взять', 'Источник', 'Короб/паллета', 'Статус'],
+    ['✓', '№', 'Волна', 'Заявка', 'Клиент', 'Зона', 'SKU', 'Товар', 'Баркод', 'Нужно', 'Взять', 'Источник', 'Короб/паллета', 'Статус'],
   ];
 
   document.rows.forEach((row) => {
@@ -57,6 +58,7 @@ function routeRows(document: PickWaveDocumentPayload): CellValue[][] {
         document.waveNumber,
         row.requestTitle,
         `${row.clientCode} · ${row.clientName}`,
+        allocation ? zoneLabel(allocation) : 'без зоны',
         row.internalSku ?? '',
         row.name ?? '',
         row.barcode ?? '',
@@ -70,7 +72,50 @@ function routeRows(document: PickWaveDocumentPayload): CellValue[][] {
   });
 
   if (rows.length === 1) {
-    rows.push(['', '', document.waveNumber, '', '', '', 'В волне нет строк для сборки.', '', '', '', '', '', '']);
+    rows.push(['', '', document.waveNumber, '', '', '', '', 'В волне нет строк для сборки.', '', '', '', '', '', '']);
+  }
+
+  return rows;
+}
+
+function zoneRows(document: PickWaveDocumentPayload): CellValue[][] {
+  const groups = new Map<string, { zone: string; rows: Set<number>; quantity: number; boxes: Set<string>; source: Set<string> }>();
+
+  document.rows.forEach((row) => {
+    row.allocations.forEach((allocation) => {
+      const zone = zoneLabel(allocation);
+      const group = groups.get(zone) ?? {
+        zone,
+        rows: new Set<number>(),
+        quantity: 0,
+        boxes: new Set<string>(),
+        source: new Set<string>(),
+      };
+      group.rows.add(row.position);
+      group.quantity += allocation.quantity;
+      group.boxes.add(locationLabel(allocation));
+      group.source.add(sourceLabel(allocation.source));
+      groups.set(zone, group);
+    });
+  });
+
+  const rows: CellValue[][] = [['Зона', 'Название', 'Источник', 'Количество', 'Строк', 'Короба/паллеты', 'Комментарий']];
+  [...groups.values()]
+    .sort((left, right) => left.zone.localeCompare(right.zone, 'ru'))
+    .forEach((group) => {
+      rows.push([
+        group.zone,
+        zoneNameFromLabel(group.zone),
+        [...group.source].sort().join(', '),
+        group.quantity,
+        group.rows.size,
+        [...group.boxes].sort((left, right) => left.localeCompare(right, 'ru')).join('; '),
+        `Позиции: ${[...group.rows].sort((left, right) => left - right).join(', ')}`,
+      ]);
+    });
+
+  if (rows.length === 1) {
+    rows.push(['без зоны', '', '', '', '', '', 'Нет зон в маршруте.']);
   }
 
   return rows;
@@ -89,11 +134,12 @@ function boxRows(document: PickWaveDocumentPayload): CellValue[][] {
     });
   });
 
-  const rows: CellValue[][] = [['Короб', 'Паллета', 'Источник', 'Количество', 'Строк', 'Позиции', 'Комментарий']];
+  const rows: CellValue[][] = [['Зона', 'Короб', 'Паллета', 'Источник', 'Количество', 'Строк', 'Позиции', 'Комментарий']];
   [...groups.values()]
-    .sort((left, right) => locationLabel(left.allocation).localeCompare(locationLabel(right.allocation), 'ru'))
+    .sort((left, right) => routeSortKey(left.allocation).localeCompare(routeSortKey(right.allocation), 'ru'))
     .forEach((group) => {
       rows.push([
+        zoneLabel(group.allocation),
         group.allocation.boxCode ?? group.allocation.boxId ?? '',
         group.allocation.palletCode ?? group.allocation.palletId ?? '',
         sourceLabel(group.allocation.source),
@@ -105,7 +151,7 @@ function boxRows(document: PickWaveDocumentPayload): CellValue[][] {
     });
 
   if (rows.length === 1) {
-    rows.push(['', '', '', '', '', '', 'Нет коробов в маршруте.']);
+    rows.push(['', '', '', '', '', '', '', 'Нет коробов в маршруте.']);
   }
 
   return rows;
@@ -188,6 +234,22 @@ function locationLabel(allocation: WaveAllocation) {
   const box = allocation.boxCode ?? allocation.boxId ?? 'без короба';
   const pallet = allocation.palletCode ?? allocation.palletId;
   return pallet ? `${box} / ${pallet}` : box;
+}
+
+function zoneLabel(allocation: WaveAllocation) {
+  if (!allocation.zoneCode && !allocation.zoneName) {
+    return 'без зоны';
+  }
+
+  return allocation.zoneName ? `${allocation.zoneCode ?? 'без кода'} · ${allocation.zoneName}` : allocation.zoneCode ?? 'без зоны';
+}
+
+function zoneNameFromLabel(value: string) {
+  return value.includes(' · ') ? value.split(' · ').slice(1).join(' · ') : '';
+}
+
+function routeSortKey(allocation: WaveAllocation) {
+  return `${zoneLabel(allocation)}:${locationLabel(allocation)}`;
 }
 
 function formatDateTime(value: string) {

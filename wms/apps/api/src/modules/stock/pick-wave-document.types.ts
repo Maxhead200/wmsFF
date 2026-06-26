@@ -1,6 +1,9 @@
 import { PickWaveRequestStatus, PickWaveStatus } from '@prisma/client';
 
 export type WaveAllocation = {
+  zoneId: string | null;
+  zoneCode: string | null;
+  zoneName: string | null;
   boxId: string | null;
   boxCode: string | null;
   palletId: string | null;

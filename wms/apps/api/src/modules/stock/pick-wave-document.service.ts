@@ -57,6 +57,7 @@ export class PickWaveDocumentService {
       const pickedLine = pickedLinesByItemId.get(item.id);
       const allocations = pickedLine
         ? pickedLine.allocations.map((allocation) => ({
+            ...actualBoxCodes.location(allocation.boxId, allocation.palletId),
             boxId: allocation.boxId,
             boxCode: allocation.boxId ? actualBoxCodes.boxes.get(allocation.boxId) ?? allocation.boxId : null,
             palletId: allocation.palletId,
@@ -196,12 +197,26 @@ export class PickWaveDocumentService {
           select: {
             id: true,
             code: true,
+            zone: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+              },
+            },
           },
         },
         pallet: {
           select: {
             id: true,
             code: true,
+            zone: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+              },
+            },
           },
         },
       },
@@ -233,7 +248,11 @@ export class PickWaveDocumentService {
         const quantity = Math.min(available, remaining);
         remainingByBalance.set(balance.id, available - quantity);
         remaining -= quantity;
+        const zone = balance.box?.zone ?? balance.pallet?.zone ?? null;
         allocations.push({
+          zoneId: zone?.id ?? null,
+          zoneCode: zone?.code ?? null,
+          zoneName: zone?.name ?? null,
           boxId: balance.boxId,
           boxCode: balance.box?.code ?? null,
           palletId: balance.palletId,
@@ -262,20 +281,51 @@ export class PickWaveDocumentService {
       boxIds.length
         ? this.prisma.box.findMany({
             where: { id: { in: boxIds } },
-            select: { id: true, code: true },
+            select: {
+              id: true,
+              code: true,
+              zone: {
+                select: {
+                  id: true,
+                  code: true,
+                  name: true,
+                },
+              },
+            },
           })
         : [],
       palletIds.length
         ? this.prisma.pallet.findMany({
             where: { id: { in: palletIds } },
-            select: { id: true, code: true },
+            select: {
+              id: true,
+              code: true,
+              zone: {
+                select: {
+                  id: true,
+                  code: true,
+                  name: true,
+                },
+              },
+            },
           })
         : [],
     ]);
 
+    const boxZones = new Map(boxes.map((box) => [box.id, box.zone ?? null]));
+    const palletZones = new Map(pallets.map((pallet) => [pallet.id, pallet.zone ?? null]));
+
     return {
       boxes: new Map(boxes.map((box) => [box.id, box.code])),
       pallets: new Map(pallets.map((pallet) => [pallet.id, pallet.code])),
+      location: (boxId: string | null, palletId: string | null) => {
+        const zone = (boxId ? boxZones.get(boxId) : null) ?? (palletId ? palletZones.get(palletId) : null) ?? null;
+        return {
+          zoneId: zone?.id ?? null,
+          zoneCode: zone?.code ?? null,
+          zoneName: zone?.name ?? null,
+        };
+      },
     };
   }
 }
@@ -385,6 +435,7 @@ function renderWaveHtml(document: PickWaveDocumentPayload) {
         <th>№</th>
         <th>Заявка</th>
         <th>Клиент</th>
+        <th>Зона</th>
         <th>SKU / товар</th>
         <th>ШК</th>
         <th class="right">Нужно</th>
@@ -402,6 +453,7 @@ function renderWaveHtml(document: PickWaveDocumentPayload) {
         <td>${row.position}</td>
         <td>${escapeHtml(row.requestTitle)}<br><span class="muted">${escapeHtml(row.requestStatus)} / ${escapeHtml(row.waveRequestStatus)}</span></td>
         <td>${escapeHtml(row.clientCode)}<br><span class="muted">${escapeHtml(row.clientName)}</span></td>
+        <td>${escapeHtml(zoneSummary(row.allocations))}</td>
         <td><span class="route">${escapeHtml(row.internalSku ?? '-')}</span><br>${escapeHtml(row.name ?? '-')}</td>
         <td>${escapeHtml(row.barcode ?? '-')}</td>
         <td class="right">${formatNumber(row.requestedQuantity)}</td>
@@ -410,7 +462,7 @@ function renderWaveHtml(document: PickWaveDocumentPayload) {
       </tr>`,
               )
               .join('')
-          : '<tr><td colspan="9">В волне нет строк для сборки.</td></tr>'
+          : '<tr><td colspan="10">В волне нет строк для сборки.</td></tr>'
       }
     </tbody>
   </table>
@@ -431,6 +483,18 @@ function allocationSummary(allocations: WaveAllocation[]) {
       return `${box}${pallet}: ${formatNumber(allocation.quantity)} (${source})`;
     })
     .join('; ');
+}
+
+function zoneSummary(allocations: WaveAllocation[]) {
+  const zones = [
+    ...new Set(
+      allocations
+        .map((allocation) => (allocation.zoneCode ? `${allocation.zoneCode}${allocation.zoneName ? ` · ${allocation.zoneName}` : ''}` : 'без зоны'))
+        .filter(Boolean),
+    ),
+  ];
+
+  return zones.length ? zones.join('; ') : 'без зоны';
 }
 
 function waveStatusLabel(value: PickWaveStatus) {

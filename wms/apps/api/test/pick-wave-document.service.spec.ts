@@ -22,8 +22,8 @@ describe('PickWaveDocumentService', () => {
             status: StockStatus.AVAILABLE,
             quantity: 5,
             updatedAt: new Date('2026-06-26T09:00:00.000Z'),
-            box: { id: 'box-1', code: 'BOX-A1' },
-            pallet: { id: 'pallet-1', code: 'PAL-01' },
+            box: { id: 'box-1', code: 'BOX-A1', zone: { id: 'zone-1', code: 'A-01', name: 'Зона A' } },
+            pallet: { id: 'pallet-1', code: 'PAL-01', zone: { id: 'zone-1', code: 'A-01', name: 'Зона A' } },
           },
         ]),
       },
@@ -54,12 +54,15 @@ describe('PickWaveDocumentService', () => {
       expect.objectContaining({
         boxCode: 'BOX-A1',
         palletCode: 'PAL-01',
+        zoneCode: 'A-01',
+        zoneName: 'Зона A',
         quantity: 3,
         source: 'planned',
       }),
     ]);
     expect(document.html).toContain('Лист сборки WAVE-1');
     expect(document.html).toContain('Сборщик');
+    expect(document.html).toContain('A-01 · Зона A');
     expect(document.html).toContain('BOX-A1 / PAL-01');
   });
 
@@ -89,10 +92,10 @@ describe('PickWaveDocumentService', () => {
         findMany: vi.fn(),
       },
       box: {
-        findMany: vi.fn().mockResolvedValue([{ id: 'box-picked', code: 'BOX-DONE' }]),
+        findMany: vi.fn().mockResolvedValue([{ id: 'box-picked', code: 'BOX-DONE', zone: { id: 'zone-done', code: 'D-02', name: 'Готовая зона' } }]),
       },
       pallet: {
-        findMany: vi.fn().mockResolvedValue([{ id: 'pallet-picked', code: 'PAL-DONE' }]),
+        findMany: vi.fn().mockResolvedValue([{ id: 'pallet-picked', code: 'PAL-DONE', zone: null }]),
       },
     };
     const service = new PickWaveDocumentService(prisma as never, { requireClientAccess: vi.fn() } as never);
@@ -105,9 +108,12 @@ describe('PickWaveDocumentService', () => {
       expect.objectContaining({
         boxCode: 'BOX-DONE',
         palletCode: 'PAL-DONE',
+        zoneCode: 'D-02',
+        zoneName: 'Готовая зона',
         source: 'picked',
       }),
     ]);
+    expect(document.html).toContain('D-02 · Готовая зона');
     expect(document.html).toContain('BOX-DONE / PAL-DONE');
   });
 
@@ -127,8 +133,8 @@ describe('PickWaveDocumentService', () => {
             status: StockStatus.AVAILABLE,
             quantity: 5,
             updatedAt: new Date('2026-06-26T09:00:00.000Z'),
-            box: { id: 'box-1', code: 'BOX-A1' },
-            pallet: { id: 'pallet-1', code: 'PAL-01' },
+            box: { id: 'box-1', code: 'BOX-A1', zone: { id: 'zone-1', code: 'A-01', name: 'Зона A' } },
+            pallet: { id: 'pallet-1', code: 'PAL-01', zone: { id: 'zone-1', code: 'A-01', name: 'Зона A' } },
           },
         ]),
       },
@@ -146,14 +152,16 @@ describe('PickWaveDocumentService', () => {
 
     expect(file.fileName).toBe('pick-wave-WAVE-1.xlsx');
     expect(file.mimeType).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    expect(workbook.SheetNames).toEqual(['Сводка', 'Маршрут', 'Короба', 'Проблемы']);
+    expect(workbook.SheetNames).toEqual(['Сводка', 'Маршрут', 'Зоны', 'Короба', 'Проблемы']);
     const summaryRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['Сводка'], { defval: '' });
     const routeRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['Маршрут'], { defval: '' });
+    const zoneRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['Зоны'], { defval: '' });
     const boxRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['Короба'], { defval: '' });
 
     expect(summaryRows).toContainEqual({ Параметр: 'Сборщик', Значение: 'Сборщик' });
-    expect(routeRows[0]).toMatchObject({ Волна: 'WAVE-1', Заявка: 'Отгрузка', Взять: 3 });
-    expect(boxRows[0]).toMatchObject({ Короб: 'BOX-A1', Паллета: 'PAL-01', Количество: 3 });
+    expect(routeRows[0]).toMatchObject({ Волна: 'WAVE-1', Заявка: 'Отгрузка', Зона: 'A-01 · Зона A', Взять: 3 });
+    expect(zoneRows[0]).toMatchObject({ Зона: 'A-01 · Зона A', Количество: 3 });
+    expect(boxRows[0]).toMatchObject({ Зона: 'A-01 · Зона A', Короб: 'BOX-A1', Паллета: 'PAL-01', Количество: 3 });
   });
 
   it('возвращает 404 для неизвестной волны', async () => {

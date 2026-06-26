@@ -43,7 +43,7 @@ export type ClientSummary = {
   createdAt: string;
 };
 
-export type ClientKind = 'LEGAL_ENTITY' | 'SELF_EMPLOYED' | 'INDIVIDUAL';
+export type ClientKind = 'LEGAL_ENTITY' | 'INDIVIDUAL_ENTREPRENEUR' | 'SELF_EMPLOYED' | 'INDIVIDUAL';
 
 export type ClientRequestType = 'INBOUND' | 'OUTBOUND' | 'RETURN' | 'DELIVERY' | 'SERVICE' | 'OTHER';
 

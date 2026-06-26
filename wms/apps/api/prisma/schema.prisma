@@ -20,6 +20,7 @@ enum ClientStatus {
 
 enum ClientKind {
   LEGAL_ENTITY
+  INDIVIDUAL_ENTREPRENEUR
   SELF_EMPLOYED
   INDIVIDUAL
 }

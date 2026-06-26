@@ -54,6 +54,7 @@ const emptyForm: ClientRequisitesFormState = {
 
 const clientKindOptions: Array<{ value: ClientKind; label: string }> = [
   { value: 'LEGAL_ENTITY', label: 'Юридическое лицо' },
+  { value: 'INDIVIDUAL_ENTREPRENEUR', label: 'Индивидуальный предприниматель' },
   { value: 'SELF_EMPLOYED', label: 'Самозанятый' },
   { value: 'INDIVIDUAL', label: 'Физическое лицо' },
 ];

@@ -64,7 +64,13 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
         desiredDate: desiredDate || undefined,
       });
       setPreview(nextPreview);
-      setEditableLines(nextPreview.lines.map((line, index) => ({ ...line, needsRelabel: Boolean(line.needsRelabel), key: `${line.barcode}-${index}` })));
+      setEditableLines(
+        nextPreview.lines.map((line, index) => ({
+          ...line,
+          needsRelabel: Boolean(line.needsRelabel),
+          key: `${line.barcode ?? line.originalName ?? line.internalSku ?? index}-${index}`,
+        })),
+      );
       setMessage(nextPreview.canCommit ? 'Файл готов к созданию заявки.' : 'Файл требует исправлений.');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Не удалось проверить файл.');
@@ -94,7 +100,7 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
         desiredDate: desiredDate || undefined,
         items: validLines.map((line) => ({
           skuId: line.skuId ?? undefined,
-          barcode: line.barcode,
+          barcode: line.barcode ?? undefined,
           name: line.name ?? undefined,
           quantity: line.requestedQuantity,
           comment: xlsxLineComment(line),
@@ -198,14 +204,14 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
           <div className="client-request-xlsx-lines">
             {editableLines.map((line, index) => (
               <div key={line.key} className={`client-request-xlsx-line ${xlsxLineClassName(line)}`}>
-                <strong>{line.internalSku ?? line.barcode}</strong>
-                <span>{line.name ?? line.barcode}</span>
+                <strong>{xlsxLineLabel(line)}</strong>
+                <span>{line.name ?? line.originalName ?? line.barcode}</span>
                 <input
                   min="1"
                   type="number"
                   value={line.requestedQuantity}
                   onChange={(event) => updateEditableLine(index, Number(event.target.value))}
-                  aria-label={`Количество ${line.internalSku ?? line.barcode}`}
+                  aria-label={`Количество ${xlsxLineLabel(line)}`}
                 />
                 <small>{xlsxLineText(line)}</small>
                 <label className="client-request-xlsx-relabel">
@@ -221,7 +227,7 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
                   type="button"
                   onClick={() => removeEditableLine(index)}
                   title="Удалить строку"
-                  aria-label={`Удалить ${line.internalSku ?? line.barcode}`}
+                  aria-label={`Удалить ${xlsxLineLabel(line)}`}
                 >
                   <Trash2 size={15} aria-hidden="true" />
                 </button>
@@ -304,7 +310,7 @@ function xlsxLineText(line: EditableXlsxLine) {
     : '';
 
   if (!line.skuId) {
-    return 'Товар отсутствует. Удалите строку.';
+    return 'Товар не найден. Удалите строку или проверьте справочник SKU.';
   }
 
   if (!adjustedCanFulfill(line)) {
@@ -312,6 +318,10 @@ function xlsxLineText(line: EditableXlsxLine) {
   }
 
   return `Доступно ${line.availableQuantity}, занято ${line.reservedQuantity}.${conflictText}`;
+}
+
+function xlsxLineLabel(line: EditableXlsxLine) {
+  return line.internalSku ?? line.originalName ?? line.barcode ?? line.name ?? 'товар';
 }
 
 function xlsxLineComment(line: EditableXlsxLine) {

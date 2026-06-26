@@ -122,6 +122,56 @@ describe('ClientRequestXlsxService', () => {
     );
     expect(clientRequests.create.mock.calls[0][0].comment).toContain('Создано из Excel: Тест заявки.xlsx.');
   });
+
+  it('распознает SKU по наименованию товара без баркода', async () => {
+    const prisma = {
+      barcode: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      sku: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: 'sku-1',
+            internalSku: 'Костюм_реглан_синий',
+            clientSku: null,
+            article: null,
+            name: 'Костюм реглан синий',
+            needsRelabel: false,
+          },
+        ]),
+      },
+    };
+    const service = new ClientRequestXlsxService(
+      prisma as never,
+      new ClientScopeService(),
+      {
+        create: vi.fn(),
+        previewAvailability: vi.fn().mockResolvedValue({
+          lines: [availabilityLine({ index: 0, skuId: 'sku-1', requestedQuantity: 10, stockQuantity: 12, availableQuantity: 12 })],
+        }),
+      } as never,
+    );
+
+    const preview = await service.previewOutboundRequest(
+      fileFixture([
+        ['Артикул продавца', 'Электросталь'],
+        ['Костюм_реглан_синий', 10],
+      ]),
+      { clientId: 'client-1', title: 'Excel сборка' },
+      user({ writableClientIds: ['client-1'], clientIds: ['client-1'] }),
+    );
+
+    expect(preview.issues).toEqual([]);
+    expect(preview.canCommit).toBe(true);
+    expect(preview.lines[0]).toMatchObject({
+      skuId: 'sku-1',
+      originalName: 'Костюм_реглан_синий',
+      artSeller: 'Костюм_реглан_синий',
+      city: 'Электросталь',
+      requestedQuantity: 10,
+      availableQuantity: 12,
+    });
+  });
 });
 
 function fileFixture(rows: unknown[][], originalname = 'request.xlsx'): Express.Multer.File {

@@ -8,12 +8,14 @@ import { ClientRequestsService, type ClientRequestAvailabilityConflict } from '.
 import { ImportOutboundRequestXlsxDto } from './dto/import-outbound-request-xlsx.dto';
 import {
   parseOutboundRequestXlsxRows,
+  type OutboundRequestXlsxLine,
   type OutboundRequestXlsxIssue,
   type SheetMatrix,
 } from './parsers/outbound-request-xlsx.parser';
 
 type HydratedOutboundLine = {
-  barcode: string;
+  barcode?: string;
+  originalName?: string;
   requestedQuantity: number;
   city?: string;
   artSeller?: string;
@@ -44,6 +46,21 @@ type OutboundRequestXlsxPreview = {
   };
   issues: OutboundRequestXlsxIssue[];
   lines: HydratedOutboundLine[];
+};
+
+type ResolvedSku = {
+  id: string;
+  internalSku: string;
+  clientSku?: string | null;
+  article?: string | null;
+  name: string;
+  needsRelabel: boolean;
+};
+
+type ResolvedParsedLine = {
+  line: OutboundRequestXlsxLine;
+  match: { sku: ResolvedSku } | 'duplicate' | null;
+  issueMessage: string;
 };
 
 @Injectable()
@@ -107,7 +124,15 @@ export class ClientRequestXlsxService {
     this.clientScopes.requireClientAccess(user, clientId, 'write');
 
     const parsed = parseOutboundRequestXlsxRows(this.readFirstSheet(buffer));
-    const barcodes = parsed.lines.map((line) => line.barcode);
+    const barcodes = parsed.lines.map((line) => line.barcode).filter((barcode): barcode is string => Boolean(barcode));
+    const productNames = [
+      ...new Set(
+        parsed.lines
+          .map((line) => line.name || line.artSeller)
+          .map((value) => normalizeText(value))
+          .filter((value): value is string => Boolean(value)),
+      ),
+    ];
     const barcodeRows = barcodes.length
       ? await this.prisma.barcode.findMany({
           where: {
@@ -126,17 +151,41 @@ export class ClientRequestXlsxService {
           },
         })
       : [];
+    const skuRows = productNames.length
+      ? await this.prisma.sku.findMany({
+          where: {
+            clientId,
+            OR: [
+              { internalSku: { in: productNames } },
+              { clientSku: { in: productNames } },
+              { article: { in: productNames } },
+              { name: { in: productNames } },
+            ],
+          },
+          select: {
+            id: true,
+            internalSku: true,
+            clientSku: true,
+            article: true,
+            name: true,
+            needsRelabel: true,
+          },
+        })
+      : [];
 
     const barcodeMatches = new Map<string, typeof barcodeRows>();
     for (const row of barcodeRows) {
       barcodeMatches.set(row.value, [...(barcodeMatches.get(row.value) ?? []), row]);
     }
+    const skuMatches = buildSkuMatchesByProductName(skuRows);
+    const resolvedLines = parsed.lines.map((line) => this.resolveParsedLine(line, barcodeMatches, skuMatches));
 
     const availability = await this.clientRequests.previewAvailability(
       {
         clientId,
         type: ClientRequestType.OUTBOUND,
-        items: parsed.lines.map((line) => ({
+        items: resolvedLines.map(({ line, match }) => ({
+          skuId: match && match !== 'duplicate' ? match.sku.id : undefined,
           barcode: line.barcode,
           quantity: line.quantity,
         })),
@@ -146,34 +195,33 @@ export class ClientRequestXlsxService {
     const issues = [...parsed.issues];
     const lines: HydratedOutboundLine[] = [];
 
-    for (const [lineIndex, line] of parsed.lines.entries()) {
-      const matches = barcodeMatches.get(line.barcode) ?? [];
+    for (const [lineIndex, resolvedLine] of resolvedLines.entries()) {
+      const { line, match, issueMessage } = resolvedLine;
       const firstRow = line.sourceRows[0] ?? 1;
       const availabilityLine = availability.lines[lineIndex];
 
-      if (matches.length === 0) {
+      if (!match) {
         issues.push({
           row: firstRow,
           barcode: line.barcode,
-          message: 'Баркод не найден в SKU клиента.',
+          message: issueMessage,
           severity: 'error',
         });
         lines.push(this.emptyHydratedLine(line));
         continue;
       }
 
-      if (new Set(matches.map((match) => match.skuId)).size > 1) {
+      if (match === 'duplicate') {
         issues.push({
           row: firstRow,
           barcode: line.barcode,
-          message: 'Баркод привязан к нескольким SKU клиента.',
+          message: issueMessage,
           severity: 'error',
         });
         lines.push(this.emptyHydratedLine(line));
         continue;
       }
 
-      const match = matches[0];
       const stockQuantity = availabilityLine?.stockQuantity ?? 0;
       const reservedQuantity = availabilityLine?.reservedQuantity ?? 0;
       const availableQuantity = availabilityLine?.availableQuantity ?? 0;
@@ -191,11 +239,12 @@ export class ClientRequestXlsxService {
 
       lines.push({
         barcode: line.barcode,
+        originalName: line.name || line.artSeller,
         requestedQuantity: line.quantity,
         city: line.city,
         artSeller: line.artSeller,
         size: line.size,
-        needsRelabel: match.sku.needsRelabel,
+        needsRelabel: Boolean(match.sku.needsRelabel),
         stockQuantity,
         reservedQuantity,
         availableQuantity,
@@ -242,9 +291,42 @@ export class ClientRequestXlsxService {
     });
   }
 
-  private emptyHydratedLine(line: { barcode: string; quantity: number; city?: string; artSeller?: string; size?: string; sourceRows: number[] }): HydratedOutboundLine {
+  private resolveParsedLine(
+    line: OutboundRequestXlsxLine,
+    barcodeMatches: Map<string, Array<{ skuId: string; sku: ResolvedSku }>>,
+    skuMatches: Map<string, ResolvedSku[]>,
+  ): ResolvedParsedLine {
+    if (line.barcode) {
+      const matches = barcodeMatches.get(line.barcode) ?? [];
+      if (matches.length === 0) {
+        return { line, match: null, issueMessage: 'Баркод не найден в SKU клиента.' };
+      }
+
+      const uniqueMatches = uniqueSkus(matches.map((match) => match.sku));
+      return uniqueMatches.length === 1
+        ? { line, match: { sku: uniqueMatches[0] }, issueMessage: '' }
+        : { line, match: 'duplicate', issueMessage: 'Баркод привязан к нескольким SKU клиента.' };
+    }
+
+    const productName = normalizeText(line.name || line.artSeller);
+    if (!productName) {
+      return { line, match: null, issueMessage: 'Не заполнен товар или баркод.' };
+    }
+
+    const matches = skuMatches.get(normalizeLookupKey(productName)) ?? [];
+    if (matches.length === 0) {
+      return { line, match: null, issueMessage: 'Наименование товара не найдено в SKU клиента.' };
+    }
+
+    return matches.length === 1
+      ? { line, match: { sku: matches[0] }, issueMessage: '' }
+      : { line, match: 'duplicate', issueMessage: 'Наименование товара совпало с несколькими SKU клиента.' };
+  }
+
+  private emptyHydratedLine(line: { barcode?: string; name?: string; quantity: number; city?: string; artSeller?: string; size?: string; sourceRows: number[] }): HydratedOutboundLine {
     return {
       barcode: line.barcode,
+      originalName: line.name || line.artSeller,
       requestedQuantity: line.quantity,
       city: line.city,
       artSeller: line.artSeller,
@@ -305,7 +387,7 @@ export class ClientRequestXlsxService {
   }
 }
 
-function normalizeText(value?: string) {
+function normalizeText(value?: string | null) {
   const normalized = value?.trim();
   return normalized ? normalized : undefined;
 }
@@ -331,6 +413,34 @@ function normalizeRequiredText(value: string | undefined, message: string) {
   }
 
   return normalized;
+}
+
+function buildSkuMatchesByProductName(skus: ResolvedSku[]) {
+  const result = new Map<string, ResolvedSku[]>();
+  skus.forEach((sku) => {
+    [sku.internalSku, sku.clientSku, sku.article, sku.name].forEach((value) => {
+      const key = normalizeLookupKey(value);
+      if (!key) {
+        return;
+      }
+
+      const existing = result.get(key) ?? [];
+      if (!existing.some((item) => item.id === sku.id)) {
+        result.set(key, [...existing, sku]);
+      }
+    });
+  });
+  return result;
+}
+
+function uniqueSkus(skus: ResolvedSku[]) {
+  const byId = new Map<string, ResolvedSku>();
+  skus.forEach((sku) => byId.set(sku.id, sku));
+  return [...byId.values()];
+}
+
+function normalizeLookupKey(value?: string | null) {
+  return normalizeText(value)?.toLowerCase().replace(/\s+/g, ' ') ?? '';
 }
 
 function shortageMessage(needed: number, available: number, conflicts: ClientRequestAvailabilityConflict[]) {

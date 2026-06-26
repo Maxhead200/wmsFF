@@ -65,6 +65,48 @@ describe('parseOutboundRequestXlsxRows', () => {
     expect(parsed.summary.totalQuantity).toBe(15);
   });
 
+  it('читает файл с наименованием товара и количеством по складу без баркода', () => {
+    const parsed = parseOutboundRequestXlsxRows([
+      ['Артикул продавца', 'Электросталь'],
+      ['Костюм_велюр_розовый', 10],
+      ['Костюм_реглан_синий', 7],
+      ['Костюм_реглан_синий', 3],
+    ]);
+
+    expect(parsed.issues).toEqual([]);
+    expect(parsed.lines).toEqual([
+      {
+        quantity: 10,
+        city: 'Электросталь',
+        artSeller: 'Костюм_велюр_розовый',
+        sourceRows: [2],
+      },
+      {
+        quantity: 10,
+        city: 'Электросталь',
+        artSeller: 'Костюм_реглан_синий',
+        sourceRows: [3, 4],
+      },
+    ]);
+    expect(parsed.summary.totalQuantity).toBe(20);
+  });
+
+  it('читает файл с наименованием товара и общей колонкой количества', () => {
+    const parsed = parseOutboundRequestXlsxRows([
+      ['Наименование товара', 'Количество'],
+      ['Костюм_реглан_синий', 4],
+    ]);
+
+    expect(parsed.issues).toEqual([]);
+    expect(parsed.lines).toEqual([
+      {
+        name: 'Костюм_реглан_синий',
+        quantity: 4,
+        sourceRows: [2],
+      },
+    ]);
+  });
+
   it('возвращает ошибки по пустому баркоду и некорректному количеству', () => {
     const parsed = parseOutboundRequestXlsxRows([
       ['barcode', 'qty'],

@@ -2,7 +2,8 @@ export type SheetCell = string | number | boolean | Date | null | undefined;
 export type SheetMatrix = SheetCell[][];
 
 export type OutboundRequestXlsxLine = {
-  barcode: string;
+  barcode?: string;
+  name?: string;
   quantity: number;
   city?: string;
   artSeller?: string;
@@ -48,28 +49,38 @@ export function parseOutboundRequestXlsxRows(rows: SheetMatrix) {
       return;
     }
 
-    const barcode = normalizeBarcode(row[columns.barcodeColumn]);
+    const barcode = columns.barcodeColumn >= 0 ? normalizeBarcode(row[columns.barcodeColumn]) : '';
+    const artSeller = columns.articleColumn >= 0 ? text(row[columns.articleColumn]) : '';
+    const name = columns.nameColumn >= 0 ? text(row[columns.nameColumn]) : '';
     const quantity = numberValue(row[columns.quantityColumn]);
 
-    if (!barcode) {
-      issues.push({ row: sourceRow, message: 'Не заполнен баркод товара.', severity: 'error' });
+    if (!barcode && !name && !artSeller) {
+      issues.push({ row: sourceRow, message: missingProductMessage(columns), severity: 'error' });
       return;
     }
 
     if (!Number.isInteger(quantity) || quantity <= 0) {
-      issues.push({ row: sourceRow, barcode, message: 'Количество должно быть целым числом больше нуля.', severity: 'error' });
+      issues.push({
+        row: sourceRow,
+        barcode: barcode || undefined,
+        message: 'Количество должно быть целым числом больше нуля.',
+        severity: 'error',
+      });
       return;
     }
 
-    const existing = lineByBarcode.get(barcode);
+    const key = [barcode, name, artSeller].join('\u0001');
+    const existing = lineByBarcode.get(key);
     if (existing) {
       existing.quantity += quantity;
       existing.sourceRows.push(sourceRow);
       return;
     }
 
-    lineByBarcode.set(barcode, {
-      barcode,
+    lineByBarcode.set(key, {
+      ...(barcode ? { barcode } : {}),
+      ...(name ? { name } : {}),
+      ...(artSeller ? { artSeller } : {}),
       quantity,
       sourceRows: [sourceRow],
     });
@@ -105,31 +116,39 @@ function detectColumns(row: SheetCell[]) {
   const barcodeColumn = findColumn(row, isBarcodeHeader);
   const quantityColumn = findColumn(row, isQuantityHeader);
   const articleColumn = findColumn(row, isArticleHeader);
+  const nameColumn = findColumn(row, (value) => isNameHeader(value) && !isBarcodeHeader(value) && !isArticleHeader(value));
   const sizeColumn = findColumn(row, isSizeHeader);
+  const productColumn = articleColumn !== -1 ? articleColumn : nameColumn;
   const cityColumns =
     barcodeColumn !== -1 && articleColumn !== -1 && sizeColumn !== -1
       ? row
           .map((cell, index) => ({ title: text(cell), index }))
           .filter((column) => column.index > Math.max(barcodeColumn, articleColumn, sizeColumn) && column.title)
+      : productColumn !== -1 && quantityColumn === -1
+        ? row
+            .map((cell, index) => ({ title: text(cell), index }))
+            .filter((column) => column.index > productColumn && column.title)
       : [];
 
-  if (barcodeColumn !== -1 && quantityColumn !== -1) {
+  if ((barcodeColumn !== -1 || productColumn !== -1) && quantityColumn !== -1) {
     return {
       hasHeader: true,
       barcodeColumn,
       quantityColumn,
       articleColumn,
+      nameColumn,
       sizeColumn,
       cityColumns: [] as Array<{ title: string; index: number }>,
     };
   }
 
-  if (barcodeColumn !== -1 && articleColumn !== -1 && sizeColumn !== -1 && cityColumns.length > 0) {
+  if ((barcodeColumn !== -1 || productColumn !== -1) && cityColumns.length > 0) {
     return {
       hasHeader: true,
       barcodeColumn,
       quantityColumn: -1,
       articleColumn,
+      nameColumn,
       sizeColumn,
       cityColumns,
     };
@@ -141,6 +160,7 @@ function detectColumns(row: SheetCell[]) {
     barcodeColumn: 0,
     quantityColumn: 1,
     articleColumn: -1,
+    nameColumn: -1,
     sizeColumn: -1,
     cityColumns: [] as Array<{ title: string; index: number }>,
   };
@@ -164,6 +184,10 @@ function isQuantityHeader(value: string) {
 
 function isArticleHeader(value: string) {
   return value.includes('article') || value.includes('sku') || value.includes('артикул');
+}
+
+function isNameHeader(value: string) {
+  return value.includes('name') || value.includes('наимен') || value.includes('товар') || value.includes('номенклат');
 }
 
 function isSizeHeader(value: string) {
@@ -210,13 +234,14 @@ function parseDistributionRows(
       return;
     }
 
-    const barcode = normalizeBarcode(row[columns.barcodeColumn]);
-    const artSeller = text(row[columns.articleColumn]);
-    const size = normalizeSize(row[columns.sizeColumn]);
+    const barcode = columns.barcodeColumn >= 0 ? normalizeBarcode(row[columns.barcodeColumn]) : '';
+    const artSeller = columns.articleColumn >= 0 ? text(row[columns.articleColumn]) : '';
+    const name = columns.nameColumn >= 0 ? text(row[columns.nameColumn]) : '';
+    const size = columns.sizeColumn >= 0 ? normalizeSize(row[columns.sizeColumn]) : '';
 
-    if (!barcode) {
+    if (!barcode && !name && !artSeller) {
       if (columns.cityColumns.some((column) => numberValue(row[column.index]) > 0)) {
-        issues.push({ row: sourceRow, message: 'Не заполнен баркод товара.', severity: 'error' });
+        issues.push({ row: sourceRow, message: missingProductMessage(columns), severity: 'error' });
       }
       return;
     }
@@ -228,12 +253,17 @@ function parseDistributionRows(
       }
 
       if (!Number.isInteger(quantity) || quantity <= 0) {
-        issues.push({ row: sourceRow, barcode, message: 'Количество должно быть целым числом больше нуля.', severity: 'error' });
+        issues.push({
+          row: sourceRow,
+          barcode: barcode || undefined,
+          message: 'Количество должно быть целым числом больше нуля.',
+          severity: 'error',
+        });
         continue;
       }
 
       const city = cityColumn.title.trim();
-      const key = [barcode, city, artSeller, size].join('\u0001');
+      const key = [barcode, name, city, artSeller, size].join('\u0001');
       const existing = lineByKey.get(key);
       if (existing) {
         existing.quantity += quantity;
@@ -242,11 +272,12 @@ function parseDistributionRows(
       }
 
       lineByKey.set(key, {
-        barcode,
+        ...(barcode ? { barcode } : {}),
+        ...(name ? { name } : {}),
         quantity,
         city,
         artSeller,
-        size,
+        ...(size ? { size } : {}),
         sourceRows: [sourceRow],
       });
     }
@@ -280,6 +311,12 @@ function normalizeSize(value: SheetCell) {
   const raw = text(value).toUpperCase().replace(/М/g, 'M').replace(/Х/g, 'X');
   const match = raw.match(/\(([^)]+)\)/);
   return (match?.[1] ?? raw).replace(/\s+/g, '');
+}
+
+function missingProductMessage(columns: ReturnType<typeof detectColumns>) {
+  return columns.barcodeColumn >= 0 && columns.articleColumn === -1 && columns.nameColumn === -1
+    ? 'Не заполнен баркод товара.'
+    : 'Не заполнен товар или баркод.';
 }
 
 function emptySummary() {

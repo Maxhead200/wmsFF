@@ -578,7 +578,8 @@ export type OutboundRequestXlsxIssue = {
 };
 
 export type OutboundRequestXlsxLine = {
-  barcode: string;
+  barcode?: string;
+  originalName?: string;
   requestedQuantity: number;
   city?: string;
   artSeller?: string;

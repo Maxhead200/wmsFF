@@ -7,6 +7,7 @@ BRANCH="${BRANCH:-codex/wms-foundation}"
 REPO_URL="${REPO_URL:-https://github.com/Maxhead200/wmsFF.git}"
 COMPOSE_DIR="$APP_DIR/wms/infra"
 ENV_FILE="$APP_DIR/wms/.env"
+HOST_NGINX_SITE="/etc/nginx/sites-enabled/wms.logoff.pro"
 
 if ! command -v git >/dev/null 2>&1; then
   apt-get update
@@ -50,8 +51,19 @@ fi
 cd "$COMPOSE_DIR"
 docker compose --env-file ../.env build
 docker compose --env-file ../.env up -d postgres redis
-docker compose --env-file ../.env up -d api web nginx
+docker compose --env-file ../.env up -d api web
 
 # Русский комментарий: для первого bootstrap используем db push; после появления миграций заменим на migrate deploy.
 docker compose --env-file ../.env exec -T api pnpm --filter @logoff/wms-api prisma:push
+
+if [ -f "$HOST_NGINX_SITE" ]; then
+  cp "$HOST_NGINX_SITE" "$HOST_NGINX_SITE.bak.$(date +%Y%m%d-%H%M%S)"
+fi
+
+cp "$APP_DIR/wms/infra/nginx/host-wms.logoff.pro.conf" "$HOST_NGINX_SITE"
+nginx -t
+systemctl reload nginx
+
+curl -fsS http://127.0.0.1:3000/api/v1/health >/dev/null
+curl -fsS http://127.0.0.1:3080 >/dev/null
 docker compose --env-file ../.env ps

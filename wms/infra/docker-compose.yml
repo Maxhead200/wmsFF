@@ -28,6 +28,8 @@ services:
     restart: unless-stopped
     env_file:
       - ../.env
+    ports:
+      - "127.0.0.1:3000:3000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -39,9 +41,13 @@ services:
       context: ..
       dockerfile: infra/web.Dockerfile
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:3080:80"
 
   nginx:
     image: nginx:1.27-alpine
+    profiles:
+      - compose-nginx
     restart: unless-stopped
     depends_on:
       - api

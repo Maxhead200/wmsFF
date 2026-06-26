@@ -1,0 +1,201 @@
+.logistics-panel {
+  margin-bottom: 28px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 18px;
+}
+
+.logistics-panel__heading {
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.quote-form {
+  display: grid;
+  gap: 14px;
+}
+
+.quote-fields {
+  display: grid;
+  grid-template-columns: minmax(210px, 1.4fr) minmax(150px, 1fr) minmax(170px, 1fr) minmax(135px, 0.75fr);
+  gap: 12px;
+  align-items: end;
+}
+
+.quote-fields label,
+.quote-quantity-row label {
+  display: grid;
+  gap: 6px;
+}
+
+.quote-fields span,
+.quote-quantity-row label span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.quote-fields input,
+.quote-fields select,
+.quote-quantity-row input {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfdff;
+  color: var(--ink);
+  padding: 0 11px;
+}
+
+.quote-fields input:focus,
+.quote-fields select:focus,
+.quote-quantity-row input:focus {
+  border-color: var(--red-dark);
+  outline: 3px solid rgb(215 25 32 / 0.14);
+}
+
+.quote-quantity-row {
+  display: grid;
+  grid-template-columns: minmax(200px, 0.9fr) minmax(120px, 0.5fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.quote-mode {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #eef2f7;
+}
+
+.quote-mode button {
+  min-height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.quote-mode button.active {
+  background: var(--surface);
+  color: var(--red-dark);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.12);
+}
+
+.quote-submit {
+  min-width: 148px;
+}
+
+.quote-result {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-top: 14px;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  background: #f0fdf4;
+  color: var(--ok);
+  padding: 14px;
+}
+
+.quote-result--manual {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.quote-result svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.quote-result__content {
+  display: grid;
+  min-width: 0;
+  width: 100%;
+  gap: 12px;
+}
+
+.quote-result__title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.quote-result__title strong,
+.quote-result__title span {
+  display: block;
+}
+
+.quote-result__title span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.quote-result__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.quote-metric {
+  border: 1px solid rgb(15 23 42 / 0.08);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.7);
+  padding: 10px;
+}
+
+.quote-metric span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.quote-metric strong {
+  display: block;
+  margin-top: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quote-note {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+@media (max-width: 980px) {
+  .quote-fields,
+  .quote-result__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .quote-quantity-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .quote-submit {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 620px) {
+  .logistics-panel {
+    padding: 14px;
+  }
+
+  .quote-fields,
+  .quote-quantity-row,
+  .quote-result__grid {
+    grid-template-columns: 1fr;
+  }
+}

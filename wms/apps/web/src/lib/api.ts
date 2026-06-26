@@ -225,6 +225,42 @@ export type LogisticsTariffSetSummary = {
   };
 };
 
+export type LogisticsQuotePayload = {
+  tariffSetId?: string;
+  origin: string;
+  destination: string;
+  pallets?: number;
+  boxes?: number;
+  quoteDate?: string;
+};
+
+export type LogisticsQuoteResult = {
+  tariffSet: {
+    id: string;
+    name: string;
+    sourceFile: string | null;
+  };
+  route: {
+    origin: string;
+    destination: string;
+  };
+  input: {
+    boxes: number | null;
+    pallets: number | null;
+  };
+  tier: {
+    label: string;
+    minPallets: number | null;
+    maxPallets: number | null;
+    maxBoxes: number | null;
+    pricingMode: LogisticsPricingMode;
+    priceRub: number;
+  };
+  estimatedTotalRub: number | null;
+  requiresManualReview: boolean;
+  note: string | null;
+};
+
 export type StockImportIssue = {
   row: number;
   message: string;
@@ -415,6 +451,14 @@ export async function updateUserClientScopes(
 
 export async function fetchLogisticsTariffSets(accessToken: string) {
   return request<LogisticsTariffSetSummary[]>('/logistics/tariff-sets', {
+    accessToken,
+  });
+}
+
+export async function quoteLogistics(accessToken: string, payload: LogisticsQuotePayload) {
+  return request<LogisticsQuoteResult>('/logistics/quote', {
+    method: 'POST',
+    body: payload,
     accessToken,
   });
 }

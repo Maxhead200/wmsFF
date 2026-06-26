@@ -5,6 +5,7 @@ import { AuthPanel } from './components/AuthPanel';
 import { DashboardDataPanel } from './components/DashboardDataPanel';
 import { DirectoryPanel } from './components/directories/DirectoryPanel';
 import { ImportPanel } from './components/imports/ImportPanel';
+import { LogisticsQuotePanel } from './components/logistics/LogisticsQuotePanel';
 import { ModuleBoard } from './components/ModuleBoard';
 import { UserBar } from './components/UserBar';
 import { WarehouseOpsPanel } from './components/warehouse/WarehouseOpsPanel';
@@ -114,6 +115,8 @@ export function App() {
       <DirectoryPanel session={session} />
 
       <ImportPanel session={session} />
+
+      <LogisticsQuotePanel session={session} />
 
       <WarehouseOpsPanel session={session} />
 

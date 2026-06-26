@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { CreateWarehouseDto } from './dto/create-warehouse.dto';
 import { CreateZoneDto } from './dto/create-zone.dto';
 import { UpsertBoxDto } from './dto/upsert-box.dto';
@@ -7,6 +8,7 @@ import { UpsertPalletDto } from './dto/upsert-pallet.dto';
 import { WarehouseService } from './warehouse.service';
 
 @ApiTags('warehouse')
+@RequirePermissions('warehouse:read')
 @Controller('warehouse')
 export class WarehouseController {
   constructor(private readonly warehouse: WarehouseService) {}
@@ -17,6 +19,7 @@ export class WarehouseController {
   }
 
   @Post('warehouses')
+  @RequirePermissions('warehouse:write')
   createWarehouse(@Body() dto: CreateWarehouseDto) {
     return this.warehouse.createWarehouse(dto);
   }
@@ -27,6 +30,7 @@ export class WarehouseController {
   }
 
   @Post('zones')
+  @RequirePermissions('warehouse:write')
   createZone(@Body() dto: CreateZoneDto) {
     return this.warehouse.createZone(dto);
   }
@@ -37,6 +41,7 @@ export class WarehouseController {
   }
 
   @Post('boxes')
+  @RequirePermissions('warehouse:write')
   upsertBox(@Body() dto: UpsertBoxDto) {
     return this.warehouse.upsertBox(dto);
   }
@@ -47,6 +52,7 @@ export class WarehouseController {
   }
 
   @Post('pallets')
+  @RequirePermissions('warehouse:write')
   upsertPallet(@Body() dto: UpsertPalletDto) {
     return this.warehouse.upsertPallet(dto);
   }

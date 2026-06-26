@@ -1,8 +1,10 @@
 import { Body, Controller, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { TsplLabelService } from './tspl-label.service';
 
 @ApiTags('print')
+@RequirePermissions('print:write')
 @Controller('print')
 export class PrintController {
   constructor(private readonly labels: TsplLabelService) {}

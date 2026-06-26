@@ -1,9 +1,11 @@
 import { Body, Controller, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
+import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { ImportsService } from './imports.service';
 
 @ApiTags('imports')
+@RequirePermissions('imports:write')
 @Controller('imports')
 export class ImportsController {
   constructor(private readonly importsService: ImportsService) {}
@@ -32,6 +34,7 @@ export class ImportsController {
   }
 
   @Post('logistics/preview')
+  @RequirePermissions('logistics:write')
   @ApiConsumes('multipart/form-data')
   @ApiBody({ description: 'XLSX-файл тарифов логистики' })
   @UseInterceptors(FileInterceptor('file'))
@@ -40,6 +43,7 @@ export class ImportsController {
   }
 
   @Post('logistics/commit')
+  @RequirePermissions('logistics:write')
   @ApiConsumes('multipart/form-data')
   @ApiBody({ description: 'XLSX-файл тарифов логистики, имя набора и период активности' })
   @UseInterceptors(FileInterceptor('file'))

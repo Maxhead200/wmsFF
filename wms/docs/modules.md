@@ -19,6 +19,7 @@
 - `POST /api/v1/auth/login` и `GET /api/v1/auth/me` - вход и профиль текущего пользователя.
 - `GET/POST /api/v1/users` - администрирование пользователей с проверкой прав.
 - `GET /api/v1/users/roles` - роли и разрешения WMS.
+- Существующие API-модули закрыты через `@RequirePermissions()` по зонам `clients`, `skus`, `warehouse`, `stock`, `imports`, `logistics`, `print`.
 - `GET/POST /api/v1/skus` - карточки SKU и основной barcode.
 - `GET/POST /api/v1/warehouse/warehouses` - склады.
 - `GET/POST /api/v1/warehouse/zones` - зоны хранения.

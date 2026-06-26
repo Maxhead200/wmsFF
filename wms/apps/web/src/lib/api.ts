@@ -748,6 +748,37 @@ export type LabelPreview = {
 
 export type BoxLabelPreview = LabelPreview;
 
+export type LabelTemplateType = 'BOX' | 'SKU' | 'PALLET' | 'CUSTOM';
+
+export type LabelTemplateSummary = {
+  id: string;
+  code: string;
+  name: string;
+  type: LabelTemplateType;
+  description: string | null;
+  widthMm: number;
+  heightMm: number;
+  tspl: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateLabelTemplatePayload = {
+  code: string;
+  name: string;
+  type: LabelTemplateType;
+  description?: string;
+  widthMm?: number;
+  heightMm?: number;
+  tspl: string;
+  isActive?: boolean;
+};
+
+export type PreviewLabelTemplatePayload = {
+  variables?: Record<string, string | number | boolean | null>;
+};
+
 export type SkuLabelPreviewPayload = {
   skuCode: string;
   name: string;
@@ -1379,6 +1410,28 @@ export async function previewSkuLabel(accessToken: string, payload: SkuLabelPrev
 
 export async function previewPalletLabel(accessToken: string, payload: PalletLabelPreviewPayload) {
   return request<LabelPreview>('/print/pallet-label/preview', {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function fetchLabelTemplates(accessToken: string, filter: { type?: LabelTemplateType } = {}) {
+  return request<LabelTemplateSummary[]>(withQuery('/print/templates', filter), {
+    accessToken,
+  });
+}
+
+export async function createLabelTemplate(accessToken: string, payload: CreateLabelTemplatePayload) {
+  return request<LabelTemplateSummary>('/print/templates', {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function previewLabelTemplate(accessToken: string, templateId: string, payload: PreviewLabelTemplatePayload) {
+  return request<LabelPreview>(`/print/templates/${templateId}/preview`, {
     method: 'POST',
     body: payload,
     accessToken,

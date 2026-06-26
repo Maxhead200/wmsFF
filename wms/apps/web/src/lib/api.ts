@@ -39,6 +39,8 @@ export type ClientRequestStatus =
 
 export type ClientRequestPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
 
+export type ClientNotificationSeverity = 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR';
+
 export type BillingUnit = 'SERVICE' | 'PIECE' | 'BOX' | 'PALLET' | 'LITER' | 'LITER_DAY' | 'DAY' | 'HOUR';
 
 export type BillingChargeStatus = 'DRAFT' | 'APPROVED' | 'CANCELLED';
@@ -318,6 +320,41 @@ export type ClientRequestItem = {
   } | null;
 };
 
+export type ClientRequestFileSummary = {
+  id: string;
+  requestId: string;
+  clientId: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  uploadedByUserId: string | null;
+  createdAt: string;
+  uploadedBy: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+};
+
+export type ClientNotificationSummary = {
+  id: string;
+  clientId: string;
+  requestId: string | null;
+  title: string;
+  body: string | null;
+  severity: ClientNotificationSeverity;
+  isRead: boolean;
+  readAt: string | null;
+  createdAt: string;
+  client: Pick<ClientSummary, 'id' | 'code' | 'name'>;
+  request: Pick<ClientRequestSummary, 'id' | 'title' | 'type' | 'status'> | null;
+  createdBy: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+};
+
 export type ClientRequestSummary = {
   id: string;
   clientId: string;
@@ -345,6 +382,7 @@ export type ClientRequestSummary = {
     name: string;
   } | null;
   items: ClientRequestItem[];
+  files: ClientRequestFileSummary[];
 };
 
 export type CreateClientRequestPayload = {
@@ -1061,6 +1099,45 @@ export async function fetchClientRequestDocument(accessToken: string, requestId:
   });
 }
 
+export async function fetchClientRequestFiles(accessToken: string, requestId: string) {
+  return request<ClientRequestFileSummary[]>(`/client-requests/${requestId}/files`, {
+    accessToken,
+  });
+}
+
+export async function uploadClientRequestFile(accessToken: string, requestId: string, file: File) {
+  const form = new FormData();
+  form.append('file', file);
+
+  return requestMultipart<ClientRequestFileSummary>(`/client-requests/${requestId}/files`, form, accessToken);
+}
+
+export async function downloadClientRequestFile(accessToken: string, requestId: string, fileId: string) {
+  return requestBlob(`/client-requests/${requestId}/files/${fileId}`, accessToken);
+}
+
+export async function fetchClientNotifications(
+  accessToken: string,
+  filter: { clientId?: string; unreadOnly?: boolean } = {},
+) {
+  return request<ClientNotificationSummary[]>(
+    withQuery('/client-notifications', {
+      clientId: filter.clientId,
+      unreadOnly: filter.unreadOnly ? 'true' : undefined,
+    }),
+    {
+      accessToken,
+    },
+  );
+}
+
+export async function markClientNotificationRead(accessToken: string, notificationId: string) {
+  return request<ClientNotificationSummary>(`/client-notifications/${notificationId}/read`, {
+    method: 'PATCH',
+    accessToken,
+  });
+}
+
 export async function fetchBillingServices(accessToken: string) {
   return request<BillingServiceSummary[]>('/billing/services', {
     accessToken,
@@ -1621,6 +1698,20 @@ async function requestMultipart<T>(path: string, body: FormData, accessToken: st
   }
 
   return (await response.json()) as T;
+}
+
+async function requestBlob(path: string, accessToken: string) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await responseError(response));
+  }
+
+  return response.blob();
 }
 
 async function responseError(response: Response) {

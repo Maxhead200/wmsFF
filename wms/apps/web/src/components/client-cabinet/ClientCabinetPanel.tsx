@@ -4,14 +4,20 @@ import {
   fetchBillingCharges,
   fetchBillingInvoiceDocument,
   fetchBillingInvoices,
+  downloadClientRequestFile,
+  fetchClientNotifications,
   fetchClientRequestDocument,
   fetchClientRequests,
   fetchClients,
   fetchStockBalances,
+  markClientNotificationRead,
+  uploadClientRequestFile,
   type AuthSession,
   type BillingChargeSummary,
   type BillingInvoiceDocument,
   type BillingInvoiceSummary,
+  type ClientNotificationSummary,
+  type ClientRequestFileSummary,
   type ClientRequestDocument,
   type ClientRequestSummary,
   type ClientSummary,
@@ -29,6 +35,7 @@ type CabinetData = {
   requests: ClientRequestSummary[];
   invoices: BillingInvoiceSummary[];
   charges: BillingChargeSummary[];
+  notifications: ClientNotificationSummary[];
 };
 
 type CabinetState = {
@@ -47,6 +54,7 @@ const emptyData: CabinetData = {
   requests: [],
   invoices: [],
   charges: [],
+  notifications: [],
 };
 
 export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
@@ -91,6 +99,10 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
         state.data.charges.filter((charge) => !clientId || charge.clientId === clientId),
         (charge) => charge.serviceDate,
       ),
+      notifications: sortByDate(
+        state.data.notifications.filter((notification) => !clientId || notification.clientId === clientId),
+        (notification) => notification.createdAt,
+      ),
     };
   }, [selectedClientId, state.data]);
 
@@ -101,17 +113,18 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
     try {
       // Русский комментарий: кабинет клиента собирает read-only витрину из существующих API,
       // чтобы клиент видел только данные, отфильтрованные серверным client scope.
-      const [clients, stock, requests, invoices, charges] = await Promise.all([
+      const [clients, stock, requests, invoices, charges, notifications] = await Promise.all([
         fetchClients(session.accessToken),
         fetchStockBalances(session.accessToken),
         fetchClientRequests(session.accessToken),
         fetchBillingInvoices(session.accessToken),
         fetchBillingCharges(session.accessToken),
+        fetchClientNotifications(session.accessToken),
       ]);
 
       setState({
         status: 'ready',
-        data: { clients, stock, requests, invoices, charges },
+        data: { clients, stock, requests, invoices, charges, notifications },
       });
     } catch (caught) {
       setState((current) => ({
@@ -140,6 +153,46 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
     } catch (caught) {
       setDocumentError(caught instanceof Error ? caught.message : 'Не удалось открыть документ заявки.');
     }
+  }
+
+  async function uploadRequestFile(request: ClientRequestSummary, file: File) {
+    const uploadedFile = await uploadClientRequestFile(session.accessToken, request.id, file);
+    const notifications = await fetchClientNotifications(session.accessToken);
+
+    setState((current) => ({
+      ...current,
+      data: {
+        ...current.data,
+        notifications,
+        requests: current.data.requests.map((item) =>
+          item.id === request.id ? { ...item, files: [uploadedFile, ...item.files] } : item,
+        ),
+      },
+    }));
+  }
+
+  async function downloadRequestFile(request: ClientRequestSummary, file: ClientRequestFileSummary) {
+    const blob = await downloadClientRequestFile(session.accessToken, request.id, file.id);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = file.fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
+
+  async function markNotificationRead(notification: ClientNotificationSummary) {
+    const updated = await markClientNotificationRead(session.accessToken, notification.id);
+
+    setState((current) => ({
+      ...current,
+      data: {
+        ...current.data,
+        notifications: current.data.notifications.map((item) => (item.id === updated.id ? updated : item)),
+      },
+    }));
   }
 
   return (
@@ -203,8 +256,12 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
             requests={view.requests}
             invoices={view.invoices}
             charges={view.charges}
+            notifications={view.notifications}
             onOpenRequestDocument={(request) => void openRequestDocument(request)}
             onOpenInvoiceDocument={(invoice) => void openInvoiceDocument(invoice)}
+            onUploadRequestFile={uploadRequestFile}
+            onDownloadRequestFile={downloadRequestFile}
+            onMarkNotificationRead={(notification) => void markNotificationRead(notification)}
           />
         </>
       ) : null}

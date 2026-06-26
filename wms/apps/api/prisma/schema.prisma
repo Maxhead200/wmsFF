@@ -159,6 +159,13 @@ enum LabelTemplateType {
   CUSTOM
 }
 
+enum ClientNotificationSeverity {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
+}
+
 model User {
   id                     String           @id @default(uuid())
   email                  String           @unique
@@ -176,6 +183,8 @@ model User {
   createdBillingInvoices BillingInvoice[] @relation("BillingInvoiceCreatedBy")
   createdBillingPayments BillingPayment[] @relation("BillingPaymentCreatedBy")
   createdDeliveries       LogisticsDeliveryRequest[] @relation("LogisticsDeliveryCreatedBy")
+  uploadedRequestFiles   ClientRequestFile[] @relation("ClientRequestFileUploadedBy")
+  createdNotifications   ClientNotification[] @relation("ClientNotificationCreatedBy")
   auditLogs              AuditLog[]
   createdAt              DateTime         @default(now())
   updatedAt              DateTime         @updatedAt
@@ -248,6 +257,8 @@ model Client {
   billingInvoices BillingInvoice[]
   billingPayments BillingPayment[]
   deliveryRequests LogisticsDeliveryRequest[]
+  requestFiles    ClientRequestFile[]
+  notifications   ClientNotification[]
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 }
@@ -402,6 +413,8 @@ model ClientRequest {
   createdBy        User?                 @relation("ClientRequestCreatedBy", fields: [createdByUserId], references: [id])
   assignedTo       User?                 @relation("ClientRequestAssignedTo", fields: [assignedToUserId], references: [id])
   items            ClientRequestItem[]
+  files            ClientRequestFile[]
+  notifications    ClientNotification[]
   billingCharges   BillingCharge[]
   deliveryRequests LogisticsDeliveryRequest[]
   createdAt        DateTime              @default(now())
@@ -426,6 +439,45 @@ model ClientRequestItem {
 
   @@index([requestId])
   @@index([skuId])
+}
+
+model ClientRequestFile {
+  id               String        @id @default(uuid())
+  requestId        String
+  clientId         String
+  fileName         String
+  mimeType         String
+  sizeBytes        Int
+  content          Bytes
+  uploadedByUserId String?
+  request          ClientRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  client           Client        @relation(fields: [clientId], references: [id])
+  uploadedBy       User?         @relation("ClientRequestFileUploadedBy", fields: [uploadedByUserId], references: [id])
+  createdAt        DateTime      @default(now())
+
+  @@index([requestId, createdAt])
+  @@index([clientId, createdAt])
+  @@index([uploadedByUserId])
+}
+
+model ClientNotification {
+  id              String                     @id @default(uuid())
+  clientId        String
+  requestId       String?
+  title           String
+  body            String?
+  severity        ClientNotificationSeverity @default(INFO)
+  isRead          Boolean                    @default(false)
+  readAt          DateTime?
+  createdByUserId String?
+  client          Client                     @relation(fields: [clientId], references: [id])
+  request         ClientRequest?             @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  createdBy       User?                      @relation("ClientNotificationCreatedBy", fields: [createdByUserId], references: [id])
+  createdAt       DateTime                   @default(now())
+
+  @@index([clientId, isRead, createdAt])
+  @@index([requestId])
+  @@index([createdByUserId])
 }
 
 model BillingService {

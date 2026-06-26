@@ -3,6 +3,7 @@ import { ClientRequestStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
+import { clientRequestFileSummarySelect } from './client-request-files.service';
 import { CreateClientRequestDto } from './dto/create-client-request.dto';
 import { ListClientRequestsDto } from './dto/list-client-requests.dto';
 import { UpdateClientRequestStatusDto } from './dto/update-client-request-status.dto';
@@ -155,6 +156,12 @@ const clientRequestInclude = {
     },
     orderBy: {
       id: 'asc',
+    },
+  },
+  files: {
+    select: clientRequestFileSummarySelect,
+    orderBy: {
+      createdAt: 'desc',
     },
   },
 } satisfies Prisma.ClientRequestInclude;

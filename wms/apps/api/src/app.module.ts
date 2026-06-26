@@ -4,6 +4,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { CommonModule } from './common/common.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BillingModule } from './modules/billing/billing.module';
+import { ClientNotificationsModule } from './modules/client-notifications/client-notifications.module';
 import { ClientRequestsModule } from './modules/client-requests/client-requests.module';
 import { AuthGuard } from './modules/auth/guards/auth.guard';
 import { PermissionsGuard } from './modules/auth/guards/permissions.guard';
@@ -24,6 +25,7 @@ import { WarehouseModule } from './modules/warehouse/warehouse.module';
     CommonModule,
     AuthModule,
     BillingModule,
+    ClientNotificationsModule,
     ClientRequestsModule,
     UsersModule,
     ClientsModule,

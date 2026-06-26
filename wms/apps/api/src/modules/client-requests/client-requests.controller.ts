@@ -1,8 +1,23 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Res,
+  StreamableFile,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 import type { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { ClientRequestFilesService } from './client-request-files.service';
 import { ClientRequestDocumentService } from './client-request-document.service';
 import { ClientRequestsService } from './client-requests.service';
 import { CreateClientRequestDto } from './dto/create-client-request.dto';
@@ -16,6 +31,7 @@ export class ClientRequestsController {
   constructor(
     private readonly clientRequests: ClientRequestsService,
     private readonly documents: ClientRequestDocumentService,
+    private readonly files: ClientRequestFilesService,
   ) {}
 
   @Get()
@@ -33,10 +49,43 @@ export class ClientRequestsController {
     return this.documents.getRequestDocument(id, user);
   }
 
+  @Get(':id/files')
+  listFiles(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.files.listForRequest(id, user);
+  }
+
+  @Get(':id/files/:fileId')
+  async downloadFile(
+    @Param('id') id: string,
+    @Param('fileId') fileId: string,
+    @CurrentUser() user: AuthUser,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const file = await this.files.getFileContent(id, fileId, user);
+    response.setHeader('Content-Type', file.mimeType);
+    response.setHeader('Content-Length', String(file.sizeBytes));
+    response.setHeader('Content-Disposition', contentDisposition(file.fileName));
+
+    return new StreamableFile(Buffer.from(file.content));
+  }
+
   @Post()
   @RequirePermissions('client-requests:write')
   create(@Body() dto: CreateClientRequestDto, @CurrentUser() user: AuthUser) {
     return this.clientRequests.create(dto, user);
+  }
+
+  @Post(':id/files')
+  @RequirePermissions('client-requests:write')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({ description: 'Файл, который нужно приложить к клиентской заявке.' })
+  @UseInterceptors(FileInterceptor('file'))
+  uploadFile(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.files.uploadToRequest(id, file, user);
   }
 
   @Patch(':id/status')
@@ -48,4 +97,9 @@ export class ClientRequestsController {
   ) {
     return this.clientRequests.updateStatus(id, dto, user);
   }
+}
+
+function contentDisposition(fileName: string) {
+  const asciiName = fileName.replace(/[^\x20-\x7E]+/g, '_').replace(/"/g, '');
+  return `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
 }

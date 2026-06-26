@@ -1,6 +1,13 @@
 import type { ReactNode } from 'react';
 import { FileText, ReceiptText } from 'lucide-react';
-import type { BillingChargeSummary, BillingInvoiceSummary, ClientRequestSummary, StockBalance } from '../../lib/api';
+import type {
+  BillingChargeSummary,
+  BillingInvoiceSummary,
+  ClientNotificationSummary,
+  ClientRequestFileSummary,
+  ClientRequestSummary,
+  StockBalance,
+} from '../../lib/api';
 import { billingInvoiceStatusLabel, billingInvoiceStatusTone, billingStatusLabel, billingStatusTone } from '../billing/billingMeta';
 import { requestStatusLabel, requestStatusTone, requestTypeLabel } from '../client-requests/clientRequestMeta';
 import {
@@ -9,14 +16,20 @@ import {
   formatCabinetNumber,
   primaryBarcode,
 } from './clientCabinetFormat';
+import { ClientCabinetNotifications } from './ClientCabinetNotifications';
+import { ClientRequestFilesCell } from './ClientRequestFilesCell';
 
 type ClientCabinetTablesProps = {
   stock: StockBalance[];
   requests: ClientRequestSummary[];
   invoices: BillingInvoiceSummary[];
   charges: BillingChargeSummary[];
+  notifications: ClientNotificationSummary[];
   onOpenRequestDocument: (request: ClientRequestSummary) => void;
   onOpenInvoiceDocument: (invoice: BillingInvoiceSummary) => void;
+  onUploadRequestFile: (request: ClientRequestSummary, file: File) => Promise<void>;
+  onDownloadRequestFile: (request: ClientRequestSummary, file: ClientRequestFileSummary) => Promise<void>;
+  onMarkNotificationRead: (notification: ClientNotificationSummary) => void;
 };
 
 export function ClientCabinetTables({
@@ -24,17 +37,23 @@ export function ClientCabinetTables({
   requests,
   invoices,
   charges,
+  notifications,
   onOpenRequestDocument,
   onOpenInvoiceDocument,
+  onUploadRequestFile,
+  onDownloadRequestFile,
+  onMarkNotificationRead,
 }: ClientCabinetTablesProps) {
   return (
     <div className="client-cabinet-sections">
+      <ClientCabinetNotifications notifications={notifications} onMarkRead={onMarkNotificationRead} />
+
       <CabinetSection title="Остатки" emptyText="Остатков пока нет." hasItems={stock.length > 0}>
         {renderStockTable(stock)}
       </CabinetSection>
 
       <CabinetSection title="Заявки" emptyText="Заявок пока нет." hasItems={requests.length > 0}>
-        {renderRequestTable(requests, onOpenRequestDocument)}
+        {renderRequestTable(requests, onOpenRequestDocument, onUploadRequestFile, onDownloadRequestFile)}
       </CabinetSection>
 
       <CabinetSection title="Счета" emptyText="Счетов пока нет." hasItems={invoices.length > 0}>
@@ -107,7 +126,12 @@ function renderStockTable(items: StockBalance[]) {
   );
 }
 
-function renderRequestTable(items: ClientRequestSummary[], onOpenRequestDocument: (request: ClientRequestSummary) => void) {
+function renderRequestTable(
+  items: ClientRequestSummary[],
+  onOpenRequestDocument: (request: ClientRequestSummary) => void,
+  onUploadRequestFile: (request: ClientRequestSummary, file: File) => Promise<void>,
+  onDownloadRequestFile: (request: ClientRequestSummary, file: ClientRequestFileSummary) => Promise<void>,
+) {
   return (
     <div className="client-cabinet-table-wrap">
       <table className="data-table client-cabinet-table">
@@ -119,6 +143,7 @@ function renderRequestTable(items: ClientRequestSummary[], onOpenRequestDocument
             <th>Срок</th>
             <th>Статус</th>
             <th>Документ</th>
+            <th>Файлы</th>
           </tr>
         </thead>
         <tbody>
@@ -147,6 +172,13 @@ function renderRequestTable(items: ClientRequestSummary[], onOpenRequestDocument
                   <FileText size={15} aria-hidden="true" />
                   <span>Заявка</span>
                 </button>
+              </td>
+              <td>
+                <ClientRequestFilesCell
+                  request={request}
+                  onUpload={onUploadRequestFile}
+                  onDownload={onDownloadRequestFile}
+                />
               </td>
             </tr>
           ))}

@@ -1,8 +1,13 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { LogisticsPricingMode, Prisma } from '@prisma/client';
+import { LogisticsDeliveryStatus, LogisticsPricingMode, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import type { AuthUser } from '../auth/auth.types';
+import { ClientScopeService } from '../auth/client-scope.service';
 import type { LogisticsDirection as ParsedLogisticsDirection } from '../imports/parsers/logistics-xlsx.parser';
+import { CreateDeliveryRequestDto } from './dto/create-delivery-request.dto';
+import { ListDeliveryRequestsDto } from './dto/list-delivery-requests.dto';
 import { QuoteLogisticsDto } from './dto/quote-logistics.dto';
+import { UpdateDeliveryStatusDto } from './dto/update-delivery-status.dto';
 
 type ParsedLogisticsTariffSet = {
   note: string;
@@ -28,7 +33,10 @@ type RateTierLike = {
 
 @Injectable()
 export class LogisticsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly clientScopes: ClientScopeService,
+  ) {}
 
   listTariffSets() {
     return this.prisma.logisticsTariffSet.findMany({
@@ -151,6 +159,85 @@ export class LogisticsService {
     };
   }
 
+  listDeliveryRequests(query: ListDeliveryRequestsDto, user: AuthUser) {
+    return this.prisma.logisticsDeliveryRequest.findMany({
+      where: {
+        clientId: this.clientScopes.resolveClientFilter(user, query.clientId),
+        status: query.status,
+      },
+      include: deliveryRequestInclude,
+      orderBy: [{ updatedAt: 'desc' }],
+      take: 200,
+    });
+  }
+
+  async createDeliveryRequest(dto: CreateDeliveryRequestDto, user: AuthUser) {
+    this.clientScopes.requireClientAccess(user, dto.clientId, 'write');
+
+    const clientRequest = dto.requestId
+      ? await this.prisma.clientRequest.findFirst({
+          where: {
+            id: dto.requestId,
+            clientId: dto.clientId,
+          },
+          select: { id: true },
+        })
+      : null;
+
+    if (dto.requestId && !clientRequest) {
+      throw new BadRequestException('Связанная клиентская заявка не найдена у выбранного клиента.');
+    }
+
+    const quote = await this.tryQuoteForDelivery(dto);
+    const status = quote.estimatedTotalRub != null && !quote.requiresManualReview
+      ? LogisticsDeliveryStatus.QUOTED
+      : LogisticsDeliveryStatus.REQUESTED;
+
+    // Русский комментарий: заявку создаем даже при ручном тарифе, чтобы менеджер не терял обращение клиента.
+    return this.prisma.logisticsDeliveryRequest.create({
+      data: {
+        clientId: dto.clientId,
+        requestId: dto.requestId,
+        tariffSetId: quote.tariffSetId ?? dto.tariffSetId,
+        origin: dto.origin.trim(),
+        destination: dto.destination.trim(),
+        boxes: dto.boxes,
+        pallets: dto.pallets,
+        desiredShipDate: this.parseDate(dto.desiredShipDate),
+        status,
+        estimatedTotalRub: quote.estimatedTotalRub,
+        requiresManualReview: quote.requiresManualReview,
+        comment: normalizeText(dto.comment),
+        managerComment: quote.note,
+        createdByUserId: user.id,
+      },
+      include: deliveryRequestInclude,
+    });
+  }
+
+  async updateDeliveryStatus(id: string, dto: UpdateDeliveryStatusDto, user: AuthUser) {
+    const request = await this.prisma.logisticsDeliveryRequest.findUnique({
+      where: { id },
+      select: { id: true, clientId: true },
+    });
+
+    if (!request) {
+      throw new NotFoundException('Заявка на доставку не найдена.');
+    }
+
+    this.clientScopes.requireClientAccess(user, request.clientId, 'write');
+
+    return this.prisma.logisticsDeliveryRequest.update({
+      where: { id },
+      data: {
+        status: dto.status,
+        plannedShipDate: this.parseDate(dto.plannedShipDate),
+        managerComment: normalizeText(dto.managerComment),
+      },
+      include: deliveryRequestInclude,
+    });
+  }
+
   selectRateTier(tiers: RateTierLike[], input: { boxes?: number; pallets?: number }) {
     if (input.boxes != null) {
       const candidates = tiers
@@ -230,6 +317,35 @@ export class LogisticsService {
     };
   }
 
+  private async tryQuoteForDelivery(dto: CreateDeliveryRequestDto) {
+    try {
+      const quote = await this.quote({
+        tariffSetId: dto.tariffSetId,
+        origin: dto.origin,
+        destination: dto.destination,
+        boxes: dto.boxes,
+        pallets: dto.pallets,
+        quoteDate: dto.desiredShipDate,
+      });
+
+      return {
+        tariffSetId: quote.tariffSet.id,
+        estimatedTotalRub: quote.estimatedTotalRub,
+        requiresManualReview: quote.requiresManualReview || quote.estimatedTotalRub == null,
+        note: quote.note,
+      };
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : 'Требуется ручной расчет логистики.';
+
+      return {
+        tariffSetId: dto.tariffSetId,
+        estimatedTotalRub: null,
+        requiresManualReview: true,
+        note: message,
+      };
+    }
+  }
+
   private normalizePoint(value: string) {
     return value.toLowerCase().replace(/\s*,\s*/g, ', ').replace(/\s+/g, ' ').trim();
   }
@@ -246,4 +362,48 @@ export class LogisticsService {
 
     return date;
   }
+}
+
+const deliveryRequestInclude = {
+  client: {
+    select: {
+      id: true,
+      code: true,
+      name: true,
+    },
+  },
+  request: {
+    select: {
+      id: true,
+      title: true,
+      type: true,
+      status: true,
+    },
+  },
+  tariffSet: {
+    select: {
+      id: true,
+      name: true,
+    },
+  },
+  billingCharge: {
+    select: {
+      id: true,
+      description: true,
+      status: true,
+      totalRub: true,
+    },
+  },
+  createdBy: {
+    select: {
+      id: true,
+      email: true,
+      name: true,
+    },
+  },
+} satisfies Prisma.LogisticsDeliveryRequestInclude;
+
+function normalizeText(value?: string) {
+  const normalized = value?.trim();
+  return normalized ? normalized : undefined;
 }

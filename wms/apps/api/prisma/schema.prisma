@@ -100,6 +100,15 @@ enum LogisticsPricingMode {
   MANUAL_REVIEW
 }
 
+enum LogisticsDeliveryStatus {
+  REQUESTED
+  QUOTED
+  PLANNED
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+}
+
 enum BillingUnit {
   SERVICE
   PIECE
@@ -150,6 +159,7 @@ model User {
   approvedBillingCharges BillingCharge[]  @relation("BillingChargeApprovedBy")
   createdBillingInvoices BillingInvoice[] @relation("BillingInvoiceCreatedBy")
   createdBillingPayments BillingPayment[] @relation("BillingPaymentCreatedBy")
+  createdDeliveries       LogisticsDeliveryRequest[] @relation("LogisticsDeliveryCreatedBy")
   auditLogs              AuditLog[]
   createdAt              DateTime         @default(now())
   updatedAt              DateTime         @updatedAt
@@ -221,6 +231,7 @@ model Client {
   billingCharges  BillingCharge[]
   billingInvoices BillingInvoice[]
   billingPayments BillingPayment[]
+  deliveryRequests LogisticsDeliveryRequest[]
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 }
@@ -376,6 +387,7 @@ model ClientRequest {
   assignedTo       User?                 @relation("ClientRequestAssignedTo", fields: [assignedToUserId], references: [id])
   items            ClientRequestItem[]
   billingCharges   BillingCharge[]
+  deliveryRequests LogisticsDeliveryRequest[]
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
 
@@ -437,6 +449,7 @@ model BillingCharge {
   createdBy        User?                @relation("BillingChargeCreatedBy", fields: [createdByUserId], references: [id])
   approvedBy       User?                @relation("BillingChargeApprovedBy", fields: [approvedByUserId], references: [id])
   invoiceItems     BillingInvoiceItem[]
+  deliveryRequests LogisticsDeliveryRequest[]
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
 
@@ -521,6 +534,7 @@ model LogisticsTariffSet {
   activeFrom DateTime?
   activeTo   DateTime?
   directions LogisticsDirection[]
+  deliveryRequests LogisticsDeliveryRequest[]
   createdAt  DateTime             @default(now())
 }
 
@@ -549,6 +563,38 @@ model LogisticsRateTier {
   direction   LogisticsDirection   @relation(fields: [directionId], references: [id])
 
   @@index([directionId])
+}
+
+model LogisticsDeliveryRequest {
+  id                   String                  @id @default(uuid())
+  clientId             String
+  requestId            String?
+  tariffSetId          String?
+  billingChargeId      String?
+  origin               String
+  destination          String
+  boxes                Int?
+  pallets              Int?
+  desiredShipDate      DateTime?
+  plannedShipDate      DateTime?
+  status               LogisticsDeliveryStatus @default(REQUESTED)
+  estimatedTotalRub    Decimal?                @db.Decimal(14, 2)
+  requiresManualReview Boolean                 @default(false)
+  comment              String?
+  managerComment       String?
+  createdByUserId      String?
+  client               Client                  @relation(fields: [clientId], references: [id])
+  request              ClientRequest?          @relation(fields: [requestId], references: [id])
+  tariffSet            LogisticsTariffSet?     @relation(fields: [tariffSetId], references: [id])
+  billingCharge        BillingCharge?          @relation(fields: [billingChargeId], references: [id])
+  createdBy            User?                   @relation("LogisticsDeliveryCreatedBy", fields: [createdByUserId], references: [id])
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+
+  @@index([clientId, status, createdAt])
+  @@index([requestId])
+  @@index([billingChargeId])
+  @@index([tariffSetId])
 }
 
 model TsdOperation {

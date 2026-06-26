@@ -767,6 +767,50 @@ export type StockImportCommitResult = {
 
 export type LogisticsPricingMode = 'TOTAL' | 'PER_PALLET' | 'MANUAL_REVIEW';
 
+export type LogisticsDeliveryStatus = 'REQUESTED' | 'QUOTED' | 'PLANNED' | 'IN_TRANSIT' | 'DELIVERED' | 'CANCELLED';
+
+export type LogisticsDeliveryRequestSummary = {
+  id: string;
+  clientId: string;
+  requestId: string | null;
+  tariffSetId: string | null;
+  billingChargeId: string | null;
+  origin: string;
+  destination: string;
+  boxes: number | null;
+  pallets: number | null;
+  desiredShipDate: string | null;
+  plannedShipDate: string | null;
+  status: LogisticsDeliveryStatus;
+  estimatedTotalRub: string | number | null;
+  requiresManualReview: boolean;
+  comment: string | null;
+  managerComment: string | null;
+  createdAt: string;
+  updatedAt: string;
+  client: Pick<ClientSummary, 'id' | 'code' | 'name'>;
+  request: Pick<ClientRequestSummary, 'id' | 'title' | 'type' | 'status'> | null;
+  tariffSet: Pick<LogisticsTariffSetSummary, 'id' | 'name'> | null;
+  billingCharge: Pick<BillingChargeSummary, 'id' | 'description' | 'status' | 'totalRub'> | null;
+  createdBy: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+};
+
+export type CreateLogisticsDeliveryRequestPayload = {
+  clientId: string;
+  requestId?: string;
+  tariffSetId?: string;
+  origin: string;
+  destination: string;
+  boxes?: number;
+  pallets?: number;
+  desiredShipDate?: string;
+  comment?: string;
+};
+
 export type LogisticsImportTier = {
   label: string;
   priceRub: number;
@@ -1083,9 +1127,41 @@ export async function fetchLogisticsTariffSets(accessToken: string) {
   });
 }
 
+export async function fetchLogisticsDeliveryRequests(
+  accessToken: string,
+  filter: { clientId?: string; status?: LogisticsDeliveryStatus } = {},
+) {
+  return request<LogisticsDeliveryRequestSummary[]>(withQuery('/logistics/delivery-requests', filter), {
+    accessToken,
+  });
+}
+
 export async function quoteLogistics(accessToken: string, payload: LogisticsQuotePayload) {
   return request<LogisticsQuoteResult>('/logistics/quote', {
     method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function createLogisticsDeliveryRequest(
+  accessToken: string,
+  payload: CreateLogisticsDeliveryRequestPayload,
+) {
+  return request<LogisticsDeliveryRequestSummary>('/logistics/delivery-requests', {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function updateLogisticsDeliveryStatus(
+  accessToken: string,
+  deliveryId: string,
+  payload: { status: LogisticsDeliveryStatus; plannedShipDate?: string; managerComment?: string },
+) {
+  return request<LogisticsDeliveryRequestSummary>(`/logistics/delivery-requests/${deliveryId}/status`, {
+    method: 'PATCH',
     body: payload,
     accessToken,
   });

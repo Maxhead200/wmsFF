@@ -1,14 +1,24 @@
 import { Calculator, RefreshCw } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 import {
+  fetchClientRequests,
+  fetchClients,
+  fetchLogisticsDeliveryRequests,
   fetchLogisticsTariffSets,
   quoteLogistics,
+  updateLogisticsDeliveryStatus,
   type AuthSession,
   type AuthUser,
+  type ClientRequestSummary,
+  type ClientSummary,
+  type LogisticsDeliveryRequestSummary,
+  type LogisticsDeliveryStatus,
   type LogisticsQuoteResult,
   type LogisticsTariffSetSummary,
 } from '../../lib/api';
 import './logistics.css';
+import { LogisticsDeliveryForm } from './LogisticsDeliveryForm';
+import { LogisticsDeliveryRequestsTable } from './LogisticsDeliveryRequestsTable';
 import { LogisticsQuoteResultCard } from './LogisticsQuoteResultCard';
 
 type LogisticsQuotePanelProps = {
@@ -21,6 +31,9 @@ const defaultQuoteDate = new Date().toISOString().slice(0, 10);
 
 export function LogisticsQuotePanel({ session }: LogisticsQuotePanelProps) {
   const [tariffs, setTariffs] = useState<LogisticsTariffSetSummary[]>([]);
+  const [clients, setClients] = useState<ClientSummary[]>([]);
+  const [clientRequests, setClientRequests] = useState<ClientRequestSummary[]>([]);
+  const [deliveryRequests, setDeliveryRequests] = useState<LogisticsDeliveryRequestSummary[]>([]);
   const [tariffSetId, setTariffSetId] = useState('');
   const [origin, setOrigin] = useState('МОСКВА');
   const [destination, setDestination] = useState('');
@@ -33,25 +46,48 @@ export function LogisticsQuotePanel({ session }: LogisticsQuotePanelProps) {
   const [isSubmitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    void loadTariffs();
+    void loadData();
   }, [session.accessToken]);
 
   if (!canUse(session.user, 'logistics:read')) {
     return null;
   }
 
-  async function loadTariffs() {
+  async function loadData() {
     setLoading(true);
     setError('');
 
     try {
-      const nextTariffs = await fetchLogisticsTariffSets(session.accessToken);
+      const [nextTariffs, nextClients, nextClientRequests, nextDeliveryRequests] = await Promise.all([
+        fetchLogisticsTariffSets(session.accessToken),
+        fetchClients(session.accessToken),
+        fetchClientRequests(session.accessToken),
+        fetchLogisticsDeliveryRequests(session.accessToken),
+      ]);
       setTariffs(nextTariffs);
+      setClients(nextClients);
+      setClientRequests(nextClientRequests);
+      setDeliveryRequests(nextDeliveryRequests);
       setTariffSetId((current) => current || nextTariffs[0]?.id || '');
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Не удалось загрузить наборы тарифов.');
+      setError(caught instanceof Error ? caught.message : 'Не удалось загрузить логистику.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  function acceptDeliveryRequest(request: LogisticsDeliveryRequestSummary) {
+    setDeliveryRequests((current) => [request, ...current.filter((item) => item.id !== request.id)]);
+  }
+
+  async function changeDeliveryStatus(deliveryId: string, status: LogisticsDeliveryStatus) {
+    setError('');
+
+    try {
+      const updated = await updateLogisticsDeliveryStatus(session.accessToken, deliveryId, { status });
+      setDeliveryRequests((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Не удалось обновить статус доставки.');
     }
   }
 
@@ -86,13 +122,13 @@ export function LogisticsQuotePanel({ session }: LogisticsQuotePanelProps) {
     <section className="logistics-panel" aria-label="Расчет логистики">
       <div className="section-heading logistics-panel__heading">
         <div>
-          <p className="eyebrow">Logistics quote</p>
-          <h2>Расчет логистики</h2>
+          <p className="eyebrow">Logistics</p>
+          <h2>Расчет и заявки доставки</h2>
         </div>
         <button
           className="icon-button"
           type="button"
-          onClick={() => void loadTariffs()}
+          onClick={() => void loadData()}
           title="Обновить тарифы"
           aria-label="Обновить тарифы"
           disabled={isLoading}
@@ -155,6 +191,36 @@ export function LogisticsQuotePanel({ session }: LogisticsQuotePanelProps) {
       </form>
 
       {result ? <LogisticsQuoteResultCard result={result} /> : null}
+
+      {canUse(session.user, 'logistics:request') && clients.length > 0 ? (
+        <>
+          <div className="logistics-panel__subheading">
+            <h3>Заявка на доставку</h3>
+          </div>
+          <LogisticsDeliveryForm
+            clients={clients}
+            requests={clientRequests}
+            tariffs={tariffs}
+            session={session}
+            onCreated={acceptDeliveryRequest}
+          />
+        </>
+      ) : null}
+
+      <div className="logistics-panel__subheading">
+        <h3>Заявки доставки</h3>
+      </div>
+      <div className="delivery-list">
+        {isLoading && deliveryRequests.length === 0 ? <p className="panel-message">Загружаю заявки доставки.</p> : null}
+        {!isLoading && deliveryRequests.length === 0 ? <p className="panel-message">Заявок доставки пока нет.</p> : null}
+        {deliveryRequests.length > 0 ? (
+          <LogisticsDeliveryRequestsTable
+            items={deliveryRequests}
+            canWrite={canUse(session.user, 'logistics:write')}
+            onStatusChange={(deliveryId, status) => void changeDeliveryStatus(deliveryId, status)}
+          />
+        ) : null}
+      </div>
     </section>
   );
 }

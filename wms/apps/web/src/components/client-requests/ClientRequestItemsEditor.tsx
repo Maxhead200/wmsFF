@@ -1,5 +1,5 @@
 import { ClipboardPaste, Plus, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { fetchStockBalances, type ClientRequestAvailabilityPreview, type StockBalance } from '../../lib/api';
 import {
   emptyClientRequestItem,
@@ -40,7 +40,6 @@ export function ClientRequestItemsEditor({
   const [suggestions, setSuggestions] = useState<StockSuggestion[]>([]);
   const [isSuggesting, setSuggesting] = useState(false);
   const availabilityByIndex = new Map((availability?.lines ?? []).map((line) => [line.index, line]));
-  const suggestionsId = useMemo(() => `client-request-sku-suggestions-${Math.random().toString(36).slice(2)}`, []);
 
   useEffect(() => {
     const query = activeSuggest?.query.trim() ?? '';
@@ -161,14 +160,12 @@ export function ClientRequestItemsEditor({
             <div className={`client-request-items-grid__row ${availabilityClassName(line)}`} key={index} role="row">
               <input
                 aria-label={`Штрихкод позиции ${index + 1}`}
-                list={suggestionsId}
                 value={item.barcode}
                 onChange={(event) => updateItem(index, 'barcode', event.target.value)}
                 onFocus={(event) => setActiveSuggest({ index, query: event.currentTarget.value })}
               />
               <input
                 aria-label={`Товар позиции ${index + 1}`}
-                list={suggestionsId}
                 value={item.name}
                 onChange={(event) => updateItem(index, 'name', event.target.value)}
                 onFocus={(event) => setActiveSuggest({ index, query: event.currentTarget.value })}
@@ -214,14 +211,6 @@ export function ClientRequestItemsEditor({
           );
         })}
       </div>
-
-      <datalist id={suggestionsId}>
-        {suggestions.map((sku) => (
-          <option key={sku.skuId} value={sku.barcode || sku.internalSku}>
-            {sku.internalSku} · {sku.name}
-          </option>
-        ))}
-      </datalist>
 
       <div className="client-request-paste">
         <label>

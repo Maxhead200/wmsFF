@@ -235,6 +235,7 @@ model StockMovement {
 
 model StockBalance {
   id        String      @id @default(uuid())
+  balanceKey String     @unique
   clientId  String
   skuId     String
   boxId     String?
@@ -246,7 +247,8 @@ model StockBalance {
   pallet    Pallet?     @relation(fields: [palletId], references: [id])
   updatedAt DateTime    @updatedAt
 
-  @@unique([clientId, skuId, boxId, palletId, status])
+  @@index([clientId, skuId, status])
+  @@index([boxId])
 }
 
 model LogisticsTariffSet {

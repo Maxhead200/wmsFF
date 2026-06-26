@@ -26,3 +26,11 @@ pnpm dev:web
 На VPS `wms.logoff.pro` разворачиваем `infra/docker-compose.yml`: Nginx принимает HTTPS, проксирует web и API, отдельно работают PostgreSQL, Redis и worker-процессы.
 
 Секреты хранятся только в `.env` на сервере. В GitHub попадает `.env.example`, но не реальные пароли, токены и доступы.
+
+Первичная выкладка на VPS:
+
+```bash
+cd /tmp
+curl -fsSL https://raw.githubusercontent.com/Maxhead200/wmsFF/codex/wms-foundation/wms/infra/scripts/deploy-vps.sh -o deploy-vps.sh
+sh deploy-vps.sh
+```

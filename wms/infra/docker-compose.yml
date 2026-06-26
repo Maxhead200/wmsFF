@@ -24,9 +24,7 @@ services:
   api:
     build:
       context: ..
-      dockerfile: infra/node.Dockerfile
-      args:
-        APP_NAME: api
+      dockerfile: infra/api.Dockerfile
     restart: unless-stopped
     env_file:
       - ../.env
@@ -39,12 +37,8 @@ services:
   web:
     build:
       context: ..
-      dockerfile: infra/node.Dockerfile
-      args:
-        APP_NAME: web
+      dockerfile: infra/web.Dockerfile
     restart: unless-stopped
-    env_file:
-      - ../.env
 
   nginx:
     image: nginx:1.27-alpine

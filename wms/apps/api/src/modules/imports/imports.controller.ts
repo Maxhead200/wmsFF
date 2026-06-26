@@ -16,6 +16,21 @@ export class ImportsController {
     return this.importsService.previewStockWorkbook(file.buffer, clientId);
   }
 
+  @Post('stocks/commit')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({ description: 'XLSX-файл остатков, clientId и sourceDocument' })
+  @UseInterceptors(FileInterceptor('file'))
+  commitStockFile(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('clientId') clientId: string,
+    @Body('sourceDocument') sourceDocument?: string,
+  ) {
+    return this.importsService.commitStockWorkbook(file.buffer, {
+      clientId,
+      sourceDocument: sourceDocument || file.originalname,
+    });
+  }
+
   @Post('logistics/preview')
   @ApiConsumes('multipart/form-data')
   @ApiBody({ description: 'XLSX-файл тарифов логистики' })

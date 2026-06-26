@@ -10,10 +10,18 @@ type ClientCreateFormProps = {
 const emptyClientForm = {
   code: '',
   name: '',
+  legalName: '',
   inn: '',
   kpp: '',
+  ogrn: '',
+  legalAddress: '',
+  actualAddress: '',
   phone: '',
   email: '',
+  bankName: '',
+  bankBik: '',
+  bankAccount: '',
+  correspondentAccount: '',
 };
 
 export function ClientCreateForm({ session }: ClientCreateFormProps) {
@@ -51,12 +59,28 @@ export function ClientCreateForm({ session }: ClientCreateFormProps) {
           <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required />
         </label>
         <label>
+          <span>Юр. название</span>
+          <input value={form.legalName} onChange={(event) => setForm({ ...form, legalName: event.target.value })} />
+        </label>
+        <label>
           <span>ИНН</span>
           <input value={form.inn} onChange={(event) => setForm({ ...form, inn: event.target.value })} />
         </label>
         <label>
           <span>КПП</span>
           <input value={form.kpp} onChange={(event) => setForm({ ...form, kpp: event.target.value })} />
+        </label>
+        <label>
+          <span>ОГРН</span>
+          <input value={form.ogrn} onChange={(event) => setForm({ ...form, ogrn: event.target.value })} />
+        </label>
+        <label>
+          <span>Юр. адрес</span>
+          <input value={form.legalAddress} onChange={(event) => setForm({ ...form, legalAddress: event.target.value })} />
+        </label>
+        <label>
+          <span>Факт. адрес</span>
+          <input value={form.actualAddress} onChange={(event) => setForm({ ...form, actualAddress: event.target.value })} />
         </label>
         <label>
           <span>Телефон</span>
@@ -69,6 +93,25 @@ export function ClientCreateForm({ session }: ClientCreateFormProps) {
             type="email"
             value={form.email}
             onChange={(event) => setForm({ ...form, email: event.target.value })}
+          />
+        </label>
+        <label>
+          <span>Банк</span>
+          <input value={form.bankName} onChange={(event) => setForm({ ...form, bankName: event.target.value })} />
+        </label>
+        <label>
+          <span>БИК</span>
+          <input value={form.bankBik} onChange={(event) => setForm({ ...form, bankBik: event.target.value })} />
+        </label>
+        <label>
+          <span>Расчетный счет</span>
+          <input value={form.bankAccount} onChange={(event) => setForm({ ...form, bankAccount: event.target.value })} />
+        </label>
+        <label>
+          <span>Корр. счет</span>
+          <input
+            value={form.correspondentAccount}
+            onChange={(event) => setForm({ ...form, correspondentAccount: event.target.value })}
           />
         </label>
       </div>
@@ -95,10 +138,18 @@ function compactPayload(form: typeof emptyClientForm): CreateClientPayload {
   return {
     code: form.code.trim(),
     name: form.name.trim(),
+    ...optionalString('legalName', form.legalName),
     ...optionalString('inn', form.inn),
     ...optionalString('kpp', form.kpp),
+    ...optionalString('ogrn', form.ogrn),
+    ...optionalString('legalAddress', form.legalAddress),
+    ...optionalString('actualAddress', form.actualAddress),
     ...optionalString('phone', form.phone),
     ...optionalString('email', form.email),
+    ...optionalString('bankName', form.bankName),
+    ...optionalString('bankBik', form.bankBik),
+    ...optionalString('bankAccount', form.bankAccount),
+    ...optionalString('correspondentAccount', form.correspondentAccount),
   };
 }
 

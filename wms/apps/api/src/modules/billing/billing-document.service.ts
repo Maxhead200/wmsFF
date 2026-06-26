@@ -64,12 +64,18 @@ export class BillingDocumentService {
         id: invoice.client.id,
         code: invoice.client.code,
         name: invoice.client.name,
+        legalName: invoice.client.legalName,
         inn: invoice.client.inn,
         kpp: invoice.client.kpp,
+        ogrn: invoice.client.ogrn,
         legalAddress: invoice.client.legalAddress,
         actualAddress: invoice.client.actualAddress,
         email: invoice.client.email,
         phone: invoice.client.phone,
+        bankName: invoice.client.bankName,
+        bankBik: invoice.client.bankBik,
+        bankAccount: invoice.client.bankAccount,
+        correspondentAccount: invoice.client.correspondentAccount,
       },
       rows,
       payments,
@@ -137,12 +143,18 @@ export type InvoiceDocumentPayload = {
     id: string;
     code: string;
     name: string;
+    legalName: string | null;
     inn: string | null;
     kpp: string | null;
+    ogrn: string | null;
     legalAddress: string | null;
     actualAddress: string | null;
     email: string | null;
     phone: string | null;
+    bankName: string | null;
+    bankBik: string | null;
+    bankAccount: string | null;
+    correspondentAccount: string | null;
   };
   rows: Array<{
     position: number;
@@ -174,12 +186,18 @@ const invoiceDocumentInclude = {
       id: true,
       code: true,
       name: true,
+      legalName: true,
       inn: true,
       kpp: true,
+      ogrn: true,
       legalAddress: true,
       actualAddress: true,
       email: true,
       phone: true,
+      bankName: true,
+      bankBik: true,
+      bankAccount: true,
+      correspondentAccount: true,
     },
   },
   createdBy: {
@@ -225,9 +243,7 @@ function renderInvoiceHtml(document: InvoiceDocumentPayload) {
   <div class="grid">
     <section class="box">
       <strong>Клиент</strong>
-      <p>${escapeHtml(document.client.name)} (${escapeHtml(document.client.code)})</p>
-      <p>ИНН: ${escapeHtml(document.client.inn ?? '-')} · КПП: ${escapeHtml(document.client.kpp ?? '-')}</p>
-      <p>${escapeHtml(document.client.legalAddress ?? document.client.actualAddress ?? '-')}</p>
+      ${clientRequisitesHtml(document.client)}
     </section>
     <section class="box">
       <strong>Документ</strong>
@@ -318,9 +334,7 @@ function renderActHtml(document: InvoiceDocumentPayload) {
   <div class="grid">
     <section class="box">
       <strong>Заказчик</strong>
-      <p>${escapeHtml(document.client.name)} (${escapeHtml(document.client.code)})</p>
-      <p>ИНН: ${escapeHtml(document.client.inn ?? '-')} · КПП: ${escapeHtml(document.client.kpp ?? '-')}</p>
-      <p>${escapeHtml(document.client.legalAddress ?? document.client.actualAddress ?? '-')}</p>
+      ${clientRequisitesHtml(document.client)}
     </section>
     <section class="box">
       <strong>Исполнитель</strong>
@@ -380,6 +394,40 @@ function invoiceStatusLabel(status: BillingInvoiceStatus) {
     CANCELLED: 'Отменен',
   };
   return labels[status];
+}
+
+function clientRequisitesHtml(client: InvoiceDocumentPayload['client']) {
+  return [
+    `<p>${escapeHtml(client.legalName || client.name)} (${escapeHtml(client.code)})</p>`,
+    `<p>${escapeHtml(taxLine(client))}</p>`,
+    client.legalAddress ? `<p>Юр. адрес: ${escapeHtml(client.legalAddress)}</p>` : '',
+    client.actualAddress ? `<p>Факт. адрес: ${escapeHtml(client.actualAddress)}</p>` : '',
+    client.phone || client.email ? `<p>${escapeHtml(contactLine(client))}</p>` : '',
+    client.bankName ? `<p>Банк: ${escapeHtml(client.bankName)}</p>` : '',
+    bankAccountLine(client) ? `<p>${escapeHtml(bankAccountLine(client))}</p>` : '',
+  ]
+    .filter(Boolean)
+    .join('');
+}
+
+function taxLine(client: InvoiceDocumentPayload['client']) {
+  return [`ИНН: ${client.inn ?? '-'}`, `КПП: ${client.kpp ?? '-'}`, client.ogrn ? `ОГРН: ${client.ogrn}` : '']
+    .filter(Boolean)
+    .join(' · ');
+}
+
+function contactLine(client: InvoiceDocumentPayload['client']) {
+  return [`Телефон: ${client.phone ?? '-'}`, `Почта: ${client.email ?? '-'}`].join(' · ');
+}
+
+function bankAccountLine(client: InvoiceDocumentPayload['client']) {
+  return [
+    client.bankBik ? `БИК: ${client.bankBik}` : '',
+    client.bankAccount ? `Р/с: ${client.bankAccount}` : '',
+    client.correspondentAccount ? `К/с: ${client.correspondentAccount}` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
 }
 
 function escapeHtml(value: string | number) {

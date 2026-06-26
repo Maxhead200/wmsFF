@@ -27,6 +27,9 @@ describe('BillingDocumentService', () => {
     expect(document.payments).toHaveLength(1);
     expect(document.html).toContain('Счет № INV-202606-0001');
     expect(document.html).toContain('ООО &quot;Клиент&quot;');
+    expect(document.html).toContain('ОГРН: 1027700000000');
+    expect(document.html).toContain('Банк: АО &quot;Тест Банк&quot;');
+    expect(document.html).toContain('Р/с: 40702810000000000001');
     expect(document.html).not.toContain('<script>');
   });
 
@@ -60,6 +63,7 @@ describe('BillingDocumentService', () => {
     expect(document.fileName).toBe('ACT-202606-0001.html');
     expect(document.html).toContain('Акт № ACT-202606-0001 оказанных услуг');
     expect(document.html).toContain('Основание: счет № INV-202606-0001');
+    expect(document.html).toContain('К/с: 30101810000000000002');
     expect(document.html).toContain('Итого оказано услуг на сумму');
     expect(document.html).not.toContain('Оплаты');
   });
@@ -83,12 +87,18 @@ function invoiceFixture() {
       id: 'client-1',
       code: 'CLIENT',
       name: 'ООО "Клиент"<script>',
+      legalName: 'ООО "Клиент"',
       inn: '7700000000',
       kpp: '770001001',
+      ogrn: '1027700000000',
       legalAddress: 'Москва',
-      actualAddress: null,
+      actualAddress: 'Москва, склад',
       email: 'client@example.com',
-      phone: null,
+      phone: '+74950000000',
+      bankName: 'АО "Тест Банк"',
+      bankBik: '044525000',
+      bankAccount: '40702810000000000001',
+      correspondentAccount: '30101810000000000002',
     },
     createdBy: {
       id: 'user-1',

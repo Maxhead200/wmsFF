@@ -145,10 +145,38 @@ function metaGrid(boxes: Array<[string, string[]]>): Content {
 
 function clientLines(document: BillingPrintableDocument) {
   return [
-    `${document.client.name} (${document.client.code})`,
-    `ИНН: ${document.client.inn ?? '-'} · КПП: ${document.client.kpp ?? '-'}`,
-    document.client.legalAddress ?? document.client.actualAddress ?? '-',
-  ];
+    `${document.client.legalName || document.client.name} (${document.client.code})`,
+    taxLine(document),
+    document.client.legalAddress ? `Юр. адрес: ${document.client.legalAddress}` : '',
+    document.client.actualAddress ? `Факт. адрес: ${document.client.actualAddress}` : '',
+    document.client.phone || document.client.email ? contactLine(document) : '',
+    document.client.bankName ? `Банк: ${document.client.bankName}` : '',
+    bankAccountLine(document),
+  ].filter(Boolean);
+}
+
+function taxLine(document: BillingPrintableDocument) {
+  return [
+    `ИНН: ${document.client.inn ?? '-'}`,
+    `КПП: ${document.client.kpp ?? '-'}`,
+    document.client.ogrn ? `ОГРН: ${document.client.ogrn}` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+function contactLine(document: BillingPrintableDocument) {
+  return [`Телефон: ${document.client.phone ?? '-'}`, `Почта: ${document.client.email ?? '-'}`].join(' · ');
+}
+
+function bankAccountLine(document: BillingPrintableDocument) {
+  return [
+    document.client.bankBik ? `БИК: ${document.client.bankBik}` : '',
+    document.client.bankAccount ? `Р/с: ${document.client.bankAccount}` : '',
+    document.client.correspondentAccount ? `К/с: ${document.client.correspondentAccount}` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
 }
 
 function sectionTitle(text: string): Content {

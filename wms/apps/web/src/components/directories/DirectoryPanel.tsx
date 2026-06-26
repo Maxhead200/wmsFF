@@ -2,6 +2,7 @@ import { PackagePlus, UserPlus } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { AuthSession, AuthUser } from '../../lib/api';
 import { ClientCreateForm } from './ClientCreateForm';
+import { ClientRequisitesForm } from './ClientRequisitesForm';
 import './directories.css';
 import { SkuCreateForm } from './SkuCreateForm';
 
@@ -59,7 +60,12 @@ export function DirectoryPanel({ session }: DirectoryPanelProps) {
         ))}
       </div>
 
-      {activeTab === 'clients' ? <ClientCreateForm session={session} /> : null}
+      {activeTab === 'clients' ? (
+        <div className="directory-stack">
+          <ClientCreateForm session={session} />
+          <ClientRequisitesForm session={session} />
+        </div>
+      ) : null}
       {activeTab === 'skus' ? <SkuCreateForm session={session} /> : null}
     </section>
   );

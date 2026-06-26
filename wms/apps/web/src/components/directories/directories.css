@@ -53,6 +53,43 @@
   gap: 14px;
 }
 
+.directory-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.directory-subheading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+
+.directory-subheading h3,
+.directory-subheading span {
+  display: block;
+}
+
+.directory-subheading h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.directory-subheading span,
+.directory-select-row > span:first-child {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.directory-select-row {
+  display: grid;
+  gap: 6px;
+}
+
 .directory-fields {
   display: grid;
   gap: 12px;
@@ -80,7 +117,8 @@
 }
 
 .directory-fields input,
-.directory-fields select {
+.directory-fields select,
+.directory-select-row select {
   width: 100%;
   min-height: 40px;
   border: 1px solid var(--line);
@@ -91,7 +129,8 @@
 }
 
 .directory-fields input:focus,
-.directory-fields select:focus {
+.directory-fields select:focus,
+.directory-select-row select:focus {
   border-color: var(--red-dark);
   outline: 3px solid rgb(215 25 32 / 0.14);
 }

@@ -300,12 +300,18 @@ model Client {
   id              String           @id @default(uuid())
   code            String           @unique
   name            String
+  legalName       String?
   inn             String?
   kpp             String?
+  ogrn            String?
   legalAddress    String?
   actualAddress   String?
   phone           String?
   email           String?
+  bankName        String?
+  bankBik         String?
+  bankAccount     String?
+  correspondentAccount String?
   status          ClientStatus     @default(ACTIVE)
   skus            Sku[]
   boxes           Box[]

@@ -20,8 +20,18 @@ export type ClientSummary = {
   id: string;
   code: string;
   name: string;
+  legalName: string | null;
   inn: string | null;
+  kpp: string | null;
+  ogrn: string | null;
+  legalAddress: string | null;
+  actualAddress: string | null;
+  phone: string | null;
   email: string | null;
+  bankName: string | null;
+  bankBik: string | null;
+  bankAccount: string | null;
+  correspondentAccount: string | null;
   status: string;
   createdAt: string;
 };
@@ -220,12 +230,18 @@ export type BillingInvoiceDocument = {
     id: string;
     code: string;
     name: string;
+    legalName: string | null;
     inn: string | null;
     kpp: string | null;
+    ogrn: string | null;
     legalAddress: string | null;
     actualAddress: string | null;
     email: string | null;
     phone: string | null;
+    bankName: string | null;
+    bankBik: string | null;
+    bankAccount: string | null;
+    correspondentAccount: string | null;
   };
   rows: Array<{
     position: number;
@@ -715,11 +731,21 @@ export type OutboundRequestXlsxPayload = {
 export type CreateClientPayload = {
   code: string;
   name: string;
+  legalName?: string;
   inn?: string;
   kpp?: string;
+  ogrn?: string;
+  legalAddress?: string;
+  actualAddress?: string;
   phone?: string;
   email?: string;
+  bankName?: string;
+  bankBik?: string;
+  bankAccount?: string;
+  correspondentAccount?: string;
 };
+
+export type UpdateClientPayload = Partial<CreateClientPayload>;
 
 export type StockBalance = {
   id: string;
@@ -1746,6 +1772,14 @@ export async function updateClientRequestStatus(
 export async function createClient(accessToken: string, payload: CreateClientPayload) {
   return request<ClientSummary>('/clients', {
     method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function updateClient(accessToken: string, clientId: string, payload: UpdateClientPayload) {
+  return request<ClientSummary>(`/clients/${clientId}`, {
+    method: 'PATCH',
     body: payload,
     accessToken,
   });

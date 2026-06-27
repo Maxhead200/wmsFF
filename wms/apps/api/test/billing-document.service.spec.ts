@@ -62,7 +62,7 @@ describe('BillingDocumentService', () => {
     expect(document.actNumber).toBe('ACT-202606-0001');
     expect(document.fileName).toBe('ACT-202606-0001.html');
     expect(document.html).toContain('Акт № 1');
-    expect(document.html).toContain('ИП Говорова Е. И.');
+    expect(document.html).toContain('Индивидуальный предприниматель Говорова Екатерина Ивановна');
     expect(document.html).toContain('Основание: счет № INV-202606-0001');
     expect(document.html).toContain('К/с: 30101810000000000002');
     expect(document.html).toContain('Итого оказано услуг на сумму');

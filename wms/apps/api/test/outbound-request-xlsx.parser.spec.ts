@@ -18,6 +18,27 @@ describe('parseOutboundRequestXlsxRows', () => {
     expect(parsed.summary.totalQuantity).toBe(9);
   });
 
+  it('читает новый шаблон с перемаркировкой из третьей и четвертой колонки', () => {
+    const parsed = parseOutboundRequestXlsxRows([
+      ['Баркод', 'Количество', 'перемаркировка', 'Количество'],
+      ['460000000001', 10, '460000000009', 5],
+      ['460000000002', 3, '', ''],
+    ]);
+
+    expect(parsed.issues).toEqual([]);
+    expect(parsed.lines).toEqual([
+      {
+        barcode: '460000000001',
+        quantity: 10,
+        relabelTargetBarcode: '460000000009',
+        relabelQuantity: 5,
+        sourceRows: [2],
+      },
+      { barcode: '460000000002', quantity: 3, sourceRows: [3] },
+    ]);
+    expect(parsed.summary.totalQuantity).toBe(13);
+  });
+
   it('поддерживает файл без заголовка в первых двух колонках', () => {
     const parsed = parseOutboundRequestXlsxRows([
       ['460000000001', '2'],

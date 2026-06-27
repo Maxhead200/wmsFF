@@ -65,7 +65,7 @@ function invoiceDefinition(document: BillingPrintableDocument): TDocumentDefinit
       margin: [0, 18, 0, 10],
     },
     horizontalLine(),
-    requisitesLine('Поставщик:', sellerRequisites()),
+    requisitesLine('Поставщик:', sellerRequisites(document)),
     requisitesLine('Покупатель:', clientRequisites(document)),
     positionsTable(document, 'Товары (работы, услуги)'),
     invoiceTotals(document),
@@ -87,7 +87,7 @@ function actDefinition(document: BillingPrintableDocument): TDocumentDefinitions
       margin: [0, 0, 0, 6],
     },
     horizontalLine([0, 0, 0, 12]),
-    requisitesLine('Исполнитель:', sellerRequisites()),
+    requisitesLine('Исполнитель:', sellerRequisites(document)),
     requisitesLine('Заказчик:', clientRequisites(document)),
     positionsTable(document, 'Наименование работ, услуг'),
     actTotals(document),
@@ -103,13 +103,14 @@ function actDefinition(document: BillingPrintableDocument): TDocumentDefinitions
 }
 
 function baseDefinition(document: BillingPrintableDocument, content: Content[]): TDocumentDefinitions {
+  const seller = sellerFor(document);
   return {
     pageSize: 'A4',
     pageMargins: [34, 38, 34, 42],
     info: {
       title: document.title,
       subject: document.documentKind === 'act' ? 'Акт оказанных услуг' : 'Счет на оплату',
-      author: BILLING_SELLER.shortName,
+      author: seller.shortName,
       creator: 'LOGOFF WMS',
     },
     defaultStyle: {
@@ -160,6 +161,7 @@ function invoiceTopNotice(document: BillingPrintableDocument): Content {
 }
 
 function paymentOrderSample(document: BillingPrintableDocument): Content {
+  const seller = sellerFor(document);
   return [
     { text: 'Образец заполнения платежного поручения', bold: true, fontSize: 11, alignment: 'center', margin: [0, 0, 0, 1] },
     {
@@ -167,10 +169,10 @@ function paymentOrderSample(document: BillingPrintableDocument): Content {
         widths: ['22%', '23%', '8%', '16%', '10%', '21%'],
         body: [
           [
-            spanCell(BILLING_SELLER.bankName, 2, { border: [true, true, false, false] }),
+            spanCell(seller.bankName, 2, { border: [true, true, false, false] }),
             emptyCell(),
             labelCell('БИК'),
-            spanCell(BILLING_SELLER.bankBik, 3),
+            spanCell(seller.bankBik, 3),
             emptyCell(),
             emptyCell(),
           ],
@@ -178,20 +180,20 @@ function paymentOrderSample(document: BillingPrintableDocument): Content {
             spanCell('Банк получателя', 2, { style: 'small', border: [true, false, false, true] }),
             emptyCell(),
             labelCell('Сч. №'),
-            spanCell(BILLING_SELLER.correspondentAccount, 3),
+            spanCell(seller.correspondentAccount, 3),
             emptyCell(),
             emptyCell(),
           ],
           [
-            labelValueCell(`ИНН  ${BILLING_SELLER.inn}`),
+            labelValueCell(`ИНН  ${seller.inn}`),
             labelValueCell('КПП'),
             labelCell('Сч. №'),
-            spanCell(BILLING_SELLER.bankAccount, 3),
+            spanCell(seller.bankAccount, 3),
             emptyCell(),
             emptyCell(),
           ],
           [
-            spanCell(BILLING_SELLER.shortName, 2, { border: [true, true, false, false] }),
+            spanCell(seller.shortName, 2, { border: [true, true, false, false] }),
             emptyCell(),
             labelCell('Вид оп.'),
             labelValueCell('01'),
@@ -210,7 +212,7 @@ function paymentOrderSample(document: BillingPrintableDocument): Content {
             spanCell('', 2, { border: [true, false, false, false] }),
             emptyCell(),
             labelCell('Код'),
-            labelValueCell(`${BILLING_SELLER.paymentPurposeCode}\n${BILLING_SELLER.paymentCode}`, 'small'),
+            labelValueCell(`${seller.paymentPurposeCode}\n${seller.paymentCode}`, 'small'),
             labelCell('Рез. поле'),
             labelValueCell(''),
           ],
@@ -399,16 +401,21 @@ function requisitesLine(label: string, value: string): Content {
   };
 }
 
-function sellerRequisites() {
+function sellerRequisites(document: BillingPrintableDocument) {
+  const seller = sellerFor(document);
   return [
-    BILLING_SELLER.fullName,
-    `ИНН ${BILLING_SELLER.inn}`,
-    BILLING_SELLER.address,
-    BILLING_SELLER.bankName,
-    `р/с ${BILLING_SELLER.bankAccount}`,
+    seller.fullName,
+    `ИНН ${seller.inn}`,
+    seller.address,
+    seller.bankName,
+    `р/с ${seller.bankAccount}`,
   ]
     .filter(Boolean)
     .join(', ');
+}
+
+function sellerFor(document: BillingPrintableDocument) {
+  return document.seller ?? BILLING_SELLER;
 }
 
 function clientRequisites(document: BillingPrintableDocument) {

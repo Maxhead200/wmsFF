@@ -1,5 +1,6 @@
 import {
   BriefcaseBusiness,
+  Building2,
   Boxes,
   Calculator,
   ClipboardList,
@@ -26,6 +27,7 @@ export type WorkspaceId =
   | 'requests'
   | 'catalog'
   | 'billing'
+  | 'own-companies'
   | 'print'
   | 'data';
 
@@ -142,6 +144,16 @@ export const workspaceNav: WorkspaceNavItem[] = [
     icon: Calculator,
     status: 'in-progress',
     audience: 'all',
+  },
+  {
+    id: 'own-companies',
+    title: 'Собственные компании',
+    eyebrow: 'Реквизиты',
+    description: 'Юрлица, расчетные счета и реквизиты для счетов и актов.',
+    permissions: ['billing:write'],
+    icon: Building2,
+    status: 'ready',
+    audience: 'internal',
   },
   {
     id: 'print',

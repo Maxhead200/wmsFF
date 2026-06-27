@@ -335,6 +335,8 @@ export class PickInstructionService {
         name: normalizeName(row.name || row.item.name || row.sku?.name || ''),
         city: meta.city || request.destinationCity || '',
         needsRelabel: meta.needsRelabel || Boolean(row.sku?.needsRelabel),
+        relabelSourceBarcode: meta.relabelSourceBarcode,
+        relabelTargetBarcode: meta.relabelTargetBarcode,
         required: row.requestedQuantity,
         remaining: row.requestedQuantity,
       };
@@ -374,7 +376,7 @@ export class PickInstructionService {
 
     const actions: WarehouseAction[] = [];
     const shipmentBoxes = new Set<string>();
-    const tolerance = 0;
+    const tolerance = 5;
     const remainingOf = (orderId: string) => demandById.get(orderId)?.remaining ?? 0;
     const decreaseRemaining = (orderId: string, amount: number) => {
       const demand = demandById.get(orderId);
@@ -412,7 +414,7 @@ export class PickInstructionService {
       }
 
       const useful = tempAssign.reduce((sum, row) => sum + row.quantity, 0);
-      if (useful / totalItems > 0.5 || useful === totalItems) {
+      if (Math.abs(totalItems - useful) <= tolerance) {
         shipmentBoxes.add(box);
         for (const assignment of tempAssign) {
           const demand = demandById.get(assignment.orderId)!;
@@ -755,6 +757,8 @@ type WarehouseDemand = {
   name: string;
   city: string;
   needsRelabel: boolean;
+  relabelSourceBarcode: string;
+  relabelTargetBarcode: string;
   required: number;
   remaining: number;
 };
@@ -907,6 +911,8 @@ function parseRequestItemComment(comment: string | null) {
     artSeller: '',
     size: '',
     needsRelabel: false,
+    relabelSourceBarcode: '',
+    relabelTargetBarcode: '',
   };
   if (!comment) {
     return result;
@@ -924,6 +930,12 @@ function parseRequestItemComment(comment: string | null) {
       result.size = value;
     } else if (key === 'перемаркировка') {
       result.needsRelabel = ['да', 'true', '1', 'yes'].includes(value.toLowerCase());
+    } else if (key === 'перемаркировка из') {
+      result.relabelSourceBarcode = value;
+      result.needsRelabel = true;
+    } else if (key === 'перемаркировка в') {
+      result.relabelTargetBarcode = value;
+      result.needsRelabel = true;
     }
   });
   return result;
@@ -958,7 +970,7 @@ function actionFromAssignment(
     artOnBox: item.artWarehouse,
     barcodeOnBox: item.barcode,
     targetArt: demand.artSeller,
-    targetBarcode: demand.barcode,
+    targetBarcode: demand.relabelTargetBarcode || demand.barcode,
     size: item.size || demand.size,
     quantity,
     targetBox,
@@ -1135,7 +1147,8 @@ function relabelNote(item: WarehouseInventoryItem, demand: WarehouseDemand) {
   }
 
   const target = demand.artSeller || demand.barcode || item.artWarehouse;
-  return `перемаркировать на ${target}`;
+  const targetBarcode = demand.relabelTargetBarcode || target;
+  return `перемаркировать ${demand.relabelSourceBarcode || item.barcode || demand.barcode} -> ${targetBarcode}`;
 }
 
 function isExactBarcodeMatch(item: WarehouseInventoryItem, demand: WarehouseDemand) {

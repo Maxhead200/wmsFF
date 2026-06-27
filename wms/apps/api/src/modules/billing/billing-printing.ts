@@ -3,14 +3,14 @@ import { join } from 'node:path';
 
 export const BILLING_SELLER = {
   shortName: 'ИП Говорова Е. И.',
-  fullName: 'ИП Говорова Е. И.',
+  fullName: 'Индивидуальный предприниматель Говорова Екатерина Ивановна',
   inn: '616602423102',
   kpp: '',
-  address: '344029, РОССИЯ, РОСТОВСКАЯ ОБЛ, Г РОСТОВ-НА-ДОНУ, ПР-КТ СЕЛЬМАШ, Д 94, КВ 4',
-  bankName: 'ПАО Сбербанк Москва',
-  bankBik: '044525225',
-  bankAccount: '40802810738000472263',
-  correspondentAccount: '30101810400000000225',
+  address: '',
+  bankName: 'АО «ТБанк»',
+  bankBik: '044525974',
+  bankAccount: '40802810600008484063',
+  correspondentAccount: '30101810145250000974',
   paymentCode: '0002820008',
   paymentPurposeCode: 'НК26060000',
 };

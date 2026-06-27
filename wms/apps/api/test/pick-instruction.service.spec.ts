@@ -55,9 +55,7 @@ describe('PickInstructionService', () => {
       expect.objectContaining({ boxCode: 'BOX-1', allocatedQuantity: 2, availableQuantity: 2, isFullBox: true }),
       expect.objectContaining({ boxCode: 'BOX-2', allocatedQuantity: 2, availableQuantity: 5, isFullBox: false }),
     ]);
-    expect(document.warehouseBalanceMoves).toEqual([
-      expect.objectContaining({ sourceBox: 'BOX-2', quantity: 3, newBox: expect.stringMatching(/^FFL_BAL\d{4}_\d{2,}$/) }),
-    ]);
+    expect(document.warehouseBalanceMoves).toEqual([]);
     expect(document.html).toContain('Инструкция сборки');
   });
 
@@ -133,30 +131,15 @@ describe('PickInstructionService', () => {
 
     expect(file.fileName).toMatch(/\.xlsx$/);
     expect(file.mimeType).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    expect(workbook.SheetNames).toEqual([
-      'Инструкция',
-      'Целые короба',
-      'МАРК',
-      'Остатки в новые короба',
-      'Печать коробов',
-      'Сводка',
-      'План WMS',
-      'Короба',
-      'Дефицит',
-    ]);
-    const instructionRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['Инструкция'], { defval: '' });
-    const moveRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['Остатки в новые короба'], { defval: '' });
-    const labelRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['Печать коробов'], { defval: '' });
-    const wmsRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['План WMS'], { defval: '' });
-    const boxRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['Короба'], { defval: '' });
+    expect(workbook.SheetNames).toEqual(['Поиск коробов', 'Перемаркировка', 'Перемещения']);
+    const instructionRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['Поиск коробов'], { defval: '' });
+    const markRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['Перемаркировка'], { defval: '' });
+    const moveRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['Перемещения'], { defval: '' });
 
     expect(instructionRows[0]).toMatchObject({ 'Исходный короб': 'BOX-1', Количество: 2, Комментарий: 'ЦЕЛЫЙ' });
-    expect(moveRows[0]).toMatchObject({ 'Исходный короб': 'BOX-2', 'Новый короб': balanceBoxCodeForToday(2), Количество: 3 });
-    expect(labelRows[0]).toMatchObject({ 'Новый короб': balanceBoxCodeForToday(2), 'Исходный короб': 'BOX-2' });
-    expect(String(labelRows[0]['TSPL для TSC'])).toContain(`QRCODE 170,80,L,7,A,0,"${balanceBoxCodeForToday(2)}"`);
-    expect(wmsRows[0]).toMatchObject({ Короб: 'BOX-1', Взять: 2 });
-    expect(wmsRows[1]).toMatchObject({ Короб: 'BOX-2', Взять: 2 });
-    expect(boxRows[0]).toMatchObject({ Короб: 'BOX-1', 'Целый короб': 'Да' });
+    expect(instructionRows[1]).toMatchObject({ 'Исходный короб': 'BOX-2', Количество: 5 });
+    expect(Object.values(markRows[0])).toContain('Переклейки нет.');
+    expect(moveRows[0]).toMatchObject({ Примечание: 'Перемещений остатков в новые короба нет.' });
   });
 
   it('отклоняет инструкцию для не outbound-заявки', async () => {

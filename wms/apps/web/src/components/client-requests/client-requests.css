@@ -125,6 +125,31 @@
   font-weight: 800;
 }
 
+.client-request-relabel-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.client-request-relabel-pill {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgb(180 83 9 / 0.35);
+  border-radius: 6px;
+  background: #fffbeb;
+  color: #78350f;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.client-request-relabel-pill input {
+  width: 16px;
+  height: 16px;
+}
+
 .client-request-xlsx-lines {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

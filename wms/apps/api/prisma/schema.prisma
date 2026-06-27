@@ -934,6 +934,47 @@ model BillingPayment {
   @@index([createdByUserId])
 }
 
+model OwnCompany {
+  id                     String                  @id @default(uuid())
+  shortName              String
+  fullName               String
+  inn                    String
+  kpp                    String?
+  ogrn                   String?
+  legalAddress           String?
+  bankName               String?
+  bankBik                String?
+  bankAccount            String?
+  correspondentAccount   String?
+  paymentCode            String?
+  paymentPurposeCode     String?
+  isDefault              Boolean                 @default(false)
+  isActive               Boolean                 @default(true)
+  comment                String?
+  bankAccounts           OwnCompanyBankAccount[]
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+
+  @@index([isDefault, isActive])
+  @@index([inn])
+}
+
+model OwnCompanyBankAccount {
+  id                   String     @id @default(uuid())
+  companyId            String
+  bankName             String
+  bankBik              String
+  bankAccount          String
+  correspondentAccount String?
+  isDefault            Boolean    @default(false)
+  comment              String?
+  company              OwnCompany @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+
+  @@index([companyId])
+}
+
 model LogisticsTariffSet {
   id               String                     @id @default(uuid())
   name             String

@@ -36,6 +36,7 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
   const [fileInputKey, setFileInputKey] = useState(0);
   const [preview, setPreview] = useState<OutboundRequestXlsxPreview | null>(null);
   const [editableLines, setEditableLines] = useState<EditableXlsxLine[]>([]);
+  const [confirmedRelabels, setConfirmedRelabels] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [isPreviewing, setPreviewing] = useState(false);
@@ -73,6 +74,7 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
           key: `${line.barcode ?? line.originalName ?? line.internalSku ?? index}-${index}`,
         })),
       );
+      setConfirmedRelabels({});
       setMessage(nextPreview.canCommit ? 'Файл готов к созданию заявки.' : 'Файл требует исправлений.');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Не удалось проверить файл.');
@@ -92,6 +94,10 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
       setError('Исправьте позиции перед созданием заявки.');
       return;
     }
+    if (!relabelConfirmed) {
+      setError('Подтвердите все позиции перемаркировки галочками.');
+      return;
+    }
 
     setCommitting(true);
     setError(null);
@@ -106,13 +112,7 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
         comment: `Создано из Excel: ${file.name}. Позиций: ${validLines.length}, количество: ${validLines.reduce((sum, line) => sum + line.requestedQuantity, 0)}.`,
         destinationCity,
         desiredDate: desiredDate || undefined,
-        items: validLines.map((line) => ({
-          skuId: line.skuId ?? undefined,
-          barcode: line.barcode ?? undefined,
-          name: line.name ?? undefined,
-          quantity: line.requestedQuantity,
-          comment: xlsxLineComment(line),
-        })),
+        items: validLines.flatMap((line) => requestItemsFromLine(line)),
       });
       onCreated(request);
       setTitle('');
@@ -121,6 +121,7 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
       setFile(null);
       setPreview(null);
       setEditableLines([]);
+      setConfirmedRelabels({});
       setFileInputKey((current) => current + 1);
       setMessage(`Заявка ${request.title} создана.`);
     } catch (caught) {
@@ -132,6 +133,11 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
 
   const issues = preview?.issues ?? [];
   const hasBlockingLines = editableLines.some((line) => !adjustedCanFulfill(line));
+  const relabelLines = editableLines.filter((line) => hasRelabel(line));
+  const relabelConfirmed = relabelLines.every((line) => confirmedRelabels[line.key]);
+  const totalShipmentQuantity = editableLines.reduce((sum, line) => sum + line.requestedQuantity, 0);
+  const estimatedBoxes = Math.ceil(totalShipmentQuantity / 15);
+  const estimatedPallets = Math.ceil(estimatedBoxes / 16);
 
   return (
     <form className="client-request-xlsx-form" onSubmit={(event) => void previewFile(event)}>
@@ -196,10 +202,28 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
         <div className="client-request-xlsx-preview">
           <div className="client-request-xlsx-summary">
             <span>{editableLines.length} SKU</span>
-            <span>{editableLines.reduce((sum, line) => sum + line.requestedQuantity, 0)} шт.</span>
+            <span>{totalShipmentQuantity} шт. к отгрузке</span>
+            <span>~{estimatedBoxes} кор. / ~{estimatedPallets} пал.</span>
             <span>{editableLines.reduce((sum, line) => sum + Math.min(line.availableQuantity, line.requestedQuantity), 0)} доступно</span>
             <span>{editableLines.reduce((sum, line) => sum + adjustedShortage(line), 0)} дефицит</span>
           </div>
+
+          {relabelLines.length ? (
+            <div className="client-request-relabel-confirm">
+              {relabelLines.map((line) => (
+                <label key={line.key} className="client-request-relabel-pill">
+                  <input
+                    checked={Boolean(confirmedRelabels[line.key])}
+                    type="checkbox"
+                    onChange={(event) => setConfirmedRelabels((current) => ({ ...current, [line.key]: event.target.checked }))}
+                  />
+                  <span>
+                    Перемаркировка: {line.barcode} {'->'} {line.relabelTargetBarcode}, {line.relabelQuantity} шт.
+                  </span>
+                </label>
+              ))}
+            </div>
+          ) : null}
 
           {issues.length ? (
             <div className="client-request-xlsx-issues">
@@ -264,7 +288,7 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
         </button>
         <button
           className="primary-button"
-          disabled={isCommitting || !destinationCity.trim() || !file || !preview || hasBlockingLines || editableLines.length === 0}
+          disabled={isCommitting || !destinationCity.trim() || !file || !preview || hasBlockingLines || !relabelConfirmed || editableLines.length === 0}
           type="button"
           onClick={() => void createRequest()}
         >
@@ -321,16 +345,17 @@ function xlsxLineText(line: EditableXlsxLine) {
         .map((conflict) => `${conflict.title} от ${new Date(conflict.createdAt).toLocaleDateString('ru-RU')} (${conflict.type})`)
         .join('; ')}.`
     : '';
+  const relabelText = hasRelabel(line) ? ` Перемаркировка: ${line.barcode} -> ${line.relabelTargetBarcode}, ${line.relabelQuantity} шт.` : '';
 
   if (!line.skuId) {
     return 'Товар не найден. Удалите строку или проверьте справочник SKU.';
   }
 
   if (!adjustedCanFulfill(line)) {
-    return `Нужно ${line.requestedQuantity}, доступно ${line.availableQuantity}, занято ${line.reservedQuantity}.${conflictText}`;
+    return `Нужно ${line.requestedQuantity}, доступно ${line.availableQuantity}, занято ${line.reservedQuantity}.${relabelText}${conflictText}`;
   }
 
-  return `Доступно ${line.availableQuantity}, занято ${line.reservedQuantity}.${conflictText}`;
+  return `Доступно ${line.availableQuantity}, занято ${line.reservedQuantity}.${relabelText}${conflictText}`;
 }
 
 function xlsxLineLabel(line: EditableXlsxLine) {
@@ -342,9 +367,45 @@ function xlsxLineComment(line: EditableXlsxLine) {
     line.city ? `Город: ${line.city}` : null,
     line.artSeller ? `Артикул продавца: ${line.artSeller}` : null,
     line.size ? `Размер: ${line.size}` : null,
+    line.relabelTargetBarcode && line.relabelQuantity ? `Перемаркировка из: ${line.barcode ?? ''}` : null,
+    line.relabelTargetBarcode && line.relabelQuantity ? `Перемаркировка в: ${line.relabelTargetBarcode}` : null,
+    line.relabelTargetBarcode && line.relabelQuantity ? `Количество перемаркировки: ${line.relabelQuantity}` : null,
     line.needsRelabel ? 'Перемаркировка: да' : null,
     `Excel rows: ${line.sourceRows.join(', ')}`,
   ]
     .filter(Boolean)
     .join('; ');
+}
+
+function hasRelabel(line: EditableXlsxLine) {
+  return Boolean(line.relabelTargetBarcode && line.relabelQuantity && line.relabelQuantity > 0);
+}
+
+function requestItemsFromLine(line: EditableXlsxLine) {
+  const relabelQuantity = hasRelabel(line) ? Math.min(line.relabelQuantity ?? 0, line.requestedQuantity) : 0;
+  const normalQuantity = line.requestedQuantity - relabelQuantity;
+  const base = {
+    skuId: line.skuId ?? undefined,
+    barcode: line.barcode ?? undefined,
+    name: line.name ?? undefined,
+  };
+  const items = [];
+
+  if (normalQuantity > 0) {
+    items.push({
+      ...base,
+      quantity: normalQuantity,
+      comment: xlsxLineComment({ ...line, relabelTargetBarcode: undefined, relabelQuantity: undefined }),
+    });
+  }
+
+  if (relabelQuantity > 0) {
+    items.push({
+      ...base,
+      quantity: relabelQuantity,
+      comment: xlsxLineComment({ ...line, requestedQuantity: relabelQuantity, needsRelabel: true }),
+    });
+  }
+
+  return items;
 }

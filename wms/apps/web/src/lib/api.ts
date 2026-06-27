@@ -299,6 +299,7 @@ export type BillingInvoiceDocument = {
   paidRub: number;
   remainingRub: number;
   comment: string | null;
+  seller: OwnCompanySellerSnapshot;
   client: {
     id: string;
     code: string;
@@ -434,6 +435,32 @@ export type UpsertClientBillingServicePayload = {
   comment?: string;
 };
 
+export type UpsertOwnCompanyPayload = {
+  shortName: string;
+  fullName: string;
+  inn: string;
+  kpp?: string;
+  ogrn?: string;
+  legalAddress?: string;
+  bankName?: string;
+  bankBik?: string;
+  bankAccount?: string;
+  correspondentAccount?: string;
+  paymentCode?: string;
+  paymentPurposeCode?: string;
+  isDefault?: boolean;
+  isActive?: boolean;
+  comment?: string;
+  bankAccounts?: Array<{
+    bankName: string;
+    bankBik: string;
+    bankAccount: string;
+    correspondentAccount?: string;
+    isDefault?: boolean;
+    comment?: string;
+  }>;
+};
+
 export type CreateManualBillingInvoiceLinePayload = {
   serviceId?: string;
   description?: string;
@@ -486,6 +513,55 @@ export type ClientRequestItem = {
     internalSku: string;
     name: string;
   } | null;
+};
+
+export type OwnCompanySellerSnapshot = {
+  shortName: string;
+  fullName: string;
+  inn: string;
+  kpp: string;
+  address: string;
+  bankName: string;
+  bankBik: string;
+  bankAccount: string;
+  correspondentAccount: string;
+  paymentCode: string;
+  paymentPurposeCode: string;
+};
+
+export type OwnCompanyBankAccountSummary = {
+  id: string;
+  companyId: string;
+  bankName: string;
+  bankBik: string;
+  bankAccount: string;
+  correspondentAccount: string | null;
+  isDefault: boolean;
+  comment: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type OwnCompanySummary = {
+  id: string;
+  shortName: string;
+  fullName: string;
+  inn: string;
+  kpp: string | null;
+  ogrn: string | null;
+  legalAddress: string | null;
+  bankName: string | null;
+  bankBik: string | null;
+  bankAccount: string | null;
+  correspondentAccount: string | null;
+  paymentCode: string | null;
+  paymentPurposeCode: string | null;
+  isDefault: boolean;
+  isActive: boolean;
+  comment: string | null;
+  bankAccounts: OwnCompanyBankAccountSummary[];
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type ClientRequestFileSummary = {
@@ -628,6 +704,8 @@ export type OutboundRequestXlsxLine = {
   barcode?: string;
   originalName?: string;
   requestedQuantity: number;
+  relabelTargetBarcode?: string;
+  relabelQuantity?: number;
   city?: string;
   artSeller?: string;
   size?: string;
@@ -2090,6 +2168,28 @@ export async function upsertClientBillingService(
   payload: UpsertClientBillingServicePayload,
 ) {
   return request<ClientBillingServiceSummary>(`/billing/clients/${clientId}/services`, {
+    method: 'PUT',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function fetchOwnCompanies(accessToken: string) {
+  return request<OwnCompanySummary[]>('/own-companies', {
+    accessToken,
+  });
+}
+
+export async function createOwnCompany(accessToken: string, payload: UpsertOwnCompanyPayload) {
+  return request<OwnCompanySummary>('/own-companies', {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function updateOwnCompany(accessToken: string, companyId: string, payload: UpsertOwnCompanyPayload) {
+  return request<OwnCompanySummary>(`/own-companies/${companyId}`, {
     method: 'PUT',
     body: payload,
     accessToken,

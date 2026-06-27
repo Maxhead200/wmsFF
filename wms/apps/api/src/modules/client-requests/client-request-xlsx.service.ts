@@ -17,6 +17,8 @@ type HydratedOutboundLine = {
   barcode?: string;
   originalName?: string;
   requestedQuantity: number;
+  relabelTargetBarcode?: string;
+  relabelQuantity?: number;
   city?: string;
   artSeller?: string;
   size?: string;
@@ -102,13 +104,7 @@ export class ClientRequestXlsxService {
         destinationCity: normalizeRequiredText(dto.destinationCity, 'Город поставки обязателен.'),
         deliveryAddress: normalizeText(dto.deliveryAddress),
         desiredDate: dto.desiredDate,
-        items: preview.lines.map((line) => ({
-          skuId: line.skuId ?? undefined,
-          barcode: line.barcode,
-          name: line.name ?? undefined,
-          quantity: line.requestedQuantity,
-          comment: this.buildLineComment(line),
-        })),
+        items: preview.lines.flatMap((line) => this.buildRequestItemsFromLine(line)),
       },
       user,
     );
@@ -246,6 +242,8 @@ export class ClientRequestXlsxService {
         barcode: line.barcode,
         originalName: line.name || line.artSeller,
         requestedQuantity: line.quantity,
+        relabelTargetBarcode: line.relabelTargetBarcode,
+        relabelQuantity: line.relabelQuantity,
         city: line.city,
         artSeller: line.artSeller,
         size: line.size,
@@ -370,11 +368,23 @@ export class ClientRequestXlsxService {
       : { line, match: 'duplicate', issueMessage: 'Наименование товара совпало с несколькими SKU клиента.' };
   }
 
-  private emptyHydratedLine(line: { barcode?: string; name?: string; quantity: number; city?: string; artSeller?: string; size?: string; sourceRows: number[] }): HydratedOutboundLine {
+  private emptyHydratedLine(line: {
+    barcode?: string;
+    name?: string;
+    quantity: number;
+    relabelTargetBarcode?: string;
+    relabelQuantity?: number;
+    city?: string;
+    artSeller?: string;
+    size?: string;
+    sourceRows: number[];
+  }): HydratedOutboundLine {
     return {
       barcode: line.barcode,
       originalName: line.name || line.artSeller,
       requestedQuantity: line.quantity,
+      relabelTargetBarcode: line.relabelTargetBarcode,
+      relabelQuantity: line.relabelQuantity,
       city: line.city,
       artSeller: line.artSeller,
       size: line.size,
@@ -406,11 +416,43 @@ export class ClientRequestXlsxService {
       line.city ? `Город: ${line.city}` : null,
       line.artSeller ? `Артикул продавца: ${line.artSeller}` : null,
       line.size ? `Размер: ${line.size}` : null,
+      line.relabelTargetBarcode && line.relabelQuantity ? `Перемаркировка из: ${line.barcode ?? ''}` : null,
+      line.relabelTargetBarcode && line.relabelQuantity ? `Перемаркировка в: ${line.relabelTargetBarcode}` : null,
+      line.relabelTargetBarcode && line.relabelQuantity ? `Количество перемаркировки: ${line.relabelQuantity}` : null,
       line.needsRelabel ? 'Перемаркировка: да' : null,
       `Excel rows: ${line.sourceRows.join(', ')}`,
     ]
       .filter(Boolean)
       .join('; ');
+  }
+
+  private buildRequestItemsFromLine(line: HydratedOutboundLine) {
+    const relabelQuantity = line.relabelTargetBarcode ? Math.min(line.relabelQuantity ?? 0, line.requestedQuantity) : 0;
+    const normalQuantity = line.requestedQuantity - relabelQuantity;
+    const base = {
+      skuId: line.skuId ?? undefined,
+      barcode: line.barcode,
+      name: line.name ?? undefined,
+    };
+    const items = [];
+
+    if (normalQuantity > 0) {
+      items.push({
+        ...base,
+        quantity: normalQuantity,
+        comment: this.buildLineComment({ ...line, relabelTargetBarcode: undefined, relabelQuantity: undefined }),
+      });
+    }
+
+    if (relabelQuantity > 0) {
+      items.push({
+        ...base,
+        quantity: relabelQuantity,
+        comment: this.buildLineComment({ ...line, requestedQuantity: relabelQuantity, needsRelabel: true }),
+      });
+    }
+
+    return items;
   }
 
   private async attachSourceWorkbook(requestId: string, clientId: string, file: Express.Multer.File, user: AuthUser) {

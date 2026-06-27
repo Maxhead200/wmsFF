@@ -8,16 +8,9 @@ const XLSX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadshee
 export function buildPickInstructionWorkbook(document: PickInstructionDocument) {
   const workbook = XLSX.utils.book_new();
 
-  // Русский комментарий: первые три листа совпадают с форматом складской инструкции, служебные листы идут после них.
-  XLSX.utils.book_append_sheet(workbook, sheetFromRows(warehouseRows(document), [18, 20, 18, 28, 18, 12, 12, 28, 28, 42]), 'Инструкция');
-  XLSX.utils.book_append_sheet(workbook, sheetFromRows(wholeBoxRows(document), [22, 34, 22, 18]), 'Целые короба');
-  XLSX.utils.book_append_sheet(workbook, sheetFromRows(markRows(document), [18, 18, 20, 18, 18, 34, 28, 16, 16, 12, 18, 18]), 'МАРК');
-  XLSX.utils.book_append_sheet(workbook, sheetFromRows(balanceMoveRows(document), [20, 20, 18, 28, 18, 12, 12, 42]), 'Остатки в новые короба');
-  XLSX.utils.book_append_sheet(workbook, sheetFromRows(balanceLabelRows(document), [20, 20, 70]), 'Печать коробов');
-  XLSX.utils.book_append_sheet(workbook, sheetFromRows(summaryRows(document), [24, 46]), 'Сводка');
-  XLSX.utils.book_append_sheet(workbook, sheetFromRows(instructionRows(document), [5, 7, 18, 18, 18, 18, 34, 12, 12, 12, 22, 42]), 'План WMS');
-  XLSX.utils.book_append_sheet(workbook, sheetFromRows(boxRows(document), [20, 18, 14, 20, 10, 14, 34]), 'Короба');
-  XLSX.utils.book_append_sheet(workbook, sheetFromRows(shortageRows(document), [7, 18, 18, 34, 12, 12, 12, 22, 42]), 'Дефицит');
+  XLSX.utils.book_append_sheet(workbook, sheetFromRows(warehouseRows(document), [18, 20, 18, 28, 18, 12, 12, 28, 28, 42]), 'Поиск коробов');
+  XLSX.utils.book_append_sheet(workbook, sheetFromRows(markRows(document), [18, 18, 20, 18, 18, 34, 28, 16, 16, 12, 18, 18]), 'Перемаркировка');
+  XLSX.utils.book_append_sheet(workbook, sheetFromRows(balanceMoveRows(document), [20, 20, 18, 28, 18, 12, 12, 42]), 'Перемещения');
 
   return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
 }

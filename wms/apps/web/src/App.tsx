@@ -10,6 +10,7 @@ import { DashboardDataPanel } from './components/DashboardDataPanel';
 import { DirectoryPanel } from './components/directories/DirectoryPanel';
 import { ImportPanel } from './components/imports/ImportPanel';
 import { LogisticsQuotePanel } from './components/logistics/LogisticsQuotePanel';
+import { OwnCompaniesPanel } from './components/own-companies/OwnCompaniesPanel';
 import { PrintPanel } from './components/print/PrintPanel';
 import { WarehouseOpsPanel } from './components/warehouse/WarehouseOpsPanel';
 import { fetchMe, type AuthSession, type AuthUser } from './lib/api';
@@ -224,6 +225,8 @@ function renderWorkspace(
       return <CatalogPanel session={session} />;
     case 'billing':
       return <BillingPanel session={session} />;
+    case 'own-companies':
+      return <OwnCompaniesPanel session={session} />;
     case 'print':
       return <PrintPanel session={session} />;
     case 'data':
@@ -327,7 +330,7 @@ function sectionForWorkspace(id: WorkspaceId): WorkspaceSection {
     return 'operations';
   }
 
-  if (id === 'access' || id === 'directories' || id === 'billing') {
+  if (id === 'access' || id === 'directories' || id === 'billing' || id === 'own-companies') {
     return 'management';
   }
 
@@ -369,7 +372,7 @@ function permissionTitle(item: WorkspaceNavItem) {
 function defaultWorkspaceForUser(user: AuthUser): WorkspaceId {
   const preferredOrder: WorkspaceId[] = isClientOnlyUser(user)
     ? ['cabinet', 'requests', 'catalog', 'logistics', 'billing', 'overview']
-    : ['warehouse', 'requests', 'catalog', 'access', 'directories', 'imports', 'logistics', 'billing', 'print', 'data', 'overview'];
+    : ['warehouse', 'requests', 'catalog', 'access', 'directories', 'imports', 'logistics', 'billing', 'own-companies', 'print', 'data', 'overview'];
 
   return preferredOrder.find((id) => canKeepWorkspace(user, id)) ?? 'overview';
 }

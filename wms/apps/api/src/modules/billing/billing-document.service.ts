@@ -4,12 +4,14 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
 import { BILLING_SELLER, invoiceDisplayNumber } from './billing-printing';
+import { OwnCompaniesService } from '../own-companies/own-companies.service';
 
 @Injectable()
 export class BillingDocumentService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly clientScopes: ClientScopeService,
+    private readonly ownCompanies?: OwnCompaniesService,
   ) {}
 
   async getInvoiceDocument(invoiceId: string, user: AuthUser): Promise<BillingPrintableDocument> {
@@ -46,6 +48,7 @@ export class BillingDocumentService {
     const totalRub = Number(invoice.totalRub);
     const paidRub = Number(invoice.paidRub);
     const remainingRub = roundMoney(totalRub - paidRub);
+    const seller = await this.findSeller();
     const payload: InvoiceDocumentPayload = {
       invoiceId: invoice.id,
       number: invoice.number,
@@ -61,6 +64,7 @@ export class BillingDocumentService {
       paidRub,
       remainingRub,
       comment: invoice.comment,
+      seller,
       client: {
         id: invoice.client.id,
         code: invoice.client.code,
@@ -121,6 +125,10 @@ export class BillingDocumentService {
       }),
     };
   }
+
+  private async findSeller() {
+    return this.ownCompanies ? this.ownCompanies.findDefaultSeller() : BILLING_SELLER;
+  }
 }
 
 export type BillingPrintableDocument = InvoiceDocumentPayload & {
@@ -144,6 +152,7 @@ export type InvoiceDocumentPayload = {
   paidRub: number;
   remainingRub: number;
   comment: string | null;
+  seller: BillingSellerSnapshot;
   client: {
     id: string;
     code: string;
@@ -184,6 +193,8 @@ export type InvoiceDocumentPayload = {
     name: string;
   } | null;
 };
+
+export type BillingSellerSnapshot = typeof BILLING_SELLER;
 
 const invoiceDocumentInclude = {
   client: {
@@ -343,7 +354,7 @@ function renderActHtml(document: InvoiceDocumentPayload) {
     </section>
     <section class="box">
       <strong>Исполнитель</strong>
-      <p>${escapeHtml(BILLING_SELLER.fullName)}</p>
+      <p>${escapeHtml(document.seller.fullName)}</p>
       <p>Дата акта: ${formatDate(document.issuedAt ?? new Date().toISOString())}</p>
       <p>Ответственный: ${escapeHtml(document.createdBy?.name ?? '-')}</p>
     </section>

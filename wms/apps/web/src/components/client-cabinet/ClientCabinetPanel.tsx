@@ -48,6 +48,7 @@ import './client-cabinet.css';
 import { ClientCabinetExports } from './ClientCabinetExports';
 import { ClientCabinetMetrics, type ClientCabinetMetricTarget } from './ClientCabinetMetrics';
 import { ClientCabinetTables } from './ClientCabinetTables';
+import { ClientMarketplaceConnections } from './ClientMarketplaceConnections';
 import { ClientCabinetFilterPresets } from './ClientCabinetFilterPresets';
 import {
   ClientCabinetFilters,
@@ -617,6 +618,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
               onSave={() => void saveClientEdit()}
             />
           ) : null}
+          {canManageClients ? <ClientMarketplaceConnections accessToken={session.accessToken} client={view.client} /> : null}
 
           <ClientCabinetMetrics
             stock={view.stock}
@@ -642,6 +644,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
             serviceHistory={view.serviceHistory}
           />
           <ClientCabinetTables
+            accessToken={session.accessToken}
             client={view.client}
             currentUser={session.user}
             stock={view.stock}
@@ -657,6 +660,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
             notificationPreferences={view.notificationPreferences}
             activeSection={activeSection}
             onSectionChange={navigateToSection}
+            onStockImported={loadData}
             onOpenRequestDocument={(request) => void openRequestDocument(request)}
             onOpenRequestTimeline={(request) => void openRequestTimeline(request)}
             onOpenInvoiceDocument={(invoice) => void openInvoiceDocument(invoice)}

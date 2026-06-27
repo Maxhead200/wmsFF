@@ -25,6 +25,14 @@ enum ClientKind {
   INDIVIDUAL
 }
 
+enum MarketplaceType {
+  WILDBERRIES
+  OZON
+  YANDEX_MARKET
+  SBER_MARKET
+  OTHER
+}
+
 enum ClientRequestType {
   INBOUND
   OUTBOUND
@@ -339,12 +347,30 @@ model Client {
   requestPackages          ClientRequestPackage[]
   notifications            ClientNotification[]
   notificationPreferences  ClientNotificationPreference[]
+  marketplaceConnections   ClientMarketplaceConnection[]
   requestComments          ClientRequestComment[]
   requestEvents            ClientRequestEvent[]
   createdAt                DateTime                       @default(now())
   updatedAt                DateTime                       @updatedAt
 
   @@index([fulfillmentManagerUserId])
+}
+
+model ClientMarketplaceConnection {
+  id          String          @id @default(uuid())
+  clientId    String
+  marketplace MarketplaceType
+  accountName String?
+  sellerId    String?
+  apiKey      String
+  isActive    Boolean         @default(true)
+  comment     String?
+  client      Client          @relation(fields: [clientId], references: [id])
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([clientId])
+  @@unique([clientId, marketplace, accountName])
 }
 
 model Warehouse {

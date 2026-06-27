@@ -47,6 +47,8 @@ export type ClientKind = 'LEGAL_ENTITY' | 'INDIVIDUAL_ENTREPRENEUR' | 'SELF_EMPL
 
 export type ClientStatus = 'ACTIVE' | 'PAUSED' | 'ARCHIVED';
 
+export type MarketplaceType = 'WILDBERRIES' | 'OZON' | 'YANDEX_MARKET' | 'SBER_MARKET' | 'OTHER';
+
 export type ClientRequestType = 'INBOUND' | 'OUTBOUND' | 'RETURN' | 'DELIVERY' | 'SERVICE' | 'OTHER';
 
 export type ClientRequestStatus =
@@ -894,6 +896,31 @@ export type DeleteClientResult = {
   code: string;
   name: string;
   deleted: true;
+};
+
+export type MarketplaceConnectionSummary = {
+  id: string;
+  clientId: string;
+  marketplace: MarketplaceType;
+  accountName: string | null;
+  sellerId: string | null;
+  apiKeyMask: string;
+  hasApiKey: boolean;
+  isActive: boolean;
+  comment: string | null;
+  createdAt: string;
+  updatedAt: string;
+  client: Pick<ClientSummary, 'id' | 'code' | 'name'>;
+};
+
+export type UpsertMarketplaceConnectionPayload = {
+  clientId: string;
+  marketplace: MarketplaceType;
+  accountName?: string;
+  sellerId?: string;
+  apiKey: string;
+  isActive?: boolean;
+  comment?: string;
 };
 
 export type StockBalance = {
@@ -1999,6 +2026,42 @@ export async function fetchStockBalances(accessToken: string, filter: { clientId
   return request<StockBalance[]>(withQuery('/stock/balances', filter), {
     accessToken,
   });
+}
+
+export async function fetchMarketplaceConnections(accessToken: string, filter: { clientId?: string } = {}) {
+  return request<MarketplaceConnectionSummary[]>(withQuery('/marketplace-connections', filter), {
+    accessToken,
+  });
+}
+
+export async function createMarketplaceConnection(accessToken: string, payload: UpsertMarketplaceConnectionPayload) {
+  return request<MarketplaceConnectionSummary>('/marketplace-connections', {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function updateMarketplaceConnection(
+  accessToken: string,
+  connectionId: string,
+  payload: Partial<UpsertMarketplaceConnectionPayload>,
+) {
+  return request<MarketplaceConnectionSummary>(`/marketplace-connections/${connectionId}`, {
+    method: 'PATCH',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function deleteMarketplaceConnection(accessToken: string, connectionId: string) {
+  return request<{ id: string; marketplace: MarketplaceType; accountName: string | null; deleted: true }>(
+    `/marketplace-connections/${connectionId}`,
+    {
+      method: 'DELETE',
+      accessToken,
+    },
+  );
 }
 
 export async function fetchBoxes(accessToken: string, filter: { clientId?: string; code?: string } = {}) {

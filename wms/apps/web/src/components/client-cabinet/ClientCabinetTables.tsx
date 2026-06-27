@@ -26,10 +26,12 @@ import { ClientCabinetNotifications } from './ClientCabinetNotifications';
 import type { ClientCabinetMetricTarget } from './ClientCabinetMetrics';
 import { ClientCabinetPeriodSummary } from './ClientCabinetPeriodSummary';
 import { ClientCabinetServiceHistory } from './ClientCabinetServiceHistory';
+import { ClientCabinetStockImport } from './ClientCabinetStockImport';
 import { downloadClientCabinetStockExcel } from './clientCabinetStockExcelExport';
 import { ClientRequestFilesCell } from './ClientRequestFilesCell';
 
 type ClientCabinetTablesProps = {
+  accessToken: string;
   client: ClientSummary;
   currentUser: AuthUser;
   stock: StockBalance[];
@@ -45,6 +47,7 @@ type ClientCabinetTablesProps = {
   activeSection: ClientCabinetMetricTarget;
   onSectionChange: (section: ClientCabinetMetricTarget) => void;
   onStockSearchChange: (value: string) => void;
+  onStockImported: () => Promise<void>;
   onOpenRequestDocument: (request: ClientRequestSummary) => void;
   onOpenRequestTimeline: (request: ClientRequestSummary) => void;
   onOpenInvoiceDocument: (invoice: BillingInvoiceSummary) => void;
@@ -67,6 +70,7 @@ type SkuStockSummary = {
 const pageSizeOptions = [10, 20, 50, 100];
 
 export function ClientCabinetTables({
+  accessToken,
   client,
   currentUser,
   stock,
@@ -82,6 +86,7 @@ export function ClientCabinetTables({
   activeSection,
   onSectionChange,
   onStockSearchChange,
+  onStockImported,
   onOpenRequestDocument,
   onOpenRequestTimeline,
   onOpenInvoiceDocument,
@@ -91,6 +96,7 @@ export function ClientCabinetTables({
   onToggleNotificationPreference,
 }: ClientCabinetTablesProps) {
   const canSeeStoragePlaces = currentUser.clientScopeMode === 'ALL' || !currentUser.roleCodes.includes('CLIENT');
+  const canImportStock = canUse(currentUser, 'imports:write');
   const [pageSize, setPageSize] = useState(20);
   const [pageByTab, setPageByTab] = useState<Record<ClientCabinetMetricTarget, number>>({
     skus: 1,
@@ -169,6 +175,10 @@ export function ClientCabinetTables({
           </button>
         </div>
 
+        {canImportStock && (activeSection === 'skus' || activeSection === 'stock') ? (
+          <ClientCabinetStockImport accessToken={accessToken} client={client} onImported={onStockImported} />
+        ) : null}
+
         {renderActiveTable({
           activeSection,
           skuRows: visibleSkuRows,
@@ -195,6 +205,10 @@ export function ClientCabinetTables({
       </section>
     </div>
   );
+}
+
+function canUse(user: AuthUser, permission: string) {
+  return user.permissionCodes.includes('system:admin') || user.permissionCodes.includes(permission);
 }
 
 function TabButton({

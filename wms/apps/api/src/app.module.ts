@@ -12,6 +12,7 @@ import { HealthController } from './modules/health/health.controller';
 import { ClientsModule } from './modules/clients/clients.module';
 import { ImportsModule } from './modules/imports/imports.module';
 import { LogisticsModule } from './modules/logistics/logistics.module';
+import { MarketplaceConnectionsModule } from './modules/marketplace-connections/marketplace-connections.module';
 import { PrintModule } from './modules/print/print.module';
 import { SkusModule } from './modules/skus/skus.module';
 import { StockModule } from './modules/stock/stock.module';
@@ -33,6 +34,7 @@ import { WarehouseModule } from './modules/warehouse/warehouse.module';
     WarehouseModule,
     StockModule,
     LogisticsModule,
+    MarketplaceConnectionsModule,
     ImportsModule,
     PrintModule,
     TsdModule,

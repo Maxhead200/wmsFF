@@ -1,4 +1,4 @@
-import { Ban, CheckCircle2, RefreshCw, Save, Trash2 } from 'lucide-react';
+import { Ban, CheckCircle2, Pencil, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   deleteClient,
@@ -194,17 +194,48 @@ export function ClientRequisitesForm({ session }: ClientRequisitesFormProps) {
         </button>
       </div>
 
-      <label className="directory-select-row">
-        <span>Клиент</span>
-        <select value={clientId} onChange={(event) => setClientId(event.target.value)} disabled={clients.length === 0}>
-          {clients.length === 0 ? <option value="">Клиенты не найдены</option> : null}
-          {clients.map((client) => (
-            <option key={client.id} value={client.id}>
-              {client.code} - {client.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="client-table-block">
+        <div className="client-table-scroll">
+          <table className="client-directory-table">
+            <thead>
+              <tr>
+                <th>Код</th>
+                <th>Наименование</th>
+                <th>Статус</th>
+                <th>ИНН</th>
+                <th>Менеджер</th>
+                <th>Действие</th>
+              </tr>
+            </thead>
+            <tbody>
+              {clients.length === 0 ? (
+                <tr>
+                  <td colSpan={6}>Клиенты не найдены</td>
+                </tr>
+              ) : null}
+              {clients.map((client) => (
+                <tr className={client.id === clientId ? 'selected' : ''} key={client.id} onClick={() => setClientId(client.id)}>
+                  <td>{client.code}</td>
+                  <td>{client.name}</td>
+                  <td>
+                    <span className={`client-status client-status--${client.status.toLowerCase()}`}>
+                      {clientStatusLabel(client.status)}
+                    </span>
+                  </td>
+                  <td>{client.inn || 'не задан'}</td>
+                  <td>{client.fulfillmentManager?.name || 'не назначен'}</td>
+                  <td>
+                    <button className="icon-text-button client-table-select" type="button" onClick={() => setClientId(client.id)}>
+                      <Pencil size={14} aria-hidden="true" />
+                      <span>Редактировать</span>
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       {selectedClient ? (
         <div className="client-control-panel">

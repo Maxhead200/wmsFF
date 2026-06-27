@@ -95,6 +95,58 @@
   gap: 6px;
 }
 
+.client-table-block {
+  display: grid;
+  gap: 8px;
+}
+
+.client-table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.client-directory-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.client-directory-table th,
+.client-directory-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.client-directory-table th {
+  background: #f8fafc;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.client-directory-table tbody tr {
+  cursor: pointer;
+}
+
+.client-directory-table tbody tr:hover,
+.client-directory-table tbody tr.selected {
+  background: #fff7f7;
+}
+
+.client-directory-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.client-table-select {
+  min-height: 32px;
+}
+
 .client-control-panel {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

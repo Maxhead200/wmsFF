@@ -39,11 +39,13 @@ export type ClientSummary = {
     email: string;
     name: string;
   } | null;
-  status: string;
+  status: ClientStatus;
   createdAt: string;
 };
 
 export type ClientKind = 'LEGAL_ENTITY' | 'INDIVIDUAL_ENTREPRENEUR' | 'SELF_EMPLOYED' | 'INDIVIDUAL';
+
+export type ClientStatus = 'ACTIVE' | 'PAUSED' | 'ARCHIVED';
 
 export type ClientRequestType = 'INBOUND' | 'OUTBOUND' | 'RETURN' | 'DELIVERY' | 'SERVICE' | 'OTHER';
 
@@ -885,6 +887,13 @@ export type ClientImportResult = {
   };
   issues: ClientImportIssue[];
   clients: ClientSummary[];
+};
+
+export type DeleteClientResult = {
+  id: string;
+  code: string;
+  name: string;
+  deleted: true;
 };
 
 export type StockBalance = {
@@ -1950,6 +1959,21 @@ export async function updateClient(accessToken: string, clientId: string, payloa
   });
 }
 
+export async function updateClientStatus(accessToken: string, clientId: string, status: ClientStatus) {
+  return request<ClientSummary>(`/clients/${clientId}/status`, {
+    method: 'PATCH',
+    body: { status },
+    accessToken,
+  });
+}
+
+export async function deleteClient(accessToken: string, clientId: string) {
+  return request<DeleteClientResult>(`/clients/${clientId}`, {
+    method: 'DELETE',
+    accessToken,
+  });
+}
+
 export async function importClientsXlsx(accessToken: string, payload: { file: File }) {
   const form = new FormData();
   form.append('file', payload.file);
@@ -2487,7 +2511,7 @@ function appendOptional(form: FormData, key: string, value?: string) {
 
 async function request<T>(
   path: string,
-  options: { method?: 'GET' | 'POST' | 'PATCH'; body?: unknown; accessToken?: string } = {},
+  options: { method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'; body?: unknown; accessToken?: string } = {},
 ) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: options.method ?? 'GET',

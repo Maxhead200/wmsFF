@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { ClientKind, Prisma } from '@prisma/client';
+import { ClientKind, ClientStatus, Prisma } from '@prisma/client';
 import * as XLSX from 'xlsx';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
@@ -155,18 +155,106 @@ export class ClientsService {
     this.clientScopes.requireGlobalClientAccess(user);
     await this.ensureFulfillmentManagerExists(dto.fulfillmentManagerUserId);
 
-    return this.prisma.client.update({
+    try {
+      return await this.prisma.client.update({
+        where: { id },
+        data: {
+          ...(dto.clientKind === undefined ? {} : { clientKind: dto.clientKind }),
+          ...(dto.name === undefined ? {} : { name: dto.name.trim() }),
+          ...(dto.fulfillmentManagerUserId === undefined
+            ? {}
+            : { fulfillmentManagerUserId: normalizeNullableString(dto.fulfillmentManagerUserId) }),
+          ...nullableUpdateClientData(dto),
+        },
+        select: this.clientSummarySelect(),
+      });
+    } catch (caught) {
+      if (isRecordNotFoundError(caught)) {
+        throw new NotFoundException('Клиент не найден.');
+      }
+      throw caught;
+    }
+  }
+
+  async updateStatus(id: string, status: string, user: AuthUser) {
+    this.clientScopes.requireGlobalClientAccess(user);
+    const normalizedStatus = normalizeClientStatus(status);
+
+    try {
+      return await this.prisma.client.update({
+        where: { id },
+        data: { status: normalizedStatus },
+        select: this.clientSummarySelect(),
+      });
+    } catch (caught) {
+      if (isRecordNotFoundError(caught)) {
+        throw new NotFoundException('Клиент не найден.');
+      }
+      throw caught;
+    }
+  }
+
+  async delete(id: string, user: AuthUser) {
+    this.clientScopes.requireGlobalClientAccess(user);
+
+    const client = await this.prisma.client.findUnique({
       where: { id },
-      data: {
-        ...(dto.clientKind === undefined ? {} : { clientKind: dto.clientKind }),
-        ...(dto.name === undefined ? {} : { name: dto.name.trim() }),
-        ...(dto.fulfillmentManagerUserId === undefined
-          ? {}
-          : { fulfillmentManagerUserId: normalizeNullableString(dto.fulfillmentManagerUserId) }),
-        ...nullableUpdateClientData(dto),
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        _count: {
+          select: {
+            skus: true,
+            boxes: true,
+            pallets: true,
+            movements: true,
+            requests: true,
+            billingCharges: true,
+            billingInvoices: true,
+            billingPayments: true,
+            deliveryRequests: true,
+            requestFiles: true,
+            requestPackages: true,
+            notifications: true,
+            requestComments: true,
+            requestEvents: true,
+          },
+        },
       },
-      select: this.clientSummarySelect(),
     });
+
+    if (!client) {
+      throw new NotFoundException('Клиент не найден.');
+    }
+
+    const blockers = clientDeleteBlockers(client._count);
+    if (blockers.length > 0) {
+      throw new BadRequestException(`Клиента нельзя удалить, потому что есть связанные данные: ${blockers.join(', ')}. Заблокируйте клиента, чтобы он не использовался в работе.`);
+    }
+
+    try {
+      await this.prisma.$transaction([
+        this.prisma.userClient.deleteMany({ where: { clientId: id } }),
+        this.prisma.clientNotificationPreference.deleteMany({ where: { clientId: id } }),
+        this.prisma.client.delete({ where: { id } }),
+      ]);
+    } catch (caught) {
+      if (isRecordNotFoundError(caught)) {
+        throw new NotFoundException('Клиент не найден.');
+      }
+      if (isForeignKeyError(caught)) {
+        throw new BadRequestException('Клиента нельзя удалить, потому что к нему привязаны данные. Заблокируйте клиента, чтобы он не использовался в работе.');
+      }
+      throw caught;
+    }
+
+    return {
+      id: client.id,
+      code: client.code,
+      name: client.name,
+      deleted: true,
+    };
   }
 
   private async createWithGeneratedCode(dto: CreateClientDto) {
@@ -335,6 +423,45 @@ function normalizeNullableString(value?: string | null) {
 
 function isUniqueClientCodeError(caught: unknown) {
   return caught instanceof Prisma.PrismaClientKnownRequestError && caught.code === 'P2002';
+}
+
+function isRecordNotFoundError(caught: unknown) {
+  return caught instanceof Prisma.PrismaClientKnownRequestError && caught.code === 'P2025';
+}
+
+function isForeignKeyError(caught: unknown) {
+  return caught instanceof Prisma.PrismaClientKnownRequestError && caught.code === 'P2003';
+}
+
+function normalizeClientStatus(status: string) {
+  if (status === ClientStatus.ACTIVE || status === ClientStatus.PAUSED || status === ClientStatus.ARCHIVED) {
+    return status;
+  }
+  throw new BadRequestException('Статус клиента должен быть ACTIVE, PAUSED или ARCHIVED.');
+}
+
+function clientDeleteBlockers(counts: Record<string, number>) {
+  const labels: Array<[string, string]> = [
+    ['skus', 'SKU'],
+    ['boxes', 'короба'],
+    ['pallets', 'паллеты'],
+    ['movements', 'движения остатков'],
+    ['requests', 'заявки'],
+    ['billingCharges', 'начисления'],
+    ['billingInvoices', 'счета'],
+    ['billingPayments', 'платежи'],
+    ['deliveryRequests', 'заявки на логистику'],
+    ['requestFiles', 'файлы заявок'],
+    ['requestPackages', 'упаковки заявок'],
+    ['notifications', 'уведомления'],
+    ['requestComments', 'комментарии заявок'],
+    ['requestEvents', 'история заявок'],
+  ];
+
+  return labels
+    .filter(([field]) => (counts[field] ?? 0) > 0)
+    .map(([field, label]) => `${label}: ${counts[field]}`)
+    .slice(0, 6);
 }
 
 function parseClientImportWorkbook(buffer: Buffer) {

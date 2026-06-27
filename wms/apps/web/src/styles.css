@@ -493,6 +493,21 @@ h1 {
   color: var(--ink);
 }
 
+.icon-text-button {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfdff;
+  color: var(--ink);
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .auth-shell {
   display: grid;
   min-height: 100vh;
@@ -589,6 +604,17 @@ h1 {
   color: var(--danger);
   padding: 10px 12px;
   font-size: 13px;
+  line-height: 1.4;
+}
+
+.form-success {
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+  background: #f0fdf4;
+  color: var(--ok);
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 800;
   line-height: 1.4;
 }
 

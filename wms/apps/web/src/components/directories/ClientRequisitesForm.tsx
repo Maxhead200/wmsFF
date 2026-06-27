@@ -1,11 +1,14 @@
-import { RefreshCw, Save } from 'lucide-react';
+import { Ban, CheckCircle2, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
+  deleteClient,
   fetchClients,
   fetchUsers,
   updateClient,
+  updateClientStatus,
   type AuthSession,
   type ClientKind,
+  type ClientStatus,
   type ClientSummary,
   type UpdateClientPayload,
   type UserSummary,
@@ -66,8 +69,11 @@ export function ClientRequisitesForm({ session }: ClientRequisitesFormProps) {
   const [form, setForm] = useState<ClientRequisitesFormState>(emptyForm);
   const [savedClient, setSavedClient] = useState<ClientSummary | null>(null);
   const [error, setError] = useState('');
+  const [actionMessage, setActionMessage] = useState('');
   const [isLoading, setLoading] = useState(false);
   const [isSubmitting, setSubmitting] = useState(false);
+  const [isStatusSubmitting, setStatusSubmitting] = useState(false);
+  const [isDeleting, setDeleting] = useState(false);
   const selectedClient = useMemo(() => clients.find((client) => client.id === clientId) ?? null, [clientId, clients]);
 
   useEffect(() => {
@@ -115,6 +121,7 @@ export function ClientRequisitesForm({ session }: ClientRequisitesFormProps) {
 
     setSubmitting(true);
     setError('');
+    setActionMessage('');
     setSavedClient(null);
 
     try {
@@ -125,6 +132,52 @@ export function ClientRequisitesForm({ session }: ClientRequisitesFormProps) {
       setError(caught instanceof Error ? caught.message : 'Не удалось сохранить реквизиты.');
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function changeStatus(status: ClientStatus) {
+    if (!selectedClient) {
+      return;
+    }
+
+    setStatusSubmitting(true);
+    setError('');
+    setActionMessage('');
+    try {
+      const updated = await updateClientStatus(session.accessToken, selectedClient.id, status);
+      setClients((current) => current.map((client) => (client.id === updated.id ? updated : client)));
+      setActionMessage(status === 'ACTIVE' ? 'Клиент активирован.' : 'Клиент заблокирован.');
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Не удалось изменить статус клиента.');
+    } finally {
+      setStatusSubmitting(false);
+    }
+  }
+
+  async function removeClient() {
+    if (!selectedClient) {
+      return;
+    }
+
+    const confirmed = window.confirm(`Удалить клиента ${selectedClient.code} - ${selectedClient.name}? Если у клиента есть данные, WMS не даст удалить его.`);
+    if (!confirmed) {
+      return;
+    }
+
+    setDeleting(true);
+    setError('');
+    setActionMessage('');
+    setSavedClient(null);
+    try {
+      const deleted = await deleteClient(session.accessToken, selectedClient.id);
+      const nextClients = clients.filter((client) => client.id !== deleted.id);
+      setClients(nextClients);
+      setClientId(nextClients[0]?.id ?? '');
+      setActionMessage(`Клиент ${deleted.code} - ${deleted.name} удален.`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Не удалось удалить клиента.');
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -153,6 +206,49 @@ export function ClientRequisitesForm({ session }: ClientRequisitesFormProps) {
         </select>
       </label>
 
+      {selectedClient ? (
+        <div className="client-control-panel">
+          <div>
+            <span>Статус клиента</span>
+            <strong className={`client-status client-status--${selectedClient.status.toLowerCase()}`}>
+              {clientStatusLabel(selectedClient.status)}
+            </strong>
+          </div>
+          <div className="client-control-actions">
+            {selectedClient.status === 'ACTIVE' ? (
+              <button
+                className="icon-text-button client-action-button"
+                disabled={isStatusSubmitting || isDeleting}
+                onClick={() => void changeStatus('PAUSED')}
+                type="button"
+              >
+                <Ban size={15} aria-hidden="true" />
+                <span>Заблокировать</span>
+              </button>
+            ) : (
+              <button
+                className="icon-text-button client-action-button"
+                disabled={isStatusSubmitting || isDeleting}
+                onClick={() => void changeStatus('ACTIVE')}
+                type="button"
+              >
+                <CheckCircle2 size={15} aria-hidden="true" />
+                <span>Активировать</span>
+              </button>
+            )}
+            <button
+              className="icon-text-button client-action-button client-action-button--danger"
+              disabled={isDeleting || isStatusSubmitting}
+              onClick={() => void removeClient()}
+              type="button"
+            >
+              <Trash2 size={15} aria-hidden="true" />
+              <span>{isDeleting ? 'Удаление' : 'Удалить'}</span>
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <div className="directory-fields directory-fields--client">
         <label>
           <span>Тип клиента</span>
@@ -170,11 +266,11 @@ export function ClientRequisitesForm({ session }: ClientRequisitesFormProps) {
         </label>
         <label>
           <span>Юр. название</span>
-          <input value={form.legalName} onChange={(event) => setForm({ ...form, legalName: event.target.value })} required />
+          <input value={form.legalName} onChange={(event) => setForm({ ...form, legalName: event.target.value })} />
         </label>
         <label>
           <span>ИНН</span>
-          <input value={form.inn} onChange={(event) => setForm({ ...form, inn: event.target.value })} required />
+          <input value={form.inn} onChange={(event) => setForm({ ...form, inn: event.target.value })} />
         </label>
         <label>
           <span>Менеджер фулфилмента</span>
@@ -241,6 +337,7 @@ export function ClientRequisitesForm({ session }: ClientRequisitesFormProps) {
       </div>
 
       {error ? <p className="form-error">{error}</p> : null}
+      {actionMessage ? <p className="form-success">{actionMessage}</p> : null}
 
       <button className="primary-button directory-submit" type="submit" disabled={isSubmitting || !selectedClient}>
         <Save size={16} aria-hidden="true" />
@@ -302,6 +399,15 @@ function compactPayload(form: ClientRequisitesFormState): UpdateClientPayload {
 
 function clientKindLabel(kind: ClientKind) {
   return clientKindOptions.find((option) => option.value === kind)?.label ?? kind;
+}
+
+function clientStatusLabel(status: ClientStatus) {
+  const labels: Record<ClientStatus, string> = {
+    ACTIVE: 'Активен',
+    PAUSED: 'Заблокирован',
+    ARCHIVED: 'В архиве',
+  };
+  return labels[status];
 }
 
 function isClientOnlyUser(user: UserSummary) {

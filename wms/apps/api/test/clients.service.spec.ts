@@ -145,6 +145,92 @@ describe('ClientsService', () => {
     );
     expect(prisma.client.create).not.toHaveBeenCalled();
   });
+
+  it('блокирует клиента через статус PAUSED', async () => {
+    const prisma = {
+      client: {
+        update: vi.fn().mockResolvedValue({ id: 'client-1', code: 'CLIENT', name: 'Клиент', status: 'PAUSED' }),
+      },
+    };
+    const scopes = {
+      requireGlobalClientAccess: vi.fn(),
+    };
+    const service = new ClientsService(prisma as never, scopes as never);
+
+    const result = await service.updateStatus('client-1', 'PAUSED', user());
+
+    expect(result.status).toBe('PAUSED');
+    expect(prisma.client.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'client-1' },
+        data: { status: 'PAUSED' },
+      }),
+    );
+  });
+
+  it('удаляет клиента без рабочих данных и очищает безопасные привязки', async () => {
+    const operations = ['delete-user-scopes', 'delete-notification-preferences', 'delete-client'];
+    const prisma = {
+      client: {
+        findUnique: vi.fn().mockResolvedValue({ id: 'client-1', code: 'CLIENT', name: 'Клиент', _count: emptyClientCounts() }),
+        delete: vi.fn().mockReturnValue(operations[2]),
+      },
+      userClient: {
+        deleteMany: vi.fn().mockReturnValue(operations[0]),
+      },
+      clientNotificationPreference: {
+        deleteMany: vi.fn().mockReturnValue(operations[1]),
+      },
+      $transaction: vi.fn().mockResolvedValue(undefined),
+    };
+    const scopes = {
+      requireGlobalClientAccess: vi.fn(),
+    };
+    const service = new ClientsService(prisma as never, scopes as never);
+
+    const result = await service.delete('client-1', user());
+
+    expect(result).toEqual({
+      id: 'client-1',
+      code: 'CLIENT',
+      name: 'Клиент',
+      deleted: true,
+    });
+    expect(prisma.userClient.deleteMany).toHaveBeenCalledWith({ where: { clientId: 'client-1' } });
+    expect(prisma.clientNotificationPreference.deleteMany).toHaveBeenCalledWith({ where: { clientId: 'client-1' } });
+    expect(prisma.client.delete).toHaveBeenCalledWith({ where: { id: 'client-1' } });
+    expect(prisma.$transaction).toHaveBeenCalledWith(operations);
+  });
+
+  it('не удаляет клиента, если есть связанные рабочие данные', async () => {
+    const prisma = {
+      client: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'client-1',
+          code: 'CLIENT',
+          name: 'Клиент',
+          _count: { ...emptyClientCounts(), skus: 2 },
+        }),
+        delete: vi.fn(),
+      },
+      userClient: {
+        deleteMany: vi.fn(),
+      },
+      clientNotificationPreference: {
+        deleteMany: vi.fn(),
+      },
+      $transaction: vi.fn(),
+    };
+    const scopes = {
+      requireGlobalClientAccess: vi.fn(),
+    };
+    const service = new ClientsService(prisma as never, scopes as never);
+
+    await expect(service.delete('client-1', user())).rejects.toThrow('Клиента нельзя удалить');
+
+    expect(prisma.client.delete).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
 });
 
 function excelFile(rows: unknown[][]): Express.Multer.File {
@@ -166,5 +252,24 @@ function user(): AuthUser {
     clientScopeMode: 'ALL',
     clientIds: [],
     writableClientIds: [],
+  };
+}
+
+function emptyClientCounts() {
+  return {
+    skus: 0,
+    boxes: 0,
+    pallets: 0,
+    movements: 0,
+    requests: 0,
+    billingCharges: 0,
+    billingInvoices: 0,
+    billingPayments: 0,
+    deliveryRequests: 0,
+    requestFiles: 0,
+    requestPackages: 0,
+    notifications: 0,
+    requestComments: 0,
+    requestEvents: 0,
   };
 }

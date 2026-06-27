@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '../auth/auth.types';
@@ -43,5 +43,17 @@ export class ClientsController {
   @RequirePermissions('clients:write')
   update(@Param('id') id: string, @Body() dto: UpdateClientDto, @CurrentUser() user: AuthUser) {
     return this.clients.update(id, dto, user);
+  }
+
+  @Patch(':id/status')
+  @RequirePermissions('clients:write')
+  updateStatus(@Param('id') id: string, @Body('status') status: string, @CurrentUser() user: AuthUser) {
+    return this.clients.updateStatus(id, status, user);
+  }
+
+  @Delete(':id')
+  @RequirePermissions('clients:write')
+  delete(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.clients.delete(id, user);
   }
 }

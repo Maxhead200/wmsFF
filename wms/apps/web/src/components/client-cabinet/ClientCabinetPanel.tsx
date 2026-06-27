@@ -540,10 +540,15 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
           {state.status === 'loading' ? <p className="inline-status">Обновляю кабинет.</p> : null}
 
           {showClientOverview ? (
-            <ClientCabinetClientCards
+            <ClientCabinetClientTable
               cards={view.clientCards}
+              canManage={canManageClients}
+              isManaging={isManagingClient}
               selectedClientId={view.client.id}
+              onDelete={removeClient}
+              onEdit={startClientEdit}
               onSelect={selectClient}
+              onStatusChange={changeClientStatus}
             />
           ) : null}
 
@@ -692,34 +697,118 @@ function sortByDate<T>(items: T[], getValue: (item: T) => string | null | undefi
   });
 }
 
-function ClientCabinetClientCards({
+function ClientCabinetClientTable({
   cards,
+  canManage,
+  isManaging,
   selectedClientId,
+  onDelete,
+  onEdit,
   onSelect,
+  onStatusChange,
 }: {
   cards: ClientCabinetClientSummary[];
+  canManage: boolean;
+  isManaging: boolean;
   selectedClientId: string;
+  onDelete: (client: ClientSummary) => void;
+  onEdit: (client: ClientSummary) => void;
   onSelect: (clientId: string) => void;
+  onStatusChange: (client: ClientSummary, status: ClientStatus) => void;
 }) {
   return (
-    <div className="client-cabinet-client-cards" aria-label="Клиенты в работе">
-      {cards.map((card) => (
-        <button
-          key={card.client.id}
-          className={`client-cabinet-client-card${card.client.id === selectedClientId ? ' is-active' : ''}`}
-          type="button"
-          onClick={() => onSelect(card.client.id)}
-        >
-          <span>{card.client.code}</span>
-          <strong>{card.client.name}</strong>
-          <div>
-            <small>SKU {formatCabinetNumber(card.skuCount)}</small>
-            <small>Остатки {formatCabinetNumber(card.totalQuantity)}</small>
-            <small>Заявки {formatCabinetNumber(card.activeRequests)}</small>
-            <small>К оплате {formatCabinetMoney(card.debtRub)} ₽</small>
-          </div>
-        </button>
-      ))}
+    <div className="client-cabinet-client-table-wrap" aria-label="Клиенты в работе">
+      <table className="client-cabinet-client-table">
+        <thead>
+          <tr>
+            <th>Код</th>
+            <th>Клиент</th>
+            <th>Статус</th>
+            <th>SKU</th>
+            <th>Остатки</th>
+            <th>Заявки</th>
+            <th>К оплате</th>
+            <th>Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          {cards.map((card) => (
+            <tr className={card.client.id === selectedClientId ? 'is-active' : ''} key={card.client.id}>
+              <td>
+                <button className="client-cabinet-row-link" type="button" onClick={() => onSelect(card.client.id)}>
+                  {card.client.code}
+                </button>
+              </td>
+              <td>
+                <button className="client-cabinet-row-link client-cabinet-row-link--name" type="button" onClick={() => onSelect(card.client.id)}>
+                  {card.client.name}
+                </button>
+              </td>
+              <td>
+                <span className={`client-cabinet-status client-cabinet-status--${card.client.status.toLowerCase()}`}>
+                  {clientStatusLabel(card.client.status)}
+                </span>
+              </td>
+              <td>{formatCabinetNumber(card.skuCount)}</td>
+              <td>{formatCabinetNumber(card.totalQuantity)}</td>
+              <td>{formatCabinetNumber(card.activeRequests)}</td>
+              <td>{formatCabinetMoney(card.debtRub)} ₽</td>
+              <td>
+                {canManage ? (
+                  <div className="client-cabinet-row-actions">
+                    <button
+                      className="icon-text-button"
+                      disabled={isManaging}
+                      onClick={() => {
+                        onSelect(card.client.id);
+                        onEdit(card.client);
+                      }}
+                      type="button"
+                    >
+                      <Pencil size={14} aria-hidden="true" />
+                      <span>Редактировать</span>
+                    </button>
+                    {card.client.status === 'ACTIVE' ? (
+                      <button
+                        className="icon-text-button"
+                        disabled={isManaging}
+                        onClick={() => void onStatusChange(card.client, 'PAUSED')}
+                        type="button"
+                      >
+                        <Ban size={14} aria-hidden="true" />
+                        <span>Заблокировать</span>
+                      </button>
+                    ) : (
+                      <button
+                        className="icon-text-button"
+                        disabled={isManaging}
+                        onClick={() => void onStatusChange(card.client, 'ACTIVE')}
+                        type="button"
+                      >
+                        <CheckCircle2 size={14} aria-hidden="true" />
+                        <span>Активировать</span>
+                      </button>
+                    )}
+                    <button
+                      className="icon-text-button client-cabinet-danger-button"
+                      disabled={isManaging}
+                      onClick={() => void onDelete(card.client)}
+                      type="button"
+                    >
+                      <Trash2 size={14} aria-hidden="true" />
+                      <span>Удалить</span>
+                    </button>
+                  </div>
+                ) : (
+                  <button className="icon-text-button" type="button" onClick={() => onSelect(card.client.id)}>
+                    Открыть
+                  </button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

@@ -3,8 +3,10 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   fetchClients,
   fetchStorageOverview,
+  generateStorageCharge,
   updateStorageTariff,
   type AuthSession,
+  type BillingChargeSummary,
   type ClientSummary,
   type StorageOverview,
 } from '../../lib/api';
@@ -22,6 +24,7 @@ export function StoragePanel({ session }: StoragePanelProps) {
   const [overview, setOverview] = useState<StorageOverview | null>(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [storageCharge, setStorageCharge] = useState<BillingChargeSummary | null>(null);
   const [isLoading, setLoading] = useState(false);
   const [isSavingTariff, setSavingTariff] = useState(false);
   const selectedClient = useMemo(() => clients.find((client) => client.id === clientId) ?? null, [clientId, clients]);
@@ -56,6 +59,10 @@ export function StoragePanel({ session }: StoragePanelProps) {
       setTariff(String(numberValue(selectedClient.storagePriceRubPerLiterDay)));
     }
   }, [selectedClient]);
+
+  useEffect(() => {
+    setStorageCharge(null);
+  }, [clientId, periodFrom, periodTo]);
 
   useEffect(() => {
     if (clientId) {
@@ -105,13 +112,21 @@ export function StoragePanel({ session }: StoragePanelProps) {
       const updated = await updateStorageTariff(session.accessToken, clientId, {
         storagePriceRubPerLiterDay: price,
       });
+      const charge = await generateStorageCharge(session.accessToken, {
+        clientId,
+        periodFrom,
+        periodTo,
+        approve: true,
+        comment: 'Автоматическое начисление при сохранении тарифа хранения.',
+      });
       setClients((current) =>
         current.map((client) =>
           client.id === updated.id ? { ...client, storagePriceRubPerLiterDay: updated.storagePriceRubPerLiterDay } : client,
         ),
       );
-      setMessage('Тариф хранения сохранен.');
+      setStorageCharge(charge);
       await loadOverview();
+      setMessage(`Тариф хранения сохранен. Начисление в биллинге: ${formatMoney(Number(charge.totalRub))}.`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Не удалось сохранить тариф.');
     } finally {
@@ -178,6 +193,7 @@ export function StoragePanel({ session }: StoragePanelProps) {
             <Metric label="Литров сейчас" value={formatNumber(overview.totals.totalLiters)} />
             <Metric label="Литро-дней" value={formatNumber(overview.totals.literDays)} />
             <Metric label="К оплате" value={formatMoney(overview.totals.storageCostRub)} />
+            <Metric label="В биллинге" value={storageCharge ? formatMoney(Number(storageCharge.totalRub)) : 'не начислено'} />
           </div>
 
           <div className="storage-table-wrap">

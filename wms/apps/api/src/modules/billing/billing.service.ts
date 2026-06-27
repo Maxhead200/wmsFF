@@ -172,11 +172,16 @@ export class BillingService {
     const sourceKey = storageSourceKey(dto.clientId, periodFrom, periodTo);
     const existingCharge = await this.prisma.billingCharge.findFirst({
       where: { sourceKey },
-      include: billingChargeInclude,
+      include: {
+        ...billingChargeInclude,
+        invoiceItems: {
+          select: {
+            id: true,
+            invoice: { select: { id: true, number: true, status: true } },
+          },
+        },
+      },
     });
-    if (existingCharge) {
-      throw new BadRequestException('Начисление хранения за этот период уже создано.');
-    }
 
     const storageService = await this.ensureStorageService();
     const client = this.prisma.client?.findUnique
@@ -244,38 +249,51 @@ export class BillingService {
 
     const totalRub = roundMoney(details.literDays * unitPriceRub);
     const isApproved = dto.approve === true;
+    const chargeData = {
+      clientId: dto.clientId,
+      serviceId: storageService.id,
+      description: `Хранение по литражу ${formatDateKey(periodFrom)} - ${formatDateKey(periodTo)}`,
+      unit: BillingUnit.LITER_DAY,
+      quantity: details.literDays,
+      unitPriceRub,
+      totalRub,
+      status: isApproved ? BillingChargeStatus.APPROVED : BillingChargeStatus.DRAFT,
+      serviceDate: dto.serviceDate ? parseDate(dto.serviceDate) : periodTo,
+      source: BillingChargeSource.STORAGE,
+      sourceKey,
+      metadata: {
+        periodFrom: formatDateKey(periodFrom),
+        periodTo: formatDateKey(periodTo),
+        calculationMode: details.calculationMode,
+        days: details.days,
+        totalLiters: details.totalLiters,
+        literDays: details.literDays,
+        balancesCount: details.balancesCount,
+        skippedWithoutVolume: details.skippedWithoutVolume,
+        daily: details.daily,
+        skuTotals: details.skuTotals,
+      },
+      comment: normalizeText(dto.comment),
+      approvedByUserId: isApproved ? user.id : undefined,
+      approvedAt: isApproved ? new Date() : undefined,
+    } satisfies Prisma.BillingChargeUncheckedCreateInput;
+
+    if (existingCharge) {
+      const activeInvoiceItem = existingCharge.invoiceItems.find((item) => item.invoice.status !== BillingInvoiceStatus.CANCELLED);
+      if (activeInvoiceItem) {
+        throw new BadRequestException(`Начисление хранения уже включено в счет № ${activeInvoiceItem.invoice.number}.`);
+      }
+
+      return this.prisma.billingCharge.update({
+        where: { id: existingCharge.id },
+        data: chargeData,
+        include: billingChargeInclude,
+      });
+    }
 
     // Русский комментарий: автоматическое хранение пишем одним начислением за период, а детализацию держим в metadata.
     return this.prisma.billingCharge.create({
-      data: {
-        clientId: dto.clientId,
-        serviceId: storageService.id,
-        description: `Хранение по литражу ${formatDateKey(periodFrom)} - ${formatDateKey(periodTo)}`,
-        unit: BillingUnit.LITER_DAY,
-        quantity: details.literDays,
-        unitPriceRub,
-        totalRub,
-        status: isApproved ? BillingChargeStatus.APPROVED : BillingChargeStatus.DRAFT,
-        serviceDate: dto.serviceDate ? parseDate(dto.serviceDate) : periodTo,
-        source: BillingChargeSource.STORAGE,
-        sourceKey,
-        metadata: {
-          periodFrom: formatDateKey(periodFrom),
-          periodTo: formatDateKey(periodTo),
-          calculationMode: details.calculationMode,
-          days: details.days,
-          totalLiters: details.totalLiters,
-          literDays: details.literDays,
-          balancesCount: details.balancesCount,
-          skippedWithoutVolume: details.skippedWithoutVolume,
-          daily: details.daily,
-          skuTotals: details.skuTotals,
-        },
-        comment: normalizeText(dto.comment),
-        createdByUserId: user.id,
-        approvedByUserId: isApproved ? user.id : undefined,
-        approvedAt: isApproved ? new Date() : undefined,
-      },
+      data: { ...chargeData, createdByUserId: user.id },
       include: billingChargeInclude,
     });
   }

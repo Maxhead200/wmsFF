@@ -248,25 +248,60 @@ describe('BillingService', () => {
     );
   });
 
-  it('не дублирует автоматическое хранение за тот же период', async () => {
+  it('updates repeated automatic storage charge before invoice creation', async () => {
     const prisma = {
+      billingService: {
+        upsert: vi.fn().mockResolvedValue({
+          id: 'service-storage',
+          code: 'STORAGE_LITER_DAY',
+          defaultPriceRub: null,
+        }),
+      },
       billingCharge: {
-        findFirst: vi.fn().mockResolvedValue({ id: 'existing-storage' }),
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'existing-storage',
+          invoiceItems: [],
+        }),
+        update: vi.fn().mockResolvedValue({ id: 'existing-storage' }),
+      },
+      stockMovement: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      stockBalance: {
+        findMany: vi.fn().mockResolvedValue([
+          { quantity: 2, sku: { volumeLiters: '1.500' } },
+          { quantity: 3, sku: { volumeLiters: '2.000' } },
+        ]),
       },
     };
     const service = new BillingService(prisma as never, clientScopes());
 
-    await expect(
-      service.generateStorageCharge(
-        {
+    await service.generateStorageCharge(
+      {
+        clientId: 'client-1',
+        periodFrom: '2026-06-01',
+        periodTo: '2026-06-03',
+        unitPriceRub: 0.5,
+        approve: true,
+      },
+      user({ clientIds: ['client-1'], writableClientIds: ['client-1'] }),
+    );
+
+    expect(prisma.billingCharge.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'existing-storage' },
+        data: expect.objectContaining({
           clientId: 'client-1',
-          periodFrom: '2026-06-01',
-          periodTo: '2026-06-03',
-          unitPriceRub: 0.5,
-        },
-        user({ clientIds: ['client-1'], writableClientIds: ['client-1'] }),
-      ),
-    ).rejects.toThrow(BadRequestException);
+          serviceId: 'service-storage',
+          quantity: 27,
+          totalRub: 13.5,
+          status: BillingChargeStatus.APPROVED,
+          source: BillingChargeSource.STORAGE,
+          sourceKey: 'storage:client-1:2026-06-01:2026-06-03',
+          approvedByUserId: 'user-1',
+        }),
+      }),
+    );
   });
 
   it('утверждает начисление и фиксирует ответственного', async () => {

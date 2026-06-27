@@ -632,6 +632,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
             stock={view.stock}
             requests={view.requests}
             invoices={view.invoices}
+            charges={view.charges}
             reconciliation={view.reconciliation}
             onNavigate={navigateToSection}
           />
@@ -945,6 +946,7 @@ function ClientCabinetClientEditor({
 function buildClientSummary(client: ClientSummary, data: CabinetData): ClientCabinetClientSummary {
   const stock = data.stock.filter((balance) => balance.clientId === client.id);
   const invoices = data.invoices.filter((invoice) => invoice.clientId === client.id && invoice.status !== 'CANCELLED');
+  const charges = data.charges.filter((charge) => charge.clientId === client.id);
 
   return {
     client,
@@ -953,8 +955,22 @@ function buildClientSummary(client: ClientSummary, data: CabinetData): ClientCab
     activeRequests: data.requests.filter(
       (request) => request.clientId === client.id && !['DONE', 'CANCELLED', 'REJECTED'].includes(request.status),
     ).length,
-    debtRub: invoices.reduce((sum, invoice) => sum + Math.max(0, Number(invoice.totalRub) - Number(invoice.paidRub)), 0),
+    debtRub:
+      invoices.reduce((sum, invoice) => sum + Math.max(0, Number(invoice.totalRub) - Number(invoice.paidRub)), 0) +
+      unbilledApprovedChargesRub(charges, invoices),
   };
+}
+
+function unbilledApprovedChargesRub(charges: BillingChargeSummary[], invoices: BillingInvoiceSummary[]) {
+  const invoicedChargeIds = new Set(
+    invoices.flatMap((invoice) =>
+      invoice.items.map((item) => item.chargeId).filter((chargeId): chargeId is string => Boolean(chargeId)),
+    ),
+  );
+
+  return charges
+    .filter((charge) => charge.status === 'APPROVED' && !invoicedChargeIds.has(charge.id))
+    .reduce((sum, charge) => sum + Number(charge.totalRub), 0);
 }
 
 function formFromClient(client: ClientSummary): ClientManagementForm {

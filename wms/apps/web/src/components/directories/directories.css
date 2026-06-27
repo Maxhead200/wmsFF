@@ -162,6 +162,10 @@
 }
 
 .directory-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
   width: fit-content;
 }
 
@@ -194,6 +198,82 @@
 .client-manager-card {
   display: grid;
   gap: 12px;
+}
+
+.client-import-form {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 18px;
+}
+
+.directory-import-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.directory-file-input {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 42px;
+  align-items: center;
+  gap: 9px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: #fbfdff;
+  color: var(--ink);
+  cursor: pointer;
+  padding: 0 12px;
+}
+
+.directory-file-input span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.directory-file-input input {
+  display: none;
+}
+
+.directory-issues {
+  display: grid;
+  gap: 7px;
+}
+
+.directory-issue {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 9px 10px;
+}
+
+.directory-issue--error {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.directory-issue--warning {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.directory-issues > span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .client-after-create {
@@ -252,6 +332,7 @@
   .directory-fields--client,
   .directory-fields--sku,
   .directory-fields--manager,
+  .directory-import-row,
   .client-manager-grid {
     grid-template-columns: 1fr;
   }

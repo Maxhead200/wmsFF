@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Patch, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
@@ -27,6 +28,15 @@ export class ClientsController {
   @RequirePermissions('clients:write')
   create(@Body() dto: CreateClientDto, @CurrentUser() user: AuthUser) {
     return this.clients.create(dto, user);
+  }
+
+  @Post('import-xlsx')
+  @RequirePermissions('clients:write')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({ description: 'XLSX-файл клиентов с колонками: Наименование, Дата регистрации, Код' })
+  @UseInterceptors(FileInterceptor('file'))
+  importXlsx(@UploadedFile() file: Express.Multer.File, @CurrentUser() user: AuthUser) {
+    return this.clients.importWorkbook(file, user);
   }
 
   @Patch(':id')

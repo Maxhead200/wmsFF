@@ -866,6 +866,27 @@ export type CreateClientPayload = {
 
 export type UpdateClientPayload = Partial<CreateClientPayload>;
 
+export type ClientImportIssue = {
+  row: number;
+  code?: string;
+  name?: string;
+  message: string;
+  severity: 'warning' | 'error';
+};
+
+export type ClientImportResult = {
+  fileName: string;
+  summary: {
+    sourceRows: number;
+    created: number;
+    skipped: number;
+    errors: number;
+    warnings: number;
+  };
+  issues: ClientImportIssue[];
+  clients: ClientSummary[];
+};
+
 export type StockBalance = {
   id: string;
   clientId: string;
@@ -1927,6 +1948,13 @@ export async function updateClient(accessToken: string, clientId: string, payloa
     body: payload,
     accessToken,
   });
+}
+
+export async function importClientsXlsx(accessToken: string, payload: { file: File }) {
+  const form = new FormData();
+  form.append('file', payload.file);
+
+  return requestMultipart<ClientImportResult>('/clients/import-xlsx', form, accessToken);
 }
 
 export async function fetchSkus(accessToken: string, filter: { clientId?: string; search?: string } = {}) {

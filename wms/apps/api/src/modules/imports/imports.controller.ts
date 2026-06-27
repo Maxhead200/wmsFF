@@ -41,6 +41,35 @@ export class ImportsController {
     });
   }
 
+  @Post('receipts/preview')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({ description: 'XLSX-файл приемки с коробами, баркодами и КИЗ' })
+  @UseInterceptors(FileInterceptor('file'))
+  previewReceiptFile(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('clientId') clientId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.importsService.previewReceiptWorkbook(file.buffer, clientId, user);
+  }
+
+  @Post('receipts/commit')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({ description: 'XLSX-файл приемки, clientId и sourceDocument' })
+  @UseInterceptors(FileInterceptor('file'))
+  commitReceiptFile(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('clientId') clientId: string,
+    @CurrentUser() user: AuthUser,
+    @Body('sourceDocument') sourceDocument?: string,
+  ) {
+    return this.importsService.commitReceiptWorkbook(file.buffer, {
+      clientId,
+      sourceDocument: sourceDocument || file.originalname,
+      user,
+    });
+  }
+
   @Post('logistics/preview')
   @RequirePermissions('logistics:write')
   @ApiConsumes('multipart/form-data')

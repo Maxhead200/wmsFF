@@ -1471,6 +1471,10 @@ export type StockImportSummary = {
   totalQuantity: number;
 };
 
+export type ReceiptImportSummary = StockImportSummary & {
+  kiz: number;
+};
+
 export type StockImportSampleItem = {
   clientId: string;
   boxCode: string;
@@ -1489,6 +1493,17 @@ export type StockImportPreview = {
   sample: StockImportSampleItem[];
 };
 
+export type ReceiptImportSampleItem = StockImportSampleItem & {
+  kiz: string;
+};
+
+export type ReceiptImportPreview = {
+  clientId: string;
+  summary: ReceiptImportSummary;
+  issues: StockImportIssue[];
+  sample: ReceiptImportSampleItem[];
+};
+
 export type StockImportCommitResult = {
   sourceDocument: string;
   summary: StockImportSummary;
@@ -1498,6 +1513,19 @@ export type StockImportCommitResult = {
     skusTouched: number;
     movementsCreated: number;
     balancesTouched: number;
+  };
+};
+
+export type ReceiptImportCommitResult = {
+  sourceDocument: string;
+  summary: ReceiptImportSummary;
+  warnings: StockImportIssue[];
+  result: {
+    boxesTouched: number;
+    skusTouched: number;
+    movementsCreated: number;
+    balancesTouched: number;
+    kizCreated: number;
   };
 };
 
@@ -2434,6 +2462,28 @@ export async function commitStockImport(
   }
 
   return requestMultipart<StockImportCommitResult>('/imports/stocks/commit', form, accessToken);
+}
+
+export async function previewReceiptImport(accessToken: string, payload: { file: File; clientId: string }) {
+  const form = new FormData();
+  form.append('file', payload.file);
+  form.append('clientId', payload.clientId);
+
+  return requestMultipart<ReceiptImportPreview>('/imports/receipts/preview', form, accessToken);
+}
+
+export async function commitReceiptImport(
+  accessToken: string,
+  payload: { file: File; clientId: string; sourceDocument?: string },
+) {
+  const form = new FormData();
+  form.append('file', payload.file);
+  form.append('clientId', payload.clientId);
+  if (payload.sourceDocument) {
+    form.append('sourceDocument', payload.sourceDocument);
+  }
+
+  return requestMultipart<ReceiptImportCommitResult>('/imports/receipts/commit', form, accessToken);
 }
 
 export async function previewLogisticsImport(accessToken: string, payload: { file: File }) {

@@ -348,6 +348,7 @@ model Client {
   notifications            ClientNotification[]
   notificationPreferences  ClientNotificationPreference[]
   marketplaceConnections   ClientMarketplaceConnection[]
+  productMarks             ProductMark[]
   requestComments          ClientRequestComment[]
   requestEvents            ClientRequestEvent[]
   createdAt                DateTime                       @default(now())
@@ -420,6 +421,7 @@ model Sku {
   balances           StockBalance[]
   clientRequestItems ClientRequestItem[]
   packageItems       ClientRequestPackageItem[]
+  productMarks       ProductMark[]
   createdAt          DateTime                   @default(now())
   updatedAt          DateTime                   @updatedAt
 
@@ -448,6 +450,7 @@ model Box {
   pallet    Pallet?         @relation(fields: [palletId], references: [id])
   movements StockMovement[]
   balances  StockBalance[]
+  productMarks ProductMark[]
 
   @@unique([clientId, code])
 }
@@ -481,8 +484,31 @@ model StockMovement {
   client         Client       @relation(fields: [clientId], references: [id])
   sku            Sku          @relation(fields: [skuId], references: [id])
   box            Box?         @relation(fields: [boxId], references: [id])
+  productMarks   ProductMark[]
   createdAt      DateTime     @default(now())
 
+  @@index([clientId, skuId, status])
+  @@index([boxId])
+}
+
+model ProductMark {
+  id              String         @id @default(uuid())
+  clientId        String
+  skuId           String
+  boxId           String?
+  stockMovementId String?
+  value           String
+  sourceDocument  String?
+  sourceRow       Int?
+  status          StockStatus    @default(AVAILABLE)
+  client          Client         @relation(fields: [clientId], references: [id])
+  sku             Sku            @relation(fields: [skuId], references: [id])
+  box             Box?           @relation(fields: [boxId], references: [id])
+  stockMovement   StockMovement? @relation(fields: [stockMovementId], references: [id])
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@unique([clientId, value])
   @@index([clientId, skuId, status])
   @@index([boxId])
 }

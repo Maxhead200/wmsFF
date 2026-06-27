@@ -7,6 +7,7 @@ import { ClientScopeService } from '../auth/client-scope.service';
 import { LogisticsService } from '../logistics/logistics.service';
 import { StockBalancesService } from '../stock/stock-balances.service';
 import { parseLogisticsTariffSheet } from './parsers/logistics-xlsx.parser';
+import { parseReceiptSheet, type ReceiptImportItem } from './parsers/receipt-xlsx.parser';
 import { parseStockSheet, type SheetMatrix, type StockImportItem } from './parsers/stock-xlsx.parser';
 
 type CommitStockOptions = {
@@ -46,6 +47,21 @@ export class ImportsService {
       clientId,
       summary: parsed.summary,
       issues: parsed.issues,
+      sample: parsed.items.slice(0, 20),
+    };
+  }
+
+  async previewReceiptWorkbook(buffer: Buffer, clientId: string, user: AuthUser) {
+    this.clientScopes.requireClientAccess(user, clientId, 'write');
+
+    const rows = this.readReceiptSheet(buffer);
+    const parsed = parseReceiptSheet(rows, { clientId });
+    const issues = [...parsed.issues, ...(await this.duplicateKizIssues(parsed.items))];
+
+    return {
+      clientId,
+      summary: parsed.summary,
+      issues,
       sample: parsed.items.slice(0, 20),
     };
   }
@@ -127,12 +143,102 @@ export class ImportsService {
     };
   }
 
+  async commitReceiptWorkbook(buffer: Buffer, options: CommitStockOptions) {
+    this.clientScopes.requireClientAccess(options.user, options.clientId, 'write');
+
+    const rows = this.readReceiptSheet(buffer);
+    const parsed = parseReceiptSheet(rows, { clientId: options.clientId });
+    const issues = [...parsed.issues, ...(await this.duplicateKizIssues(parsed.items))];
+    const errors = issues.filter((issue) => issue.severity === 'error');
+
+    if (errors.length > 0) {
+      throw new BadRequestException({
+        message: 'Файл приемки содержит ошибки, запись в WMS остановлена.',
+        errors,
+        summary: parsed.summary,
+      });
+    }
+
+    const result = await this.prisma.$transaction(
+      async (tx) => {
+        const counters = {
+          boxesTouched: 0,
+          skusTouched: 0,
+          movementsCreated: 0,
+          balancesTouched: 0,
+          kizCreated: 0,
+        };
+
+        for (const item of parsed.items) {
+          const box = await this.ensureBox(tx, item);
+          const sku = await this.ensureSku(tx, item);
+
+          await this.ensureBarcode(tx, sku.id, item.barcode);
+          const movement = await this.createReceiptMovement(tx, item, sku.id, box.id, options.sourceDocument);
+          await this.addToBalance(tx, item, sku.id, box.id, 'AVAILABLE');
+          await tx.productMark.create({
+            data: {
+              clientId: item.clientId,
+              skuId: sku.id,
+              boxId: box.id,
+              stockMovementId: movement.id,
+              value: item.kiz,
+              sourceDocument: options.sourceDocument,
+              sourceRow: item.sourceRow,
+              status: 'AVAILABLE',
+            },
+          });
+
+          counters.boxesTouched += 1;
+          counters.skusTouched += 1;
+          counters.movementsCreated += 1;
+          counters.balancesTouched += 1;
+          counters.kizCreated += 1;
+        }
+
+        return counters;
+      },
+      STOCK_IMPORT_TRANSACTION_OPTIONS,
+    );
+
+    return {
+      sourceDocument: options.sourceDocument,
+      summary: parsed.summary,
+      warnings: issues.filter((issue) => issue.severity === 'warning'),
+      result,
+    };
+  }
+
   private readFirstSheet(buffer: Buffer): SheetMatrix {
     // Русский комментарий: XLSX читаем как матрицу, чтобы не зависеть от кривых merged cells в исходных файлах.
     const workbook = XLSX.read(buffer, { type: 'buffer' });
     const firstSheet = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[firstSheet];
     return XLSX.utils.sheet_to_json<SheetMatrix[number]>(worksheet, {
+      header: 1,
+      raw: false,
+      blankrows: false,
+    });
+  }
+
+  private readReceiptSheet(buffer: Buffer): SheetMatrix {
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    const sheetName =
+      workbook.SheetNames.find((name) => name.trim().toLowerCase() === 'тсд') ??
+      workbook.SheetNames.find((name) => {
+        const rows = XLSX.utils.sheet_to_json<SheetMatrix[number]>(workbook.Sheets[name], {
+          header: 1,
+          raw: false,
+          blankrows: false,
+        });
+        return rows.some((row) => {
+          const cells = row.map((cell) => String(cell ?? '').toLowerCase());
+          return cells.some((cell) => cell.includes('баркод')) && cells.some((cell) => cell.includes('киз'));
+        });
+      }) ??
+      workbook.SheetNames[0];
+
+    return XLSX.utils.sheet_to_json<SheetMatrix[number]>(workbook.Sheets[sheetName], {
       header: 1,
       raw: false,
       blankrows: false,
@@ -228,6 +334,28 @@ export class ImportsService {
     return true;
   }
 
+  private async createReceiptMovement(
+    tx: Prisma.TransactionClient,
+    item: ReceiptImportItem,
+    skuId: string,
+    boxId: string,
+    sourceDocument: string,
+  ) {
+    return tx.stockMovement.create({
+      data: {
+        clientId: item.clientId,
+        skuId,
+        boxId,
+        type: 'RECEIPT',
+        status: 'AVAILABLE',
+        quantity: 1,
+        sourceDocument,
+        idempotencyKey: ['receipt-import', sourceDocument, item.sourceRow, item.boxCode, item.kiz].join(':'),
+        comment: 'Приемка товара из XLSX с КИЗ',
+      },
+    });
+  }
+
   private async addToBalance(
     tx: Prisma.TransactionClient,
     item: StockImportItem,
@@ -256,5 +384,31 @@ export class ImportsService {
         quantity: item.quantity,
       },
     });
+  }
+
+  private async duplicateKizIssues(items: ReceiptImportItem[]) {
+    const uniqueKiz = [...new Set(items.map((item) => item.kiz))];
+    if (uniqueKiz.length === 0) {
+      return [];
+    }
+
+    const existing = await this.prisma.productMark.findMany({
+      where: {
+        clientId: items[0]?.clientId,
+        value: { in: uniqueKiz },
+      },
+      select: {
+        value: true,
+      },
+    });
+    const existingKiz = new Set(existing.map((item) => item.value));
+
+    return items
+      .filter((item) => existingKiz.has(item.kiz))
+      .map((item) => ({
+        row: item.sourceRow,
+        message: 'КИЗ уже есть в WMS, повторная приемка запрещена.',
+        severity: 'error' as const,
+      }));
   }
 }

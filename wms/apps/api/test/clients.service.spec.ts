@@ -269,6 +269,7 @@ function emptyClientCounts() {
     requestFiles: 0,
     requestPackages: 0,
     notifications: 0,
+    productMarks: 0,
     requestComments: 0,
     requestEvents: 0,
   };

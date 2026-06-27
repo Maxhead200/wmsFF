@@ -218,6 +218,7 @@ export class ClientsService {
             requestPackages: true,
             notifications: true,
             marketplaceConnections: true,
+            productMarks: true,
             requestComments: true,
             requestEvents: true,
           },
@@ -456,6 +457,7 @@ function clientDeleteBlockers(counts: Record<string, number>) {
     ['requestPackages', 'упаковки заявок'],
     ['notifications', 'уведомления'],
     ['marketplaceConnections', 'подключения маркетплейсов'],
+    ['productMarks', 'КИЗ'],
     ['requestComments', 'комментарии заявок'],
     ['requestEvents', 'история заявок'],
   ];

@@ -23,6 +23,7 @@ import {
   primaryBarcode,
 } from './clientCabinetFormat';
 import { ClientCabinetNotifications } from './ClientCabinetNotifications';
+import { ClientCabinetReceiptImport } from './ClientCabinetReceiptImport';
 import type { ClientCabinetMetricTarget } from './ClientCabinetMetrics';
 import { ClientCabinetPeriodSummary } from './ClientCabinetPeriodSummary';
 import { ClientCabinetServiceHistory } from './ClientCabinetServiceHistory';
@@ -176,7 +177,10 @@ export function ClientCabinetTables({
         </div>
 
         {canImportStock && (activeSection === 'skus' || activeSection === 'stock') ? (
-          <ClientCabinetStockImport accessToken={accessToken} client={client} onImported={onStockImported} />
+          <div className="client-cabinet-import-grid">
+            <ClientCabinetStockImport accessToken={accessToken} client={client} onImported={onStockImported} />
+            <ClientCabinetReceiptImport accessToken={accessToken} client={client} onImported={onStockImported} />
+          </div>
         ) : null}
 
         {renderActiveTable({

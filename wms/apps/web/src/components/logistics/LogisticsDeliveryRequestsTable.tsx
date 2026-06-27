@@ -170,7 +170,7 @@ export function LogisticsDeliveryRequestsTable({
                       onClick={() => onBillingChargeCreate(request.id)}
                     >
                       <ReceiptText size={15} aria-hidden="true" />
-                      <span>Начислить</span>
+                      <span>Счет</span>
                     </button>
                   ) : (
                     <span className="delivery-billing-muted">{billingHint(request)}</span>

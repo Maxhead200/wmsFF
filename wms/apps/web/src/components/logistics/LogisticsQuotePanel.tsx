@@ -2,6 +2,7 @@ import { Calculator, RefreshCw } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 import {
   assignLogisticsDeliveryTrip,
+  createBillingInvoice,
   fetchClientRequests,
   fetchClients,
   fetchLogisticsCarriers,
@@ -54,6 +55,7 @@ export function LogisticsQuotePanel({ session }: LogisticsQuotePanelProps) {
   const [quoteDate, setQuoteDate] = useState(defaultQuoteDate);
   const [result, setResult] = useState<LogisticsQuoteResult | null>(null);
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
   const [isLoading, setLoading] = useState(false);
   const [isSubmitting, setSubmitting] = useState(false);
 
@@ -98,6 +100,7 @@ export function LogisticsQuotePanel({ session }: LogisticsQuotePanelProps) {
 
   async function changeDeliveryStatus(deliveryId: string, status: LogisticsDeliveryStatus) {
     setError('');
+    setMessage('');
 
     try {
       const updated = await updateLogisticsDeliveryStatus(session.accessToken, deliveryId, { status });
@@ -109,17 +112,31 @@ export function LogisticsQuotePanel({ session }: LogisticsQuotePanelProps) {
 
   async function generateBillingCharge(deliveryId: string) {
     setError('');
+    setMessage('');
 
     try {
       const updated = await generateLogisticsDeliveryBillingCharge(session.accessToken, deliveryId);
+      const chargeId = updated.billingCharge?.id;
+      if (chargeId) {
+        const invoiceDate = dateOnly(updated.plannedShipDate ?? updated.desiredShipDate ?? updated.updatedAt);
+        const invoice = await createBillingInvoice(session.accessToken, {
+          clientId: updated.clientId,
+          periodFrom: invoiceDate,
+          periodTo: invoiceDate,
+          chargeIds: [chargeId],
+          comment: `Логистика ${updated.origin} -> ${updated.destination}`,
+        });
+        setMessage(`Счет на логистику ${invoice.number} создан.`);
+      }
       setDeliveryRequests((current) => current.map((item) => (item.id === updated.id ? updated : item)));
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Не удалось создать начисление доставки.');
+      setError(caught instanceof Error ? caught.message : 'Не удалось создать счет на логистику.');
     }
   }
 
   async function finalizeQuote(deliveryId: string, payload: FinalizeLogisticsDeliveryQuotePayload) {
     setError('');
+    setMessage('');
 
     try {
       const updated = await finalizeLogisticsDeliveryQuote(session.accessToken, deliveryId, payload);
@@ -131,6 +148,7 @@ export function LogisticsQuotePanel({ session }: LogisticsQuotePanelProps) {
 
   async function assignDeliveryTrip(deliveryId: string, tripId: string | null) {
     setError('');
+    setMessage('');
 
     try {
       const updated = await assignLogisticsDeliveryTrip(session.accessToken, deliveryId, { tripId });
@@ -237,6 +255,7 @@ export function LogisticsQuotePanel({ session }: LogisticsQuotePanelProps) {
         </div>
 
         {error ? <p className="form-error">{error}</p> : null}
+        {message ? <p className="form-success">{message}</p> : null}
       </form>
 
       {result ? <LogisticsQuoteResultCard result={result} /> : null}
@@ -303,4 +322,8 @@ export function LogisticsQuotePanel({ session }: LogisticsQuotePanelProps) {
 
 function canUse(user: AuthUser, permission: string) {
   return user.permissionCodes.includes('system:admin') || user.permissionCodes.includes(permission);
+}
+
+function dateOnly(value: string) {
+  return new Date(value).toISOString().slice(0, 10);
 }

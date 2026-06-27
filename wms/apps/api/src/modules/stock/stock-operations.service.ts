@@ -1,5 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import {
+  BillingChargeSource,
+  BillingChargeStatus,
+  BillingPriceTaxMode,
+  BillingUnit,
   ClientRequestStatus,
   ClientRequestType,
   MovementType,
@@ -325,6 +329,12 @@ export class StockOperationsService {
         plan,
         dto,
         user,
+      });
+      await this.createFulfillmentBillingCharges(tx, {
+        request,
+        packages,
+        user,
+        serviceDate: new Date(),
       });
 
       await tx.clientRequest.update({
@@ -792,6 +802,118 @@ export class StockOperationsService {
     return packages;
   }
 
+  private async createFulfillmentBillingCharges(
+    tx: Prisma.TransactionClient,
+    input: {
+      request: { id: string; clientId: string; title?: string | null };
+      packages: Array<{ packageType: string | null }>;
+      user: AuthUser;
+      serviceDate: Date;
+    },
+  ) {
+    if (!('billingService' in tx) || !('clientBillingService' in tx) || !('billingCharge' in tx)) {
+      return;
+    }
+
+    const counts = input.packages.reduce(
+      (result, pack) => {
+        if (isPalletPackage(pack.packageType)) {
+          result.pallets += 1;
+        } else {
+          result.boxes += 1;
+        }
+        return result;
+      },
+      { boxes: 0, pallets: 0 },
+    );
+    const rows = [
+      { ...FULFILLMENT_BILLING_SERVICES.BOX_60_40_40, quantity: counts.boxes },
+      { ...FULFILLMENT_BILLING_SERVICES.BOX_ASSEMBLY, quantity: counts.boxes },
+      { ...FULFILLMENT_BILLING_SERVICES.PALLET, quantity: counts.pallets },
+      { ...FULFILLMENT_BILLING_SERVICES.PALLET_ASSEMBLY, quantity: counts.pallets },
+    ].filter((row) => row.quantity > 0);
+
+    for (const row of rows) {
+      const sourceKey = `fulfillment-package:${input.request.id}:${row.code}`;
+      const existingCharge = await tx.billingCharge.findFirst({
+        where: { sourceKey },
+        select: { id: true },
+      });
+      if (existingCharge) {
+        continue;
+      }
+
+      const service = await tx.billingService.upsert({
+        where: { code: row.code },
+        update: {
+          name: row.name,
+          unit: row.unit,
+          defaultPriceRub: row.defaultPriceRub,
+          isActive: true,
+        },
+        create: {
+          code: row.code,
+          name: row.name,
+          unit: row.unit,
+          defaultPriceRub: row.defaultPriceRub,
+          isActive: true,
+        },
+      });
+      const clientPrice = await tx.clientBillingService.upsert({
+        where: {
+          clientId_serviceId: {
+            clientId: input.request.clientId,
+            serviceId: service.id,
+          },
+        },
+        update: {},
+        create: {
+          clientId: input.request.clientId,
+          serviceId: service.id,
+          priceRub: row.defaultPriceRub,
+          taxMode: BillingPriceTaxMode.INCLUDED,
+          isActive: true,
+          updatedByUserId: input.user.id,
+        },
+      });
+      if (!clientPrice.isActive) {
+        continue;
+      }
+
+      const unitPriceRub = applyFulfillmentTaxMode(Number(clientPrice.priceRub), clientPrice.taxMode);
+      const totalRub = roundMoney(unitPriceRub * row.quantity);
+      await tx.billingCharge.create({
+        data: {
+          clientId: input.request.clientId,
+          serviceId: service.id,
+          requestId: input.request.id,
+          description: `${row.name} по заявке ${input.request.title ?? input.request.id}`,
+          unit: row.unit,
+          quantity: row.quantity,
+          unitPriceRub,
+          totalRub,
+          status: BillingChargeStatus.APPROVED,
+          serviceDate: input.serviceDate,
+          source: BillingChargeSource.MANUAL,
+          sourceKey,
+          metadata: {
+            requestId: input.request.id,
+            packageBilling: true,
+            packagesCount: input.packages.length,
+            boxes: counts.boxes,
+            pallets: counts.pallets,
+            taxMode: clientPrice.taxMode,
+            priceBeforeTaxRub: Number(clientPrice.priceRub),
+          },
+          comment: 'Автоматически создано при упаковке заявки',
+          createdByUserId: input.user.id,
+          approvedByUserId: input.user.id,
+          approvedAt: new Date(),
+        },
+      });
+    }
+  }
+
   private async applyStatusMove(
     tx: Prisma.TransactionClient,
     input: {
@@ -956,4 +1078,47 @@ export class StockOperationsService {
       },
     });
   }
+}
+
+const FULFILLMENT_BILLING_SERVICES = {
+  BOX_60_40_40: {
+    code: 'BOX_60_40_40',
+    name: 'Короб 60*40*40',
+    unit: BillingUnit.PIECE,
+    defaultPriceRub: 100,
+  },
+  BOX_ASSEMBLY: {
+    code: 'BOX_ASSEMBLY',
+    name: 'Сборка короба',
+    unit: BillingUnit.PIECE,
+    defaultPriceRub: 40,
+  },
+  PALLET: {
+    code: 'PALLET',
+    name: 'Паллет',
+    unit: BillingUnit.PALLET,
+    defaultPriceRub: 350,
+  },
+  PALLET_ASSEMBLY: {
+    code: 'PALLET_ASSEMBLY',
+    name: 'Сборка паллета',
+    unit: BillingUnit.PALLET,
+    defaultPriceRub: 250,
+  },
+} as const;
+
+function isPalletPackage(packageType?: string | null) {
+  return ['PALLET', 'PALLETTE', 'ПАЛЛЕТ', 'ПАЛЛЕТА'].includes((packageType ?? '').trim().toUpperCase());
+}
+
+function applyFulfillmentTaxMode(unitPriceRub: number, taxMode: BillingPriceTaxMode) {
+  if (taxMode === BillingPriceTaxMode.ADD_6_PERCENT) {
+    return roundMoney((unitPriceRub / 94) * 100);
+  }
+
+  return roundMoney(unitPriceRub);
+}
+
+function roundMoney(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
 }

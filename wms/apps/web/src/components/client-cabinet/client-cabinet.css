@@ -381,6 +381,26 @@
   font-size: 14px;
 }
 
+.client-cabinet-row-metric {
+  min-width: 78px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfdff;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+  padding: 6px 8px;
+  text-align: center;
+}
+
+.client-cabinet-row-metric:hover,
+.client-cabinet-row-metric:focus-visible {
+  border-color: rgb(215 25 32 / 0.42);
+  color: var(--red-dark);
+  outline: 3px solid rgb(215 25 32 / 0.1);
+}
+
 .client-cabinet-row-actions {
   display: flex;
   min-width: max-content;

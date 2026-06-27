@@ -143,7 +143,7 @@ export function ClientCabinetTables({
       <ClientCabinetPeriodSummary invoices={invoices} charges={charges} />
       <BillingReconciliationPanel report={reconciliation} title="Задолженность и сверка" />
 
-      <section className="client-cabinet-section" aria-label="Таблицы клиента">
+      <section id="client-cabinet-workspace" className="client-cabinet-section" aria-label="Таблицы клиента">
         <div className="client-cabinet-tabs" role="tablist" aria-label="Разделы кабинета клиента">
           <TabButton label="SKU" count={skuRows.length} tab="skus" activeTab={activeSection} onClick={onSectionChange} />
           <TabButton label="Остатки" count={stockTabQuantity} tab="stock" activeTab={activeSection} onClick={onSectionChange} />

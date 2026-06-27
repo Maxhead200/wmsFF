@@ -383,19 +383,18 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
 
   function navigateToSection(target: ClientCabinetMetricTarget) {
     setActiveSection(target);
-    window.setTimeout(() => {
-      document.getElementById(`client-cabinet-${target}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 0);
+    scrollToCabinetWorkspace();
   }
 
-  function selectClient(clientId: string) {
+  function selectClient(clientId: string, target: ClientCabinetMetricTarget = 'skus') {
     setSelectedClientId(clientId);
     setStockSearch('');
-    setActiveSection('skus');
+    setActiveSection(target);
     setEditingClientId('');
     setManagementForm(null);
     setManagementError('');
     setManagementMessage('');
+    scrollToCabinetWorkspace();
   }
 
   function startClientEdit(client: ClientSummary) {
@@ -403,6 +402,9 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
     setManagementForm(formFromClient(client));
     setManagementError('');
     setManagementMessage('');
+    window.setTimeout(() => {
+      document.getElementById('client-cabinet-client-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
   }
 
   function cancelClientEdit() {
@@ -488,6 +490,12 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
         clients: current.data.clients.map((item) => (item.id === client.id ? client : item)),
       },
     }));
+  }
+
+  function scrollToCabinetWorkspace() {
+    window.setTimeout(() => {
+      document.getElementById('client-cabinet-workspace')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
   }
 
   const showClientOverview = isInternalUser(session.user) && state.data.clients.length > 1;
@@ -717,7 +725,7 @@ function ClientCabinetClientTable({
   selectedClientId: string;
   onDelete: (client: ClientSummary) => void;
   onEdit: (client: ClientSummary) => void;
-  onSelect: (clientId: string) => void;
+  onSelect: (clientId: string, target?: ClientCabinetMetricTarget) => void;
   onStatusChange: (client: ClientSummary, status: ClientStatus) => void;
 }) {
   return (
@@ -753,10 +761,26 @@ function ClientCabinetClientTable({
                   {clientStatusLabel(card.client.status)}
                 </span>
               </td>
-              <td>{formatCabinetNumber(card.skuCount)}</td>
-              <td>{formatCabinetNumber(card.totalQuantity)}</td>
-              <td>{formatCabinetNumber(card.activeRequests)}</td>
-              <td>{formatCabinetMoney(card.debtRub)} ₽</td>
+              <td>
+                <button className="client-cabinet-row-metric" type="button" onClick={() => onSelect(card.client.id, 'skus')}>
+                  {formatCabinetNumber(card.skuCount)}
+                </button>
+              </td>
+              <td>
+                <button className="client-cabinet-row-metric" type="button" onClick={() => onSelect(card.client.id, 'stock')}>
+                  {formatCabinetNumber(card.totalQuantity)}
+                </button>
+              </td>
+              <td>
+                <button className="client-cabinet-row-metric" type="button" onClick={() => onSelect(card.client.id, 'requests')}>
+                  {formatCabinetNumber(card.activeRequests)}
+                </button>
+              </td>
+              <td>
+                <button className="client-cabinet-row-metric" type="button" onClick={() => onSelect(card.client.id, 'invoices')}>
+                  {formatCabinetMoney(card.debtRub)} ₽
+                </button>
+              </td>
               <td>
                 {canManage ? (
                   <div className="client-cabinet-row-actions">
@@ -831,7 +855,7 @@ function ClientCabinetClientEditor({
   onSave: () => void;
 }) {
   return (
-    <div className="client-cabinet-client-editor">
+    <div id="client-cabinet-client-editor" className="client-cabinet-client-editor">
       <div className="client-cabinet-client-editor__heading">
         <div>
           <h3>Редактирование клиента</h3>

@@ -43,6 +43,7 @@ export function BillingInvoiceForm({ clients, session, onCreated }: BillingInvoi
   const [dueDate, setDueDate] = useState('');
   const [comment, setComment] = useState('');
   const [isStorageInvoice, setIsStorageInvoice] = useState(false);
+  const [isApprovedChargesInvoice, setIsApprovedChargesInvoice] = useState(false);
   const [services, setServices] = useState<ClientBillingServiceSummary[]>([]);
   const [rows, setRows] = useState<InvoiceRow[]>([]);
   const [isLoadingServices, setIsLoadingServices] = useState(false);
@@ -112,6 +113,28 @@ export function BillingInvoiceForm({ clients, session, onCreated }: BillingInvoi
     event.preventDefault();
     if (!clientId) {
       setError('Выберите клиента.');
+      return;
+    }
+
+    if (isApprovedChargesInvoice) {
+      setIsSubmitting(true);
+      setError(null);
+
+      try {
+        const invoice = await createBillingInvoice(session.accessToken, {
+          clientId,
+          periodFrom,
+          periodTo,
+          dueDate: dueDate || undefined,
+          comment: comment || undefined,
+        });
+        onCreated(invoice);
+        setComment('');
+      } catch (caught) {
+        setError(errorMessage(caught));
+      } finally {
+        setIsSubmitting(false);
+      }
       return;
     }
 
@@ -287,11 +310,34 @@ export function BillingInvoiceForm({ clients, session, onCreated }: BillingInvoi
       </div>
 
       <label className="billing-checkbox">
-        <input checked={isStorageInvoice} type="checkbox" onChange={(event) => setIsStorageInvoice(event.target.checked)} />
+        <input
+          checked={isApprovedChargesInvoice}
+          type="checkbox"
+          onChange={(event) => {
+            setIsApprovedChargesInvoice(event.target.checked);
+            if (event.target.checked) {
+              setIsStorageInvoice(false);
+            }
+          }}
+        />
+        <span>Все утвержденные начисления за выбранный период</span>
+      </label>
+
+      <label className="billing-checkbox">
+        <input
+          checked={isStorageInvoice}
+          type="checkbox"
+          onChange={(event) => {
+            setIsStorageInvoice(event.target.checked);
+            if (event.target.checked) {
+              setIsApprovedChargesInvoice(false);
+            }
+          }}
+        />
         <span>Хранение за выбранный период</span>
       </label>
 
-      {!isStorageInvoice ? (
+      {!isStorageInvoice && !isApprovedChargesInvoice ? (
         <>
           <div className="billing-invoice-toolbar">
             <button className="secondary-button" type="button" onClick={addRow}>
@@ -380,7 +426,11 @@ export function BillingInvoiceForm({ clients, session, onCreated }: BillingInvoi
           </div>
         </>
       ) : (
-        <p className="panel-message">Счет будет заполнен начислением хранения за выбранный период.</p>
+        <p className="panel-message">
+          {isApprovedChargesInvoice
+            ? 'Счет будет заполнен всеми утвержденными начислениями клиента за выбранный период, которые еще не вошли в другие счета.'
+            : 'Счет будет заполнен начислением хранения за выбранный период.'}
+        </p>
       )}
 
       {error ? <p className="form-error">{error}</p> : null}

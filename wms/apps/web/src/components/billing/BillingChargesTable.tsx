@@ -40,7 +40,7 @@ export function BillingChargesTable({ charges, canWrite, onStatusChange }: Billi
               <td>
                 <strong>{charge.description}</strong>
                 <span>{charge.request?.title ?? charge.service?.code ?? 'ручное начисление'}</span>
-                <span>{charge.source === 'STORAGE' ? 'авто: хранение' : 'ручное'}</span>
+                <span>{chargeSourceLabel(charge)}</span>
                 <span>{formatDate(charge.serviceDate)}</span>
               </td>
               <td>
@@ -95,4 +95,20 @@ function formatNumber(value: string | number) {
 
 function formatMoney(value: string | number) {
   return moneyFormatter.format(Number(value));
+}
+
+function chargeSourceLabel(charge: BillingChargeSummary) {
+  if (charge.source === 'STORAGE') {
+    return 'авто: хранение';
+  }
+
+  if (charge.source === 'LOGISTICS') {
+    return 'авто: логистика';
+  }
+
+  if (charge.metadata?.packageBilling === true) {
+    return 'авто: обработка заявки';
+  }
+
+  return 'ручное';
 }

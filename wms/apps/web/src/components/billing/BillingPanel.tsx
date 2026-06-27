@@ -143,6 +143,8 @@ export function BillingPanel({ session }: BillingPanelProps) {
       status: 'ready',
       data: [invoice, ...current.data.filter((item) => item.id !== invoice.id)],
     }));
+    setActiveTab('invoices');
+    void loadData();
     void refreshReconciliation();
   }
 

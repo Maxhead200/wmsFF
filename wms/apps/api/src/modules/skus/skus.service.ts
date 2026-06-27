@@ -5,6 +5,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
 import { VolumeService } from '../stock/volume.service';
+import { CreateArticleMappingDto } from './dto/create-article-mapping.dto';
 import { CreateNomenclatureItemDto } from './dto/create-nomenclature-item.dto';
 import { CreateSkuDto } from './dto/create-sku.dto';
 import {
@@ -151,6 +152,129 @@ export class SkusService {
     }
   }
 
+  async listArticleMappings(clientId: string, user: AuthUser) {
+    if (!clientId) {
+      throw new BadRequestException('Не выбран клиент для справочника соответствий.');
+    }
+
+    this.clientScopes.requireClientAccess(user, clientId, 'read');
+
+    return this.prisma.clientArticleMapping.findMany({
+      where: { clientId },
+      orderBy: [{ targetArticle: 'asc' }, { sourceArticle: 'asc' }],
+    });
+  }
+
+  async createArticleMapping(dto: CreateArticleMappingDto, user: AuthUser) {
+    this.clientScopes.requireClientAccess(user, dto.clientId, 'write');
+
+    try {
+      return await this.prisma.clientArticleMapping.upsert({
+        where: {
+          clientId_sourceArticle_targetArticle: {
+            clientId: dto.clientId,
+            sourceArticle: dto.sourceArticle.trim(),
+            targetArticle: dto.targetArticle.trim(),
+          },
+        },
+        create: {
+          clientId: dto.clientId,
+          sourceArticle: dto.sourceArticle.trim(),
+          targetArticle: dto.targetArticle.trim(),
+          comment: cleanOptional(dto.comment),
+        },
+        update: {
+          comment: cleanOptional(dto.comment),
+        },
+      });
+    } catch (caught) {
+      if (isUniqueConstraintError(caught)) {
+        throw new BadRequestException('Такое соответствие уже есть в справочнике клиента.');
+      }
+
+      throw caught;
+    }
+  }
+
+  async importArticleMappingsWorkbook(clientId: string, file: Express.Multer.File, user: AuthUser) {
+    if (!clientId) {
+      throw new BadRequestException('Не выбран клиент для импорта соответствий.');
+    }
+
+    this.clientScopes.requireClientAccess(user, clientId, 'write');
+    const rows = this.readFirstSheet(file.buffer);
+    const parsed = parseArticleMappingSheet(rows);
+
+    if (parsed.items.length === 0) {
+      throw new BadRequestException({
+        message: 'В файле не найдено соответствий для загрузки.',
+        errors: parsed.issues.filter((issue) => issue.severity === 'error'),
+        summary: parsed.summary,
+      });
+    }
+
+    const counters = {
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      errors: parsed.issues.filter((issue) => issue.severity === 'error').length,
+      warnings: parsed.issues.filter((issue) => issue.severity === 'warning').length,
+    };
+    const savedMappings = [];
+
+    for (const item of parsed.items) {
+      try {
+        const existing = await this.prisma.clientArticleMapping.findUnique({
+          where: {
+            clientId_sourceArticle_targetArticle: {
+              clientId,
+              sourceArticle: item.sourceArticle,
+              targetArticle: item.targetArticle,
+            },
+          },
+        });
+        const mapping = await this.prisma.clientArticleMapping.upsert({
+          where: {
+            clientId_sourceArticle_targetArticle: {
+              clientId,
+              sourceArticle: item.sourceArticle,
+              targetArticle: item.targetArticle,
+            },
+          },
+          create: {
+            clientId,
+            sourceArticle: item.sourceArticle,
+            targetArticle: item.targetArticle,
+            comment: item.comment,
+          },
+          update: {
+            comment: item.comment,
+          },
+        });
+        counters[existing ? 'updated' : 'created'] += 1;
+        savedMappings.push(mapping);
+      } catch (caught) {
+        counters.skipped += 1;
+        counters.errors += 1;
+        parsed.issues.push({
+          row: item.sourceRow,
+          message: caught instanceof Error ? caught.message : 'Не удалось сохранить соответствие.',
+          severity: 'error',
+        });
+      }
+    }
+
+    return {
+      fileName: file.originalname,
+      summary: {
+        ...parsed.summary,
+        ...counters,
+      },
+      issues: parsed.issues,
+      items: savedMappings,
+    };
+  }
+
   async importNomenclatureWorkbook(file: Express.Multer.File) {
     const rows = this.readFirstSheet(file.buffer);
     const parsed = parseNomenclatureSheet(rows);
@@ -272,6 +396,122 @@ export class SkusService {
 function cleanOptional(value?: string) {
   const trimmed = value?.trim();
   return trimmed || undefined;
+}
+
+type ArticleMappingImportItem = {
+  sourceArticle: string;
+  targetArticle: string;
+  comment?: string;
+  sourceRow: number;
+};
+
+type ArticleMappingImportIssue = {
+  row: number;
+  message: string;
+  severity: 'warning' | 'error';
+};
+
+function parseArticleMappingSheet(rows: SheetMatrix) {
+  const columns = detectArticleMappingColumns(rows);
+  const items: ArticleMappingImportItem[] = [];
+  const issues: ArticleMappingImportIssue[] = [];
+  const seenKeys = new Set<string>();
+
+  rows.forEach((row, index) => {
+    const sourceRow = index + 1;
+    if (looksLikeArticleMappingHeader(row)) {
+      return;
+    }
+
+    const sourceArticle = cleanImportText(row[columns.sourceArticle]);
+    const targetArticle = cleanImportText(row[columns.targetArticle]);
+    const comment = cleanImportText(row[columns.comment]);
+
+    if (!sourceArticle && !targetArticle) {
+      return;
+    }
+
+    if (!sourceArticle || !targetArticle) {
+      issues.push({
+        row: sourceRow,
+        message: 'Нужно заполнить артикул на складе и артикул продавца.',
+        severity: 'error',
+      });
+      return;
+    }
+
+    const dedupeKey = `${sourceArticle}|${targetArticle}`;
+    if (seenKeys.has(dedupeKey)) {
+      issues.push({
+        row: sourceRow,
+        message: 'Дубль соответствия в файле, строка пропущена.',
+        severity: 'warning',
+      });
+      return;
+    }
+
+    seenKeys.add(dedupeKey);
+    items.push({
+      sourceArticle,
+      targetArticle,
+      comment: comment || undefined,
+      sourceRow,
+    });
+  });
+
+  return {
+    items,
+    issues,
+    summary: {
+      sourceRows: Math.max(rows.length - 1, 0),
+      rows: items.length,
+    },
+  };
+}
+
+function detectArticleMappingColumns(rows: SheetMatrix) {
+  for (const row of rows) {
+    const normalized = row.map((cell) => normalizeImportHeader(cleanImportText(cell)));
+    if (!normalized.some((cell) => cell.includes('артикул') || cell.includes('article'))) {
+      continue;
+    }
+
+    return {
+      sourceArticle:
+        findImportColumn(normalized, ['артикул на складе', 'склад', 'исходный', 'старый', 'спортивный', 'source']) ?? 0,
+      targetArticle:
+        findImportColumn(normalized, ['артикул продавца', 'продавца', 'базовый', 'новый', 'target']) ?? 1,
+      comment: findImportColumn(normalized, ['комментарий', 'примечание', 'comment']) ?? 2,
+    };
+  }
+
+  return {
+    sourceArticle: 0,
+    targetArticle: 1,
+    comment: 2,
+  };
+}
+
+function looksLikeArticleMappingHeader(row: SheetMatrix[number]) {
+  const normalized = row.map((cell) => normalizeImportHeader(cleanImportText(cell)));
+  return normalized.some((cell) => cell.includes('артикул') || cell.includes('article'));
+}
+
+function findImportColumn(cells: string[], needles: string[]) {
+  const index = cells.findIndex((cell) => needles.some((needle) => cell.includes(needle)));
+  return index >= 0 ? index : undefined;
+}
+
+function cleanImportText(value: SheetMatrix[number][number]) {
+  if (value == null) {
+    return '';
+  }
+  const text = String(value).replace(/\.0$/, '').trim();
+  return text === '#N/A' || text.toUpperCase() === 'N/A' ? '' : text;
+}
+
+function normalizeImportHeader(value: string) {
+  return value.toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
 function isUniqueConstraintError(error: unknown) {

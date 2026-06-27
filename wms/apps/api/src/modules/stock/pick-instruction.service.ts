@@ -28,6 +28,7 @@ import { buildPickInstructionWorkbook, pickInstructionXlsxMimeType } from './pic
 type RequestForInstruction = Prisma.ClientRequestGetPayload<typeof pickInstructionRequestArgs>;
 type RequestItemForInstruction = RequestForInstruction['items'][number];
 type SkuForInstruction = NonNullable<RequestItemForInstruction['sku']>;
+type SkuCatalogForInstruction = Prisma.SkuGetPayload<typeof skuCatalogArgs>;
 type BalanceForInstruction = Prisma.StockBalanceGetPayload<typeof stockBalanceArgs>;
 
 @Injectable()
@@ -55,7 +56,7 @@ export class PickInstructionService {
 
     const skuByBarcode = await this.resolveMissingSkusByBarcode(request);
     const rows = this.prepareRows(request, skuByBarcode);
-    const auxiliary = this.readAuxiliaryWorkbook(request.files);
+    const auxiliary = await this.loadWarehouseAuxiliaryData(request.clientId, request.files);
     const balances = await this.loadAvailableBalances(request.clientId, rows, auxiliary.mapping.size > 0);
     const { instructionRows, boxAllocations } = this.allocateRows(rows, balances);
     const boxes = await this.buildBoxSummaries(request.clientId, boxAllocations);
@@ -194,6 +195,34 @@ export class PickInstructionService {
     });
   }
 
+  private async loadWarehouseAuxiliaryData(clientId: string, files: RequestForInstruction['files'] = []): Promise<WarehouseAuxiliaryData> {
+    const legacyWorkbookData = this.readAuxiliaryWorkbook(files);
+    const [articleMappings, skus] = await Promise.all([
+      this.prisma.clientArticleMapping.findMany({
+        where: { clientId },
+        orderBy: [{ targetArticle: 'asc' }, { sourceArticle: 'asc' }],
+      }),
+      this.prisma.sku.findMany({
+        where: { clientId },
+        ...skuCatalogArgs,
+      }),
+    ]);
+
+    const mapping = new Map<string, Set<string>>();
+    articleMappings.forEach((row) => {
+      addArticleMapping(mapping, row.targetArticle, row.sourceArticle);
+    });
+
+    const shk = buildShkCatalogFromSkus(skus);
+    mergeMissingShkRecords(shk, legacyWorkbookData.shk);
+
+    return {
+      mapping: mapping.size > 0 ? mapping : legacyWorkbookData.mapping,
+      boxToPallet: new Map(),
+      shk,
+    };
+  }
+
   private readAuxiliaryWorkbook(files: RequestForInstruction['files'] = []): WarehouseAuxiliaryData {
     const empty = emptyWarehouseAuxiliaryData();
     const sourceFile = files.find((file) => /\.xlsx?$/i.test(file.fileName) || file.mimeType.includes('spreadsheet'));
@@ -302,6 +331,7 @@ export class PickInstructionService {
         artSeller: meta.artSeller || row.internalSku || row.name || '',
         barcode: row.barcode ?? '',
         size: normalizeSize(meta.size || row.sku?.size || ''),
+        name: normalizeName(row.name || row.item.name || row.sku?.name || ''),
         city: meta.city || request.deliveryAddress || '',
         needsRelabel: meta.needsRelabel || Boolean(row.sku?.needsRelabel),
         required: row.requestedQuantity,
@@ -324,6 +354,7 @@ export class PickInstructionService {
         skuId: balance.skuId,
         barcode: primaryBarcodeValue(sku),
         artWarehouse: sku.internalSku || sku.article || sku.clientSku || sku.name,
+        name: normalizeName(sku.name),
         size: normalizeSize(sku.size || ''),
         quantity: balance.quantity,
         originalQuantity: balance.quantity,
@@ -382,18 +413,13 @@ export class PickInstructionService {
       const useful = tempAssign.reduce((sum, row) => sum + row.quantity, 0);
       if (useful / totalItems > 0.5 || useful === totalItems) {
         shipmentBoxes.add(box);
-        const anyRebrand = tempAssign.some(({ item, orderId }) => {
-          const demand = demandById.get(orderId);
-          return Boolean(demand && needsWarehouseRelabel(item, demand));
-        });
-
         for (const assignment of tempAssign) {
           const demand = demandById.get(assignment.orderId)!;
           decreaseRemaining(assignment.orderId, assignment.quantity);
           assignment.item.quantity -= assignment.quantity;
           const rebrandNote = relabelNote(assignment.item, demand);
           const targetBox =
-            useful === totalItems ? (anyRebrand ? 'МАРК ЦЕЛЫЙ' : 'ЦЕЛЫЙ') : rebrandNote ? 'МАРК ПОСТАВКА' : 'ПОСТАВКА';
+            useful === totalItems ? (rebrandNote ? 'МАРК ЦЕЛЫЙ' : 'ЦЕЛЫЙ') : rebrandNote ? 'МАРК ПОСТАВКА' : 'ПОСТАВКА';
           actions.push(actionFromAssignment(assignment.item, demand, assignment.quantity, targetBox, rebrandNote, ''));
         }
 
@@ -467,7 +493,7 @@ export class PickInstructionService {
 
     const generatedAt = new Date();
     const usedShipmentBoxes = new Set(actions.filter((action) => action.sourceBox && action.targetBox !== 'БАЛАНС').map((action) => action.sourceBox));
-    const existingBalanceBoxCodes = await this.loadExistingBalanceBoxCodes(request.clientId, generatedAt);
+    const existingBalanceBoxCodes = await this.loadExistingBalanceBoxCodes(generatedAt);
     const balanceBoxBySourceBox = assignBalanceBoxCodes(actions, existingBalanceBoxCodes, generatedAt);
     const wholeBoxCities = new Map<string, Set<string>>();
     actions.forEach((action) => {
@@ -481,8 +507,8 @@ export class PickInstructionService {
       sourceBox: action.sourceBox,
       targetBox: balanceBoxBySourceBox.get(action.sourceBox) ?? '',
       pallet: action.pallet || auxiliary.boxToPallet.get(action.sourceBox) || '',
-      artOnBox: action.artOnBox,
-      barcodeOnBox: action.barcodeOnBox,
+      artOnBox: action.targetArt || action.artOnBox,
+      barcodeOnBox: action.targetBarcode || action.barcodeOnBox,
       size: action.size,
       quantity: action.quantity,
       comment: warehouseActionComment(action, usedShipmentBoxes, balanceBoxBySourceBox, wholeBoxCities),
@@ -504,11 +530,10 @@ export class PickInstructionService {
     };
   }
 
-  private async loadExistingBalanceBoxCodes(clientId: string, date: Date) {
+  private async loadExistingBalanceBoxCodes(date: Date) {
     const prefix = balanceBoxPrefix(date);
     const boxes = await this.prisma.box.findMany({
       where: {
-        clientId,
         code: { startsWith: prefix },
       },
       select: { code: true },
@@ -647,6 +672,17 @@ const stockBalanceArgs = {
   },
 } satisfies Prisma.StockBalanceDefaultArgs;
 
+const skuCatalogArgs = {
+  include: {
+    barcodes: {
+      select: {
+        value: true,
+        isPrimary: true,
+      },
+    },
+  },
+} satisfies Prisma.SkuDefaultArgs;
+
 function groupBalancesBySkuId(balances: BalanceForInstruction[]) {
   const result = new Map<string, BalanceForInstruction[]>();
   balances.forEach((balance) => {
@@ -655,7 +691,7 @@ function groupBalancesBySkuId(balances: BalanceForInstruction[]) {
   return result;
 }
 
-function primaryBarcodeValue(sku: SkuForInstruction) {
+function primaryBarcodeValue(sku: { barcodes: Array<{ value: string; isPrimary: boolean }> }) {
   return sku.barcodes.find((barcode) => barcode.isPrimary)?.value ?? sku.barcodes[0]?.value ?? null;
 }
 
@@ -715,6 +751,7 @@ type WarehouseDemand = {
   artSeller: string;
   barcode: string;
   size: string;
+  name: string;
   city: string;
   needsRelabel: boolean;
   required: number;
@@ -728,6 +765,7 @@ type WarehouseInventoryItem = {
   skuId: string;
   barcode: string;
   artWarehouse: string;
+  name: string;
   size: string;
   quantity: number;
   originalQuantity: number;
@@ -765,9 +803,18 @@ function parseMappingSheet(rows: unknown[][]) {
     if (!target || !source) {
       return;
     }
-    mapping.set(target, new Set([...(mapping.get(target) ?? []), source]));
+    addArticleMapping(mapping, target, source);
   });
   return mapping;
+}
+
+function addArticleMapping(mapping: Map<string, Set<string>>, targetArticle: string, sourceArticle: string) {
+  const target = textCell(targetArticle);
+  const source = textCell(sourceArticle);
+  if (!target || !source) {
+    return;
+  }
+  mapping.set(target, new Set([...(mapping.get(target) ?? []), source]));
 }
 
 function parsePalletSheet(rows: unknown[][]) {
@@ -812,6 +859,47 @@ function parseShkSheet(rows: unknown[][]) {
   return result;
 }
 
+function buildShkCatalogFromSkus(skus: SkuCatalogForInstruction[]) {
+  const result = new Map<string, WarehouseShkRecord>();
+  skus.forEach((sku) => {
+    const payload = recordFromJson(sku.marketplacePayload);
+    const barcode = primaryBarcodeValue(sku) ?? textFromPayload(payload, ['barcode', 'barCode', 'sku', 'offerBarcode']);
+    const article = sku.internalSku || sku.article || sku.clientSku || '';
+    const wbArticle =
+      sku.marketplaceProductId ||
+      sku.marketplaceOfferId ||
+      textFromPayload(payload, ['nmID', 'nmId', 'imtID', 'imtId', 'vendorCode', 'offerId']) ||
+      sku.clientSku ||
+      '';
+    const record: WarehouseShkRecord = {
+      brand: sku.brand || textFromPayload(payload, ['brand', 'brandName']),
+      ip: textFromPayload(payload, ['ip', 'seller', 'sellerName', 'supplierName']),
+      name: sku.name,
+      article,
+      wbArticle,
+      color: sku.color || textFromPayload(payload, ['color', 'colour', 'colorName']),
+      size: normalizeSize(sku.size || textFromPayload(payload, ['size', 'techSize', 'russianSize'])),
+      barcode: barcode ?? '',
+    };
+
+    [sku.internalSku, sku.article, sku.clientSku, barcode].forEach((key) => {
+      const cleaned = textCell(key);
+      if (cleaned) {
+        result.set(cleaned, record);
+      }
+    });
+  });
+  return result;
+}
+
+function mergeMissingShkRecords(target: Map<string, WarehouseShkRecord>, fallback: Map<string, WarehouseShkRecord>) {
+  fallback.forEach((record, key) => {
+    if (!target.has(key)) {
+      target.set(key, record);
+    }
+  });
+}
+
 function parseRequestItemComment(comment: string | null) {
   const result = {
     city: '',
@@ -844,7 +932,10 @@ function isSuitableForDemand(item: WarehouseInventoryItem, demand: WarehouseDema
   if (item.skuId === demand.skuId) {
     return true;
   }
-  if (item.barcode === demand.barcode && sizesMatch(item.size, demand.size)) {
+  if (isExactBarcodeMatch(item, demand)) {
+    return true;
+  }
+  if (isExactNameMatch(item, demand)) {
     return true;
   }
   const baseArts = mapping.get(demand.artSeller) ?? new Set([demand.artSeller]);
@@ -1028,6 +1119,12 @@ function warehouseActionComment(
 }
 
 function needsWarehouseRelabel(item: WarehouseInventoryItem, demand: WarehouseDemand) {
+  if (demand.needsRelabel) {
+    return true;
+  }
+  if (item.skuId === demand.skuId || isExactBarcodeMatch(item, demand) || isExactNameMatch(item, demand)) {
+    return false;
+  }
   return demand.needsRelabel || Boolean(demand.artSeller && item.artWarehouse !== demand.artSeller);
 }
 
@@ -1038,6 +1135,14 @@ function relabelNote(item: WarehouseInventoryItem, demand: WarehouseDemand) {
 
   const target = demand.artSeller || demand.barcode || item.artWarehouse;
   return `перемаркировать на ${target}`;
+}
+
+function isExactBarcodeMatch(item: WarehouseInventoryItem, demand: WarehouseDemand) {
+  return Boolean(item.barcode && demand.barcode && item.barcode === demand.barcode && sizesMatch(item.size, demand.size));
+}
+
+function isExactNameMatch(item: WarehouseInventoryItem, demand: WarehouseDemand) {
+  return Boolean(item.name && demand.name && item.name === demand.name && sizesMatch(item.size, demand.size));
 }
 
 function balanceBoxTspl(boxCode: string, clientName: string) {
@@ -1087,10 +1192,31 @@ function normalizeSize(value: string | null | undefined) {
   return (match?.[1] ?? raw).replace(/\s+/g, '');
 }
 
+function normalizeName(value: string | null | undefined) {
+  return textCell(value).toUpperCase().replace(/\s+/g, ' ');
+}
+
 function sizesMatch(left: string, right: string) {
   return !left || !right || left === right;
 }
 
 function textCell(value: unknown) {
   return value == null ? '' : String(value).replace(/\.0$/, '').trim();
+}
+
+function recordFromJson(value: Prisma.JsonValue | null | undefined): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function textFromPayload(payload: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = payload[key];
+    if (typeof value === 'string' || typeof value === 'number') {
+      const text = textCell(value);
+      if (text) {
+        return text;
+      }
+    }
+  }
+  return '';
 }

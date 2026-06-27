@@ -8,13 +8,13 @@ const XLSX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadshee
 export function buildPickInstructionWorkbook(document: PickInstructionDocument) {
   const workbook = XLSX.utils.book_new();
 
-  // Русский комментарий: XLSX нужен кладовщику как рабочий файл, поэтому листы разделены по сценариям работы.
-  XLSX.utils.book_append_sheet(workbook, sheetFromRows(summaryRows(document), [24, 46]), 'Сводка');
-  XLSX.utils.book_append_sheet(workbook, sheetFromRows(warehouseRows(document), [18, 20, 20, 18, 28, 18, 12, 12, 24, 28, 34]), 'Инструкция');
-  XLSX.utils.book_append_sheet(workbook, sheetFromRows(wholeBoxRows(document), [22, 34, 22, 18, 20]), 'Целые короба');
+  // Русский комментарий: первые три листа совпадают с форматом складской инструкции, служебные листы идут после них.
+  XLSX.utils.book_append_sheet(workbook, sheetFromRows(warehouseRows(document), [18, 20, 18, 28, 18, 12, 12, 28, 28, 42]), 'Инструкция');
+  XLSX.utils.book_append_sheet(workbook, sheetFromRows(wholeBoxRows(document), [22, 34, 22, 18]), 'Целые короба');
+  XLSX.utils.book_append_sheet(workbook, sheetFromRows(markRows(document), [18, 18, 20, 18, 18, 34, 28, 16, 16, 12, 18, 18]), 'МАРК');
   XLSX.utils.book_append_sheet(workbook, sheetFromRows(balanceMoveRows(document), [20, 20, 18, 28, 18, 12, 12, 42]), 'Остатки в новые короба');
   XLSX.utils.book_append_sheet(workbook, sheetFromRows(balanceLabelRows(document), [20, 20, 70]), 'Печать коробов');
-  XLSX.utils.book_append_sheet(workbook, sheetFromRows(markRows(document), [18, 18, 20, 18, 18, 34, 28, 16, 16, 12, 18, 18]), 'МАРК');
+  XLSX.utils.book_append_sheet(workbook, sheetFromRows(summaryRows(document), [24, 46]), 'Сводка');
   XLSX.utils.book_append_sheet(workbook, sheetFromRows(instructionRows(document), [5, 7, 18, 18, 18, 18, 34, 12, 12, 12, 22, 42]), 'План WMS');
   XLSX.utils.book_append_sheet(workbook, sheetFromRows(boxRows(document), [20, 18, 14, 20, 10, 14, 34]), 'Короба');
   XLSX.utils.book_append_sheet(workbook, sheetFromRows(shortageRows(document), [7, 18, 18, 34, 12, 12, 12, 22, 42]), 'Дефицит');
@@ -27,13 +27,12 @@ function warehouseRows(document: PickInstructionDocument): CellValue[][] {
     [
       'Город',
       'Исходный короб',
-      'Новый короб остатка',
       'Палета',
       'Артикул продавца',
       'Баркод',
       'Размер',
       'Количество',
-      'Действие',
+      'Комментарий',
       'Перемаркировка',
       'Примечание',
     ],
@@ -43,7 +42,6 @@ function warehouseRows(document: PickInstructionDocument): CellValue[][] {
     rows.push([
       row.city,
       row.sourceBox,
-      row.targetBox,
       row.pallet,
       row.artOnBox,
       row.barcodeOnBox,
@@ -56,17 +54,17 @@ function warehouseRows(document: PickInstructionDocument): CellValue[][] {
   });
 
   if (rows.length === 1) {
-    rows.push(['', '', '', '', '', '', '', '', '', '', 'Нет строк для складской инструкции.']);
+    rows.push(['', '', '', '', '', '', '', '', '', 'Нет строк для складской инструкции.']);
   }
 
   return rows;
 }
 
 function wholeBoxRows(document: PickInstructionDocument): CellValue[][] {
-  const rows: CellValue[][] = [['Короб', 'Статус', 'Город', 'Палета', 'Новый короб остатка']];
-  document.warehouseWholeBoxes.forEach((row) => rows.push([row.box, row.status, row.city, row.pallet, row.balanceBox]));
+  const rows: CellValue[][] = [['Короб', 'Статус', 'Город', 'Палета']];
+  document.warehouseWholeBoxes.forEach((row) => rows.push([row.box, row.status, row.city, row.pallet]));
   if (rows.length === 1) {
-    rows.push(['', '', '', '', 'Целых коробов нет.']);
+    rows.push(['', '', '', 'Целых коробов нет.']);
   }
   return rows;
 }

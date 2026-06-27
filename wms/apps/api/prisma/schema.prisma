@@ -348,6 +348,7 @@ model Client {
   notifications            ClientNotification[]
   notificationPreferences  ClientNotificationPreference[]
   marketplaceConnections   ClientMarketplaceConnection[]
+  articleMappings          ClientArticleMapping[]
   productMarks             ProductMark[]
   requestComments          ClientRequestComment[]
   requestEvents            ClientRequestEvent[]
@@ -355,6 +356,21 @@ model Client {
   updatedAt                DateTime                       @updatedAt
 
   @@index([fulfillmentManagerUserId])
+}
+
+model ClientArticleMapping {
+  id            String   @id @default(uuid())
+  clientId      String
+  sourceArticle String
+  targetArticle String
+  comment       String?
+  client        Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([clientId, sourceArticle, targetArticle])
+  @@index([clientId, targetArticle])
+  @@index([clientId, sourceArticle])
 }
 
 model ClientMarketplaceConnection {

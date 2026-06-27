@@ -944,6 +944,42 @@ export type NomenclatureImportResult = {
   items: NomenclatureSummary[];
 };
 
+export type ArticleMappingSummary = {
+  id: string;
+  clientId: string;
+  sourceArticle: string;
+  targetArticle: string;
+  comment: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateArticleMappingPayload = {
+  clientId: string;
+  sourceArticle: string;
+  targetArticle: string;
+  comment?: string;
+};
+
+export type ArticleMappingImportResult = {
+  fileName: string;
+  summary: {
+    sourceRows: number;
+    rows: number;
+    created: number;
+    updated: number;
+    skipped: number;
+    errors: number;
+    warnings: number;
+  };
+  issues: Array<{
+    row: number;
+    message: string;
+    severity: 'warning' | 'error';
+  }>;
+  items: ArticleMappingSummary[];
+};
+
 export type DeleteClientResult = {
   id: string;
   code: string;
@@ -2136,6 +2172,27 @@ export async function importNomenclatureXlsx(accessToken: string, payload: { fil
   form.append('file', payload.file);
 
   return requestMultipart<NomenclatureImportResult>('/skus/nomenclature/import-xlsx', form, accessToken);
+}
+
+export async function fetchArticleMappings(accessToken: string, clientId: string) {
+  return request<ArticleMappingSummary[]>(withQuery('/skus/article-mappings', { clientId }), {
+    accessToken,
+  });
+}
+
+export async function createArticleMapping(accessToken: string, payload: CreateArticleMappingPayload) {
+  return request<ArticleMappingSummary>('/skus/article-mappings', {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function importArticleMappingsXlsx(accessToken: string, payload: { clientId: string; file: File }) {
+  const form = new FormData();
+  form.append('file', payload.file);
+
+  return requestMultipart<ArticleMappingImportResult>(withQuery('/skus/article-mappings/import-xlsx', { clientId: payload.clientId }), form, accessToken);
 }
 
 export async function fetchStockBalances(accessToken: string, filter: { clientId?: string; search?: string } = {}) {

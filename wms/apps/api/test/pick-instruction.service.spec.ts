@@ -15,6 +15,12 @@ describe('PickInstructionService', () => {
       barcode: {
         findMany: vi.fn().mockResolvedValue([]),
       },
+      clientArticleMapping: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      sku: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
       stockBalance: {
         findMany: vi.fn().mockResolvedValue([
           balanceFixture({ id: 'balance-1', boxId: 'box-1', boxCode: 'BOX-1', quantity: 2 }),
@@ -63,6 +69,12 @@ describe('PickInstructionService', () => {
       barcode: {
         findMany: vi.fn().mockResolvedValue([]),
       },
+      clientArticleMapping: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      sku: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
       stockBalance: {
         findMany: vi.fn().mockResolvedValue([
           balanceFixture({ id: 'balance-1', boxId: 'box-1', boxCode: 'BOX-1', quantity: 2 }),
@@ -94,6 +106,12 @@ describe('PickInstructionService', () => {
       barcode: {
         findMany: vi.fn().mockResolvedValue([]),
       },
+      clientArticleMapping: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      sku: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
       stockBalance: {
         findMany: vi.fn().mockResolvedValue([
           balanceFixture({ id: 'balance-1', boxId: 'box-1', boxCode: 'BOX-1', quantity: 2 }),
@@ -116,12 +134,12 @@ describe('PickInstructionService', () => {
     expect(file.fileName).toMatch(/\.xlsx$/);
     expect(file.mimeType).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     expect(workbook.SheetNames).toEqual([
-      'Сводка',
       'Инструкция',
       'Целые короба',
+      'МАРК',
       'Остатки в новые короба',
       'Печать коробов',
-      'МАРК',
+      'Сводка',
       'План WMS',
       'Короба',
       'Дефицит',
@@ -132,7 +150,7 @@ describe('PickInstructionService', () => {
     const wmsRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['План WMS'], { defval: '' });
     const boxRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['Короба'], { defval: '' });
 
-    expect(instructionRows[0]).toMatchObject({ 'Исходный короб': 'BOX-1', Количество: 2 });
+    expect(instructionRows[0]).toMatchObject({ 'Исходный короб': 'BOX-1', Количество: 2, Комментарий: 'ЦЕЛЫЙ' });
     expect(moveRows[0]).toMatchObject({ 'Исходный короб': 'BOX-2', 'Новый короб': balanceBoxCodeForToday(2), Количество: 3 });
     expect(labelRows[0]).toMatchObject({ 'Новый короб': balanceBoxCodeForToday(2), 'Исходный короб': 'BOX-2' });
     expect(String(labelRows[0]['TSPL для TSC'])).toContain(`QRCODE 170,80,L,7,A,0,"${balanceBoxCodeForToday(2)}"`);

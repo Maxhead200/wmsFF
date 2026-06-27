@@ -1,6 +1,7 @@
-import { PackagePlus, UserPlus } from 'lucide-react';
+import { GitCompareArrows, PackagePlus, UserPlus } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { AuthSession, AuthUser } from '../../lib/api';
+import { ArticleMappingPanel } from './ArticleMappingPanel';
 import { ClientCreateForm } from './ClientCreateForm';
 import { ClientImportForm } from './ClientImportForm';
 import { ClientRequisitesForm } from './ClientRequisitesForm';
@@ -16,6 +17,7 @@ type DirectoryPanelProps = {
 const directoryTabs = [
   { id: 'clients', label: 'Клиент', permission: 'clients:write', icon: UserPlus },
   { id: 'skus', label: 'Номенклатура', permission: 'skus:write', icon: PackagePlus },
+  { id: 'article-mappings', label: 'Соответствия', permission: 'skus:write', icon: GitCompareArrows },
 ] as const;
 
 type DirectoryTab = (typeof directoryTabs)[number]['id'];
@@ -78,6 +80,7 @@ export function DirectoryPanel({ session }: DirectoryPanelProps) {
           <SkuDirectoryTable session={session} reloadKey={skuReloadKey} />
         </div>
       ) : null}
+      {activeTab === 'article-mappings' ? <ArticleMappingPanel session={session} /> : null}
     </section>
   );
 }

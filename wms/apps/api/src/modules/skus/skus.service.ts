@@ -39,6 +39,7 @@ export class SkusService {
       where,
       orderBy: { updatedAt: 'desc' },
       include: {
+        client: { select: { id: true, code: true, name: true } },
         barcodes: true,
         _count: { select: { balances: true, movements: true } },
       },
@@ -55,6 +56,7 @@ export class SkusService {
         clientId: this.clientScopes.resolveClientFilter(user),
       },
       include: {
+        client: { select: { id: true, code: true, name: true } },
         barcodes: true,
         balances: {
           include: {

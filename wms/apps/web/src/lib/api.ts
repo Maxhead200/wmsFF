@@ -1109,6 +1109,7 @@ export type StorageOverview = {
 export type SkuSummary = {
   id: string;
   clientId: string;
+  client?: Pick<ClientSummary, 'id' | 'code' | 'name'>;
   internalSku: string;
   clientSku: string | null;
   article: string | null;

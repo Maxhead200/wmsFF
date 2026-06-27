@@ -85,6 +85,7 @@ const rolePermissions: Record<string, { name: string; permissions: string[] }> =
     name: 'Клиент',
     permissions: [
       'clients:read',
+      'skus:read',
       'stock:read',
       'client-requests:read',
       'client-requests:write',

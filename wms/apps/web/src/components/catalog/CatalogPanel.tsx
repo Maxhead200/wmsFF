@@ -1,13 +1,4 @@
-import {
-  Box,
-  ImageOff,
-  Pencil,
-  RefreshCw,
-  Save,
-  Search,
-  Trash2,
-  X,
-} from 'lucide-react';
+import { ImageOff, Pencil, RefreshCw, Save, Search, Trash2, X } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   deleteSku,
@@ -101,7 +92,6 @@ export function CatalogPanel({ session }: CatalogPanelProps) {
           return;
         }
         setClients(list);
-        setSelectedClientId((current) => current || list[0]?.id || '');
         setClientState('ready');
       } catch (caught) {
         if (isActive) {
@@ -118,7 +108,7 @@ export function CatalogPanel({ session }: CatalogPanelProps) {
   }, [canRead, session.accessToken]);
 
   useEffect(() => {
-    if (!selectedClientId || !canRead) {
+    if (!canRead) {
       return;
     }
 
@@ -128,8 +118,8 @@ export function CatalogPanel({ session }: CatalogPanelProps) {
       setError('');
       try {
         const [nextSkus, nextConnections] = await Promise.all([
-          fetchSkus(session.accessToken, { clientId: selectedClientId, search: appliedSearch || undefined }),
-          fetchMarketplaceConnections(session.accessToken, { clientId: selectedClientId }),
+          fetchSkus(session.accessToken, { clientId: selectedClientId || undefined, search: appliedSearch || undefined }),
+          selectedClientId ? fetchMarketplaceConnections(session.accessToken, { clientId: selectedClientId }) : Promise.resolve([]),
         ]);
         if (!isActive) {
           return;
@@ -238,7 +228,7 @@ export function CatalogPanel({ session }: CatalogPanelProps) {
       <div className="section-heading catalog-panel__heading">
         <div>
           <p className="eyebrow">Каталог</p>
-          <h2>Товары клиентов</h2>
+          <h2>Общая база товаров</h2>
         </div>
         <button className="icon-button" type="button" onClick={() => setReloadKey((current) => current + 1)} title="Обновить каталог">
           <RefreshCw size={18} aria-hidden="true" />
@@ -249,6 +239,7 @@ export function CatalogPanel({ session }: CatalogPanelProps) {
         <label>
           <span>Клиент</span>
           <select value={selectedClientId} onChange={(event) => setSelectedClientId(event.target.value)} disabled={clientState === 'loading'}>
+            <option value="">Все товары</option>
             {clients.map((client) => (
               <option key={client.id} value={client.id}>
                 {client.code} · {client.name}
@@ -276,7 +267,7 @@ export function CatalogPanel({ session }: CatalogPanelProps) {
         <div className="catalog-marketplaces">
           <div>
             <strong>{selectedClient.name}</strong>
-            <span>Подключения маркетплейсов и принудительная выгрузка товаров</span>
+            <span>Выгрузка карточек из API добавляет товары в каталог, но не создаёт остатки</span>
           </div>
           <div className="catalog-marketplaces__actions">
             {connections.length === 0 ? <span className="catalog-muted">API не подключено</span> : null}
@@ -297,7 +288,14 @@ export function CatalogPanel({ session }: CatalogPanelProps) {
             ))}
           </div>
         </div>
-      ) : null}
+      ) : (
+        <div className="catalog-marketplaces">
+          <div>
+            <strong>Общий каталог</strong>
+            <span>Карточки товаров отдельно от остатков. Остатки появляются только через приемку или загрузку склада.</span>
+          </div>
+        </div>
+      )}
 
       {error ? <p className="form-error">{error}</p> : null}
       {message ? <p className="form-success">{message}</p> : null}
@@ -308,6 +306,7 @@ export function CatalogPanel({ session }: CatalogPanelProps) {
             <tr>
               <th>Фото</th>
               <th>Товар</th>
+              <th>Клиент</th>
               <th>Маркетплейс</th>
               <th>Штрихкод</th>
               <th>Габариты</th>
@@ -325,6 +324,7 @@ export function CatalogPanel({ session }: CatalogPanelProps) {
                   <strong>{sku.name}</strong>
                   <span>{[sku.internalSku, sku.article, sku.brand].filter(Boolean).join(' · ') || '-'}</span>
                 </td>
+                <td>{sku.client ? `${sku.client.code} · ${sku.client.name}` : '-'}</td>
                 <td>
                   <strong>{sku.marketplace ? marketplaceLabel(sku.marketplace) : 'WMS'}</strong>
                   <span>{sku.marketplaceOfferId || sku.clientSku || '-'}</span>
@@ -337,7 +337,7 @@ export function CatalogPanel({ session }: CatalogPanelProps) {
             ))}
             {skus.length === 0 ? (
               <tr>
-                <td colSpan={7}>{skuState === 'loading' ? 'Загрузка каталога...' : 'Товары не найдены'}</td>
+                <td colSpan={8}>{skuState === 'loading' ? 'Загрузка каталога...' : 'Товары не найдены'}</td>
               </tr>
             ) : null}
           </tbody>
@@ -461,20 +461,6 @@ function SkuModal({
               ) : (
                 <p className="catalog-muted">Характеристики из маркетплейса пока не загружены.</p>
               )}
-            </section>
-
-            <section className="catalog-detail-section">
-              <h4>Остатки по местам хранения</h4>
-              <div className="catalog-stock-list">
-                {(sku.balances ?? []).map((balance) => (
-                  <div key={balance.id}>
-                    <Box size={15} aria-hidden="true" />
-                    <span>{balance.box?.code || balance.pallet?.code || 'Без места'}</span>
-                    <strong>{balance.quantity} шт.</strong>
-                  </div>
-                ))}
-                {(sku.balances ?? []).length === 0 ? <p className="catalog-muted">Остатков по товару сейчас нет.</p> : null}
-              </div>
             </section>
 
             <section className="catalog-detail-section">

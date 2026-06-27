@@ -1298,6 +1298,14 @@
   min-width: 980px;
 }
 
+.client-cabinet-table tbody tr[tabindex='0'] {
+  cursor: pointer;
+}
+
+.client-cabinet-table tbody tr[tabindex='0']:hover {
+  background: #fff8f8;
+}
+
 .client-cabinet-pager {
   display: flex;
   min-width: 0;

@@ -11,10 +11,13 @@ import type {
   ClientRequestFileSummary,
   ClientRequestSummary,
   ClientSummary,
+  SkuDetail,
   StockBalance,
 } from '../../lib/api';
+import { fetchSku } from '../../lib/api';
 import { billingInvoiceStatusLabel, billingInvoiceStatusTone } from '../billing/billingMeta';
 import { BillingReconciliationPanel } from '../billing/BillingReconciliationPanel';
+import { ProductCardModal } from '../catalog/ProductCardModal';
 import { requestStatusLabel, requestStatusTone, requestTypeLabel } from '../client-requests/clientRequestMeta';
 import {
   formatCabinetDate,
@@ -105,6 +108,8 @@ export function ClientCabinetTables({
     requests: 1,
     invoices: 1,
   });
+  const [selectedProduct, setSelectedProduct] = useState<SkuDetail | null>(null);
+  const [productError, setProductError] = useState('');
 
   const skuRows = useMemo(() => buildSkuRows(visibleStock), [visibleStock]);
   const allSkuRows = useMemo(() => buildSkuRows(stock), [stock]);
@@ -124,6 +129,15 @@ export function ClientCabinetTables({
   function changePage(nextPage: number) {
     const normalized = Math.min(Math.max(nextPage, 1), pageCount);
     setPageByTab((current) => ({ ...current, [activeSection]: normalized }));
+  }
+
+  async function openProductCard(skuId: string) {
+    setProductError('');
+    try {
+      setSelectedProduct(await fetchSku(accessToken, skuId));
+    } catch (caught) {
+      setProductError(caught instanceof Error ? caught.message : 'Не удалось открыть карточку товара.');
+    }
   }
 
   const visibleSkuRows = paginate(skuRows, currentPage, pageSize);
@@ -183,11 +197,14 @@ export function ClientCabinetTables({
           </div>
         ) : null}
 
+        {productError ? <p className="form-error">{productError}</p> : null}
+
         {renderActiveTable({
           activeSection,
           skuRows: visibleSkuRows,
           stock: visibleStockRows,
           canSeeStoragePlaces,
+          onOpenProductCard: (skuId) => void openProductCard(skuId),
           requests: visibleRequestRows,
           invoices: visibleInvoiceRows,
           onOpenRequestDocument,
@@ -207,6 +224,8 @@ export function ClientCabinetTables({
           onPageSizeChange={setPageSize}
         />
       </section>
+
+      {selectedProduct ? <ProductCardModal sku={selectedProduct} onClose={() => setSelectedProduct(null)} /> : null}
     </div>
   );
 }
@@ -241,6 +260,7 @@ function renderActiveTable({
   skuRows,
   stock,
   canSeeStoragePlaces,
+  onOpenProductCard,
   requests,
   invoices,
   onOpenRequestDocument,
@@ -253,6 +273,7 @@ function renderActiveTable({
   skuRows: SkuStockSummary[];
   stock: StockBalance[];
   canSeeStoragePlaces: boolean;
+  onOpenProductCard: (skuId: string) => void;
   requests: ClientRequestSummary[];
   invoices: BillingInvoiceSummary[];
   onOpenRequestDocument: (request: ClientRequestSummary) => void;
@@ -262,11 +283,11 @@ function renderActiveTable({
   onDownloadRequestFile: (request: ClientRequestSummary, file: ClientRequestFileSummary) => Promise<void>;
 }) {
   if (activeSection === 'skus') {
-    return skuRows.length > 0 ? renderSkuTable(skuRows, canSeeStoragePlaces) : <EmptyTable>SKU не найдены.</EmptyTable>;
+    return skuRows.length > 0 ? renderSkuTable(skuRows, canSeeStoragePlaces, onOpenProductCard) : <EmptyTable>SKU не найдены.</EmptyTable>;
   }
 
   if (activeSection === 'stock') {
-    return stock.length > 0 ? renderStockTable(stock, canSeeStoragePlaces) : <EmptyTable>Остатки не найдены.</EmptyTable>;
+    return stock.length > 0 ? renderStockTable(stock, canSeeStoragePlaces, onOpenProductCard) : <EmptyTable>Остатки не найдены.</EmptyTable>;
   }
 
   if (activeSection === 'requests') {
@@ -284,7 +305,7 @@ function EmptyTable({ children }: { children: ReactNode }) {
   return <p className="panel-message">{children}</p>;
 }
 
-function renderSkuTable(items: SkuStockSummary[], canSeeStoragePlaces: boolean) {
+function renderSkuTable(items: SkuStockSummary[], canSeeStoragePlaces: boolean, onOpenProductCard: (skuId: string) => void) {
   return (
     <div id="client-cabinet-skus" className="client-cabinet-table-wrap">
       <table className="data-table client-cabinet-table">
@@ -300,7 +321,7 @@ function renderSkuTable(items: SkuStockSummary[], canSeeStoragePlaces: boolean) 
         </thead>
         <tbody>
           {items.map((item) => (
-            <tr key={item.skuId}>
+            <tr key={item.skuId} onClick={() => onOpenProductCard(item.skuId)} tabIndex={0}>
               <td>
                 <strong>{item.internalSku}</strong>
               </td>
@@ -317,7 +338,7 @@ function renderSkuTable(items: SkuStockSummary[], canSeeStoragePlaces: boolean) 
   );
 }
 
-function renderStockTable(items: StockBalance[], canSeeStoragePlaces: boolean) {
+function renderStockTable(items: StockBalance[], canSeeStoragePlaces: boolean, onOpenProductCard: (skuId: string) => void) {
   return (
     <div id="client-cabinet-stock" className="client-cabinet-table-wrap">
       <table className="data-table client-cabinet-table">
@@ -334,7 +355,7 @@ function renderStockTable(items: StockBalance[], canSeeStoragePlaces: boolean) {
         </thead>
         <tbody>
           {items.map((balance) => (
-            <tr key={balance.id}>
+            <tr key={balance.id} onClick={() => onOpenProductCard(balance.skuId)} tabIndex={0}>
               <td>
                 <strong>{balance.sku.internalSku}</strong>
                 <span>{balance.sku.name}</span>

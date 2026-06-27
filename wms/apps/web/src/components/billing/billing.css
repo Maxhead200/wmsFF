@@ -139,6 +139,12 @@
   font-size: 17px;
 }
 
+.billing-panel__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin: 4px 0 12px;
+}
+
 .billing-table-wrap {
   overflow-x: auto;
   border: 1px solid var(--line);

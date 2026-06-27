@@ -1,4 +1,4 @@
-import { Calculator, RefreshCw } from 'lucide-react';
+import { Calculator, ReceiptText, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
   downloadBillingInvoiceActPdf,
@@ -57,7 +57,7 @@ const billingTabs = [
   { id: 'overview', label: 'Обзор' },
   { id: 'invoices', label: 'Счета' },
   { id: 'charges', label: 'Начисления' },
-  { id: 'create', label: 'Создать' },
+  { id: 'create', label: 'Создать счет' },
 ] as const;
 
 type BillingTab = (typeof billingTabs)[number]['id'];
@@ -266,6 +266,14 @@ export function BillingPanel({ session }: BillingPanelProps) {
           {canWrite && invoices.status === 'ready' ? (
             <BillingPaymentForm invoices={invoices.data} session={session} onPaid={acceptInvoice} />
           ) : null}
+          {canWrite ? (
+            <div className="billing-panel__actions">
+              <button className="primary-button" type="button" onClick={() => setActiveTab('create')}>
+                <ReceiptText size={17} aria-hidden="true" />
+                <span>Создать счет</span>
+              </button>
+            </div>
+          ) : null}
           <div className="billing-panel__subheading">
             <h3>Счета</h3>
           </div>
@@ -292,6 +300,9 @@ export function BillingPanel({ session }: BillingPanelProps) {
 
       {activeTab === 'create' && canWrite ? (
         <div className="billing-create-stack">
+          {clients.status === 'ready' ? (
+            <BillingInvoiceForm clients={clients.data} session={session} onCreated={acceptInvoice} />
+          ) : null}
           {services.status === 'ready' ? <BillingServiceForm session={session} onCreated={acceptService} /> : null}
           {clients.status === 'ready' && requests.status === 'ready' && services.status === 'ready' ? (
             <BillingChargeForm
@@ -304,9 +315,6 @@ export function BillingPanel({ session }: BillingPanelProps) {
           ) : null}
           {clients.status === 'ready' ? (
             <BillingStorageChargeForm clients={clients.data} session={session} onCreated={acceptCharge} />
-          ) : null}
-          {clients.status === 'ready' ? (
-            <BillingInvoiceForm clients={clients.data} session={session} onCreated={acceptInvoice} />
           ) : null}
         </div>
       ) : null}

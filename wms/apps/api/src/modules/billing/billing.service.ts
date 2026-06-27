@@ -3,6 +3,7 @@ import {
   BillingChargeSource,
   BillingChargeStatus,
   BillingInvoiceStatus,
+  BillingPriceTaxMode,
   BillingUnit,
   ClientNotificationEvent,
   Prisma,
@@ -15,6 +16,7 @@ import { CreateBillingChargeDto } from './dto/create-billing-charge.dto';
 import { CreateBillingInvoiceDto } from './dto/create-billing-invoice.dto';
 import { CreateBillingPaymentDto } from './dto/create-billing-payment.dto';
 import { CreateBillingServiceDto } from './dto/create-billing-service.dto';
+import { CreateManualBillingInvoiceDto } from './dto/create-manual-billing-invoice.dto';
 import { GenerateStorageChargeDto } from './dto/generate-storage-charge.dto';
 import { ListBillingChargesDto } from './dto/list-billing-charges.dto';
 import { ListBillingInvoicesDto } from './dto/list-billing-invoices.dto';
@@ -22,6 +24,7 @@ import { ListBillingReconciliationDto } from './dto/list-billing-reconciliation.
 import { ListBillingServiceHistoryDto } from './dto/list-billing-service-history.dto';
 import { UpdateBillingChargeStatusDto } from './dto/update-billing-charge-status.dto';
 import { UpdateBillingInvoiceStatusDto } from './dto/update-billing-invoice-status.dto';
+import { UpsertClientBillingServiceDto } from './dto/upsert-client-billing-service.dto';
 
 @Injectable()
 export class BillingService {
@@ -30,7 +33,8 @@ export class BillingService {
     private readonly clientScopes: ClientScopeService,
   ) {}
 
-  listServices() {
+  async listServices() {
+    await this.ensureStandardBillingServices();
     return this.prisma.billingService.findMany({
       orderBy: [{ isActive: 'desc' }, { name: 'asc' }],
     });
@@ -47,6 +51,76 @@ export class BillingService {
         unit: dto.unit ?? BillingUnit.SERVICE,
         defaultPriceRub: dto.defaultPriceRub,
         isActive: dto.isActive ?? true,
+      },
+    });
+  }
+
+  async listClientServices(clientId: string, user: AuthUser) {
+    this.clientScopes.requireClientAccess(user, clientId, 'read');
+    await this.ensureStandardClientBillingServices(clientId, user.id);
+
+    const services = await this.prisma.billingService.findMany({
+      where: { isActive: true },
+      include: {
+        clientPrices: {
+          where: { clientId },
+          take: 1,
+        },
+      },
+      orderBy: [{ name: 'asc' }],
+    });
+
+    return services.map((service) => {
+      const clientPrice = service.clientPrices[0] ?? null;
+      return {
+        id: clientPrice?.id ?? null,
+        clientId,
+        service,
+        priceRub: clientPrice?.priceRub ?? service.defaultPriceRub,
+        taxMode: clientPrice?.taxMode ?? BillingPriceTaxMode.INCLUDED,
+        isActive: clientPrice?.isActive ?? false,
+        comment: clientPrice?.comment ?? null,
+      };
+    });
+  }
+
+  async upsertClientService(clientId: string, dto: UpsertClientBillingServiceDto, user: AuthUser) {
+    this.clientScopes.requireClientAccess(user, clientId, 'write');
+    await this.ensureStandardBillingServices();
+
+    const service = await this.prisma.billingService.findUnique({
+      where: { id: dto.serviceId },
+      select: { id: true },
+    });
+    if (!service) {
+      throw new NotFoundException('Услуга биллинга не найдена.');
+    }
+
+    return this.prisma.clientBillingService.upsert({
+      where: {
+        clientId_serviceId: {
+          clientId,
+          serviceId: dto.serviceId,
+        },
+      },
+      update: {
+        priceRub: dto.priceRub,
+        taxMode: dto.taxMode ?? BillingPriceTaxMode.INCLUDED,
+        isActive: dto.isActive ?? true,
+        comment: normalizeText(dto.comment) ?? null,
+        updatedByUserId: user.id,
+      },
+      create: {
+        clientId,
+        serviceId: dto.serviceId,
+        priceRub: dto.priceRub,
+        taxMode: dto.taxMode ?? BillingPriceTaxMode.INCLUDED,
+        isActive: dto.isActive ?? true,
+        comment: normalizeText(dto.comment),
+        updatedByUserId: user.id,
+      },
+      include: {
+        service: true,
       },
     });
   }
@@ -413,6 +487,128 @@ export class BillingService {
     });
   }
 
+  async createManualInvoice(dto: CreateManualBillingInvoiceDto, user: AuthUser) {
+    this.clientScopes.requireClientAccess(user, dto.clientId, 'write');
+    if (!dto.rows?.length) {
+      throw new BadRequestException('Для счета нужна хотя бы одна строка.');
+    }
+
+    await this.ensureStandardClientBillingServices(dto.clientId, user.id);
+    const periodFrom = parseDate(dto.periodFrom);
+    const periodTo = parseDate(dto.periodTo, 'endOfDay');
+    if (periodFrom > periodTo) {
+      throw new BadRequestException('Дата начала периода не может быть позже даты окончания.');
+    }
+
+    const serviceIds = [...new Set(dto.rows.map((row) => row.serviceId).filter((id): id is string => Boolean(id)))];
+    const services = serviceIds.length
+      ? await this.prisma.billingService.findMany({
+          where: { id: { in: serviceIds } },
+          include: {
+            clientPrices: {
+              where: {
+                clientId: dto.clientId,
+                isActive: true,
+              },
+              take: 1,
+            },
+          },
+        })
+      : [];
+    const servicesById = new Map(services.map((service) => [service.id, service]));
+    if (servicesById.size !== serviceIds.length) {
+      throw new BadRequestException('Одна или несколько услуг счета не найдены.');
+    }
+
+    const rows = dto.rows.map((row) => {
+      const service = row.serviceId ? servicesById.get(row.serviceId) : null;
+      const clientPrice = service?.clientPrices[0] ?? null;
+      const baseUnitPriceRub =
+        row.unitPriceRub ?? decimalToNumber(clientPrice?.priceRub) ?? decimalToNumber(service?.defaultPriceRub);
+      if (baseUnitPriceRub == null) {
+        throw new BadRequestException('Для каждой строки счета нужна цена.');
+      }
+
+      const taxMode = row.taxMode ?? clientPrice?.taxMode ?? BillingPriceTaxMode.INCLUDED;
+      const unitPriceRub = applyTaxMode(baseUnitPriceRub, taxMode);
+      const description = normalizeText(row.description) ?? service?.name;
+      if (!description) {
+        throw new BadRequestException('Для каждой строки счета нужно описание или услуга.');
+      }
+
+      const totalRub = roundMoney(row.quantity * unitPriceRub);
+      return {
+        serviceId: row.serviceId,
+        description,
+        unit: row.unit ?? service?.unit ?? BillingUnit.SERVICE,
+        quantity: row.quantity,
+        unitPriceRub,
+        totalRub,
+        serviceDate: row.serviceDate ? parseDate(row.serviceDate) : periodTo,
+        comment: normalizeText(row.comment),
+        metadata: {
+          priceBeforeTaxRub: baseUnitPriceRub,
+          taxMode,
+        },
+      };
+    });
+
+    const totalRub = roundMoney(rows.reduce((sum, row) => sum + row.totalRub, 0));
+    const number = await this.nextInvoiceNumber(periodFrom);
+
+    return this.prisma.$transaction(async (tx) => {
+      const charges: Array<{ id: string }> = [];
+      for (const row of rows) {
+        charges.push(
+          await tx.billingCharge.create({
+            data: {
+              clientId: dto.clientId,
+              serviceId: row.serviceId,
+              description: row.description,
+              unit: row.unit,
+              quantity: row.quantity,
+              unitPriceRub: row.unitPriceRub,
+              totalRub: row.totalRub,
+              status: BillingChargeStatus.APPROVED,
+              serviceDate: row.serviceDate,
+              source: BillingChargeSource.MANUAL,
+              metadata: row.metadata,
+              comment: row.comment,
+              createdByUserId: user.id,
+              approvedByUserId: user.id,
+              approvedAt: new Date(),
+            },
+          }),
+        );
+      }
+
+      return tx.billingInvoice.create({
+        data: {
+          number,
+          clientId: dto.clientId,
+          periodFrom,
+          periodTo,
+          dueDate: dto.dueDate ? parseDate(dto.dueDate, 'endOfDay') : undefined,
+          totalRub,
+          comment: normalizeText(dto.comment),
+          createdByUserId: user.id,
+          items: {
+            create: rows.map((row, index) => ({
+              chargeId: charges[index].id,
+              description: row.description,
+              unit: row.unit,
+              quantity: row.quantity,
+              unitPriceRub: row.unitPriceRub,
+              totalRub: row.totalRub,
+              serviceDate: row.serviceDate,
+            })),
+          },
+        },
+        include: billingInvoiceInclude,
+      });
+    });
+  }
+
   async updateInvoiceStatus(invoiceId: string, dto: UpdateBillingInvoiceStatusDto, user: AuthUser) {
     const invoice = await this.prisma.billingInvoice.findUnique({
       where: { id: invoiceId },
@@ -444,15 +640,12 @@ export class BillingService {
       throw new BadRequestException('Нельзя вернуть в черновик счет с оплатами.');
     }
 
-    if (dto.status === BillingInvoiceStatus.PAID && paidRub < totalRub) {
-      throw new BadRequestException('Счет нельзя закрыть как оплаченный, пока сумма оплат меньше итога.');
-    }
-
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.billingInvoice.update({
         where: { id: invoiceId },
         data: {
           status: dto.status,
+          paidRub: dto.status === BillingInvoiceStatus.PAID ? totalRub : invoice.paidRub,
           issuedAt:
             dto.status === BillingInvoiceStatus.DRAFT
               ? null
@@ -577,6 +770,54 @@ export class BillingService {
     }
   }
 
+  private async ensureStandardBillingServices() {
+    await Promise.all(
+      STANDARD_BILLING_SERVICES.map((service) =>
+        this.prisma.billingService.upsert({
+          where: { code: service.code },
+          update: {
+            name: service.name,
+            unit: service.unit,
+            defaultPriceRub: service.defaultPriceRub,
+            isActive: true,
+          },
+          create: service,
+        }),
+      ),
+    );
+  }
+
+  private async ensureStandardClientBillingServices(clientId: string, userId?: string) {
+    await this.ensureStandardBillingServices();
+    const services = await this.prisma.billingService.findMany({
+      where: {
+        code: { in: STANDARD_BILLING_SERVICES.map((service) => service.code) },
+      },
+    });
+
+    await Promise.all(
+      services.map((service) =>
+        this.prisma.clientBillingService.upsert({
+          where: {
+            clientId_serviceId: {
+              clientId,
+              serviceId: service.id,
+            },
+          },
+          update: {},
+          create: {
+            clientId,
+            serviceId: service.id,
+            priceRub: service.defaultPriceRub ?? 0,
+            taxMode: BillingPriceTaxMode.INCLUDED,
+            isActive: true,
+            updatedByUserId: userId,
+          },
+        }),
+      ),
+    );
+  }
+
   private async nextInvoiceNumber(periodFrom: Date) {
     const prefix = `INV-${periodFrom.getUTCFullYear()}${String(periodFrom.getUTCMonth() + 1).padStart(2, '0')}`;
     const count = await this.prisma.billingInvoice.count({
@@ -609,6 +850,37 @@ export class BillingService {
 }
 
 const STORAGE_SERVICE_CODE = 'STORAGE_LITER_DAY';
+
+const STANDARD_BILLING_SERVICES = [
+  {
+    code: 'BOX_60_40_40',
+    name: 'Короб 60*40*40',
+    unit: BillingUnit.PIECE,
+    defaultPriceRub: 100,
+    isActive: true,
+  },
+  {
+    code: 'BOX_ASSEMBLY',
+    name: 'Сборка короба',
+    unit: BillingUnit.PIECE,
+    defaultPriceRub: 40,
+    isActive: true,
+  },
+  {
+    code: 'PALLET',
+    name: 'Паллет',
+    unit: BillingUnit.PALLET,
+    defaultPriceRub: 350,
+    isActive: true,
+  },
+  {
+    code: 'PALLET_ASSEMBLY',
+    name: 'Сборка паллета',
+    unit: BillingUnit.PALLET,
+    defaultPriceRub: 250,
+    isActive: true,
+  },
+] satisfies Prisma.BillingServiceUncheckedCreateInput[];
 
 const billingChargeInclude = {
   client: {
@@ -955,6 +1227,14 @@ function decimalToNumber(value: Prisma.Decimal | string | number | null | undefi
 
 function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function applyTaxMode(unitPriceRub: number, taxMode: BillingPriceTaxMode) {
+  if (taxMode === BillingPriceTaxMode.ADD_6_PERCENT) {
+    return roundMoney((unitPriceRub / 94) * 100);
+  }
+
+  return roundMoney(unitPriceRub);
 }
 
 function roundQuantity(value: number) {

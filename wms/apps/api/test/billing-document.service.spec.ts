@@ -1,11 +1,11 @@
-import { NotFoundException } from '@nestjs/common';
+﻿import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { BillingInvoiceStatus, BillingPaymentStatus, BillingUnit } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthUser } from '../src/modules/auth/auth.types';
 import { BillingDocumentService } from '../src/modules/billing/billing-document.service';
 
 describe('BillingDocumentService', () => {
-  it('формирует печатный документ счета и проверяет доступ к клиенту', async () => {
+  it('С„РѕСЂРјРёСЂСѓРµС‚ РїРµС‡Р°С‚РЅС‹Р№ РґРѕРєСѓРјРµРЅС‚ СЃС‡РµС‚Р° Рё РїСЂРѕРІРµСЂСЏРµС‚ РґРѕСЃС‚СѓРї Рє РєР»РёРµРЅС‚Сѓ', async () => {
     const prisma = {
       billingInvoice: {
         findUnique: vi.fn().mockResolvedValue(invoiceFixture()),
@@ -26,14 +26,14 @@ describe('BillingDocumentService', () => {
     expect(document.rows).toHaveLength(2);
     expect(document.payments).toHaveLength(1);
     expect(document.html).toContain('Счет на оплату № 1');
-    expect(document.html).toContain('ООО &quot;Клиент&quot;');
+    expect(document.html).toContain('РћРћРћ &quot;РљР»РёРµРЅС‚&quot;');
     expect(document.html).toContain('ОГРН: 1027700000000');
-    expect(document.html).toContain('Банк: АО &quot;Тест Банк&quot;');
+    expect(document.html).toContain('Банк: РђРћ &quot;РўРµСЃС‚ Р‘Р°РЅРє&quot;');
     expect(document.html).toContain('Р/с: 40702810000000000001');
     expect(document.html).not.toContain('<script>');
   });
 
-  it('возвращает 404 для отсутствующего счета', async () => {
+  it('РІРѕР·РІСЂР°С‰Р°РµС‚ 404 РґР»СЏ РѕС‚СЃСѓС‚СЃС‚РІСѓСЋС‰РµРіРѕ СЃС‡РµС‚Р°', async () => {
     const prisma = {
       billingInvoice: {
         findUnique: vi.fn().mockResolvedValue(null),
@@ -44,7 +44,7 @@ describe('BillingDocumentService', () => {
     await expect(service.getInvoiceDocument('missing', user())).rejects.toThrow(NotFoundException);
   });
 
-  it('формирует акт оказанных услуг из снимка счета', async () => {
+  it('С„РѕСЂРјРёСЂСѓРµС‚ Р°РєС‚ РѕРєР°Р·Р°РЅРЅС‹С… СѓСЃР»СѓРі РёР· СЃРЅРёРјРєР° СЃС‡РµС‚Р°', async () => {
     const prisma = {
       billingInvoice: {
         findUnique: vi.fn().mockResolvedValue(invoiceFixture()),
@@ -55,7 +55,7 @@ describe('BillingDocumentService', () => {
     };
     const service = new BillingDocumentService(prisma as never, scopes as never);
 
-    const document = await service.getInvoiceActDocument('invoice-1', user());
+    const document = await service.getInvoiceActDocument('invoice-1', user({ permissionCodes: ['billing:read', 'billing:write'], roleCodes: ['ADMIN'] }));
 
     expect(scopes.requireClientAccess).toHaveBeenCalledWith(expect.any(Object), 'client-1', 'read');
     expect(document.documentKind).toBe('act');
@@ -66,7 +66,17 @@ describe('BillingDocumentService', () => {
     expect(document.html).toContain('Основание: счет № INV-202606-0001');
     expect(document.html).toContain('К/с: 30101810000000000002');
     expect(document.html).toContain('Итого оказано услуг на сумму');
-    expect(document.html).not.toContain('Оплаты');
+    expect(document.html).not.toContain('РћРїР»Р°С‚С‹');
+  });
+  it('blocks act download for client until invoice is paid', async () => {
+    const prisma = {
+      billingInvoice: {
+        findUnique: vi.fn().mockResolvedValue(invoiceFixture()),
+      },
+    };
+    const service = new BillingDocumentService(prisma as never, { requireClientAccess: vi.fn() } as never);
+
+    await expect(service.getInvoiceActDocument('invoice-1', user())).rejects.toThrow(ForbiddenException);
   });
 });
 
@@ -87,16 +97,16 @@ function invoiceFixture() {
     client: {
       id: 'client-1',
       code: 'CLIENT',
-      name: 'ООО "Клиент"<script>',
-      legalName: 'ООО "Клиент"',
+      name: 'РћРћРћ "РљР»РёРµРЅС‚"<script>',
+      legalName: 'РћРћРћ "РљР»РёРµРЅС‚"',
       inn: '7700000000',
       kpp: '770001001',
       ogrn: '1027700000000',
-      legalAddress: 'Москва',
-      actualAddress: 'Москва, склад',
+      legalAddress: 'РњРѕСЃРєРІР°',
+      actualAddress: 'РњРѕСЃРєРІР°, СЃРєР»Р°Рґ',
       email: 'client@example.com',
       phone: '+74950000000',
-      bankName: 'АО "Тест Банк"',
+      bankName: 'РђРћ "РўРµСЃС‚ Р‘Р°РЅРє"',
       bankBik: '044525000',
       bankAccount: '40702810000000000001',
       correspondentAccount: '30101810000000000002',
@@ -111,7 +121,7 @@ function invoiceFixture() {
         id: 'item-1',
         invoiceId: 'invoice-1',
         chargeId: 'charge-1',
-        description: 'Хранение',
+        description: 'РҐСЂР°РЅРµРЅРёРµ',
         unit: BillingUnit.LITER_DAY,
         quantity: '1000.000',
         unitPriceRub: '1.00',
@@ -122,7 +132,7 @@ function invoiceFixture() {
         id: 'item-2',
         invoiceId: 'invoice-1',
         chargeId: 'charge-2',
-        description: 'Приемка',
+        description: 'РџСЂРёРµРјРєР°',
         unit: BillingUnit.BOX,
         quantity: '10.000',
         unitPriceRub: '25.00',
@@ -149,7 +159,7 @@ function invoiceFixture() {
   };
 }
 
-function user(): AuthUser {
+function user(overrides: Partial<AuthUser> = {}): AuthUser {
   return {
     id: 'user-1',
     email: 'client@example.com',
@@ -159,5 +169,6 @@ function user(): AuthUser {
     clientScopeMode: 'LIMITED',
     clientIds: ['client-1'],
     writableClientIds: [],
+    ...overrides,
   };
 }

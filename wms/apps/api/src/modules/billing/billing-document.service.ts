@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { BillingInvoiceStatus, BillingPaymentStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
@@ -97,6 +97,10 @@ export class BillingDocumentService {
 
   async getInvoiceActDocument(invoiceId: string, user: AuthUser): Promise<BillingPrintableDocument> {
     const invoiceDocument = await this.getInvoiceDocument(invoiceId, user);
+    if (invoiceDocument.status !== BillingInvoiceStatus.PAID && !canForceAct(user)) {
+      throw new ForbiddenException('Акт доступен клиенту только после оплаты счета.');
+    }
+
     const actNumber = actNumberForInvoice(invoiceDocument.number);
     const title = `Акт № ${invoiceDisplayNumber(invoiceDocument.number)}`;
     const fileName = `${safeFileName(actNumber)}.html`;
@@ -458,6 +462,15 @@ function formatNumber(value: number) {
 
 function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function canForceAct(user: AuthUser) {
+  return (
+    user.permissionCodes.includes('system:admin') ||
+    user.permissionCodes.includes('billing:write') ||
+    user.roleCodes.includes('ADMIN') ||
+    user.roleCodes.includes('OWNER')
+  );
 }
 
 function actNumberForInvoice(invoiceNumber: string) {

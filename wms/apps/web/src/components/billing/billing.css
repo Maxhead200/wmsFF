@@ -153,6 +153,33 @@
   min-width: 1160px;
 }
 
+.billing-table--invoice-form {
+  min-width: 1180px;
+}
+
+.billing-table--invoice-form input,
+.billing-table--invoice-form select {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfdff;
+  color: var(--ink);
+  padding: 0 8px;
+}
+
+.billing-invoice-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.billing-invoice-toolbar strong {
+  margin-left: auto;
+  color: var(--red-dark);
+}
+
 .billing-status-select {
   display: flex;
   align-items: center;

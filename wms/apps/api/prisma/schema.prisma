@@ -194,6 +194,11 @@ enum BillingInvoiceStatus {
   CANCELLED
 }
 
+enum BillingPriceTaxMode {
+  INCLUDED
+  ADD_6_PERCENT
+}
+
 enum BillingPaymentStatus {
   RECORDED
   CANCELLED
@@ -240,6 +245,7 @@ model User {
   approvedBillingCharges         BillingCharge[]                @relation("BillingChargeApprovedBy")
   createdBillingInvoices         BillingInvoice[]               @relation("BillingInvoiceCreatedBy")
   createdBillingPayments         BillingPayment[]               @relation("BillingPaymentCreatedBy")
+  updatedClientBillingServices   ClientBillingService[]         @relation("ClientBillingServiceUpdatedBy")
   createdDeliveries              LogisticsDeliveryRequest[]     @relation("LogisticsDeliveryCreatedBy")
   uploadedRequestFiles           ClientRequestFile[]            @relation("ClientRequestFileUploadedBy")
   createdRequestPackages         ClientRequestPackage[]         @relation("ClientRequestPackageCreatedBy")
@@ -343,6 +349,7 @@ model Client {
   billingCharges           BillingCharge[]
   billingInvoices          BillingInvoice[]
   billingPayments          BillingPayment[]
+  billingServicePrices      ClientBillingService[]
   deliveryRequests         LogisticsDeliveryRequest[]
   requestFiles             ClientRequestFile[]
   requestPackages          ClientRequestPackage[]
@@ -799,8 +806,30 @@ model BillingService {
   defaultPriceRub Decimal?        @db.Decimal(12, 2)
   isActive        Boolean         @default(true)
   charges         BillingCharge[]
+  clientPrices    ClientBillingService[]
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
+}
+
+model ClientBillingService {
+  id              String              @id @default(uuid())
+  clientId        String
+  serviceId       String
+  priceRub        Decimal             @db.Decimal(12, 2)
+  taxMode         BillingPriceTaxMode  @default(INCLUDED)
+  isActive        Boolean             @default(true)
+  comment         String?
+  updatedByUserId String?
+  client          Client              @relation(fields: [clientId], references: [id])
+  service         BillingService      @relation(fields: [serviceId], references: [id])
+  updatedBy       User?               @relation("ClientBillingServiceUpdatedBy", fields: [updatedByUserId], references: [id])
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@unique([clientId, serviceId])
+  @@index([clientId, isActive])
+  @@index([serviceId])
+  @@index([updatedByUserId])
 }
 
 model BillingCharge {

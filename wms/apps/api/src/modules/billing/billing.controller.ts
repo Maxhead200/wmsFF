@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Res, StreamableFile } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Put, Query, Res, StreamableFile } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import type { AuthUser } from '../auth/auth.types';
@@ -11,6 +11,7 @@ import { CreateBillingChargeDto } from './dto/create-billing-charge.dto';
 import { CreateBillingInvoiceDto } from './dto/create-billing-invoice.dto';
 import { CreateBillingPaymentDto } from './dto/create-billing-payment.dto';
 import { CreateBillingServiceDto } from './dto/create-billing-service.dto';
+import { CreateManualBillingInvoiceDto } from './dto/create-manual-billing-invoice.dto';
 import { GenerateStorageChargeDto } from './dto/generate-storage-charge.dto';
 import { ListBillingChargesDto } from './dto/list-billing-charges.dto';
 import { ListBillingInvoicesDto } from './dto/list-billing-invoices.dto';
@@ -18,6 +19,7 @@ import { ListBillingReconciliationDto } from './dto/list-billing-reconciliation.
 import { ListBillingServiceHistoryDto } from './dto/list-billing-service-history.dto';
 import { UpdateBillingChargeStatusDto } from './dto/update-billing-charge-status.dto';
 import { UpdateBillingInvoiceStatusDto } from './dto/update-billing-invoice-status.dto';
+import { UpsertClientBillingServiceDto } from './dto/upsert-client-billing-service.dto';
 
 @ApiTags('billing')
 @RequirePermissions('billing:read')
@@ -38,6 +40,21 @@ export class BillingController {
   @RequirePermissions('billing:write')
   createService(@Body() dto: CreateBillingServiceDto, @CurrentUser() user: AuthUser) {
     return this.billing.createService(dto, user);
+  }
+
+  @Get('clients/:clientId/services')
+  listClientServices(@Param('clientId') clientId: string, @CurrentUser() user: AuthUser) {
+    return this.billing.listClientServices(clientId, user);
+  }
+
+  @Put('clients/:clientId/services')
+  @RequirePermissions('billing:write')
+  upsertClientService(
+    @Param('clientId') clientId: string,
+    @Body() dto: UpsertClientBillingServiceDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.billing.upsertClientService(clientId, dto, user);
   }
 
   @Get('charges')
@@ -118,6 +135,12 @@ export class BillingController {
   @RequirePermissions('billing:write')
   createInvoice(@Body() dto: CreateBillingInvoiceDto, @CurrentUser() user: AuthUser) {
     return this.billing.createInvoice(dto, user);
+  }
+
+  @Post('invoices/manual')
+  @RequirePermissions('billing:write')
+  createManualInvoice(@Body() dto: CreateManualBillingInvoiceDto, @CurrentUser() user: AuthUser) {
+    return this.billing.createManualInvoice(dto, user);
   }
 
   @Patch('invoices/:id/status')

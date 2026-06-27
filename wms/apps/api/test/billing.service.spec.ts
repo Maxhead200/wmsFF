@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+﻿import { BadRequestException } from '@nestjs/common';
 import {
   BillingChargeSource,
   BillingChargeStatus,
@@ -11,7 +11,7 @@ import type { AuthUser } from '../src/modules/auth/auth.types';
 import { BillingService } from '../src/modules/billing/billing.service';
 
 describe('BillingService', () => {
-  it('фильтрует начисления по доступным клиентам пользователя', async () => {
+  it('С„РёР»СЊС‚СЂСѓРµС‚ РЅР°С‡РёСЃР»РµРЅРёСЏ РїРѕ РґРѕСЃС‚СѓРїРЅС‹Рј РєР»РёРµРЅС‚Р°Рј РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ', async () => {
     const prisma = {
       billingCharge: {
         findMany: vi.fn().mockResolvedValue([]),
@@ -30,12 +30,12 @@ describe('BillingService', () => {
     );
   });
 
-  it('создает начисление по услуге и считает сумму', async () => {
+  it('СЃРѕР·РґР°РµС‚ РЅР°С‡РёСЃР»РµРЅРёРµ РїРѕ СѓСЃР»СѓРіРµ Рё СЃС‡РёС‚Р°РµС‚ СЃСѓРјРјСѓ', async () => {
     const prisma = {
       billingService: {
         findUnique: vi.fn().mockResolvedValue({
           id: 'service-1',
-          name: 'Приемка коробов',
+          name: 'РџСЂРёРµРјРєР° РєРѕСЂРѕР±РѕРІ',
           unit: BillingUnit.BOX,
           defaultPriceRub: '12.50',
         }),
@@ -63,7 +63,7 @@ describe('BillingService', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           clientId: 'client-1',
-          description: 'Приемка коробов',
+          description: 'РџСЂРёРµРјРєР° РєРѕСЂРѕР±РѕРІ',
           unit: BillingUnit.BOX,
           unitPriceRub: 12.5,
           totalRub: 50,
@@ -73,7 +73,7 @@ describe('BillingService', () => {
     );
   });
 
-  it('запрещает привязать начисление к заявке другого клиента', async () => {
+  it('Р·Р°РїСЂРµС‰Р°РµС‚ РїСЂРёРІСЏР·Р°С‚СЊ РЅР°С‡РёСЃР»РµРЅРёРµ Рє Р·Р°СЏРІРєРµ РґСЂСѓРіРѕРіРѕ РєР»РёРµРЅС‚Р°', async () => {
     const prisma = {
       billingService: {
         findUnique: vi.fn().mockResolvedValue(null),
@@ -89,7 +89,7 @@ describe('BillingService', () => {
         {
           clientId: 'client-1',
           requestId: 'foreign-request',
-          description: 'Ручная услуга',
+          description: 'Р СѓС‡РЅР°СЏ СѓСЃР»СѓРіР°',
           quantity: 1,
           unitPriceRub: 100,
         },
@@ -98,7 +98,7 @@ describe('BillingService', () => {
     ).rejects.toThrow(BadRequestException);
   });
 
-  it('создает автоматическое начисление хранения по историческому ledger', async () => {
+  it('СЃРѕР·РґР°РµС‚ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРѕРµ РЅР°С‡РёСЃР»РµРЅРёРµ С…СЂР°РЅРµРЅРёСЏ РїРѕ РёСЃС‚РѕСЂРёС‡РµСЃРєРѕРјСѓ ledger', async () => {
     const prisma = {
       billingService: {
         upsert: vi.fn().mockResolvedValue({
@@ -118,14 +118,14 @@ describe('BillingService', () => {
             status: 'AVAILABLE',
             quantity: 2,
             createdAt: new Date('2026-05-31T12:00:00.000Z'),
-            sku: { id: 'sku-1', internalSku: 'SKU-1', name: 'Товар 1', volumeLiters: '1.500' },
+            sku: { id: 'sku-1', internalSku: 'SKU-1', name: 'РўРѕРІР°СЂ 1', volumeLiters: '1.500' },
           },
           {
             skuId: 'sku-2',
             status: 'AVAILABLE',
             quantity: 3,
             createdAt: new Date('2026-06-02T10:00:00.000Z'),
-            sku: { id: 'sku-2', internalSku: 'SKU-2', name: 'Товар 2', volumeLiters: '2.000' },
+            sku: { id: 'sku-2', internalSku: 'SKU-2', name: 'РўРѕРІР°СЂ 2', volumeLiters: '2.000' },
           },
         ]),
       },
@@ -186,7 +186,7 @@ describe('BillingService', () => {
     );
   });
 
-  it('использует snapshot остатков, если ledger по клиенту еще пустой', async () => {
+  it('РёСЃРїРѕР»СЊР·СѓРµС‚ snapshot РѕСЃС‚Р°С‚РєРѕРІ, РµСЃР»Рё ledger РїРѕ РєР»РёРµРЅС‚Сѓ РµС‰Рµ РїСѓСЃС‚РѕР№', async () => {
     const prisma = {
       billingService: {
         upsert: vi.fn().mockResolvedValue({
@@ -271,7 +271,7 @@ describe('BillingService', () => {
             sku: {
               id: 'sku-1',
               internalSku: 'SKU-1',
-              name: 'Товар с габаритами',
+              name: 'РўРѕРІР°СЂ СЃ РіР°Р±Р°СЂРёС‚Р°РјРё',
               volumeLiters: null,
               lengthCm: '43',
               widthCm: '33',
@@ -364,7 +364,7 @@ describe('BillingService', () => {
     );
   });
 
-  it('утверждает начисление и фиксирует ответственного', async () => {
+  it('СѓС‚РІРµСЂР¶РґР°РµС‚ РЅР°С‡РёСЃР»РµРЅРёРµ Рё С„РёРєСЃРёСЂСѓРµС‚ РѕС‚РІРµС‚СЃС‚РІРµРЅРЅРѕРіРѕ', async () => {
     const prisma = {
       billingCharge: {
         findUnique: vi.fn().mockResolvedValue({ id: 'charge-1', clientId: 'client-1' }),
@@ -390,13 +390,13 @@ describe('BillingService', () => {
     );
   });
 
-  it('создает счет из утвержденных начислений периода', async () => {
+  it('СЃРѕР·РґР°РµС‚ СЃС‡РµС‚ РёР· СѓС‚РІРµСЂР¶РґРµРЅРЅС‹С… РЅР°С‡РёСЃР»РµРЅРёР№ РїРµСЂРёРѕРґР°', async () => {
     const prisma = {
       billingCharge: {
         findMany: vi.fn().mockResolvedValue([
           {
             id: 'charge-1',
-            description: 'Хранение',
+            description: 'РҐСЂР°РЅРµРЅРёРµ',
             unit: BillingUnit.LITER,
             quantity: '10',
             unitPriceRub: '2.00',
@@ -405,7 +405,7 @@ describe('BillingService', () => {
           },
           {
             id: 'charge-2',
-            description: 'Приемка',
+            description: 'РџСЂРёРµРјРєР°',
             unit: BillingUnit.BOX,
             quantity: '3',
             unitPriceRub: '15.00',
@@ -458,7 +458,7 @@ describe('BillingService', () => {
     );
   });
 
-  it('не создает счет без доступных утвержденных начислений', async () => {
+  it('РЅРµ СЃРѕР·РґР°РµС‚ СЃС‡РµС‚ Р±РµР· РґРѕСЃС‚СѓРїРЅС‹С… СѓС‚РІРµСЂР¶РґРµРЅРЅС‹С… РЅР°С‡РёСЃР»РµРЅРёР№', async () => {
     const prisma = {
       billingCharge: {
         findMany: vi.fn().mockResolvedValue([]),
@@ -478,11 +478,23 @@ describe('BillingService', () => {
     ).rejects.toThrow(BadRequestException);
   });
 
-  it('запрещает закрыть счет как оплаченный при неполной оплате', async () => {
+  it('sets invoice paid amount when the invoice is marked as paid', async () => {
+    const tx = {
+      billingInvoice: {
+        update: vi.fn().mockResolvedValue({ id: 'invoice-1', status: BillingInvoiceStatus.PAID }),
+      },
+      clientNotificationPreference: {
+        findUnique: vi.fn().mockResolvedValue(null),
+      },
+      clientNotification: {
+        create: vi.fn().mockResolvedValue({ id: 'notification-1' }),
+      },
+    };
     const prisma = {
       billingInvoice: {
         findUnique: vi.fn().mockResolvedValue({
           id: 'invoice-1',
+          number: 'INV-202606-0001',
           clientId: 'client-1',
           totalRub: '100.00',
           paidRub: '40.00',
@@ -491,19 +503,28 @@ describe('BillingService', () => {
           paidAt: null,
         }),
       },
+      $transaction: vi.fn((callback) => callback(tx)),
     };
     const service = new BillingService(prisma as never, clientScopes());
 
-    await expect(
-      service.updateInvoiceStatus(
-        'invoice-1',
-        { status: BillingInvoiceStatus.PAID },
-        user({ clientIds: ['client-1'], writableClientIds: ['client-1'] }),
-      ),
-    ).rejects.toThrow(BadRequestException);
+    await service.updateInvoiceStatus(
+      'invoice-1',
+      { status: BillingInvoiceStatus.PAID },
+      user({ clientIds: ['client-1'], writableClientIds: ['client-1'] }),
+    );
+
+    expect(tx.billingInvoice.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: BillingInvoiceStatus.PAID,
+          paidRub: 100,
+          paidAt: expect.any(Date),
+        }),
+      }),
+    );
   });
 
-  it('создает клиентское уведомление при смене статуса счета', async () => {
+  it('СЃРѕР·РґР°РµС‚ РєР»РёРµРЅС‚СЃРєРѕРµ СѓРІРµРґРѕРјР»РµРЅРёРµ РїСЂРё СЃРјРµРЅРµ СЃС‚Р°С‚СѓСЃР° СЃС‡РµС‚Р°', async () => {
     const tx = {
       billingInvoice: {
         update: vi.fn().mockResolvedValue({ id: 'invoice-1', status: BillingInvoiceStatus.ISSUED }),
@@ -560,7 +581,7 @@ describe('BillingService', () => {
     );
   });
 
-  it('принимает оплату и закрывает счет при полной сумме', async () => {
+  it('РїСЂРёРЅРёРјР°РµС‚ РѕРїР»Р°С‚Сѓ Рё Р·Р°РєСЂС‹РІР°РµС‚ СЃС‡РµС‚ РїСЂРё РїРѕР»РЅРѕР№ СЃСѓРјРјРµ', async () => {
     const prisma = {
       billingInvoice: {
         findUnique: vi.fn().mockResolvedValue({
@@ -638,7 +659,7 @@ describe('BillingService', () => {
     );
   });
 
-  it('собирает сверку задолженности по доступным счетам клиента', async () => {
+  it('СЃРѕР±РёСЂР°РµС‚ СЃРІРµСЂРєСѓ Р·Р°РґРѕР»Р¶РµРЅРЅРѕСЃС‚Рё РїРѕ РґРѕСЃС‚СѓРїРЅС‹Рј СЃС‡РµС‚Р°Рј РєР»РёРµРЅС‚Р°', async () => {
     const prisma = {
       billingInvoice: {
         findMany: vi.fn().mockResolvedValue([
@@ -709,7 +730,7 @@ describe('BillingService', () => {
           billingCharge({
             id: 'charge-1',
             serviceId: 'service-1',
-            description: 'Приемка коробов',
+            description: 'РџСЂРёРµРјРєР° РєРѕСЂРѕР±РѕРІ',
             quantity: '2',
             totalRub: '200',
             status: BillingChargeStatus.APPROVED,
@@ -717,14 +738,14 @@ describe('BillingService', () => {
             service: {
               id: 'service-1',
               code: 'RECEIVING',
-              name: 'Приемка коробов',
+              name: 'РџСЂРёРµРјРєР° РєРѕСЂРѕР±РѕРІ',
               unit: BillingUnit.BOX,
             },
           }),
           billingCharge({
             id: 'charge-2',
             serviceId: 'service-1',
-            description: 'Приемка коробов',
+            description: 'РџСЂРёРµРјРєР° РєРѕСЂРѕР±РѕРІ',
             quantity: '3',
             totalRub: '300',
             status: BillingChargeStatus.DRAFT,
@@ -732,7 +753,7 @@ describe('BillingService', () => {
             service: {
               id: 'service-1',
               code: 'RECEIVING',
-              name: 'Приемка коробов',
+              name: 'РџСЂРёРµРјРєР° РєРѕСЂРѕР±РѕРІ',
               unit: BillingUnit.BOX,
             },
           }),
@@ -766,7 +787,7 @@ describe('BillingService', () => {
     expect(history.groups).toHaveLength(1);
     expect(history.groups[0]).toMatchObject({
       serviceCode: 'RECEIVING',
-      serviceName: 'Приемка коробов',
+      serviceName: 'РџСЂРёРµРјРєР° РєРѕСЂРѕР±РѕРІ',
       chargesCount: 2,
       quantity: 5,
       totalRub: 500,
@@ -804,7 +825,7 @@ function billingCharge(overrides: Record<string, unknown>) {
     clientId: 'client-1',
     serviceId: null,
     requestId: null,
-    description: 'Услуга',
+    description: 'РЈСЃР»СѓРіР°',
     unit: BillingUnit.SERVICE,
     quantity: '1',
     unitPriceRub: '100',

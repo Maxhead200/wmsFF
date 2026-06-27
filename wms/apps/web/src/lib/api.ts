@@ -91,6 +91,8 @@ export type BillingInvoiceStatus = 'DRAFT' | 'ISSUED' | 'PAID' | 'CANCELLED';
 
 export type BillingPaymentStatus = 'RECORDED' | 'CANCELLED';
 
+export type BillingPriceTaxMode = 'INCLUDED' | 'ADD_6_PERCENT';
+
 export type BillingServiceSummary = {
   id: string;
   code: string;
@@ -100,6 +102,16 @@ export type BillingServiceSummary = {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+};
+
+export type ClientBillingServiceSummary = {
+  id: string | null;
+  clientId: string;
+  service: BillingServiceSummary;
+  priceRub: string | number | null;
+  taxMode: BillingPriceTaxMode;
+  isActive: boolean;
+  comment: string | null;
 };
 
 export type BillingChargeSummary = {
@@ -410,6 +422,34 @@ export type CreateBillingInvoicePayload = {
   periodTo: string;
   dueDate?: string;
   chargeIds?: string[];
+  comment?: string;
+};
+
+export type UpsertClientBillingServicePayload = {
+  serviceId: string;
+  priceRub: number;
+  taxMode?: BillingPriceTaxMode;
+  isActive?: boolean;
+  comment?: string;
+};
+
+export type CreateManualBillingInvoiceLinePayload = {
+  serviceId?: string;
+  description?: string;
+  unit?: BillingUnit;
+  quantity: number;
+  unitPriceRub?: number;
+  taxMode?: BillingPriceTaxMode;
+  serviceDate?: string;
+  comment?: string;
+};
+
+export type CreateManualBillingInvoicePayload = {
+  clientId: string;
+  periodFrom: string;
+  periodTo: string;
+  dueDate?: string;
+  rows: CreateManualBillingInvoiceLinePayload[];
   comment?: string;
 };
 
@@ -2025,9 +2065,27 @@ export async function fetchBillingServices(accessToken: string) {
   });
 }
 
+export async function fetchClientBillingServices(accessToken: string, clientId: string) {
+  return request<ClientBillingServiceSummary[]>(`/billing/clients/${clientId}/services`, {
+    accessToken,
+  });
+}
+
 export async function createBillingService(accessToken: string, payload: CreateBillingServicePayload) {
   return request<BillingServiceSummary>('/billing/services', {
     method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function upsertClientBillingService(
+  accessToken: string,
+  clientId: string,
+  payload: UpsertClientBillingServicePayload,
+) {
+  return request<ClientBillingServiceSummary>(`/billing/clients/${clientId}/services`, {
+    method: 'PUT',
     body: payload,
     accessToken,
   });
@@ -2119,6 +2177,14 @@ export async function downloadBillingInvoiceActPdf(accessToken: string, invoiceI
 
 export async function createBillingInvoice(accessToken: string, payload: CreateBillingInvoicePayload) {
   return request<BillingInvoiceSummary>('/billing/invoices', {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function createManualBillingInvoice(accessToken: string, payload: CreateManualBillingInvoicePayload) {
+  return request<BillingInvoiceSummary>('/billing/invoices/manual', {
     method: 'POST',
     body: payload,
     accessToken,
@@ -2926,7 +2992,7 @@ function appendOptional(form: FormData, key: string, value?: string) {
 
 async function request<T>(
   path: string,
-  options: { method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'; body?: unknown; accessToken?: string } = {},
+  options: { method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'; body?: unknown; accessToken?: string } = {},
 ) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: options.method ?? 'GET',

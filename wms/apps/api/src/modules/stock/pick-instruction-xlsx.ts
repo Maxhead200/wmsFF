@@ -8,11 +8,35 @@ const XLSX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadshee
 export function buildPickInstructionWorkbook(document: PickInstructionDocument) {
   const workbook = XLSX.utils.book_new();
 
+  XLSX.utils.book_append_sheet(workbook, sheetFromRows(searchBoxRows(document), [24]), 'Короба для поиска');
   XLSX.utils.book_append_sheet(workbook, sheetFromRows(warehouseRows(document), [18, 20, 18, 28, 18, 12, 12, 28, 28, 42]), 'Поиск коробов');
   XLSX.utils.book_append_sheet(workbook, sheetFromRows(markRows(document), [18, 18, 20, 18, 18, 34, 28, 16, 16, 12, 18, 18]), 'Перемаркировка');
   XLSX.utils.book_append_sheet(workbook, sheetFromRows(balanceMoveRows(document), [20, 20, 18, 28, 18, 12, 12, 42]), 'Перемещения');
 
   return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+}
+
+function searchBoxRows(document: PickInstructionDocument): CellValue[][] {
+  const boxCodes = [
+    ...new Set(
+      [
+        ...document.warehouseRows.map((row) => row.sourceBox),
+        ...document.warehouseBalanceMoves.map((row) => row.sourceBox),
+        ...document.warehouseWholeBoxes.map((row) => row.box),
+      ]
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  ].sort((left, right) => left.localeCompare(right, 'ru', { numeric: true }));
+
+  const rows: CellValue[][] = [['Короб']];
+  boxCodes.forEach((boxCode) => rows.push([boxCode]));
+
+  if (rows.length === 1) {
+    rows.push(['Коробов для поиска нет.']);
+  }
+
+  return rows;
 }
 
 function warehouseRows(document: PickInstructionDocument): CellValue[][] {

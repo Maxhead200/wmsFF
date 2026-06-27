@@ -131,11 +131,13 @@ describe('PickInstructionService', () => {
 
     expect(file.fileName).toMatch(/\.xlsx$/);
     expect(file.mimeType).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    expect(workbook.SheetNames).toEqual(['Поиск коробов', 'Перемаркировка', 'Перемещения']);
+    expect(workbook.SheetNames).toEqual(['Короба для поиска', 'Поиск коробов', 'Перемаркировка', 'Перемещения']);
+    const searchBoxRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['Короба для поиска'], { defval: '' });
     const instructionRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['Поиск коробов'], { defval: '' });
     const markRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['Перемаркировка'], { defval: '' });
     const moveRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets['Перемещения'], { defval: '' });
 
+    expect(searchBoxRows).toEqual([{ Короб: 'BOX-1' }, { Короб: 'BOX-2' }]);
     expect(instructionRows[0]).toMatchObject({ 'Исходный короб': 'BOX-1', Количество: 2, Комментарий: 'ЦЕЛЫЙ' });
     expect(instructionRows[1]).toMatchObject({ 'Исходный короб': 'BOX-2', Количество: 5 });
     expect(Object.values(markRows[0])).toContain('Переклейки нет.');

@@ -2,6 +2,7 @@ import { ArrowRightLeft } from 'lucide-react';
 import type { AuthSession, AuthUser } from '../../lib/api';
 import { BoxTransferForm } from './BoxTransferForm';
 import { PickWavePanel } from './PickWavePanel';
+import { StoragePanel } from './StoragePanel';
 import './warehouse.css';
 
 type WarehouseOpsPanelProps = {
@@ -24,6 +25,7 @@ export function WarehouseOpsPanel({ session }: WarehouseOpsPanelProps) {
       </div>
 
       <BoxTransferForm session={session} />
+      <StoragePanel session={session} />
       <PickWavePanel session={session} />
     </section>
   );

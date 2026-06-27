@@ -369,6 +369,7 @@ export class ClientsService {
       bankBik: true,
       bankAccount: true,
       correspondentAccount: true,
+      storagePriceRubPerLiterDay: true,
       fulfillmentManagerUserId: true,
       fulfillmentManager: {
         select: {

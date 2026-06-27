@@ -7,6 +7,7 @@ import { StockController } from './stock.controller';
 import { StockBalancesService } from './stock-balances.service';
 import { StockLedgerService } from './stock-ledger.service';
 import { StockOperationsService } from './stock-operations.service';
+import { StorageOverviewService } from './storage-overview.service';
 import { VolumeService } from './volume.service';
 
 @Module({
@@ -16,6 +17,7 @@ import { VolumeService } from './volume.service';
     StockBalancesService,
     StockLedgerService,
     StockOperationsService,
+    StorageOverviewService,
     FulfillmentWaveService,
     PickInstructionService,
     PickWaveDocumentService,
@@ -25,6 +27,7 @@ import { VolumeService } from './volume.service';
     StockBalancesService,
     StockLedgerService,
     StockOperationsService,
+    StorageOverviewService,
     FulfillmentWaveService,
     PickInstructionService,
     PickWaveDocumentService,

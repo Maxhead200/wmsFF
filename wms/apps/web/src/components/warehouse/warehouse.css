@@ -150,6 +150,14 @@
   padding-top: 18px;
 }
 
+.storage-panel {
+  display: grid;
+  gap: 14px;
+  margin-top: 22px;
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+}
+
 .warehouse-subheading {
   display: flex;
   align-items: center;
@@ -159,6 +167,89 @@
 
 .warehouse-subheading h3 {
   font-size: 18px;
+}
+
+.warehouse-subheading span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.storage-controls {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.4fr) repeat(3, minmax(140px, 0.8fr)) auto auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.storage-controls label {
+  display: grid;
+  gap: 6px;
+}
+
+.storage-controls label span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.storage-controls input,
+.storage-controls select {
+  min-height: 40px;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfdff;
+  color: var(--ink);
+  padding: 0 11px;
+}
+
+.storage-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.storage-summary > div {
+  min-height: 72px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdff;
+  padding: 12px;
+}
+
+.storage-summary span,
+.storage-summary strong {
+  display: block;
+}
+
+.storage-summary span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.storage-summary strong {
+  margin-top: 6px;
+  font-size: 18px;
+}
+
+.storage-table-wrap {
+  overflow-x: auto;
+}
+
+.storage-table {
+  min-width: 1120px;
+}
+
+.storage-table td strong,
+.storage-table td span {
+  display: block;
+}
+
+.storage-table td span {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .pick-wave-layout {
@@ -239,7 +330,9 @@
 @media (max-width: 980px) {
   .warehouse-fields,
   .transfer-preview,
-  .pick-wave-layout {
+  .pick-wave-layout,
+  .storage-controls,
+  .storage-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -251,7 +344,9 @@
 
   .warehouse-fields,
   .transfer-preview,
-  .pick-wave-layout {
+  .pick-wave-layout,
+  .storage-controls,
+  .storage-summary {
     grid-template-columns: 1fr;
   }
 }

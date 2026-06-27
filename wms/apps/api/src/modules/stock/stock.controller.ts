@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, Res, StreamableFile } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Res, StreamableFile } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import type { AuthUser } from '../auth/auth.types';
@@ -6,16 +6,19 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { CreatePickWaveDto } from './dto/create-pick-wave.dto';
 import { FulfillClientRequestDto } from './dto/fulfill-client-request.dto';
+import { ListStorageOverviewDto } from './dto/list-storage-overview.dto';
 import { ListPickWavesDto } from './dto/list-pick-waves.dto';
 import { ListStockBalancesDto } from './dto/list-stock-balances.dto';
 import { PickClientRequestDto } from './dto/pick-client-request.dto';
 import { RunPickWaveDto } from './dto/run-pick-wave.dto';
 import { TransferBetweenBoxesDto } from './dto/transfer-between-boxes.dto';
+import { UpdateStorageTariffDto } from './dto/update-storage-tariff.dto';
 import { FulfillmentWaveService } from './fulfillment-wave.service';
 import { PickInstructionService } from './pick-instruction.service';
 import { PickWaveDocumentService } from './pick-wave-document.service';
 import { StockBalancesService } from './stock-balances.service';
 import { StockOperationsService } from './stock-operations.service';
+import { StorageOverviewService } from './storage-overview.service';
 
 @ApiTags('stock')
 @RequirePermissions('stock:read')
@@ -27,11 +30,27 @@ export class StockController {
     private readonly waves: FulfillmentWaveService,
     private readonly waveDocuments: PickWaveDocumentService,
     private readonly pickInstructions: PickInstructionService,
+    private readonly storageOverview: StorageOverviewService,
   ) {}
 
   @Get('balances')
   listBalances(@Query() query: ListStockBalancesDto, @CurrentUser() user: AuthUser) {
     return this.balances.list(query, user);
+  }
+
+  @Get('storage')
+  listStorage(@Query() query: ListStorageOverviewDto, @CurrentUser() user: AuthUser) {
+    return this.storageOverview.getOverview(query, user);
+  }
+
+  @Patch('storage/:clientId/tariff')
+  @RequirePermissions('stock:write')
+  updateStorageTariff(
+    @Param('clientId') clientId: string,
+    @Body() dto: UpdateStorageTariffDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.storageOverview.updateTariff(clientId, dto, user);
   }
 
   @Post('transfers/box-to-box')

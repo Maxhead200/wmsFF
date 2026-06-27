@@ -33,6 +33,7 @@ export type ClientSummary = {
   bankBik: string | null;
   bankAccount: string | null;
   correspondentAccount: string | null;
+  storagePriceRubPerLiterDay: string | number | null;
   fulfillmentManagerUserId: string | null;
   fulfillmentManager: {
     id: string;
@@ -1057,6 +1058,52 @@ export type StockBalance = {
     code: string;
     status: string;
   } | null;
+};
+
+export type StorageOverviewRow = {
+  skuId: string;
+  barcode: string;
+  name: string;
+  internalSku: string;
+  marketplaceArticle: string;
+  size: string;
+  lengthCm: number | null;
+  widthCm: number | null;
+  heightCm: number | null;
+  volumeLiters: number;
+  quantity: number;
+  totalLiters: number;
+  boxesCount: number;
+  palletsCount: number;
+  boxCodes: string[];
+  palletCodes: string[];
+  firstReceiptDate: string | null;
+  literDays: number;
+  storageCostRub: number;
+};
+
+export type StorageOverview = {
+  client: Pick<ClientSummary, 'id' | 'code' | 'name'> & {
+    storagePriceRubPerLiterDay: string | number | null;
+  };
+  periodFrom: string;
+  periodTo: string;
+  tariffRubPerLiterDay: number;
+  totals: {
+    skuCount: number;
+    quantity: number;
+    totalLiters: number;
+    literDays: number;
+    storageCostRub: number;
+  };
+  rows: StorageOverviewRow[];
+  daily: Array<{
+    date: string;
+    totalLiters: number;
+    literDays: number;
+    positions: number;
+  }>;
+  skippedWithoutVolume: number;
 };
 
 export type SkuSummary = {
@@ -2199,6 +2246,30 @@ export async function fetchStockBalances(accessToken: string, filter: { clientId
   return request<StockBalance[]>(withQuery('/stock/balances', filter), {
     accessToken,
   });
+}
+
+export async function fetchStorageOverview(
+  accessToken: string,
+  filter: { clientId: string; periodFrom?: string; periodTo?: string },
+) {
+  return request<StorageOverview>(withQuery('/stock/storage', filter), {
+    accessToken,
+  });
+}
+
+export async function updateStorageTariff(
+  accessToken: string,
+  clientId: string,
+  payload: { storagePriceRubPerLiterDay: number },
+) {
+  return request<Pick<ClientSummary, 'id' | 'code' | 'name' | 'storagePriceRubPerLiterDay'>>(
+    `/stock/storage/${clientId}/tariff`,
+    {
+      method: 'PATCH',
+      body: payload,
+      accessToken,
+    },
+  );
 }
 
 export async function fetchMarketplaceConnections(accessToken: string, filter: { clientId?: string } = {}) {

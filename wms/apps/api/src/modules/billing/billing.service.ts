@@ -179,6 +179,12 @@ export class BillingService {
     }
 
     const storageService = await this.ensureStorageService();
+    const client = this.prisma.client?.findUnique
+      ? await this.prisma.client.findUnique({
+          where: { id: dto.clientId },
+          select: { storagePriceRubPerLiterDay: true },
+        })
+      : null;
     const movements = await this.prisma.stockMovement.findMany({
       where: {
         clientId: dto.clientId,
@@ -221,7 +227,8 @@ export class BillingService {
           })
         : [];
 
-    const unitPriceRub = dto.unitPriceRub ?? decimalToNumber(storageService.defaultPriceRub);
+    const unitPriceRub =
+      dto.unitPriceRub ?? decimalToNumber(client?.storagePriceRubPerLiterDay) ?? decimalToNumber(storageService.defaultPriceRub);
     if (unitPriceRub == null) {
       throw new BadRequestException('Для хранения нужна цена за литро-день.');
     }

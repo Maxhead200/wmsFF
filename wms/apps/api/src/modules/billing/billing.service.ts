@@ -206,6 +206,9 @@ export class BillingService {
             internalSku: true,
             name: true,
             volumeLiters: true,
+            lengthCm: true,
+            widthCm: true,
+            heightCm: true,
           },
         },
       },
@@ -226,6 +229,9 @@ export class BillingService {
                   internalSku: true,
                   name: true,
                   volumeLiters: true,
+                  lengthCm: true,
+                  widthCm: true,
+                  heightCm: true,
                 },
               },
             },
@@ -979,14 +985,14 @@ function countInclusiveDays(periodFrom: Date, periodTo: Date) {
 }
 
 function calculateStorageDetails(
-  balances: Array<{ quantity: number; sku: { volumeLiters: Prisma.Decimal | string | number | null } }>,
+  balances: Array<{ quantity: number; sku: StorageSkuVolumeSource }>,
   days: number,
 ) {
   let totalLiters = 0;
   let skippedWithoutVolume = 0;
 
   balances.forEach((balance) => {
-    const volumeLiters = decimalToNumber(balance.sku.volumeLiters);
+    const volumeLiters = calculateSkuVolumeLiters(balance.sku);
     if (!volumeLiters || volumeLiters <= 0) {
       skippedWithoutVolume += 1;
       return;
@@ -1018,8 +1024,7 @@ function calculateHistoricalStorageDetails(
       id: string;
       internalSku: string;
       name: string;
-      volumeLiters: Prisma.Decimal | string | number | null;
-    };
+    } & StorageSkuVolumeSource;
   }>,
   periodFrom: Date,
   periodTo: Date,
@@ -1039,7 +1044,7 @@ function calculateHistoricalStorageDetails(
 
     while (movementIndex < sorted.length && sorted[movementIndex].createdAt <= dayEnd) {
       const movement = sorted[movementIndex];
-      const volumeLiters = decimalToNumber(movement.sku.volumeLiters) ?? null;
+      const volumeLiters = calculateSkuVolumeLiters(movement.sku) || null;
       const key = `${movement.skuId}:${movement.status}`;
       const current =
         quantities.get(key) ??
@@ -1133,6 +1138,29 @@ type HistoricalSkuTotal = {
   volumeLiters: number;
   literDays: number;
 };
+
+type StorageSkuVolumeSource = {
+  volumeLiters: Prisma.Decimal | string | number | null;
+  lengthCm?: Prisma.Decimal | string | number | null;
+  widthCm?: Prisma.Decimal | string | number | null;
+  heightCm?: Prisma.Decimal | string | number | null;
+};
+
+function calculateSkuVolumeLiters(sku: StorageSkuVolumeSource) {
+  const storedVolume = decimalToNumber(sku.volumeLiters);
+  if (storedVolume && storedVolume > 0) {
+    return roundQuantity(storedVolume);
+  }
+
+  const lengthCm = decimalToNumber(sku.lengthCm);
+  const widthCm = decimalToNumber(sku.widthCm);
+  const heightCm = decimalToNumber(sku.heightCm);
+  if (!lengthCm || !widthCm || !heightCm || lengthCm <= 0 || widthCm <= 0 || heightCm <= 0) {
+    return 0;
+  }
+
+  return roundQuantity((lengthCm * widthCm * heightCm) / 1000);
+}
 
 function listPeriodDays(periodFrom: Date, periodTo: Date) {
   const days: Date[] = [];

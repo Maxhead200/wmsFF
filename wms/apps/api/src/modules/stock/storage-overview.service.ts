@@ -133,7 +133,7 @@ function groupCurrentStorage(balances: StorageBalanceForOverview[]) {
   const result = new Map<string, StorageOverviewRow>();
 
   balances.forEach((balance) => {
-    const volumeLiters = decimalToNumber(balance.sku.volumeLiters) ?? 0;
+    const volumeLiters = calculateSkuVolumeLiters(balance.sku);
     const existing = result.get(balance.skuId) ?? {
       skuId: balance.skuId,
       barcode: primaryBarcode(balance.sku),
@@ -242,13 +242,14 @@ function applyStorageMovement(
   movement: StorageMovementForOverview,
   firstReceiptBySku: Map<string, Date>,
 ) {
+  const volumeLiters = calculateSkuVolumeLiters(movement.sku);
   const current = state.get(movement.skuId) ?? {
     skuId: movement.skuId,
     quantity: 0,
-    volumeLiters: decimalToNumber(movement.sku.volumeLiters) ?? 0,
+    volumeLiters,
   };
   current.quantity += movement.quantity;
-  current.volumeLiters = decimalToNumber(movement.sku.volumeLiters) ?? current.volumeLiters;
+  current.volumeLiters = volumeLiters || current.volumeLiters;
   state.set(movement.skuId, current);
 
   if (movement.quantity > 0 && !firstReceiptBySku.has(movement.skuId)) {
@@ -346,6 +347,27 @@ function marketplaceArticle(sku: {
 
 function decimalToNumber(value: Prisma.Decimal | string | number | null | undefined) {
   return value == null ? undefined : Number(value);
+}
+
+function calculateSkuVolumeLiters(sku: {
+  volumeLiters?: Prisma.Decimal | string | number | null;
+  lengthCm?: Prisma.Decimal | string | number | null;
+  widthCm?: Prisma.Decimal | string | number | null;
+  heightCm?: Prisma.Decimal | string | number | null;
+}) {
+  const storedVolume = decimalToNumber(sku.volumeLiters);
+  if (storedVolume && storedVolume > 0) {
+    return roundQuantity(storedVolume);
+  }
+
+  const lengthCm = decimalToNumber(sku.lengthCm);
+  const widthCm = decimalToNumber(sku.widthCm);
+  const heightCm = decimalToNumber(sku.heightCm);
+  if (!lengthCm || !widthCm || !heightCm || lengthCm <= 0 || widthCm <= 0 || heightCm <= 0) {
+    return 0;
+  }
+
+  return roundQuantity((lengthCm * widthCm * heightCm) / 1000);
 }
 
 function roundQuantity(value: number) {

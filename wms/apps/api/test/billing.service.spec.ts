@@ -248,6 +248,66 @@ describe('BillingService', () => {
     );
   });
 
+  it('calculates storage volume from dimensions when saved liters are empty', async () => {
+    const prisma = {
+      billingService: {
+        upsert: vi.fn().mockResolvedValue({
+          id: 'service-storage',
+          code: 'STORAGE_LITER_DAY',
+          defaultPriceRub: null,
+        }),
+      },
+      billingCharge: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({ id: 'charge-storage' }),
+      },
+      stockMovement: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      stockBalance: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            quantity: 2,
+            sku: {
+              id: 'sku-1',
+              internalSku: 'SKU-1',
+              name: 'Товар с габаритами',
+              volumeLiters: null,
+              lengthCm: '43',
+              widthCm: '33',
+              heightCm: '6',
+            },
+          },
+        ]),
+      },
+    };
+    const service = new BillingService(prisma as never, clientScopes());
+
+    await service.generateStorageCharge(
+      {
+        clientId: 'client-1',
+        periodFrom: '2026-06-01',
+        periodTo: '2026-06-03',
+        unitPriceRub: 0.06,
+      },
+      user({ clientIds: ['client-1'], writableClientIds: ['client-1'] }),
+    );
+
+    expect(prisma.billingCharge.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          quantity: 51.084,
+          totalRub: 3.07,
+          metadata: expect.objectContaining({
+            totalLiters: 17.028,
+            literDays: 51.084,
+            skippedWithoutVolume: 0,
+          }),
+        }),
+      }),
+    );
+  });
+
   it('updates repeated automatic storage charge before invoice creation', async () => {
     const prisma = {
       billingService: {

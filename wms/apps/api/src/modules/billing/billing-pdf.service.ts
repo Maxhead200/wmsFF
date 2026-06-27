@@ -4,6 +4,18 @@ import type { Content, TableCell, TDocumentDefinitions } from 'pdfmake/interface
 import { configurePdfMake } from '../../common/pdf/pdfmake';
 import type { AuthUser } from '../auth/auth.types';
 import { BillingDocumentService, BillingPrintableDocument } from './billing-document.service';
+import {
+  BILLING_SELLER,
+  actDisplayNumber,
+  amountInWordsRub,
+  billingAssetDataUrl,
+  formatDate,
+  formatLongDate,
+  formatMoney,
+  formatNumber,
+  invoiceDisplayNumber,
+  unitLabel,
+} from './billing-printing';
 
 export type BillingPdfFile = {
   fileName: string;
@@ -40,259 +52,398 @@ export class BillingPdfService {
 }
 
 function invoiceDefinition(document: BillingPrintableDocument): TDocumentDefinitions {
+  const number = invoiceDisplayNumber(document.number);
+  const issuedAt = document.issuedAt ?? new Date().toISOString();
+
   return baseDefinition(document, [
-    documentHeader(document),
-    metaGrid([
-      ['Клиент', clientLines(document)],
-      ['Документ', [`Выставлен: ${formatDate(document.issuedAt)}`, `Оплатить до: ${formatDate(document.dueDate)}`, `Ответственный: ${document.createdBy?.name ?? '-'}`]],
-    ]),
-    sectionTitle('Позиции'),
-    positionsTable(document),
-    totalsBlock(document, true),
-    paymentsBlock(document),
+    invoiceTopNotice(document),
+    paymentOrderSample(document),
+    {
+      text: `Счет на оплату № ${number} от ${formatLongDate(issuedAt)}`,
+      bold: true,
+      fontSize: 15,
+      margin: [0, 18, 0, 10],
+    },
+    horizontalLine(),
+    requisitesLine('Поставщик:', `${BILLING_SELLER.fullName}, ИНН ${BILLING_SELLER.inn}, ${BILLING_SELLER.address}`),
+    requisitesLine('Покупатель:', clientName(document)),
+    positionsTable(document, 'Товары (работы, услуги)'),
+    invoiceTotals(document),
+    totalInWords(document, 'Всего наименований'),
+    horizontalLine([0, 14, 0, 16]),
+    invoiceSignaturesBlock(),
   ]);
 }
 
 function actDefinition(document: BillingPrintableDocument): TDocumentDefinitions {
+  const number = actDisplayNumber(document.actNumber, document.number);
+  const issuedAt = document.issuedAt ?? new Date().toISOString();
+
   return baseDefinition(document, [
-    documentHeader(document, `Основание: счет № ${document.number}`),
-    metaGrid([
-      ['Заказчик', clientLines(document)],
-      ['Исполнитель', ['LOGOFF Fulfillment WMS', `Дата акта: ${formatDate(document.issuedAt ?? new Date().toISOString())}`, `Ответственный: ${document.createdBy?.name ?? '-'}`]],
-    ]),
-    sectionTitle('Оказанные услуги'),
-    positionsTable(document),
-    totalsBlock(document, false),
     {
-      text: 'Услуги оказаны в полном объеме за указанный период. Стороны подтверждают состав и стоимость услуг по настоящему акту.',
-      margin: [0, 12, 0, 22],
+      text: `Акт № ${number} от ${formatLongDate(issuedAt)}`,
+      bold: true,
+      fontSize: 17,
+      margin: [0, 0, 0, 6],
     },
-    signaturesBlock(),
+    horizontalLine([0, 0, 0, 12]),
+    requisitesLine('Исполнитель:', BILLING_SELLER.fullName),
+    requisitesLine('Заказчик:', clientName(document)),
+    positionsTable(document, 'Наименование работ, услуг'),
+    actTotals(document),
+    totalInWords(document, 'Всего оказано услуг'),
+    {
+      text: 'Вышеперечисленные услуги выполнены полностью и в срок. Заказчик претензий по объему, качеству и срокам оказания услуг не имеет.',
+      fontSize: 10,
+      margin: [0, 14, 0, 8],
+    },
+    horizontalLine([0, 0, 0, 22]),
+    actSignaturesBlock(),
   ]);
 }
 
 function baseDefinition(document: BillingPrintableDocument, content: Content[]): TDocumentDefinitions {
   return {
     pageSize: 'A4',
-    pageMargins: [36, 42, 36, 48],
+    pageMargins: [34, 38, 34, 42],
     info: {
       title: document.title,
-      subject: document.documentKind === 'act' ? 'Акт оказанных услуг' : 'Счет',
-      author: 'LOGOFF WMS',
+      subject: document.documentKind === 'act' ? 'Акт оказанных услуг' : 'Счет на оплату',
+      author: BILLING_SELLER.shortName,
       creator: 'LOGOFF WMS',
     },
     defaultStyle: {
       font: 'DejaVuSans',
       fontSize: 9,
-      color: '#111827',
+      color: '#111111',
     },
-    footer: (currentPage, pageCount) => ({
-      columns: [
-        { text: 'LOGOFF WMS', color: '#64748b', fontSize: 8 },
-        { text: `${currentPage} / ${pageCount}`, alignment: 'right', color: '#64748b', fontSize: 8 },
-      ],
-      margin: [36, 0, 36, 0],
-    }),
     styles: {
-      title: { fontSize: 18, bold: true, margin: [0, 0, 0, 4] },
-      muted: { color: '#64748b' },
-      section: { fontSize: 12, bold: true, margin: [0, 16, 0, 8] },
-      boxTitle: { bold: true, margin: [0, 0, 0, 5] },
-      tableHeader: { bold: true, color: '#334155', fillColor: '#f1f5f9' },
-      total: { bold: true, fontSize: 11 },
+      tableHeader: { bold: true, fontSize: 10 },
+      total: { bold: true, fontSize: 10 },
+      small: { fontSize: 7 },
+      signatureCaption: { fontSize: 7, alignment: 'center' },
     },
     content,
   };
 }
 
-function documentHeader(document: BillingPrintableDocument, suffix?: string): Content {
-  const subtitle = [
-    suffix,
-    `Статус: ${document.statusLabel}`,
-    `Период: ${formatDate(document.periodFrom)} - ${formatDate(document.periodTo)}`,
-  ]
-    .filter(Boolean)
-    .join(' · ');
-
-  return [
-    { text: document.title, style: 'title' },
-    { text: subtitle, style: 'muted' },
-  ];
-}
-
-function metaGrid(boxes: Array<[string, string[]]>): Content {
+function invoiceTopNotice(document: BillingPrintableDocument): Content {
   return {
-    table: {
-      widths: ['*', '*'],
-      body: [
-        boxes.map(([title, lines]) => ({
-          stack: [{ text: title, style: 'boxTitle' }, ...lines.map((line) => ({ text: line }))],
-          margin: [8, 7, 8, 7],
-        })),
-      ],
-    },
-    layout: {
-      hLineColor: () => '#d7dde5',
-      vLineColor: () => '#d7dde5',
-      paddingLeft: () => 0,
-      paddingRight: () => 0,
-      paddingTop: () => 0,
-      paddingBottom: () => 0,
-    },
-    margin: [0, 16, 0, 0],
+    columns: [
+      {
+        stack: [
+          {
+            text: [
+              { text: '■ ', color: '#e30613', fontSize: 10 },
+              { text: 'LOGOff', color: '#e30613', bold: true, fontSize: 14, decoration: 'underline' },
+            ],
+            margin: [0, 24, 0, 0],
+          },
+        ],
+        width: 82,
+      },
+      {
+        stack: [
+          { text: `Внимание! Счет действителен до ${formatDate(document.dueDate ?? document.issuedAt)}.`, alignment: 'center' },
+          { text: 'Оплата данного счета означает согласие с условиями поставки товара.', alignment: 'center' },
+          {
+            text: 'Уведомление об оплате обязательно, в противном случае не гарантируется наличие товара на складе. Товар отпускается по факту прихода денег на р/с Поставщика, самовывозом, при наличии доверенности и паспорта.',
+            alignment: 'center',
+          },
+        ],
+        width: '*',
+      },
+      { text: '', width: 82 },
+    ],
+    margin: [0, 0, 0, 16],
   };
 }
 
-function clientLines(document: BillingPrintableDocument) {
+function paymentOrderSample(document: BillingPrintableDocument): Content {
   return [
-    `${document.client.legalName || document.client.name} (${document.client.code})`,
-    taxLine(document),
-    document.client.legalAddress ? `Юр. адрес: ${document.client.legalAddress}` : '',
-    document.client.actualAddress ? `Факт. адрес: ${document.client.actualAddress}` : '',
-    document.client.phone || document.client.email ? contactLine(document) : '',
-    document.client.bankName ? `Банк: ${document.client.bankName}` : '',
-    bankAccountLine(document),
-  ].filter(Boolean);
+    { text: 'Образец заполнения платежного поручения', bold: true, fontSize: 11, alignment: 'center', margin: [0, 0, 0, 1] },
+    {
+      table: {
+        widths: ['22%', '23%', '8%', '16%', '10%', '21%'],
+        body: [
+          [
+            spanCell(BILLING_SELLER.bankName, 2, { border: [true, true, false, false] }),
+            emptyCell(),
+            labelCell('БИК'),
+            spanCell(BILLING_SELLER.bankBik, 3),
+            emptyCell(),
+            emptyCell(),
+          ],
+          [
+            spanCell('Банк получателя', 2, { style: 'small', border: [true, false, false, true] }),
+            emptyCell(),
+            labelCell('Сч. №'),
+            spanCell(BILLING_SELLER.correspondentAccount, 3),
+            emptyCell(),
+            emptyCell(),
+          ],
+          [
+            labelValueCell(`ИНН  ${BILLING_SELLER.inn}`),
+            labelValueCell('КПП'),
+            labelCell('Сч. №'),
+            spanCell(BILLING_SELLER.bankAccount, 3),
+            emptyCell(),
+            emptyCell(),
+          ],
+          [
+            spanCell(BILLING_SELLER.shortName, 2, { border: [true, true, false, false] }),
+            emptyCell(),
+            labelCell('Вид оп.'),
+            labelValueCell('01'),
+            labelCell('Срок плат.'),
+            labelValueCell(''),
+          ],
+          [
+            spanCell('', 2, { border: [true, false, false, false] }),
+            emptyCell(),
+            labelCell('Наз. пл.'),
+            labelValueCell(''),
+            labelCell('Очер. плат.'),
+            labelValueCell('5'),
+          ],
+          [
+            spanCell('', 2, { border: [true, false, false, false] }),
+            emptyCell(),
+            labelCell('Код'),
+            labelValueCell(`${BILLING_SELLER.paymentPurposeCode}\n${BILLING_SELLER.paymentCode}`, 'small'),
+            labelCell('Рез. поле'),
+            labelValueCell(''),
+          ],
+          [
+            spanCell('Получатель', 2, { style: 'small', border: [true, false, false, true] }),
+            emptyCell(),
+            emptyCell({ border: [true, false, true, true] }),
+            emptyCell(),
+            emptyCell(),
+            emptyCell({ border: [false, false, true, true] }),
+          ],
+          [
+            spanCell(`Оплата по реализации товаров и услуг №${invoiceDisplayNumber(document.number)}`, 6, { border: [true, true, true, false] }),
+            emptyCell(),
+            emptyCell(),
+            emptyCell(),
+            emptyCell(),
+            emptyCell(),
+          ],
+          [spanCell('Назначение платежа', 6, { style: 'small', border: [true, false, true, true] }), emptyCell(), emptyCell(), emptyCell(), emptyCell(), emptyCell()],
+        ],
+      },
+      layout: blackLayout(),
+      margin: [0, 0, 0, 0],
+    },
+  ];
 }
 
-function taxLine(document: BillingPrintableDocument) {
-  return [
-    `ИНН: ${document.client.inn ?? '-'}`,
-    `КПП: ${document.client.kpp ?? '-'}`,
-    document.client.ogrn ? `ОГРН: ${document.client.ogrn}` : '',
-  ]
-    .filter(Boolean)
-    .join(' · ');
-}
-
-function contactLine(document: BillingPrintableDocument) {
-  return [`Телефон: ${document.client.phone ?? '-'}`, `Почта: ${document.client.email ?? '-'}`].join(' · ');
-}
-
-function bankAccountLine(document: BillingPrintableDocument) {
-  return [
-    document.client.bankBik ? `БИК: ${document.client.bankBik}` : '',
-    document.client.bankAccount ? `Р/с: ${document.client.bankAccount}` : '',
-    document.client.correspondentAccount ? `К/с: ${document.client.correspondentAccount}` : '',
-  ]
-    .filter(Boolean)
-    .join(' · ');
-}
-
-function sectionTitle(text: string): Content {
-  return { text, style: 'section' };
-}
-
-function positionsTable(document: BillingPrintableDocument): Content {
-  const header = ['№', 'Услуга', 'Дата', 'Кол-во', 'Цена', 'Сумма'].map(headerCell);
+function positionsTable(document: BillingPrintableDocument, descriptionHeader: string): Content {
+  const header = ['№', descriptionHeader, 'Количество', 'Цена', 'Сумма'].map(headerCell);
   const rows = document.rows.map((row) => [
     cell(String(row.position), 'center'),
     cell(row.description),
-    cell(formatDate(row.serviceDate), 'center'),
-    cell(formatNumber(row.quantity), 'right'),
-    cell(`${formatMoney(row.unitPriceRub)} руб.`, 'right'),
-    cell(`${formatMoney(row.totalRub)} руб.`, 'right'),
+    cell(`${formatNumber(row.quantity)} ${unitLabel(row.unit)}`, 'right'),
+    cell(formatMoney(row.unitPriceRub), 'right'),
+    cell(formatMoney(row.totalRub), 'right'),
   ]);
 
   return {
     table: {
       headerRows: 1,
-      widths: [20, '*', 46, 42, 54, 60],
+      widths: [26, '*', 74, 66, 66],
       body: [header, ...rows],
       dontBreakRows: true,
     },
-    layout: 'lightHorizontalLines',
-    fontSize: 8,
+    layout: blackLayout(),
+    margin: [0, 12, 0, 0],
   };
 }
 
-function totalsBlock(document: BillingPrintableDocument, includePaymentBalance: boolean): Content {
-  const lines: Content[] = [
-    { text: `Итого: ${formatMoney(document.totalRub)} руб.`, style: 'total', alignment: 'right' },
-  ];
-
-  if (includePaymentBalance) {
-    lines.push(
-      { text: `Оплачено: ${formatMoney(document.paidRub)} руб.`, alignment: 'right' },
-      { text: `К оплате: ${formatMoney(document.remainingRub)} руб.`, alignment: 'right' },
-    );
-  } else {
-    lines.push({ text: `Итого оказано услуг на сумму: ${formatMoney(document.totalRub)} руб.`, alignment: 'right' });
-  }
-
-  return { stack: lines, margin: [0, 10, 0, 0] };
+function invoiceTotals(document: BillingPrintableDocument): Content {
+  return totalsColumns([
+    ['Итого:', formatMoney(document.totalRub)],
+    ['НДС (Без НДС):', '-'],
+    ['Итого с НДС:', formatMoney(document.totalRub)],
+  ]);
 }
 
-function paymentsBlock(document: BillingPrintableDocument): Content {
-  if (document.payments.length === 0) {
-    return [];
-  }
-
-  return [
-    sectionTitle('Оплаты'),
-    {
-      table: {
-        headerRows: 1,
-        widths: [62, '*', '*', 70],
-        body: [
-          ['Дата', 'Способ', 'Номер', 'Сумма'].map(headerCell),
-          ...document.payments.map((payment) => [
-            cell(formatDate(payment.paidAt), 'center'),
-            cell(payment.method ?? '-'),
-            cell(payment.reference ?? '-'),
-            cell(`${formatMoney(payment.amountRub)} руб.`, 'right'),
-          ]),
-        ],
-      },
-      layout: 'lightHorizontalLines',
-      fontSize: 8,
-    },
-  ];
+function actTotals(document: BillingPrintableDocument): Content {
+  return totalsColumns([
+    ['Итого:', formatMoney(document.totalRub)],
+    ['Сумма НДС:', '-'],
+  ]);
 }
 
-function signaturesBlock(): Content {
+function totalsColumns(rows: Array<[string, string]>): Content {
   return {
     columns: [
-      signatureColumn('Исполнитель'),
-      signatureColumn('Заказчик'),
+      { text: '', width: '*' },
+      {
+        table: {
+          widths: [100, 86],
+          body: rows.map(([label, value]) => [
+            { text: label, bold: true, alignment: 'right', border: [false, false, false, false] },
+            { text: value, bold: true, alignment: 'right', border: [false, false, false, false] },
+          ]),
+        },
+        layout: 'noBorders',
+        width: 200,
+      },
     ],
-    columnGap: 28,
+    margin: [0, 7, 0, 0],
   };
 }
 
-function signatureColumn(title: string): Content {
+function totalInWords(document: BillingPrintableDocument, prefix: string): Content {
   return {
     stack: [
-      { text: title, bold: true },
-      {
-        canvas: [{ type: 'line', x1: 0, y1: 34, x2: 220, y2: 34, lineWidth: 0.7, lineColor: '#111827' }],
-        margin: [0, 0, 0, 4],
-      },
-      { text: 'Подпись / расшифровка', color: '#64748b', fontSize: 8 },
+      { text: `${prefix} ${document.rows.length}, на сумму ${formatMoney(document.totalRub)} RUB`, margin: [0, 4, 0, 2] },
+      { text: amountInWordsRub(document.totalRub), bold: true },
     ],
+    margin: [0, 5, 0, 0],
+  };
+}
+
+function invoiceSignaturesBlock(): Content {
+  return {
+    stack: [
+      signatureRow('Генеральный\nдиректор', true),
+      signatureRow('Бухгалтер', false),
+      signatureRow('Менеджер', false),
+    ],
+  };
+}
+
+function actSignaturesBlock(): Content {
+  return {
+    columns: [
+      signatureColumn('Исполнитель', true),
+      signatureColumn('Заказчик', false),
+    ],
+    columnGap: 36,
+  };
+}
+
+function signatureRow(title: string, withAssets: boolean): Content {
+  return {
+    columns: [
+      { text: title, bold: true, width: 72, margin: [0, 7, 0, 0] },
+      signatureLineStack(withAssets, 156),
+      { text: '', width: 26 },
+      signatureLineStack(false, 204),
+    ],
+    margin: [0, 0, 0, 15],
+  };
+}
+
+function signatureColumn(title: string, withAssets: boolean): Content {
+  return {
+    stack: [
+      withAssets ? assetsStampStack() : { text: '', margin: [0, 70, 0, 0] },
+      {
+        columns: [
+          { text: title, bold: true, width: 82, margin: [0, 4, 0, 0] },
+          signatureLineStack(false, 132),
+        ],
+      },
+    ],
+  };
+}
+
+function signatureLineStack(withAssets: boolean, width: number): Content {
+  return {
+    stack: [
+      withAssets ? assetsSmallStack() : { text: '', margin: [0, 34, 0, 0] },
+      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: width, y2: 0, lineWidth: 0.6 }] },
+      { text: 'подпись', style: 'signatureCaption' },
+    ],
+    width,
+  } as unknown as Content;
+}
+
+function assetsSmallStack(): Content {
+  const signature = billingAssetDataUrl('signature');
+  const stamp = billingAssetDataUrl('stamp');
+  const stack: Content[] = [];
+  if (stamp) {
+    stack.push({ image: stamp, width: 70, opacity: 0.78, margin: [18, -8, 0, -58] });
+  }
+  if (signature) {
+    stack.push({ image: signature, width: 110, opacity: 0.9, margin: [4, -6, 0, -4] });
+  }
+  return stack.length ? { stack } : { text: '', margin: [0, 34, 0, 0] };
+}
+
+function assetsStampStack(): Content {
+  const signature = billingAssetDataUrl('signature');
+  const stamp = billingAssetDataUrl('stamp');
+  const stack: Content[] = [];
+  if (stamp) {
+    stack.push({ image: stamp, width: 112, opacity: 0.82, margin: [90, -6, 0, -92] });
+  }
+  if (signature) {
+    stack.push({ image: signature, width: 124, opacity: 0.9, margin: [76, 6, 0, -4] });
+  }
+  return stack.length ? { stack, margin: [0, 0, 0, 0] } : { text: '', margin: [0, 70, 0, 0] };
+}
+
+function requisitesLine(label: string, value: string): Content {
+  return {
+    columns: [
+      { text: label, width: 84 },
+      { text: value, bold: true, width: '*' },
+    ],
+    margin: [0, 6, 0, 0],
+  };
+}
+
+function clientName(document: BillingPrintableDocument) {
+  const client = document.client.legalName || document.client.name;
+  return [client, document.client.inn ? `ИНН ${document.client.inn}` : ''].filter(Boolean).join(', ');
+}
+
+function horizontalLine(margin: [number, number, number, number] = [0, 0, 0, 8]): Content {
+  return {
+    canvas: [{ type: 'line', x1: 0, y1: 0, x2: 527, y2: 0, lineWidth: 1.2 }],
+    margin,
+  };
+}
+
+function blackLayout() {
+  return {
+    hLineColor: () => '#222222',
+    vLineColor: () => '#222222',
+    hLineWidth: () => 0.6,
+    vLineWidth: () => 0.6,
+    paddingLeft: () => 2,
+    paddingRight: () => 2,
+    paddingTop: () => 2,
+    paddingBottom: () => 2,
   };
 }
 
 function headerCell(text: string): TableCell {
-  return { text, style: 'tableHeader' };
+  return { text, style: 'tableHeader', alignment: text === '№' ? 'center' : text === 'Количество' || text === 'Цена' || text === 'Сумма' ? 'center' : 'left' };
 }
 
 function cell(text: string, alignment?: 'left' | 'center' | 'right'): TableCell {
   return { text, alignment };
 }
 
-function formatDate(value: string | null) {
-  if (!value) {
-    return '-';
-  }
-
-  return new Intl.DateTimeFormat('ru-RU').format(new Date(value));
+function spanCell(text: string, colSpan: number, extra: Partial<TableCell> = {}): TableCell {
+  return { text, colSpan, ...extra } as TableCell;
 }
 
-function formatMoney(value: number) {
-  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2, minimumFractionDigits: 2 }).format(value);
+function emptyCell(extra: Partial<TableCell> = {}): TableCell {
+  return { text: '', ...extra } as TableCell;
 }
 
-function formatNumber(value: number) {
-  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 3 }).format(value);
+function labelCell(text: string): TableCell {
+  return { text, bold: true };
+}
+
+function labelValueCell(text: string, style?: string): TableCell {
+  return { text, style };
 }

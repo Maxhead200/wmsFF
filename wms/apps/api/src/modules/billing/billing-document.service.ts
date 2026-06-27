@@ -3,6 +3,7 @@ import { BillingInvoiceStatus, BillingPaymentStatus, Prisma } from '@prisma/clie
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
+import { BILLING_SELLER, invoiceDisplayNumber } from './billing-printing';
 
 @Injectable()
 export class BillingDocumentService {
@@ -48,7 +49,7 @@ export class BillingDocumentService {
     const payload: InvoiceDocumentPayload = {
       invoiceId: invoice.id,
       number: invoice.number,
-      title: `Счет № ${invoice.number}`,
+      title: `Счет на оплату № ${invoiceDisplayNumber(invoice.number)}`,
       fileName: `${safeFileName(invoice.number)}.html`,
       status: invoice.status,
       statusLabel: invoiceStatusLabel(invoice.status),
@@ -97,7 +98,7 @@ export class BillingDocumentService {
   async getInvoiceActDocument(invoiceId: string, user: AuthUser): Promise<BillingPrintableDocument> {
     const invoiceDocument = await this.getInvoiceDocument(invoiceId, user);
     const actNumber = actNumberForInvoice(invoiceDocument.number);
-    const title = `Акт № ${actNumber} оказанных услуг`;
+    const title = `Акт № ${invoiceDisplayNumber(invoiceDocument.number)}`;
     const fileName = `${safeFileName(actNumber)}.html`;
 
     // Русский комментарий: акт строится из того же снимка счета, чтобы суммы и состав услуг не расходились между документами.
@@ -338,7 +339,7 @@ function renderActHtml(document: InvoiceDocumentPayload) {
     </section>
     <section class="box">
       <strong>Исполнитель</strong>
-      <p>LOGOFF Fulfillment WMS</p>
+      <p>${escapeHtml(BILLING_SELLER.fullName)}</p>
       <p>Дата акта: ${formatDate(document.issuedAt ?? new Date().toISOString())}</p>
       <p>Ответственный: ${escapeHtml(document.createdBy?.name ?? '-')}</p>
     </section>

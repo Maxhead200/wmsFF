@@ -25,7 +25,7 @@ describe('BillingDocumentService', () => {
     expect(document.remainingRub).toBe(1000);
     expect(document.rows).toHaveLength(2);
     expect(document.payments).toHaveLength(1);
-    expect(document.html).toContain('Счет № INV-202606-0001');
+    expect(document.html).toContain('Счет на оплату № 1');
     expect(document.html).toContain('ООО &quot;Клиент&quot;');
     expect(document.html).toContain('ОГРН: 1027700000000');
     expect(document.html).toContain('Банк: АО &quot;Тест Банк&quot;');
@@ -61,7 +61,8 @@ describe('BillingDocumentService', () => {
     expect(document.documentKind).toBe('act');
     expect(document.actNumber).toBe('ACT-202606-0001');
     expect(document.fileName).toBe('ACT-202606-0001.html');
-    expect(document.html).toContain('Акт № ACT-202606-0001 оказанных услуг');
+    expect(document.html).toContain('Акт № 1');
+    expect(document.html).toContain('ИП Говорова Е. И.');
     expect(document.html).toContain('Основание: счет № INV-202606-0001');
     expect(document.html).toContain('К/с: 30101810000000000002');
     expect(document.html).toContain('Итого оказано услуг на сумму');

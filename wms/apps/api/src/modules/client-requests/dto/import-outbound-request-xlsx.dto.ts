@@ -25,6 +25,9 @@ export class ImportOutboundRequestXlsxDto {
   @IsString()
   contactPhone?: string;
 
+  @IsString()
+  destinationCity!: string;
+
   @IsOptional()
   @IsString()
   deliveryAddress?: string;

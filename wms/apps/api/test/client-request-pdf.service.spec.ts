@@ -39,6 +39,7 @@ function printableDocument(): ClientRequestPrintableDocument {
     managerComment: 'Готово к отгрузке',
     contactName: 'Иван',
     contactPhone: '+79990000000',
+    destinationCity: 'Казань',
     deliveryAddress: 'Москва',
     rowsCount: 2,
     totalQuantity: 7,

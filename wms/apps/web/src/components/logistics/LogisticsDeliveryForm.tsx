@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Truck } from 'lucide-react';
 import {
   createLogisticsDeliveryRequest,
@@ -50,6 +50,12 @@ export function LogisticsDeliveryForm({ clients, requests, tariffs, session, onC
       destination.trim() &&
       (isPackageDriven ? hasActualPackages : Number.isInteger(parsedQuantity) && parsedQuantity > 0),
   );
+
+  useEffect(() => {
+    if (selectedRequest?.destinationCity) {
+      setDestination(selectedRequest.destinationCity);
+    }
+  }, [selectedRequest?.destinationCity]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

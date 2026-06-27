@@ -591,6 +591,7 @@ model ClientRequest {
   comment          String?
   contactName      String?
   contactPhone     String?
+  destinationCity  String?
   deliveryAddress  String?
   desiredDate      DateTime?
   managerComment   String?

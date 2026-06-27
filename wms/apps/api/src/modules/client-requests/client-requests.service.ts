@@ -125,6 +125,7 @@ export class ClientRequestsService {
   async create(dto: CreateClientRequestDto, user: AuthUser) {
     this.clientScopes.requireClientAccess(user, dto.clientId, 'write');
     await this.ensureSkuItemsBelongToClient(dto.clientId, dto.items ?? []);
+    const destinationCity = normalizeRequiredText(dto.destinationCity, 'Город поставки обязателен.');
 
     // Русский комментарий: клиентская заявка всегда стартует как SUBMITTED; статусы меняет отдельный workflow.
     return this.prisma.$transaction(async (tx) => {
@@ -138,6 +139,7 @@ export class ClientRequestsService {
           comment: normalizeText(dto.comment),
           contactName: normalizeText(dto.contactName),
           contactPhone: normalizeText(dto.contactPhone),
+          destinationCity,
           deliveryAddress: normalizeText(dto.deliveryAddress),
           desiredDate: dto.desiredDate ? new Date(dto.desiredDate) : undefined,
           createdByUserId: user.id,
@@ -582,4 +584,12 @@ const clientRequestInclude = {
 function normalizeText(value?: string) {
   const normalized = value?.trim();
   return normalized ? normalized : undefined;
+}
+
+function normalizeRequiredText(value: string | undefined, message: string) {
+  const normalized = normalizeText(value);
+  if (!normalized) {
+    throw new BadRequestException(message);
+  }
+  return normalized;
 }

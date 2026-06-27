@@ -122,13 +122,14 @@ function clientLines(document: ClientRequestPrintableDocument) {
 function requestLines(document: ClientRequestPrintableDocument) {
   return [
     `Создана: ${formatDate(document.createdAt)}`,
+    `Город поставки: ${document.destinationCity ?? '-'}`,
     `Желаемая дата: ${formatDate(document.desiredDate)}`,
     `Ответственный: ${document.assignedTo?.name ?? document.createdBy?.name ?? '-'}`,
   ];
 }
 
 function contactLines(document: ClientRequestPrintableDocument) {
-  return [document.contactName ?? '-', document.contactPhone ?? '-', document.deliveryAddress ?? '-'];
+  return [document.contactName ?? '-', document.contactPhone ?? '-', `Адрес: ${document.deliveryAddress ?? '-'}`];
 }
 
 function commentLines(document: ClientRequestPrintableDocument) {

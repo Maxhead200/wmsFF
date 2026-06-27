@@ -53,6 +53,7 @@ function requestFixture() {
     comment: 'Проверить маркировку',
     contactName: 'Иван',
     contactPhone: '+79990000000',
+    destinationCity: 'Казань',
     deliveryAddress: 'Москва',
     desiredDate: new Date('2026-06-30T00:00:00.000Z'),
     managerComment: 'Готово к отгрузке',

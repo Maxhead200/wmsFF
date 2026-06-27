@@ -66,6 +66,7 @@ export function ClientRequestsTable({
                 <span>
                   {requestTypeLabel(request.type)} · {requestPriorityLabel(request.priority)}
                 </span>
+                <span>Город: {request.destinationCity ?? '-'}</span>
                 {request.comment ? <span>{request.comment}</span> : null}
               </td>
               <td>

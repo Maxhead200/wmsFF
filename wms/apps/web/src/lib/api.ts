@@ -358,6 +358,7 @@ export type ClientRequestDocument = {
   managerComment: string | null;
   contactName: string | null;
   contactPhone: string | null;
+  destinationCity: string | null;
   deliveryAddress: string | null;
   rowsCount: number;
   totalQuantity: number;
@@ -594,6 +595,7 @@ export type ClientRequestSummary = {
   comment: string | null;
   contactName: string | null;
   contactPhone: string | null;
+  destinationCity: string | null;
   deliveryAddress: string | null;
   desiredDate: string | null;
   managerComment: string | null;
@@ -846,6 +848,7 @@ export type PickInstructionDocument = {
   client: Pick<ClientSummary, 'id' | 'code' | 'name'>;
   generatedAt: string;
   desiredDate: string | null;
+  destinationCity: string | null;
   deliveryAddress: string | null;
   totalRequested: number;
   totalAllocated: number;
@@ -866,6 +869,7 @@ export type CreateClientRequestPayload = {
   comment?: string;
   contactName?: string;
   contactPhone?: string;
+  destinationCity: string;
   deliveryAddress?: string;
   desiredDate?: string;
   items?: Array<{
@@ -887,6 +891,7 @@ export type OutboundRequestXlsxPayload = {
   comment?: string;
   contactName?: string;
   contactPhone?: string;
+  destinationCity: string;
   deliveryAddress?: string;
   desiredDate?: string;
 };
@@ -2979,6 +2984,7 @@ function outboundRequestXlsxForm(payload: OutboundRequestXlsxPayload) {
   appendOptional(form, 'comment', payload.comment);
   appendOptional(form, 'contactName', payload.contactName);
   appendOptional(form, 'contactPhone', payload.contactPhone);
+  appendOptional(form, 'destinationCity', payload.destinationCity);
   appendOptional(form, 'deliveryAddress', payload.deliveryAddress);
   appendOptional(form, 'desiredDate', payload.desiredDate);
   return form;

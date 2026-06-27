@@ -50,6 +50,7 @@ export function renderPickInstructionHtml(document: PickInstructionDocument) {
   <section class="box">
     <strong>${escapeHtml(document.requestTitle)}</strong>
     <p class="muted">Приоритет: ${escapeHtml(document.priorityLabel)} · желаемая дата: ${document.desiredDate ? formatDate(document.desiredDate) : '-'}</p>
+    <p>Город поставки: ${escapeHtml(document.destinationCity ?? '-')}</p>
     <p>Адрес: ${escapeHtml(document.deliveryAddress ?? '-')}</p>
   </section>
   <h2>Маршрут сборки</h2>

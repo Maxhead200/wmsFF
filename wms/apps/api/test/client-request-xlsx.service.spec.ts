@@ -61,7 +61,7 @@ describe('ClientRequestXlsxService', () => {
         ['460000000001', 4],
         ['460000000002', 2],
       ]),
-      { clientId: 'client-1', title: 'Excel сборка' },
+      { clientId: 'client-1', title: 'Excel сборка', destinationCity: 'Казань' },
       user({ writableClientIds: ['client-1'], clientIds: ['client-1'] }),
     );
 
@@ -98,7 +98,7 @@ describe('ClientRequestXlsxService', () => {
     const brokenRussianFileName = Buffer.from('Тест заявки.xlsx', 'utf8').toString('latin1');
     const result = await service.createOutboundRequest(
       fileFixture([['barcode', 'qty'], ['460000000001', 3]], brokenRussianFileName),
-      { clientId: 'client-1', title: 'Excel сборка', priority: ClientRequestPriority.HIGH },
+      { clientId: 'client-1', title: 'Excel сборка', priority: ClientRequestPriority.HIGH, destinationCity: 'Казань' },
       authUser,
     );
 
@@ -109,6 +109,7 @@ describe('ClientRequestXlsxService', () => {
         type: 'OUTBOUND',
         priority: ClientRequestPriority.HIGH,
         title: 'Excel сборка',
+        destinationCity: 'Казань',
         items: [
           expect.objectContaining({
             skuId: 'sku-1',
@@ -157,7 +158,7 @@ describe('ClientRequestXlsxService', () => {
         ['Артикул продавца', 'Электросталь'],
         ['Костюм_реглан_синий', 10],
       ]),
-      { clientId: 'client-1', title: 'Excel сборка' },
+      { clientId: 'client-1', title: 'Excel сборка', destinationCity: 'Казань' },
       user({ writableClientIds: ['client-1'], clientIds: ['client-1'] }),
     );
 
@@ -218,7 +219,7 @@ describe('ClientRequestXlsxService', () => {
         ['Наименование товара', 'Размер', 'Количество'],
         ['Костюм_реглан_синий', 'L', 4],
       ]),
-      { clientId: 'client-1', title: 'Excel сборка' },
+      { clientId: 'client-1', title: 'Excel сборка', destinationCity: 'Казань' },
       user({ writableClientIds: ['client-1'], clientIds: ['client-1'] }),
     );
 
@@ -277,7 +278,7 @@ describe('ClientRequestXlsxService', () => {
         ['Баркод', 'Артикул продавца', 'Количество'],
         ['460000000001', 'Костюм_реглан_синий', 2],
       ]),
-      { clientId: 'client-1', title: 'Excel сборка' },
+      { clientId: 'client-1', title: 'Excel сборка', destinationCity: 'Казань' },
       user({ writableClientIds: ['client-1'], clientIds: ['client-1'] }),
     );
 

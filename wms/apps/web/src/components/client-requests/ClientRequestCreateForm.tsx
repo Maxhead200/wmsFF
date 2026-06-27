@@ -36,6 +36,7 @@ export function ClientRequestCreateForm({ clients, session, onCreated }: ClientR
   const [comment, setComment] = useState('');
   const [desiredDate, setDesiredDate] = useState('');
   const [contactPhone, setContactPhone] = useState('');
+  const [destinationCity, setDestinationCity] = useState('');
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [items, setItems] = useState<ClientRequestDraftItem[]>([emptyClientRequestItem()]);
   const [availability, setAvailability] = useState<ClientRequestAvailabilityPreview | null>(null);
@@ -89,6 +90,7 @@ export function ClientRequestCreateForm({ clients, session, onCreated }: ClientR
         title,
         comment: comment || undefined,
         contactPhone: contactPhone || undefined,
+        destinationCity,
         deliveryAddress: deliveryAddress || undefined,
         desiredDate: desiredDate || undefined,
         items: requestItems.length > 0 ? requestItems : undefined,
@@ -99,6 +101,7 @@ export function ClientRequestCreateForm({ clients, session, onCreated }: ClientR
       setComment('');
       setDesiredDate('');
       setContactPhone('');
+      setDestinationCity('');
       setDeliveryAddress('');
       setItems([emptyClientRequestItem()]);
       setAvailability(null);
@@ -170,6 +173,11 @@ export function ClientRequestCreateForm({ clients, session, onCreated }: ClientR
         <label>
           <span>Телефон</span>
           <input value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} />
+        </label>
+
+        <label>
+          <span>Город поставки</span>
+          <input required value={destinationCity} onChange={(event) => setDestinationCity(event.target.value)} />
         </label>
 
         <label className="client-request-fields__wide">

@@ -149,6 +149,7 @@ function summaryRows(document: PickInstructionDocument): CellValue[][] {
     ['Статус заявки', document.requestStatusLabel],
     ['Приоритет', document.priorityLabel],
     ['Желаемая дата', document.desiredDate ? formatDate(document.desiredDate) : '-'],
+    ['Город поставки', document.destinationCity ?? '-'],
     ['Адрес', document.deliveryAddress ?? '-'],
     ['Строк', document.rowsCount],
     ['К сборке', document.totalRequested],

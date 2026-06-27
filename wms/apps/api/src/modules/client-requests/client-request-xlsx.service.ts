@@ -99,6 +99,7 @@ export class ClientRequestXlsxService {
         comment: this.buildImportComment(dto.comment, normalizeUploadedFileName(file!.originalname), preview),
         contactName: normalizeText(dto.contactName),
         contactPhone: normalizeText(dto.contactPhone),
+        destinationCity: normalizeRequiredText(dto.destinationCity, 'Город поставки обязателен.'),
         deliveryAddress: normalizeText(dto.deliveryAddress),
         desiredDate: dto.desiredDate,
         items: preview.lines.map((line) => ({
@@ -122,6 +123,7 @@ export class ClientRequestXlsxService {
 
   private async buildPreview(buffer: Buffer, dto: ImportOutboundRequestXlsxDto, user: AuthUser): Promise<OutboundRequestXlsxPreview> {
     const clientId = normalizeRequiredText(dto.clientId, 'Клиент обязателен.');
+    normalizeRequiredText(dto.destinationCity, 'Город поставки обязателен.');
     this.clientScopes.requireClientAccess(user, clientId, 'write');
 
     const parsed = parseOutboundRequestXlsxRows(this.readFirstSheet(buffer));

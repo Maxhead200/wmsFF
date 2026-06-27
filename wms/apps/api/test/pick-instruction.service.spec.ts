@@ -179,6 +179,7 @@ function requestFixture(overrides: { quantity?: number; type?: ClientRequestType
     type: overrides.type ?? ClientRequestType.OUTBOUND,
     status: ClientRequestStatus.SUBMITTED,
     priority: ClientRequestPriority.NORMAL,
+    destinationCity: 'Казань',
     deliveryAddress: 'Москва',
     desiredDate: new Date('2026-06-30T00:00:00.000Z'),
     client: {

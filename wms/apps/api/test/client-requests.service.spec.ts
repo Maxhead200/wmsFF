@@ -48,6 +48,7 @@ describe('ClientRequestsService', () => {
         type: ClientRequestType.OUTBOUND,
         priority: ClientRequestPriority.HIGH,
         title: 'Отгрузка на маркетплейс',
+        destinationCity: 'Казань',
         items: [{ skuId: 'sku-1', quantity: 3 }],
       },
       user({ clientIds: ['client-1'], writableClientIds: ['client-1'] }),
@@ -57,6 +58,7 @@ describe('ClientRequestsService', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           clientId: 'client-1',
+          destinationCity: 'Казань',
           status: ClientRequestStatus.SUBMITTED,
           createdByUserId: 'user-1',
         }),
@@ -87,7 +89,29 @@ describe('ClientRequestsService', () => {
           clientId: 'client-1',
           type: ClientRequestType.OUTBOUND,
           title: 'Чужая SKU',
+          destinationCity: 'Казань',
           items: [{ skuId: 'sku-foreign', quantity: 1 }],
+        },
+        user({ clientIds: ['client-1'], writableClientIds: ['client-1'] }),
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('требует город поставки при создании заявки', async () => {
+    const prisma = {
+      sku: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+    };
+    const service = new ClientRequestsService(prisma as never, new ClientScopeService());
+
+    await expect(
+      service.create(
+        {
+          clientId: 'client-1',
+          type: ClientRequestType.OUTBOUND,
+          title: 'Без города',
+          destinationCity: ' ',
         },
         user({ clientIds: ['client-1'], writableClientIds: ['client-1'] }),
       ),

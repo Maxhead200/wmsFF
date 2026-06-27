@@ -109,6 +109,7 @@ export type PickInstructionDocument = {
   };
   generatedAt: string;
   desiredDate: string | null;
+  destinationCity: string | null;
   deliveryAddress: string | null;
   totalRequested: number;
   totalAllocated: number;

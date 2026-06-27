@@ -60,6 +60,9 @@ export class CreateClientRequestDto {
   @IsString()
   contactPhone?: string;
 
+  @IsString()
+  destinationCity!: string;
+
   @IsOptional()
   @IsString()
   deliveryAddress?: string;

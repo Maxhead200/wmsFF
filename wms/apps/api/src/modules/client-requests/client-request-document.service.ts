@@ -52,6 +52,7 @@ export class ClientRequestDocumentService {
       managerComment: request.managerComment,
       contactName: request.contactName,
       contactPhone: request.contactPhone,
+      destinationCity: request.destinationCity,
       deliveryAddress: request.deliveryAddress,
       rowsCount: rows.length,
       totalQuantity: rows.reduce((sum, row) => sum + row.quantity, 0),
@@ -125,6 +126,7 @@ type ClientRequestDocumentPayload = {
   managerComment: string | null;
   contactName: string | null;
   contactPhone: string | null;
+  destinationCity: string | null;
   deliveryAddress: string | null;
   rowsCount: number;
   totalQuantity: number;
@@ -271,6 +273,7 @@ function renderRequestHtml(document: ClientRequestDocumentPayload) {
     <section class="box">
       <strong>Заявка</strong>
       <p>Создана: ${formatDate(document.createdAt)}</p>
+      <p>Город поставки: ${escapeHtml(document.destinationCity ?? '-')}</p>
       <p>Желаемая дата: ${formatDate(document.desiredDate)}</p>
       <p>Ответственный: ${escapeHtml(document.assignedTo?.name ?? document.createdBy?.name ?? '-')}</p>
     </section>
@@ -278,7 +281,7 @@ function renderRequestHtml(document: ClientRequestDocumentPayload) {
       <strong>Контакт</strong>
       <p>${escapeHtml(document.contactName ?? '-')}</p>
       <p>${escapeHtml(document.contactPhone ?? '-')}</p>
-      <p>${escapeHtml(document.deliveryAddress ?? '-')}</p>
+      <p>Адрес: ${escapeHtml(document.deliveryAddress ?? '-')}</p>
     </section>
     <section class="box">
       <strong>Комментарии</strong>

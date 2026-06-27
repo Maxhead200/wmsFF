@@ -31,6 +31,7 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
   const [title, setTitle] = useState('');
   const [priority, setPriority] = useState<ClientRequestPriority>('NORMAL');
   const [desiredDate, setDesiredDate] = useState('');
+  const [destinationCity, setDestinationCity] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [fileInputKey, setFileInputKey] = useState(0);
   const [preview, setPreview] = useState<OutboundRequestXlsxPreview | null>(null);
@@ -61,6 +62,7 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
         clientId,
         title: title || undefined,
         priority,
+        destinationCity,
         desiredDate: desiredDate || undefined,
       });
       setPreview(nextPreview);
@@ -81,6 +83,11 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
 
   async function createRequest() {
     const validLines = editableLines.filter((line) => line.skuId && adjustedCanFulfill(line));
+    if (!destinationCity.trim()) {
+      setError('Укажите город поставки.');
+      return;
+    }
+
     if (!file || !preview || validLines.length === 0) {
       setError('Исправьте позиции перед созданием заявки.');
       return;
@@ -97,6 +104,7 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
         priority,
         title: title || preview.title,
         comment: `Создано из Excel: ${file.name}. Позиций: ${validLines.length}, количество: ${validLines.reduce((sum, line) => sum + line.requestedQuantity, 0)}.`,
+        destinationCity,
         desiredDate: desiredDate || undefined,
         items: validLines.map((line) => ({
           skuId: line.skuId ?? undefined,
@@ -109,6 +117,7 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
       onCreated(request);
       setTitle('');
       setDesiredDate('');
+      setDestinationCity('');
       setFile(null);
       setPreview(null);
       setEditableLines([]);
@@ -158,6 +167,10 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
         <label>
           <span>Желаемая дата</span>
           <input type="date" value={desiredDate} onChange={(event) => setDesiredDate(event.target.value)} />
+        </label>
+        <label>
+          <span>Город поставки</span>
+          <input required value={destinationCity} onChange={(event) => setDestinationCity(event.target.value)} />
         </label>
         <label className="client-request-fields__wide">
           <span>Название</span>
@@ -251,7 +264,7 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
         </button>
         <button
           className="primary-button"
-          disabled={isCommitting || !file || !preview || hasBlockingLines || editableLines.length === 0}
+          disabled={isCommitting || !destinationCity.trim() || !file || !preview || hasBlockingLines || editableLines.length === 0}
           type="button"
           onClick={() => void createRequest()}
         >

@@ -17,6 +17,7 @@ import type { Response } from 'express';
 import type { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { PickInstructionService } from '../stock/pick-instruction.service';
 import { ClientRequestFilesService } from './client-request-files.service';
 import { ClientRequestHistoryService } from './client-request-history.service';
 import { ClientRequestDocumentService } from './client-request-document.service';
@@ -41,6 +42,7 @@ export class ClientRequestsController {
     private readonly files: ClientRequestFilesService,
     private readonly history: ClientRequestHistoryService,
     private readonly xlsx: ClientRequestXlsxService,
+    private readonly pickInstructions: PickInstructionService,
   ) {}
 
   @Get()
@@ -70,6 +72,27 @@ export class ClientRequestsController {
     response.setHeader('Content-Disposition', contentDisposition(file.fileName));
 
     return new StreamableFile(file.buffer);
+  }
+
+  @Get(':id/pick-instruction')
+  @RequirePermissions('stock:write')
+  getPickInstruction(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.pickInstructions.getRequestInstruction(id, user);
+  }
+
+  @Get(':id/pick-instruction.xlsx')
+  @RequirePermissions('stock:write')
+  async downloadPickInstructionXlsx(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthUser,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const file = await this.pickInstructions.getRequestInstructionXlsx(id, user);
+    response.setHeader('Content-Type', file.mimeType);
+    response.setHeader('Content-Length', String(file.content.length));
+    response.setHeader('Content-Disposition', contentDisposition(file.fileName));
+
+    return new StreamableFile(file.content);
   }
 
   @Get(':id/files')

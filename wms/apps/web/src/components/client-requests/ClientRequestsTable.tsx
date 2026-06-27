@@ -98,7 +98,7 @@ export function ClientRequestsTable({
               </td>
               {canPickOutbound ? (
                 <td>
-                  {canRunFulfillment(request) ? (
+                  {canShowWarehouseActions(request) ? (
                     <div className="client-request-actions">
                       {onOpenPickInstruction && request.type === 'OUTBOUND' ? (
                         <button
@@ -217,6 +217,10 @@ function canShipRequest(request: ClientRequestSummary) {
 
 function canRunFulfillment(request: ClientRequestSummary) {
   return canPickRequest(request) || canPackageRequest(request) || canShipRequest(request);
+}
+
+function canShowWarehouseActions(request: ClientRequestSummary) {
+  return request.type === 'OUTBOUND' || canRunFulfillment(request);
 }
 
 function canCancelRequest(request: ClientRequestSummary) {

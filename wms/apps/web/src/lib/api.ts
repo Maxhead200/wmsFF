@@ -2723,13 +2723,13 @@ export async function downloadPickWaveDocumentXlsx(accessToken: string, waveId: 
 }
 
 export async function fetchPickInstruction(accessToken: string, requestId: string) {
-  return request<PickInstructionDocument>(`/stock/fulfillment/requests/${requestId}/instruction`, {
+  return request<PickInstructionDocument>(`/client-requests/${requestId}/pick-instruction`, {
     accessToken,
   });
 }
 
 export async function downloadPickInstructionXlsx(accessToken: string, requestId: string) {
-  return requestBlob(`/stock/fulfillment/requests/${requestId}/instruction.xlsx`, accessToken);
+  return requestBlob(`/client-requests/${requestId}/pick-instruction.xlsx`, accessToken);
 }
 
 export async function packageClientRequest(

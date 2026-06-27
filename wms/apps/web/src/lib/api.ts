@@ -891,6 +891,31 @@ export type ClientImportResult = {
   clients: ClientSummary[];
 };
 
+export type SkuImportIssue = {
+  row: number;
+  internalSku?: string;
+  name?: string;
+  message: string;
+  severity: 'warning' | 'error';
+};
+
+export type SkuImportResult = {
+  fileName: string;
+  clientId: string;
+  summary: {
+    sourceRows: number;
+    rows: number;
+    barcodes: number;
+    created: number;
+    updated: number;
+    skipped: number;
+    errors: number;
+    warnings: number;
+  };
+  issues: SkuImportIssue[];
+  skus: SkuSummary[];
+};
+
 export type DeleteClientResult = {
   id: string;
   code: string;
@@ -2048,6 +2073,14 @@ export async function createSku(accessToken: string, payload: CreateSkuPayload) 
     body: payload,
     accessToken,
   });
+}
+
+export async function importSkusXlsx(accessToken: string, payload: { file: File; clientId: string }) {
+  const form = new FormData();
+  form.append('file', payload.file);
+  form.append('clientId', payload.clientId);
+
+  return requestMultipart<SkuImportResult>('/skus/import-xlsx', form, accessToken);
 }
 
 export async function fetchStockBalances(accessToken: string, filter: { clientId?: string; search?: string } = {}) {

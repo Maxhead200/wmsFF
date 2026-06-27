@@ -6,6 +6,8 @@ import { ClientImportForm } from './ClientImportForm';
 import { ClientRequisitesForm } from './ClientRequisitesForm';
 import './directories.css';
 import { SkuCreateForm } from './SkuCreateForm';
+import { SkuDirectoryTable } from './SkuDirectoryTable';
+import { SkuImportForm } from './SkuImportForm';
 
 type DirectoryPanelProps = {
   session: AuthSession;
@@ -13,13 +15,14 @@ type DirectoryPanelProps = {
 
 const directoryTabs = [
   { id: 'clients', label: 'Клиент', permission: 'clients:write', icon: UserPlus },
-  { id: 'skus', label: 'SKU', permission: 'skus:write', icon: PackagePlus },
+  { id: 'skus', label: 'Номенклатура', permission: 'skus:write', icon: PackagePlus },
 ] as const;
 
 type DirectoryTab = (typeof directoryTabs)[number]['id'];
 
 export function DirectoryPanel({ session }: DirectoryPanelProps) {
   const [activeTab, setActiveTab] = useState<DirectoryTab>('clients');
+  const [skuReloadKey, setSkuReloadKey] = useState(0);
   const availableTabs = useMemo(
     () => directoryTabs.filter((tab) => canUse(session.user, tab.permission)),
     [session.user],
@@ -68,7 +71,13 @@ export function DirectoryPanel({ session }: DirectoryPanelProps) {
           <ClientRequisitesForm session={session} />
         </div>
       ) : null}
-      {activeTab === 'skus' ? <SkuCreateForm session={session} /> : null}
+      {activeTab === 'skus' ? (
+        <div className="directory-stack">
+          <SkuImportForm session={session} onImported={() => setSkuReloadKey((current) => current + 1)} />
+          <SkuCreateForm session={session} onCreated={() => setSkuReloadKey((current) => current + 1)} />
+          <SkuDirectoryTable session={session} reloadKey={skuReloadKey} />
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -12,6 +12,7 @@ import { DirectoryResultCard } from './DirectoryResultCard';
 
 type SkuCreateFormProps = {
   session: AuthSession;
+  onCreated?: () => void;
 };
 
 const emptySkuForm = {
@@ -29,7 +30,7 @@ const emptySkuForm = {
   needsChestnyZnak: false,
 };
 
-export function SkuCreateForm({ session }: SkuCreateFormProps) {
+export function SkuCreateForm({ session, onCreated }: SkuCreateFormProps) {
   const [clients, setClients] = useState<ClientSummary[]>([]);
   const [form, setForm] = useState(emptySkuForm);
   const [createdSku, setCreatedSku] = useState<SkuSummary | null>(null);
@@ -80,6 +81,7 @@ export function SkuCreateForm({ session }: SkuCreateFormProps) {
       const created = await createSku(session.accessToken, compactPayload(form));
       setCreatedSku(created);
       setForm({ ...emptySkuForm, clientId: form.clientId });
+      onCreated?.();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Не удалось создать SKU.');
     } finally {
@@ -89,6 +91,13 @@ export function SkuCreateForm({ session }: SkuCreateFormProps) {
 
   return (
     <form className="directory-form" onSubmit={submit}>
+      <div className="directory-subheading">
+        <div>
+          <h3>Создать номенклатуру вручную</h3>
+          <span>Карточка товара привязывается к выбранному клиенту</span>
+        </div>
+      </div>
+
       <div className="directory-fields directory-fields--sku">
         <label>
           <span>Клиент</span>

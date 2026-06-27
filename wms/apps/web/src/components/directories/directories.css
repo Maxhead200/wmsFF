@@ -325,6 +325,10 @@
   align-items: center;
 }
 
+.directory-import-row--sku {
+  grid-template-columns: minmax(220px, 0.7fr) minmax(0, 1fr) auto;
+}
+
 .directory-file-input {
   display: inline-flex;
   min-width: 0;
@@ -389,6 +393,38 @@
   font-weight: 700;
 }
 
+.sku-table-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(240px, 1fr) auto auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.sku-search-box {
+  display: flex;
+  min-width: 0;
+  min-height: 40px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfdff;
+  padding: 0 10px;
+}
+
+.sku-search-box input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  outline: 0;
+}
+
+.sku-directory-table {
+  min-width: 920px;
+}
+
 .client-after-create {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -447,6 +483,8 @@
   .directory-fields--manager,
   .client-control-panel,
   .directory-import-row,
+  .directory-import-row--sku,
+  .sku-table-toolbar,
   .client-manager-grid {
     grid-template-columns: 1fr;
   }

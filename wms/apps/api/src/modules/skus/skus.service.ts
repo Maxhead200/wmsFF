@@ -8,6 +8,7 @@ import { VolumeService } from '../stock/volume.service';
 import { CreateArticleMappingDto } from './dto/create-article-mapping.dto';
 import { CreateNomenclatureItemDto } from './dto/create-nomenclature-item.dto';
 import { CreateSkuDto } from './dto/create-sku.dto';
+import { UpdateSkuDto } from './dto/update-sku.dto';
 import {
   parseNomenclatureSheet,
   type NomenclatureImportItem,
@@ -22,7 +23,7 @@ export class SkusService {
     private readonly volumes: VolumeService,
   ) {}
 
-  list(filter: { clientId?: string; search?: string }, user: AuthUser) {
+  async list(filter: { clientId?: string; search?: string }, user: AuthUser) {
     const where: Prisma.SkuWhereInput = {
       clientId: this.clientScopes.resolveClientFilter(user, filter.clientId),
       OR: filter.search
@@ -34,7 +35,7 @@ export class SkusService {
         : undefined,
     };
 
-    return this.prisma.sku.findMany({
+    const skus = await this.prisma.sku.findMany({
       where,
       orderBy: { updatedAt: 'desc' },
       include: {
@@ -43,6 +44,8 @@ export class SkusService {
       },
       take: 100,
     });
+
+    return skus.map(enrichSkuMarketplaceData);
   }
 
   async get(id: string, user: AuthUser) {
@@ -53,7 +56,13 @@ export class SkusService {
       },
       include: {
         barcodes: true,
-        balances: true,
+        balances: {
+          include: {
+            box: { select: { id: true, code: true, status: true } },
+            pallet: { select: { id: true, code: true, status: true } },
+          },
+        },
+        _count: { select: { balances: true, movements: true, clientRequestItems: true, packageItems: true, productMarks: true } },
       },
     });
 
@@ -61,7 +70,7 @@ export class SkusService {
       throw new NotFoundException('SKU не найден.');
     }
 
-    return sku;
+    return enrichSkuMarketplaceData(sku);
   }
 
   async create(dto: CreateSkuDto, user: AuthUser) {
@@ -103,6 +112,128 @@ export class SkusService {
         include: { barcodes: true },
       });
     });
+  }
+
+  async update(id: string, dto: UpdateSkuDto, user: AuthUser) {
+    const existing = await this.prisma.sku.findFirst({
+      where: {
+        id,
+        clientId: this.clientScopes.resolveClientFilter(user),
+      },
+      include: { barcodes: true },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('SKU не найден.');
+    }
+
+    this.clientScopes.requireClientAccess(user, existing.clientId, 'write');
+    if (dto.clientId && dto.clientId !== existing.clientId) {
+      throw new BadRequestException('Нельзя перенести SKU к другому клиенту через редактирование карточки.');
+    }
+
+    const updateData = this.buildSkuUpdateData(dto, existing);
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        await tx.sku.update({
+          where: { id },
+          data: updateData,
+        });
+
+        if (dto.barcode !== undefined) {
+          await tx.barcode.deleteMany({ where: { skuId: id, isPrimary: true } });
+          const barcode = cleanOptional(dto.barcode);
+          if (barcode) {
+            await tx.barcode.upsert({
+              where: {
+                skuId_value: {
+                  skuId: id,
+                  value: barcode,
+                },
+              },
+              update: { isPrimary: true },
+              create: {
+                skuId: id,
+                value: barcode,
+                isPrimary: true,
+              },
+            });
+          }
+        }
+
+        const updated = await tx.sku.findUniqueOrThrow({
+          where: { id },
+          include: {
+            barcodes: true,
+            balances: {
+              include: {
+                box: { select: { id: true, code: true, status: true } },
+                pallet: { select: { id: true, code: true, status: true } },
+              },
+            },
+            _count: { select: { balances: true, movements: true, clientRequestItems: true, packageItems: true, productMarks: true } },
+          },
+        });
+
+        return enrichSkuMarketplaceData(updated);
+      });
+    } catch (caught) {
+      if (isUniqueConstraintError(caught)) {
+        throw new BadRequestException('Такой SKU или штрихкод уже есть у клиента.');
+      }
+
+      throw caught;
+    }
+  }
+
+  async delete(id: string, user: AuthUser) {
+    const existing = await this.prisma.sku.findFirst({
+      where: {
+        id,
+        clientId: this.clientScopes.resolveClientFilter(user),
+      },
+      select: {
+        id: true,
+        clientId: true,
+        internalSku: true,
+        name: true,
+        _count: {
+          select: {
+            balances: true,
+            movements: true,
+            clientRequestItems: true,
+            packageItems: true,
+            productMarks: true,
+          },
+        },
+      },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('SKU не найден.');
+    }
+
+    this.clientScopes.requireClientAccess(user, existing.clientId, 'write');
+
+    const linkedRecords =
+      existing._count.balances +
+      existing._count.movements +
+      existing._count.clientRequestItems +
+      existing._count.packageItems +
+      existing._count.productMarks;
+    if (linkedRecords > 0) {
+      throw new BadRequestException(
+        'Нельзя удалить SKU, который уже участвует в остатках, движениях, заявках или маркировке. Сначала очистите связанные операции.',
+      );
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.barcode.deleteMany({ where: { skuId: id } }),
+      this.prisma.sku.delete({ where: { id } }),
+    ]);
+
+    return { id, internalSku: existing.internalSku, name: existing.name, deleted: true };
   }
 
   listNomenclature(filter: { search?: string }) {
@@ -380,6 +511,60 @@ export class SkusService {
     });
   }
 
+  private buildSkuUpdateData(
+    dto: UpdateSkuDto,
+    existing: {
+      internalSku: string;
+      clientSku: string | null;
+      article: string | null;
+      name: string;
+      brand: string | null;
+      category: string | null;
+      color: string | null;
+      size: string | null;
+      weightGrams: number | null;
+      lengthCm: Prisma.Decimal | null;
+      widthCm: Prisma.Decimal | null;
+      heightCm: Prisma.Decimal | null;
+      needsChestnyZnak: boolean;
+      isUnmarked: boolean;
+      needsLabel: boolean;
+      needsRelabel: boolean;
+    },
+  ): Prisma.SkuUncheckedUpdateInput {
+    const nextLength = dto.lengthCm ?? decimalToNumber(existing.lengthCm);
+    const nextWidth = dto.widthCm ?? decimalToNumber(existing.widthCm);
+    const nextHeight = dto.heightCm ?? decimalToNumber(existing.heightCm);
+    const volume =
+      nextLength && nextWidth && nextHeight
+        ? this.volumes.calculateLiters({
+            lengthCm: nextLength,
+            widthCm: nextWidth,
+            heightCm: nextHeight,
+          })
+        : null;
+
+    return {
+      ...(dto.internalSku === undefined ? {} : { internalSku: dto.internalSku.trim() }),
+      ...(dto.clientSku === undefined ? {} : { clientSku: cleanOptional(dto.clientSku) ?? null }),
+      ...(dto.article === undefined ? {} : { article: cleanOptional(dto.article) ?? null }),
+      ...(dto.name === undefined ? {} : { name: dto.name.trim() }),
+      ...(dto.brand === undefined ? {} : { brand: cleanOptional(dto.brand) ?? null }),
+      ...(dto.category === undefined ? {} : { category: cleanOptional(dto.category) ?? null }),
+      ...(dto.color === undefined ? {} : { color: cleanOptional(dto.color) ?? null }),
+      ...(dto.size === undefined ? {} : { size: cleanOptional(dto.size) ?? null }),
+      ...(dto.weightGrams === undefined ? {} : { weightGrams: dto.weightGrams || null }),
+      ...(dto.lengthCm === undefined ? {} : { lengthCm: dto.lengthCm ?? null }),
+      ...(dto.widthCm === undefined ? {} : { widthCm: dto.widthCm ?? null }),
+      ...(dto.heightCm === undefined ? {} : { heightCm: dto.heightCm ?? null }),
+      ...(volume ? { volumeLiters: volume.liters, volumeSource: 'CALCULATED' } : {}),
+      ...(dto.needsChestnyZnak === undefined ? {} : { needsChestnyZnak: dto.needsChestnyZnak }),
+      ...(dto.isUnmarked === undefined ? {} : { isUnmarked: dto.isUnmarked }),
+      ...(dto.needsLabel === undefined ? {} : { needsLabel: dto.needsLabel }),
+      ...(dto.needsRelabel === undefined ? {} : { needsRelabel: dto.needsRelabel }),
+    };
+  }
+
   private tryCalculateVolume(dto: CreateSkuDto) {
     if (!dto.lengthCm || !dto.widthCm || !dto.heightCm) {
       return null;
@@ -396,6 +581,159 @@ export class SkusService {
 function cleanOptional(value?: string) {
   const trimmed = value?.trim();
   return trimmed || undefined;
+}
+
+function enrichSkuMarketplaceData<T extends { marketplacePayload: Prisma.JsonValue | null }>(sku: T) {
+  return {
+    ...sku,
+    marketplacePhotos: extractMarketplacePhotos(sku.marketplacePayload),
+    marketplaceCharacteristics: extractMarketplaceCharacteristics(sku.marketplacePayload),
+  };
+}
+
+function extractMarketplacePhotos(payload: Prisma.JsonValue | null) {
+  const photos: string[] = [];
+
+  visitMarketplacePayload(payload, (value, key) => {
+    const normalizedKey = key.toLowerCase();
+    if (typeof value === 'string' && looksLikeImageUrl(value)) {
+      photos.push(value);
+      return;
+    }
+
+    if (!['photo', 'photos', 'image', 'images', 'picture', 'pictures', 'media', 'primary_image'].some((name) => normalizedKey.includes(name))) {
+      return;
+    }
+
+    if (typeof value === 'string' && looksLikeImageUrl(value)) {
+      photos.push(value);
+    }
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      const record = value as Record<string, Prisma.JsonValue>;
+      for (const field of ['url', 'big', 'small', 'file_name', 'link']) {
+        const candidate = record[field];
+        if (typeof candidate === 'string' && looksLikeImageUrl(candidate)) {
+          photos.push(candidate);
+        }
+      }
+    }
+  });
+
+  return uniqueValues(photos).slice(0, 24);
+}
+
+function extractMarketplaceCharacteristics(payload: Prisma.JsonValue | null) {
+  const characteristics: Array<{ name: string; value: string }> = [];
+
+  visitMarketplacePayload(payload, (value, key) => {
+    const normalizedKey = key.toLowerCase();
+    if (!['characteristic', 'characteristics', 'attribute', 'attributes', 'dimensions'].some((name) => normalizedKey.includes(name))) {
+      return;
+    }
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const property = characteristicFromValue(item);
+        if (property) {
+          characteristics.push(property);
+        }
+      }
+      return;
+    }
+
+    if (value && typeof value === 'object') {
+      const record = value as Record<string, Prisma.JsonValue>;
+      const direct = characteristicFromValue(record);
+      if (direct) {
+        characteristics.push(direct);
+        return;
+      }
+
+      for (const [name, propertyValue] of Object.entries(record)) {
+        if (propertyValue == null || typeof propertyValue === 'object') {
+          continue;
+        }
+        characteristics.push({ name, value: String(propertyValue) });
+      }
+    }
+  });
+
+  const seen = new Set<string>();
+  return characteristics
+    .filter((item) => {
+      const key = `${item.name}:${item.value}`.toLowerCase();
+      if (!item.name || !item.value || seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 120);
+}
+
+function visitMarketplacePayload(
+  value: Prisma.JsonValue | null,
+  visitor: (value: Prisma.JsonValue, key: string) => void,
+  key = '',
+  depth = 0,
+) {
+  if (value == null || depth > 7) {
+    return;
+  }
+
+  visitor(value, key);
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => visitMarketplacePayload(item, visitor, String(index), depth + 1));
+    return;
+  }
+
+  if (typeof value === 'object') {
+    Object.entries(value as Record<string, Prisma.JsonValue>).forEach(([nextKey, nextValue]) =>
+      visitMarketplacePayload(nextValue, visitor, nextKey, depth + 1),
+    );
+  }
+}
+
+function characteristicFromValue(value: Prisma.JsonValue): { name: string; value: string } | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  const record = value as Record<string, Prisma.JsonValue>;
+  const name = textFromJson(record.name) || textFromJson(record.charcName) || textFromJson(record.attribute_name) || textFromJson(record.title);
+  if (!name) {
+    return null;
+  }
+
+  const rawValue = record.value ?? record.values ?? record.val ?? record.display_value;
+  const normalizedValue = Array.isArray(rawValue)
+    ? rawValue
+        .map((item) => (item && typeof item === 'object' && !Array.isArray(item) ? textFromJson((item as Record<string, Prisma.JsonValue>).value) : textFromJson(item)))
+        .filter(Boolean)
+        .join(', ')
+    : textFromJson(rawValue);
+
+  return normalizedValue ? { name, value: normalizedValue } : null;
+}
+
+function textFromJson(value: Prisma.JsonValue | undefined) {
+  if (value == null || typeof value === 'object') {
+    return '';
+  }
+
+  return String(value).trim();
+}
+
+function looksLikeImageUrl(value: string) {
+  return /^https?:\/\//i.test(value) && /\.(avif|gif|jpe?g|png|webp)(\?|$)/i.test(value);
+}
+
+function uniqueValues(values: string[]) {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+}
+
+function decimalToNumber(value: Prisma.Decimal | null) {
+  return value ? value.toNumber() : undefined;
 }
 
 type ArticleMappingImportItem = {

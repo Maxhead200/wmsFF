@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '../auth/auth.types';
@@ -7,6 +7,7 @@ import { RequirePermissions } from '../auth/decorators/require-permissions.decor
 import { CreateArticleMappingDto } from './dto/create-article-mapping.dto';
 import { CreateNomenclatureItemDto } from './dto/create-nomenclature-item.dto';
 import { CreateSkuDto } from './dto/create-sku.dto';
+import { UpdateSkuDto } from './dto/update-sku.dto';
 import { SkusService } from './skus.service';
 
 @ApiTags('skus')
@@ -67,6 +68,18 @@ export class SkusController {
   @Get(':id')
   get(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.skus.get(id, user);
+  }
+
+  @Patch(':id')
+  @RequirePermissions('skus:write')
+  update(@Param('id') id: string, @Body() dto: UpdateSkuDto, @CurrentUser() user: AuthUser) {
+    return this.skus.update(id, dto, user);
+  }
+
+  @Delete(':id')
+  @RequirePermissions('skus:write')
+  delete(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.skus.delete(id, user);
   }
 
   @Post()

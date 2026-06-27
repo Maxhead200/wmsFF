@@ -6,6 +6,7 @@ import {
   Database,
   FolderCog,
   LayoutDashboard,
+  PackageSearch,
   Printer,
   ShieldCheck,
   Truck,
@@ -23,6 +24,7 @@ export type WorkspaceId =
   | 'logistics'
   | 'warehouse'
   | 'requests'
+  | 'catalog'
   | 'billing'
   | 'print'
   | 'data';
@@ -98,6 +100,16 @@ export const workspaceNav: WorkspaceNavItem[] = [
     description: 'Заявки клиентов, статусы и операционный процесс.',
     permissions: ['client-requests:read', 'client-requests:write', 'client-requests:status'],
     icon: ClipboardList,
+    status: 'in-progress',
+    audience: 'all',
+  },
+  {
+    id: 'catalog',
+    title: 'Каталог',
+    eyebrow: 'Товары',
+    description: 'Товары клиентов, фото, характеристики, габариты и синхронизация с маркетплейсами.',
+    permissions: ['skus:read'],
+    icon: PackageSearch,
     status: 'in-progress',
     audience: 'all',
   },

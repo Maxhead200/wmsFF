@@ -53,6 +53,15 @@ type BillingReportState = {
   error?: string;
 };
 
+const billingTabs = [
+  { id: 'overview', label: 'Обзор' },
+  { id: 'invoices', label: 'Счета' },
+  { id: 'charges', label: 'Начисления' },
+  { id: 'create', label: 'Создать' },
+] as const;
+
+type BillingTab = (typeof billingTabs)[number]['id'];
+
 export function BillingPanel({ session }: BillingPanelProps) {
   const canRead = canUse(session.user, 'billing:read');
   const canWrite = canUse(session.user, 'billing:write');
@@ -64,6 +73,7 @@ export function BillingPanel({ session }: BillingPanelProps) {
   const [reconciliation, setReconciliation] = useState<BillingReportState>({ status: 'idle', data: null });
   const [error, setError] = useState<string | null>(null);
   const [documentPreview, setDocumentPreview] = useState<BillingInvoiceDocument | null>(null);
+  const [activeTab, setActiveTab] = useState<BillingTab>('overview');
 
   const activeServices = useMemo(() => services.data.filter((service) => service.isActive), [services.data]);
 
@@ -201,7 +211,7 @@ export function BillingPanel({ session }: BillingPanelProps) {
       <div className="section-heading billing-panel__heading">
         <div>
           <p className="eyebrow">Биллинг</p>
-          <h2>Услуги и начисления</h2>
+          <h2>Финансы и начисления</h2>
         </div>
         <button
           className="icon-button"
@@ -214,65 +224,92 @@ export function BillingPanel({ session }: BillingPanelProps) {
         </button>
       </div>
 
-      {canWrite && services.status === 'ready' ? <BillingServiceForm session={session} onCreated={acceptService} /> : null}
-
-      {canWrite && clients.status === 'ready' && requests.status === 'ready' && services.status === 'ready' ? (
-        <BillingChargeForm
-          clients={clients.data}
-          requests={requests.data}
-          services={activeServices}
-          session={session}
-          onCreated={acceptCharge}
-        />
-      ) : null}
-
-      {canWrite && clients.status === 'ready' ? (
-        <BillingStorageChargeForm clients={clients.data} session={session} onCreated={acceptCharge} />
-      ) : null}
-
-      {canWrite && clients.status === 'ready' ? (
-        <BillingInvoiceForm clients={clients.data} session={session} onCreated={acceptInvoice} />
-      ) : null}
-
-      {canWrite && invoices.status === 'ready' ? (
-        <BillingPaymentForm invoices={invoices.data} session={session} onPaid={acceptInvoice} />
-      ) : null}
+      <div className="billing-tabs" role="tablist" aria-label="Раздел биллинга">
+        {billingTabs.map((tab) => (
+          <button
+            aria-selected={activeTab === tab.id}
+            className={activeTab === tab.id ? 'active' : ''}
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            role="tab"
+            type="button"
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
       {error ? <p className="form-error">{error}</p> : null}
 
-      <div className="billing-panel__subheading">
-        <h3>Сверка</h3>
-      </div>
-      <div className="billing-panel__list">{renderReconciliation(reconciliation)}</div>
-
-      {charges.status === 'ready' && invoices.status === 'ready' ? (
+      {activeTab === 'overview' ? (
         <>
           <div className="billing-panel__subheading">
-            <h3>Периоды</h3>
+            <h3>Сверка</h3>
+          </div>
+          <div className="billing-panel__list">{renderReconciliation(reconciliation)}</div>
+
+          {charges.status === 'ready' && invoices.status === 'ready' ? (
+            <>
+              <div className="billing-panel__subheading">
+                <h3>Периоды</h3>
+              </div>
+              <div className="billing-panel__list">
+                <BillingPeriodSummary charges={charges.data} invoices={invoices.data} />
+              </div>
+            </>
+          ) : null}
+        </>
+      ) : null}
+
+      {activeTab === 'invoices' ? (
+        <>
+          {canWrite && invoices.status === 'ready' ? (
+            <BillingPaymentForm invoices={invoices.data} session={session} onPaid={acceptInvoice} />
+          ) : null}
+          <div className="billing-panel__subheading">
+            <h3>Счета</h3>
           </div>
           <div className="billing-panel__list">
-            <BillingPeriodSummary charges={charges.data} invoices={invoices.data} />
+            {renderInvoices(
+              invoices,
+              canWrite,
+              (invoice, kind) => void openInvoiceDocument(invoice, kind),
+              (invoice, kind) => void downloadInvoicePdf(invoice, kind),
+              changeInvoiceStatus,
+            )}
           </div>
         </>
       ) : null}
 
-      <div className="billing-panel__subheading">
-        <h3>Счета</h3>
-      </div>
-      <div className="billing-panel__list">
-        {renderInvoices(
-          invoices,
-          canWrite,
-          (invoice, kind) => void openInvoiceDocument(invoice, kind),
-          (invoice, kind) => void downloadInvoicePdf(invoice, kind),
-          changeInvoiceStatus,
-        )}
-      </div>
+      {activeTab === 'charges' ? (
+        <>
+          <div className="billing-panel__subheading">
+            <h3>Начисления</h3>
+          </div>
+          <div className="billing-panel__list">{renderCharges(charges, canWrite, changeChargeStatus)}</div>
+        </>
+      ) : null}
 
-      <div className="billing-panel__subheading">
-        <h3>Начисления</h3>
-      </div>
-      <div className="billing-panel__list">{renderCharges(charges, canWrite, changeChargeStatus)}</div>
+      {activeTab === 'create' && canWrite ? (
+        <div className="billing-create-stack">
+          {services.status === 'ready' ? <BillingServiceForm session={session} onCreated={acceptService} /> : null}
+          {clients.status === 'ready' && requests.status === 'ready' && services.status === 'ready' ? (
+            <BillingChargeForm
+              clients={clients.data}
+              requests={requests.data}
+              services={activeServices}
+              session={session}
+              onCreated={acceptCharge}
+            />
+          ) : null}
+          {clients.status === 'ready' ? (
+            <BillingStorageChargeForm clients={clients.data} session={session} onCreated={acceptCharge} />
+          ) : null}
+          {clients.status === 'ready' ? (
+            <BillingInvoiceForm clients={clients.data} session={session} onCreated={acceptInvoice} />
+          ) : null}
+        </div>
+      ) : null}
 
       {documentPreview ? (
         <BillingInvoiceDocumentPreview document={documentPreview} onClose={() => setDocumentPreview(null)} />

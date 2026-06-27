@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AccessAdminPanel } from './components/access/AccessAdminPanel';
 import { AuthPanel } from './components/AuthPanel';
 import { BillingPanel } from './components/billing/BillingPanel';
+import { CatalogPanel } from './components/catalog/CatalogPanel';
 import { ClientCabinetPanel } from './components/client-cabinet/ClientCabinetPanel';
 import { ClientRequestsPanel } from './components/client-requests/ClientRequestsPanel';
 import { DashboardDataPanel } from './components/DashboardDataPanel';
@@ -219,6 +220,8 @@ function renderWorkspace(
       return <WarehouseOpsPanel session={session} />;
     case 'requests':
       return <ClientRequestsPanel session={session} />;
+    case 'catalog':
+      return <CatalogPanel session={session} />;
     case 'billing':
       return <BillingPanel session={session} />;
     case 'print':
@@ -316,7 +319,7 @@ function sectionForWorkspace(id: WorkspaceId): WorkspaceSection {
     return 'main';
   }
 
-  if (id === 'cabinet' || id === 'requests') {
+  if (id === 'cabinet' || id === 'requests' || id === 'catalog') {
     return 'client';
   }
 
@@ -365,8 +368,8 @@ function permissionTitle(item: WorkspaceNavItem) {
 
 function defaultWorkspaceForUser(user: AuthUser): WorkspaceId {
   const preferredOrder: WorkspaceId[] = isClientOnlyUser(user)
-    ? ['cabinet', 'requests', 'logistics', 'billing', 'overview']
-    : ['warehouse', 'requests', 'access', 'directories', 'imports', 'logistics', 'billing', 'print', 'data', 'overview'];
+    ? ['cabinet', 'requests', 'catalog', 'logistics', 'billing', 'overview']
+    : ['warehouse', 'requests', 'catalog', 'access', 'directories', 'imports', 'logistics', 'billing', 'print', 'data', 'overview'];
 
   return preferredOrder.find((id) => canKeepWorkspace(user, id)) ?? 'overview';
 }

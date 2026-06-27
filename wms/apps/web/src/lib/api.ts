@@ -1113,14 +1113,27 @@ export type SkuSummary = {
   clientSku: string | null;
   article: string | null;
   name: string;
+  brand: string | null;
+  category: string | null;
   color: string | null;
   size: string | null;
+  weightGrams: string | number | null;
   lengthCm: string | number | null;
   widthCm: string | number | null;
   heightCm: string | number | null;
   volumeLiters: string | number | null;
   volumeSource: string;
   needsChestnyZnak: boolean;
+  isUnmarked: boolean;
+  needsLabel: boolean;
+  needsRelabel: boolean;
+  marketplace: MarketplaceType | null;
+  marketplaceProductId: string | null;
+  marketplaceOfferId: string | null;
+  marketplacePayload: unknown | null;
+  marketplaceSyncedAt: string | null;
+  marketplacePhotos: string[];
+  marketplaceCharacteristics: Array<{ name: string; value: string }>;
   barcodes: Array<{
     id: string;
     value: string;
@@ -1130,6 +1143,21 @@ export type SkuSummary = {
     balances: number;
     movements: number;
   };
+};
+
+export type SkuDetail = SkuSummary & {
+  balances?: Array<{
+    id: string;
+    clientId: string;
+    skuId: string;
+    boxId: string | null;
+    palletId: string | null;
+    status: string;
+    quantity: number;
+    updatedAt: string;
+    box: { id: string; code: string; status: string } | null;
+    pallet: { id: string; code: string; status: string } | null;
+  }>;
 };
 
 export type CreateSkuPayload = {
@@ -1145,6 +1173,15 @@ export type CreateSkuPayload = {
   widthCm?: number;
   heightCm?: number;
   needsChestnyZnak?: boolean;
+};
+
+export type UpdateSkuPayload = Partial<CreateSkuPayload> & {
+  brand?: string;
+  category?: string;
+  weightGrams?: number;
+  isUnmarked?: boolean;
+  needsLabel?: boolean;
+  needsRelabel?: boolean;
 };
 
 export type WarehouseBoxSummary = {
@@ -2192,10 +2229,31 @@ export async function fetchSkus(accessToken: string, filter: { clientId?: string
   });
 }
 
+export async function fetchSku(accessToken: string, skuId: string) {
+  return request<SkuDetail>(`/skus/${skuId}`, {
+    accessToken,
+  });
+}
+
 export async function createSku(accessToken: string, payload: CreateSkuPayload) {
   return request<SkuSummary>('/skus', {
     method: 'POST',
     body: payload,
+    accessToken,
+  });
+}
+
+export async function updateSku(accessToken: string, skuId: string, payload: UpdateSkuPayload) {
+  return request<SkuDetail>(`/skus/${skuId}`, {
+    method: 'PATCH',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function deleteSku(accessToken: string, skuId: string) {
+  return request<{ id: string; internalSku: string; name: string; deleted: true }>(`/skus/${skuId}`, {
+    method: 'DELETE',
     accessToken,
   });
 }

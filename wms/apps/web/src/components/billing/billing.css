@@ -11,6 +11,37 @@
   margin-bottom: 14px;
 }
 
+.billing-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 12px;
+}
+
+.billing-tabs button {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--ink);
+  padding: 0 14px;
+  font-weight: 800;
+}
+
+.billing-tabs button:hover,
+.billing-tabs button.active {
+  border-color: rgb(215 25 32 / 0.42);
+  background: #fff8f8;
+  color: var(--red-dark);
+}
+
+.billing-create-stack {
+  display: grid;
+  gap: 14px;
+}
+
 .billing-form {
   display: grid;
   gap: 12px;

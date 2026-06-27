@@ -575,6 +575,8 @@ function mapOzonProduct(
 }
 
 function marketplaceSkuData(clientId: string, product: MarketplaceProductSyncItem): Prisma.SkuUncheckedCreateInput {
+  const volumeLiters = calculateVolumeLiters(product);
+
   return {
     clientId,
     internalSku: product.internalSku,
@@ -589,6 +591,7 @@ function marketplaceSkuData(clientId: string, product: MarketplaceProductSyncIte
     lengthCm: product.lengthCm,
     widthCm: product.widthCm,
     heightCm: product.heightCm,
+    ...(volumeLiters ? { volumeLiters, volumeSource: 'CALCULATED' } : {}),
     needsChestnyZnak: product.needsChestnyZnak ?? false,
     marketplace: product.marketplace,
     marketplaceProductId: product.productId,
@@ -641,6 +644,14 @@ function convertWeightToGrams(value: number | undefined, unit: string) {
 
 function kgToGrams(value: number | undefined) {
   return value ? Math.round(value * 1000) : undefined;
+}
+
+function calculateVolumeLiters(product: Pick<MarketplaceProductSyncItem, 'lengthCm' | 'widthCm' | 'heightCm'>) {
+  if (!product.lengthCm || !product.widthCm || !product.heightCm) {
+    return undefined;
+  }
+
+  return round((product.lengthCm * product.widthCm * product.heightCm) / 1000, 3);
 }
 
 function characteristicValue(characteristics: Array<Record<string, unknown>>, names: string[]) {

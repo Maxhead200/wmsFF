@@ -285,7 +285,13 @@ export class LogisticsService {
             id: dto.requestId,
             clientId: dto.clientId,
           },
-          select: { id: true },
+          include: {
+            packages: {
+              select: {
+                packageType: true,
+              },
+            },
+          },
         })
       : null;
 
@@ -293,7 +299,12 @@ export class LogisticsService {
       throw new BadRequestException('Связанная клиентская заявка не найдена у выбранного клиента.');
     }
 
-    const quote = await this.tryQuoteForDelivery(dto);
+    const actualQuantity = this.resolveDeliveryQuantity(dto, clientRequest?.packages ?? []);
+    const quote = await this.tryQuoteForDelivery({
+      ...dto,
+      boxes: actualQuantity.quoteBoxes,
+      pallets: actualQuantity.quotePallets,
+    });
     const status = quote.estimatedTotalRub != null && !quote.requiresManualReview
       ? LogisticsDeliveryStatus.QUOTED
       : LogisticsDeliveryStatus.REQUESTED;
@@ -306,8 +317,8 @@ export class LogisticsService {
         tariffSetId: quote.tariffSetId ?? dto.tariffSetId,
         origin: DEFAULT_LOGISTICS_ORIGIN,
         destination: dto.destination.trim(),
-        boxes: dto.boxes,
-        pallets: dto.pallets,
+        boxes: actualQuantity.boxes,
+        pallets: actualQuantity.pallets,
         desiredShipDate: this.parseDate(dto.desiredShipDate),
         status,
         estimatedTotalRub: quote.estimatedTotalRub,
@@ -675,6 +686,47 @@ export class LogisticsService {
     }
   }
 
+  private resolveDeliveryQuantity(
+    dto: CreateDeliveryRequestDto,
+    packages: Array<{ packageType: string | null }>,
+  ) {
+    if (dto.requestId) {
+      if (packages.length === 0) {
+        throw new BadRequestException('Для доставки по заявке сначала упакуйте заявку: фактические короба и паллеты берутся из упаковки.');
+      }
+
+      const counts = packages.reduce(
+        (result, pack) => {
+          if (isPalletPackage(pack.packageType)) {
+            result.pallets += 1;
+          } else {
+            result.boxes += 1;
+          }
+          return result;
+        },
+        { boxes: 0, pallets: 0 },
+      );
+
+      return {
+        boxes: counts.boxes || null,
+        pallets: counts.pallets || null,
+        quoteBoxes: counts.pallets > 0 ? undefined : counts.boxes || undefined,
+        quotePallets: counts.pallets > 0 ? counts.pallets : undefined,
+      };
+    }
+
+    if (Boolean(dto.boxes) === Boolean(dto.pallets)) {
+      throw new BadRequestException('Для доставки передайте ровно одно значение: короба или паллеты.');
+    }
+
+    return {
+      boxes: dto.boxes ?? null,
+      pallets: dto.pallets ?? null,
+      quoteBoxes: dto.boxes,
+      quotePallets: dto.pallets,
+    };
+  }
+
   private normalizePoint(value: string) {
     return value.toLowerCase().replace(/\s*,\s*/g, ', ').replace(/\s+/g, ' ').trim();
   }
@@ -813,6 +865,10 @@ function ensureDeliveryBillingService(tx: Prisma.TransactionClient) {
 
 function deliverySourceKey(deliveryRequestId: string) {
   return `logistics-delivery:${deliveryRequestId}`;
+}
+
+function isPalletPackage(packageType?: string | null) {
+  return ['PALLET', 'PALLETTE', 'ПАЛЛЕТ', 'ПАЛЛЕТА'].includes((packageType ?? '').trim().toUpperCase());
 }
 
 function deliveryStatusLabel(status: LogisticsDeliveryStatus) {

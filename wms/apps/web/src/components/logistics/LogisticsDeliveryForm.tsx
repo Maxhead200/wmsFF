@@ -37,8 +37,19 @@ export function LogisticsDeliveryForm({ clients, requests, tariffs, session, onC
     () => requests.filter((request) => request.clientId === clientId && request.type === 'OUTBOUND'),
     [clientId, requests],
   );
+  const selectedRequest = useMemo(
+    () => availableRequests.find((request) => request.id === requestId) ?? null,
+    [availableRequests, requestId],
+  );
+  const packageCounts = useMemo(() => countRequestPackages(selectedRequest), [selectedRequest]);
+  const isPackageDriven = Boolean(selectedRequest);
   const parsedQuantity = Number(quantity);
-  const canSubmit = Boolean(clientId && destination.trim() && Number.isInteger(parsedQuantity) && parsedQuantity > 0);
+  const hasActualPackages = packageCounts.boxes + packageCounts.pallets > 0;
+  const canSubmit = Boolean(
+    clientId &&
+      destination.trim() &&
+      (isPackageDriven ? hasActualPackages : Number.isInteger(parsedQuantity) && parsedQuantity > 0),
+  );
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -54,7 +65,7 @@ export function LogisticsDeliveryForm({ clients, requests, tariffs, session, onC
         destination: destination.trim(),
         desiredShipDate: desiredShipDate || undefined,
         comment: comment.trim() || undefined,
-        ...(quantityMode === 'boxes' ? { boxes: parsedQuantity } : { pallets: parsedQuantity }),
+        ...(isPackageDriven ? {} : quantityMode === 'boxes' ? { boxes: parsedQuantity } : { pallets: parsedQuantity }),
       });
       onCreated(created);
       setDestination('');
@@ -125,11 +136,12 @@ export function LogisticsDeliveryForm({ clients, requests, tariffs, session, onC
           <input value={destination} onChange={(event) => setDestination(event.target.value)} required />
         </label>
         <div className="quote-mode" role="tablist" aria-label="Единица доставки">
-          <button className={quantityMode === 'boxes' ? 'active' : ''} type="button" onClick={() => setQuantityMode('boxes')}>
+          <button className={quantityMode === 'boxes' ? 'active' : ''} disabled={isPackageDriven} type="button" onClick={() => setQuantityMode('boxes')}>
             Короба
           </button>
           <button
             className={quantityMode === 'pallets' ? 'active' : ''}
+            disabled={isPackageDriven}
             type="button"
             onClick={() => setQuantityMode('pallets')}
           >
@@ -137,10 +149,18 @@ export function LogisticsDeliveryForm({ clients, requests, tariffs, session, onC
           </button>
         </div>
         <label>
-          <span>Количество</span>
-          <input min="1" step="1" type="number" value={quantity} onChange={(event) => setQuantity(event.target.value)} />
+          <span>{isPackageDriven ? 'Фактические места' : 'Количество'}</span>
+          {isPackageDriven ? (
+            <strong className="readonly-field">{formatPackageCounts(packageCounts)}</strong>
+          ) : (
+            <input min="1" step="1" type="number" value={quantity} onChange={(event) => setQuantity(event.target.value)} />
+          )}
         </label>
       </div>
+
+      {isPackageDriven && !hasActualPackages ? (
+        <p className="form-error">По выбранной заявке нет упаковочных мест. Сначала упакуйте заявку на складе.</p>
+      ) : null}
 
       <div className="delivery-footer">
         <label>
@@ -156,4 +176,33 @@ export function LogisticsDeliveryForm({ clients, requests, tariffs, session, onC
       {error ? <p className="form-error">{error}</p> : null}
     </form>
   );
+}
+
+function countRequestPackages(request: ClientRequestSummary | null) {
+  return (request?.packages ?? []).reduce(
+    (result, pack) => {
+      if (isPalletPackage(pack.packageType)) {
+        result.pallets += 1;
+      } else {
+        result.boxes += 1;
+      }
+      return result;
+    },
+    { boxes: 0, pallets: 0 },
+  );
+}
+
+function isPalletPackage(packageType?: string | null) {
+  return ['PALLET', 'PALLETTE', 'ПАЛЛЕТ', 'ПАЛЛЕТА'].includes((packageType ?? '').trim().toUpperCase());
+}
+
+function formatPackageCounts(counts: { boxes: number; pallets: number }) {
+  const parts: string[] = [];
+  if (counts.boxes > 0) {
+    parts.push(`${counts.boxes} кор.`);
+  }
+  if (counts.pallets > 0) {
+    parts.push(`${counts.pallets} пал.`);
+  }
+  return parts.join(' / ') || 'нет упаковки';
 }

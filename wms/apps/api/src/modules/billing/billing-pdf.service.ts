@@ -65,8 +65,8 @@ function invoiceDefinition(document: BillingPrintableDocument): TDocumentDefinit
       margin: [0, 18, 0, 10],
     },
     horizontalLine(),
-    requisitesLine('Поставщик:', `${BILLING_SELLER.fullName}, ИНН ${BILLING_SELLER.inn}, ${BILLING_SELLER.address}`),
-    requisitesLine('Покупатель:', clientName(document)),
+    requisitesLine('Поставщик:', sellerRequisites()),
+    requisitesLine('Покупатель:', clientRequisites(document)),
     positionsTable(document, 'Товары (работы, услуги)'),
     invoiceTotals(document),
     totalInWords(document, 'Всего наименований'),
@@ -87,8 +87,8 @@ function actDefinition(document: BillingPrintableDocument): TDocumentDefinitions
       margin: [0, 0, 0, 6],
     },
     horizontalLine([0, 0, 0, 12]),
-    requisitesLine('Исполнитель:', BILLING_SELLER.fullName),
-    requisitesLine('Заказчик:', clientName(document)),
+    requisitesLine('Исполнитель:', sellerRequisites()),
+    requisitesLine('Заказчик:', clientRequisites(document)),
     positionsTable(document, 'Наименование работ, услуг'),
     actTotals(document),
     totalInWords(document, 'Всего оказано услуг'),
@@ -399,9 +399,29 @@ function requisitesLine(label: string, value: string): Content {
   };
 }
 
-function clientName(document: BillingPrintableDocument) {
+function sellerRequisites() {
+  return [
+    BILLING_SELLER.fullName,
+    `ИНН ${BILLING_SELLER.inn}`,
+    BILLING_SELLER.address,
+    BILLING_SELLER.bankName,
+    `р/с ${BILLING_SELLER.bankAccount}`,
+  ]
+    .filter(Boolean)
+    .join(', ');
+}
+
+function clientRequisites(document: BillingPrintableDocument) {
   const client = document.client.legalName || document.client.name;
-  return [client, document.client.inn ? `ИНН ${document.client.inn}` : ''].filter(Boolean).join(', ');
+  return [
+    client,
+    document.client.inn ? `ИНН ${document.client.inn}` : '',
+    document.client.kpp ? `КПП ${document.client.kpp}` : '',
+    document.client.legalAddress ?? document.client.actualAddress ?? '',
+    document.client.bankAccount ? `р/с ${document.client.bankAccount}` : '',
+  ]
+    .filter(Boolean)
+    .join(', ');
 }
 
 function horizontalLine(margin: [number, number, number, number] = [0, 0, 0, 8]): Content {

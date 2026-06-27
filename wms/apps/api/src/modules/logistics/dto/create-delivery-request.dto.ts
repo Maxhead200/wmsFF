@@ -16,13 +16,13 @@ export class CreateDeliveryRequestDto {
   @IsString()
   destination!: string;
 
-  @ValidateIf((dto: CreateDeliveryRequestDto) => dto.boxes == null)
+  @ValidateIf((dto: CreateDeliveryRequestDto) => dto.boxes == null && !dto.requestId)
   @Type(() => Number)
   @IsInt()
   @Min(1)
   pallets?: number;
 
-  @ValidateIf((dto: CreateDeliveryRequestDto) => dto.pallets == null)
+  @ValidateIf((dto: CreateDeliveryRequestDto) => dto.pallets == null && !dto.requestId)
   @Type(() => Number)
   @IsInt()
   @Min(1)

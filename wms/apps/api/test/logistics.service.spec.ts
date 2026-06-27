@@ -142,7 +142,7 @@ describe('LogisticsService', () => {
   it('создает заявку на доставку с автоматическим расчетом тарифа', async () => {
     const prisma = {
       clientRequest: {
-        findFirst: vi.fn().mockResolvedValue({ id: 'request-1' }),
+        findFirst: vi.fn().mockResolvedValue({ id: 'request-1', packages: [{ packageType: 'BOX' }] }),
       },
       logisticsTariffSet: {
         findUnique: vi.fn().mockResolvedValue({
@@ -197,6 +197,8 @@ describe('LogisticsService', () => {
           origin: 'Москва',
           status: 'QUOTED',
           estimatedTotalRub: 5000,
+          boxes: 1,
+          pallets: null,
           requiresManualReview: false,
           createdByUserId: 'user-1',
         }),
@@ -466,6 +468,69 @@ describe('LogisticsService', () => {
           trip: { connect: { id: 'trip-1' } },
           status: LogisticsDeliveryStatus.PLANNED,
           plannedShipDate: tripDate,
+        }),
+      }),
+    );
+  });
+  it('uses packed request places instead of manually entered delivery quantity', async () => {
+    const prisma = {
+      clientRequest: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'request-1',
+          packages: [{ packageType: 'BOX' }, { packageType: 'PALLET' }, { packageType: 'ПАЛЛЕТ' }],
+        }),
+      },
+      logisticsTariffSet: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'tariff-1',
+          name: 'Tariff',
+          sourceFile: null,
+        }),
+      },
+      logisticsDirection: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: 'direction-1',
+            tariffSetId: 'tariff-1',
+            origin: 'Москва',
+            destination: 'Казань',
+            note: null,
+            tiers: [
+              {
+                label: '2 pallets',
+                minPallets: 2,
+                maxPallets: 2,
+                maxBoxes: null,
+                pricingMode: LogisticsPricingMode.PER_PALLET,
+                priceRub: 3000,
+              },
+            ],
+          },
+        ]),
+      },
+      logisticsDeliveryRequest: {
+        create: vi.fn().mockResolvedValue({ id: 'delivery-1' }),
+      },
+    };
+    const deliveryService = new LogisticsService(prisma as never, { requireClientAccess: vi.fn() } as never);
+
+    await deliveryService.createDeliveryRequest(
+      {
+        clientId: 'client-1',
+        requestId: 'request-1',
+        tariffSetId: 'tariff-1',
+        destination: 'Казань',
+        boxes: 99,
+      },
+      user(),
+    );
+
+    expect(prisma.logisticsDeliveryRequest.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          boxes: 1,
+          pallets: 2,
+          estimatedTotalRub: 6000,
         }),
       }),
     );

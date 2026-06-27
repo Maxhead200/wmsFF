@@ -35,4 +35,10 @@ export class MarketplaceConnectionsController {
   delete(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.connections.delete(id, user);
   }
+
+  @Post(':id/sync-products')
+  @RequirePermissions('clients:write')
+  syncProducts(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.connections.syncProducts(id, user);
+  }
 }

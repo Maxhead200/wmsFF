@@ -415,6 +415,11 @@ model Sku {
   isUnmarked         Boolean                    @default(false)
   needsLabel         Boolean                    @default(false)
   needsRelabel       Boolean                    @default(false)
+  marketplace        MarketplaceType?
+  marketplaceProductId String?
+  marketplaceOfferId String?
+  marketplacePayload Json?
+  marketplaceSyncedAt DateTime?
   client             Client                     @relation(fields: [clientId], references: [id])
   barcodes           Barcode[]
   movements          StockMovement[]
@@ -426,6 +431,8 @@ model Sku {
   updatedAt          DateTime                   @updatedAt
 
   @@unique([clientId, internalSku])
+  @@index([clientId, marketplace, marketplaceProductId])
+  @@index([clientId, marketplace, marketplaceOfferId])
 }
 
 model NomenclatureItem {

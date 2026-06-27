@@ -1,9 +1,10 @@
-import { PlugZap, Save, Trash2 } from 'lucide-react';
+import { PlugZap, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   createMarketplaceConnection,
   deleteMarketplaceConnection,
   fetchMarketplaceConnections,
+  syncMarketplaceProducts,
   updateMarketplaceConnection,
   type ClientSummary,
   type MarketplaceConnectionSummary,
@@ -50,6 +51,7 @@ export function ClientMarketplaceConnections({ accessToken, client }: ClientMark
   const [message, setMessage] = useState('');
   const [isLoading, setLoading] = useState(false);
   const [isSubmitting, setSubmitting] = useState(false);
+  const [syncingIds, setSyncingIds] = useState<string[]>([]);
   const selectedConnection = useMemo(
     () => connections.find((connection) => connection.id === form.id) ?? null,
     [connections, form.id],
@@ -109,16 +111,44 @@ export function ClientMarketplaceConnections({ accessToken, client }: ClientMark
         const updated = await updateMarketplaceConnection(accessToken, form.id, apiKey ? payload : withoutApiKey);
         setConnections((current) => current.map((connection) => (connection.id === updated.id ? updated : connection)));
         setMessage('Подключение обновлено.');
+        if (apiKey) {
+          await runProductSync(updated.id, true);
+        }
       } else {
         const created = await createMarketplaceConnection(accessToken, payload);
         setConnections((current) => [created, ...current]);
         setMessage('Подключение создано.');
+        await runProductSync(created.id, true);
       }
       setForm(emptyForm);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Не удалось сохранить подключение.');
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function runProductSync(connectionId: string, afterSave = false) {
+    setSyncingIds((current) => [...current, connectionId]);
+    setError('');
+    try {
+      const result = await syncMarketplaceProducts(accessToken, connectionId);
+      setMessage(
+        [
+          afterSave ? 'Подключение сохранено, товары синхронизированы.' : 'Товары синхронизированы.',
+          `Получено: ${result.productsReceived}. Создано: ${result.created}. Обновлено: ${result.updated}.`,
+          result.skipped ? `Пропущено: ${result.skipped}.` : '',
+        ]
+          .filter(Boolean)
+          .join(' '),
+      );
+    } catch (caught) {
+      if (afterSave) {
+        setMessage('Подключение сохранено, но товары не загрузились автоматически.');
+      }
+      setError(caught instanceof Error ? caught.message : 'Не удалось синхронизировать товары.');
+    } finally {
+      setSyncingIds((current) => current.filter((id) => id !== connectionId));
     }
   }
 
@@ -239,6 +269,15 @@ export function ClientMarketplaceConnections({ accessToken, client }: ClientMark
                   <div className="client-marketplace-row-actions">
                     <button className="icon-text-button" type="button" onClick={() => editConnection(connection)}>
                       Редактировать
+                    </button>
+                    <button
+                      className="icon-text-button"
+                      type="button"
+                      onClick={() => void runProductSync(connection.id)}
+                      disabled={syncingIds.includes(connection.id) || !connection.isActive}
+                    >
+                      <RefreshCw size={14} aria-hidden="true" />
+                      <span>{syncingIds.includes(connection.id) ? 'Загрузка' : 'Синхронизировать товары'}</span>
                     </button>
                     <button className="icon-text-button client-cabinet-danger-button" type="button" onClick={() => void removeConnection(connection)}>
                       <Trash2 size={14} aria-hidden="true" />

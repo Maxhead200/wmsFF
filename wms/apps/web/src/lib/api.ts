@@ -966,6 +966,20 @@ export type MarketplaceConnectionSummary = {
   client: Pick<ClientSummary, 'id' | 'code' | 'name'>;
 };
 
+export type MarketplaceProductSyncResult = {
+  marketplace: MarketplaceType;
+  clientId: string;
+  productsReceived: number;
+  created: number;
+  updated: number;
+  barcodesTouched: number;
+  skipped: number;
+  errors: Array<{
+    offerId: string;
+    message: string;
+  }>;
+};
+
 export type UpsertMarketplaceConnectionPayload = {
   clientId: string;
   marketplace: MarketplaceType;
@@ -2164,6 +2178,13 @@ export async function deleteMarketplaceConnection(accessToken: string, connectio
       accessToken,
     },
   );
+}
+
+export async function syncMarketplaceProducts(accessToken: string, connectionId: string) {
+  return request<MarketplaceProductSyncResult>(`/marketplace-connections/${connectionId}/sync-products`, {
+    method: 'POST',
+    accessToken,
+  });
 }
 
 export async function fetchBoxes(accessToken: string, filter: { clientId?: string; code?: string } = {}) {

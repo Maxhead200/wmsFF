@@ -1,5 +1,5 @@
 import type { ClientSummary, StockBalance } from '../../lib/api';
-import { formatCabinetDate, formatCabinetNumber, primaryBarcode } from './clientCabinetFormat';
+import { formatCabinetDate, formatCabinetNumber, primaryBarcode, stockStatusLabel } from './clientCabinetFormat';
 
 export function downloadClientCabinetStockExcel(client: ClientSummary, stock: StockBalance[], canSeeStoragePlaces: boolean) {
   const stockHeader = canSeeStoragePlaces
@@ -13,7 +13,7 @@ export function downloadClientCabinetStockExcel(client: ClientSummary, stock: St
       balance.sku.name,
       primaryBarcode(balance),
       ...storagePlaces,
-      balance.status,
+      stockStatusLabel(balance.status),
       formatCabinetNumber(Number(balance.quantity)),
       formatCabinetDate(balance.updatedAt),
     ];

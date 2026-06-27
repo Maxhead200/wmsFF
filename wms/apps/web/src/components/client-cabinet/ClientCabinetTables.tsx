@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { FileSpreadsheet, FileText, MessageSquareText, ReceiptText, Search } from 'lucide-react';
 import type {
   BillingChargeSummary,
@@ -15,15 +15,19 @@ import type {
   StockBalance,
 } from '../../lib/api';
 import { fetchSku } from '../../lib/api';
-import { billingInvoiceStatusLabel, billingInvoiceStatusTone } from '../billing/billingMeta';
+import { billingInvoiceStatusTone } from '../billing/billingMeta';
 import { BillingReconciliationPanel } from '../billing/BillingReconciliationPanel';
 import { ProductCardModal } from '../catalog/ProductCardModal';
-import { requestStatusLabel, requestStatusTone, requestTypeLabel } from '../client-requests/clientRequestMeta';
+import { requestStatusTone } from '../client-requests/clientRequestMeta';
 import {
+  billingInvoiceStatusLabel,
   formatCabinetDate,
   formatCabinetMoney,
   formatCabinetNumber,
   primaryBarcode,
+  requestStatusLabel,
+  requestTypeLabel,
+  stockStatusLabel,
 } from './clientCabinetFormat';
 import { ClientCabinetNotifications } from './ClientCabinetNotifications';
 import { ClientCabinetReceiptImport } from './ClientCabinetReceiptImport';
@@ -321,7 +325,12 @@ function renderSkuTable(items: SkuStockSummary[], canSeeStoragePlaces: boolean, 
         </thead>
         <tbody>
           {items.map((item) => (
-            <tr key={item.skuId} onClick={() => onOpenProductCard(item.skuId)} tabIndex={0}>
+            <tr
+              key={item.skuId}
+              onClick={() => onOpenProductCard(item.skuId)}
+              onKeyDown={(event) => openProductCardFromKeyboard(event, item.skuId, onOpenProductCard)}
+              tabIndex={0}
+            >
               <td>
                 <strong>{item.internalSku}</strong>
               </td>
@@ -355,7 +364,12 @@ function renderStockTable(items: StockBalance[], canSeeStoragePlaces: boolean, o
         </thead>
         <tbody>
           {items.map((balance) => (
-            <tr key={balance.id} onClick={() => onOpenProductCard(balance.skuId)} tabIndex={0}>
+            <tr
+              key={balance.id}
+              onClick={() => onOpenProductCard(balance.skuId)}
+              onKeyDown={(event) => openProductCardFromKeyboard(event, balance.skuId, onOpenProductCard)}
+              tabIndex={0}
+            >
               <td>
                 <strong>{balance.sku.internalSku}</strong>
                 <span>{balance.sku.name}</span>
@@ -364,7 +378,7 @@ function renderStockTable(items: StockBalance[], canSeeStoragePlaces: boolean, o
               {canSeeStoragePlaces ? <td>{balance.box?.code ?? '-'}</td> : null}
               {canSeeStoragePlaces ? <td>{balance.pallet?.code ?? '-'}</td> : null}
               <td>
-                <span className="status status--planned">{balance.status}</span>
+                <span className="status status--planned">{stockStatusLabel(balance.status)}</span>
               </td>
               <td>{formatCabinetNumber(Number(balance.quantity))}</td>
               <td>{formatCabinetDate(balance.updatedAt)}</td>
@@ -514,6 +528,17 @@ function renderInvoiceTable(items: BillingInvoiceSummary[], onOpenInvoiceDocumen
       </table>
     </div>
   );
+}
+
+function openProductCardFromKeyboard(
+  event: KeyboardEvent<HTMLTableRowElement>,
+  skuId: string,
+  onOpenProductCard: (skuId: string) => void,
+) {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    onOpenProductCard(skuId);
+  }
 }
 
 function TablePager({

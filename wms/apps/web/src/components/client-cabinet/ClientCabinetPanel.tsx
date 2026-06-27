@@ -55,7 +55,7 @@ import {
   emptyClientCabinetFilters,
   type ClientCabinetFiltersValue,
 } from './ClientCabinetFilters';
-import { formatCabinetMoney, formatCabinetNumber } from './clientCabinetFormat';
+import { clientStatusLabel, formatCabinetMoney, formatCabinetNumber } from './clientCabinetFormat';
 import { ClientRequestTimelineModal } from './ClientRequestTimelineModal';
 
 type CabinetData = {
@@ -1009,15 +1009,6 @@ function compactClientPayload(form: ClientManagementForm): UpdateClientPayload {
     bankAccount: form.bankAccount.trim(),
     correspondentAccount: form.correspondentAccount.trim(),
   };
-}
-
-function clientStatusLabel(status: ClientStatus) {
-  const labels: Record<ClientStatus, string> = {
-    ACTIVE: 'Активен',
-    PAUSED: 'Заблокирован',
-    ARCHIVED: 'В архиве',
-  };
-  return labels[status];
 }
 
 function canUse(user: AuthSession['user'], permission: string) {

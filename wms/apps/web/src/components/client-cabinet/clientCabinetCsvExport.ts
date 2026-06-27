@@ -5,10 +5,17 @@ import type {
   ClientRequestSummary,
   ClientSummary,
 } from '../../lib/api';
-import { billingInvoiceStatusLabel, billingStatusLabel, billingUnitLabel } from '../billing/billingMeta';
-import { requestStatusLabel, requestTypeLabel } from '../client-requests/clientRequestMeta';
 import type { ClientCabinetFiltersValue } from './ClientCabinetFilters';
-import { formatCabinetDate, formatCabinetMoney, formatCabinetNumber } from './clientCabinetFormat';
+import {
+  billingInvoiceStatusLabel,
+  billingStatusLabel,
+  billingUnitLabel,
+  formatCabinetDate,
+  formatCabinetMoney,
+  formatCabinetNumber,
+  requestStatusLabel,
+  requestTypeLabel,
+} from './clientCabinetFormat';
 
 export type ClientCabinetExportData = {
   client: ClientSummary;

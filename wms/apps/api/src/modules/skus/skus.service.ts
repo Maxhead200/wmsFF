@@ -612,7 +612,7 @@ function extractMarketplacePhotos(payload: Prisma.JsonValue | null) {
     }
     if (value && typeof value === 'object' && !Array.isArray(value)) {
       const record = value as Record<string, Prisma.JsonValue>;
-      for (const field of ['url', 'big', 'small', 'file_name', 'link']) {
+      for (const field of ['url', 'big', 'small', 'file_name', 'link', 'c246x328', 'c516x688', 'hq', 'tm']) {
         const candidate = record[field];
         if (typeof candidate === 'string' && looksLikeImageUrl(candidate)) {
           photos.push(candidate);
@@ -621,7 +621,7 @@ function extractMarketplacePhotos(payload: Prisma.JsonValue | null) {
     }
   });
 
-  return uniqueValues(photos).slice(0, 24);
+  return uniqueValues(photos).slice(0, 60);
 }
 
 function extractMarketplaceCharacteristics(payload: Prisma.JsonValue | null) {

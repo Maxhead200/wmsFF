@@ -1,7 +1,6 @@
 import { Filter, RotateCcw } from 'lucide-react';
 import type { BillingChargeStatus, BillingInvoiceStatus, ClientRequestStatus } from '../../lib/api';
-import { billingInvoiceStatusOptions, billingStatusOptions } from '../billing/billingMeta';
-import { requestStatusOptions } from '../client-requests/clientRequestMeta';
+import { billingInvoiceStatusLabel, billingStatusLabel, requestStatusLabel } from './clientCabinetFormat';
 
 export type ClientCabinetNotificationFilter = '' | 'UNREAD' | 'READ';
 export type ClientCabinetFileFilter = '' | 'WITH_FILES' | 'WITHOUT_FILES';
@@ -40,6 +39,21 @@ type ClientCabinetFiltersProps = {
   onChange: (value: ClientCabinetFiltersValue) => void;
 };
 
+const requestStatusOptions: ClientRequestStatus[] = [
+  'SUBMITTED',
+  'IN_REVIEW',
+  'APPROVED',
+  'IN_WORK',
+  'PACKED',
+  'DONE',
+  'CANCELLED',
+  'REJECTED',
+];
+
+const billingInvoiceStatusOptions: BillingInvoiceStatus[] = ['DRAFT', 'ISSUED', 'PAID', 'CANCELLED'];
+
+const billingStatusOptions: BillingChargeStatus[] = ['DRAFT', 'APPROVED', 'CANCELLED'];
+
 export function ClientCabinetFilters({ value, totals, onChange }: ClientCabinetFiltersProps) {
   const activeCount = Object.values(value).filter(Boolean).length;
 
@@ -75,9 +89,9 @@ export function ClientCabinetFilters({ value, totals, onChange }: ClientCabinetF
             onChange={(event) => update({ requestStatus: event.target.value as ClientCabinetFiltersValue['requestStatus'] })}
           >
             <option value="">Все статусы</option>
-            {requestStatusOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
+            {requestStatusOptions.map((status) => (
+              <option key={status} value={status}>
+                {requestStatusLabel(status)}
               </option>
             ))}
           </select>
@@ -102,9 +116,9 @@ export function ClientCabinetFilters({ value, totals, onChange }: ClientCabinetF
             onChange={(event) => update({ invoiceStatus: event.target.value as ClientCabinetFiltersValue['invoiceStatus'] })}
           >
             <option value="">Все статусы</option>
-            {billingInvoiceStatusOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
+            {billingInvoiceStatusOptions.map((status) => (
+              <option key={status} value={status}>
+                {billingInvoiceStatusLabel(status)}
               </option>
             ))}
           </select>
@@ -117,9 +131,9 @@ export function ClientCabinetFilters({ value, totals, onChange }: ClientCabinetF
             onChange={(event) => update({ chargeStatus: event.target.value as ClientCabinetFiltersValue['chargeStatus'] })}
           >
             <option value="">Все статусы</option>
-            {billingStatusOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
+            {billingStatusOptions.map((status) => (
+              <option key={status} value={status}>
+                {billingStatusLabel(status)}
               </option>
             ))}
           </select>

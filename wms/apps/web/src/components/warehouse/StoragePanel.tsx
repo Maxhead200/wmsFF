@@ -1,9 +1,10 @@
-import { RefreshCw, Save } from 'lucide-react';
+import { Download, RefreshCw, Save } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   fetchClients,
   fetchStorageOverview,
   generateStorageCharge,
+  downloadStorageOverviewXlsx,
   updateStorageTariff,
   type AuthSession,
   type BillingChargeSummary,
@@ -134,6 +135,25 @@ export function StoragePanel({ session }: StoragePanelProps) {
     }
   }
 
+  async function downloadStorageXlsx() {
+    if (!clientId) {
+      return;
+    }
+
+    setError('');
+    try {
+      const blob = await downloadStorageOverviewXlsx(session.accessToken, {
+        clientId,
+        periodFrom,
+        periodTo,
+      });
+      const clientCode = selectedClient?.code ?? 'client';
+      downloadBlob(blob, `storage-${safeDownloadName(clientCode)}-${periodFrom}-${periodTo}.xlsx`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Не удалось скачать XLSX по хранению.');
+    }
+  }
+
   return (
     <section className="storage-panel" aria-label="Хранение">
       <div className="warehouse-subheading">
@@ -179,6 +199,10 @@ export function StoragePanel({ session }: StoragePanelProps) {
         <button className="primary-button" type="submit" disabled={!clientId || isLoading}>
           <RefreshCw size={16} aria-hidden="true" />
           <span>{isLoading ? 'Считаю' : 'Показать'}</span>
+        </button>
+        <button className="icon-text-button warehouse-secondary" type="button" onClick={() => void downloadStorageXlsx()} disabled={!clientId}>
+          <Download size={16} aria-hidden="true" />
+          <span>XLSX</span>
         </button>
       </form>
 
@@ -273,6 +297,18 @@ function formatNumber(value: string | number | null | undefined) {
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB' }).format(value);
+}
+
+function downloadBlob(blob: Blob, fileName: string) {
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+function safeDownloadName(value: string) {
+  return value.replace(/[^a-zA-Z0-9а-яА-ЯёЁ._-]+/g, '_');
 }
 
 function today() {

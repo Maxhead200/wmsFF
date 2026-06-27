@@ -43,6 +43,20 @@ export class StockController {
     return this.storageOverview.getOverview(query, user);
   }
 
+  @Get('storage.xlsx')
+  async downloadStorageOverviewXlsx(
+    @Query() query: ListStorageOverviewDto,
+    @CurrentUser() user: AuthUser,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const file = await this.storageOverview.getOverviewXlsx(query, user);
+    response.setHeader('Content-Type', file.mimeType);
+    response.setHeader('Content-Length', String(file.content.length));
+    response.setHeader('Content-Disposition', contentDisposition(file.fileName));
+
+    return new StreamableFile(file.content);
+  }
+
   @Patch('storage/:clientId/tariff')
   @RequirePermissions('stock:write')
   updateStorageTariff(

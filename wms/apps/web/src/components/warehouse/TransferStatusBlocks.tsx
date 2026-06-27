@@ -1,5 +1,6 @@
 import { CheckCircle2 } from 'lucide-react';
 import type { StockBalance, TransferBetweenBoxesResult } from '../../lib/api';
+import { stockStatusLabel } from '../client-cabinet/clientCabinetFormat';
 
 type TransferPreviewProps = {
   balance: StockBalance;
@@ -22,7 +23,7 @@ export function TransferPreview({ balance, toBoxCode }: TransferPreviewProps) {
       <div>
         <span>Куда</span>
         <strong>{toBoxCode.trim() || '-'}</strong>
-        <p>{balance.status}</p>
+        <p>{stockStatusLabel(balance.status)}</p>
       </div>
     </div>
   );

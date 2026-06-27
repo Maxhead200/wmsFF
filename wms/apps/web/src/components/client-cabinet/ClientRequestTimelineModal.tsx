@@ -1,8 +1,7 @@
 import { Clock3, MessageSquare, Send, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { ClientRequestCommentSummary, ClientRequestTimeline } from '../../lib/api';
-import { requestStatusLabel, requestTypeLabel } from '../client-requests/clientRequestMeta';
-import { formatCabinetDate } from './clientCabinetFormat';
+import { formatCabinetDate, requestStatusLabel, requestTypeLabel } from './clientCabinetFormat';
 
 type TimelineItem =
   | {

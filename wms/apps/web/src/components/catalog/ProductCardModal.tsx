@@ -25,8 +25,8 @@ export function ProductCardModal({ sku, onClose }: ProductCardModalProps) {
           <aside className="catalog-modal__media">
             <ProductPhoto sku={sku} large />
             <div className="catalog-photo-strip">
-              {sku.marketplacePhotos.slice(0, 8).map((photo) => (
-                <img alt={sku.name} key={photo} src={photo} />
+              {sku.marketplacePhotos.map((photo, index) => (
+                <img alt={`${sku.name} ${index + 1}`} key={photo} src={photo} loading={index < 4 ? 'eager' : 'lazy'} />
               ))}
               {sku.marketplacePhotos.length === 0 ? <span>Фото из API пока нет</span> : null}
             </div>
@@ -52,27 +52,6 @@ export function ProductCardModal({ sku, onClose }: ProductCardModalProps) {
               <h4>Признаки</h4>
               <p className="catalog-muted">{skuFlags(sku).join(', ') || 'Без специальных признаков'}</p>
             </section>
-
-            <section className="catalog-detail-section">
-              <h4>Характеристики из API</h4>
-              {sku.marketplaceCharacteristics.length ? (
-                <dl className="catalog-characteristics">
-                  {sku.marketplaceCharacteristics.map((item) => (
-                    <div key={`${item.name}-${item.value}`}>
-                      <dt>{item.name}</dt>
-                      <dd>{item.value}</dd>
-                    </div>
-                  ))}
-                </dl>
-              ) : (
-                <p className="catalog-muted">Характеристики из маркетплейса пока не загружены.</p>
-              )}
-            </section>
-
-            <section className="catalog-detail-section">
-              <h4>Сырые данные маркетплейса</h4>
-              <pre className="catalog-json">{JSON.stringify(sku.marketplacePayload ?? {}, null, 2)}</pre>
-            </section>
           </div>
         </div>
       </section>
@@ -90,7 +69,7 @@ function ProductPhoto({ large = false, sku }: { large?: boolean; sku: SkuSummary
     );
   }
 
-  return <img className={large ? 'catalog-photo catalog-photo--large' : 'catalog-photo'} alt={sku.name} src={photo} />;
+  return <img className={large ? 'catalog-photo catalog-photo--large' : 'catalog-photo'} alt={sku.name} src={photo} loading={large ? 'eager' : 'lazy'} />;
 }
 
 function Fact({ label, value }: { label: string; value: unknown }) {
@@ -111,7 +90,7 @@ function formatDimensions(sku: SkuSummary) {
     return '-';
   }
 
-  return `${sku.lengthCm} × ${sku.widthCm} × ${sku.heightCm} см`;
+  return `${sku.lengthCm} x ${sku.widthCm} x ${sku.heightCm} см`;
 }
 
 function formatNumber(value: string | number | null, suffix: string) {

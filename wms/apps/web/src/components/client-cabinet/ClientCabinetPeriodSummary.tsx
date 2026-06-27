@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { CalendarDays, Download, FileText, ListChecks, Printer, ReceiptText, WalletCards } from 'lucide-react';
-import type { BillingChargeSummary, BillingInvoiceSummary } from '../../lib/api';
-import { formatCabinetDate, formatCabinetMoney, formatCabinetNumber } from './clientCabinetFormat';
+import type { BillingChargeSource, BillingChargeSummary, BillingInvoiceSummary } from '../../lib/api';
+import { billingSourceLabel, formatCabinetDate, formatCabinetMoney, formatCabinetNumber } from './clientCabinetFormat';
 
 type ClientCabinetPeriodSummaryProps = {
   invoices: BillingInvoiceSummary[];
@@ -37,7 +37,7 @@ type PeriodPayment = {
 type PeriodServiceGroup = {
   key: string;
   title: string;
-  source: string;
+  source: BillingChargeSource;
   chargesCount: number;
   quantity: number;
   totalRub: number;
@@ -178,7 +178,7 @@ function ClientCabinetPeriodDetails({ period }: { period: PeriodGroup }) {
                 <div>
                   <strong>{service.title}</strong>
                   <span>
-                    {service.chargesCount} начисл. · {service.source} · кол-во {formatCabinetNumber(service.quantity)}
+                    {service.chargesCount} начисл. · {billingSourceLabel(service.source)} · кол-во {formatCabinetNumber(service.quantity)}
                   </span>
                 </div>
                 <strong>{formatCabinetMoney(service.totalRub)} ₽</strong>
@@ -346,7 +346,7 @@ function buildServiceGroups(charges: BillingChargeSummary[]) {
       services.set(serviceKey, {
         key: serviceKey,
         title: charge.service?.name ?? charge.description,
-        source: charge.source === 'STORAGE' ? 'хранение' : charge.source === 'LOGISTICS' ? 'доставка' : 'ручная услуга',
+        source: charge.source,
         chargesCount: 1,
         quantity,
         totalRub,

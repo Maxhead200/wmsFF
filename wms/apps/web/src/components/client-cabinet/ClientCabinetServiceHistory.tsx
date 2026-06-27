@@ -1,7 +1,14 @@
 import { BarChart3, ListChecks } from 'lucide-react';
-import type { BillingChargeSource, BillingServiceHistory } from '../../lib/api';
-import { billingStatusLabel, billingStatusTone, billingUnitLabel } from '../billing/billingMeta';
-import { formatCabinetDate, formatCabinetMoney, formatCabinetNumber } from './clientCabinetFormat';
+import type { BillingServiceHistory } from '../../lib/api';
+import { billingStatusTone } from '../billing/billingMeta';
+import {
+  billingSourceLabel,
+  billingStatusLabel,
+  billingUnitLabel,
+  formatCabinetDate,
+  formatCabinetMoney,
+  formatCabinetNumber,
+} from './clientCabinetFormat';
 
 type ClientCabinetServiceHistoryProps = {
   history: BillingServiceHistory | null;
@@ -35,7 +42,7 @@ export function ClientCabinetServiceHistory({ history }: ClientCabinetServiceHis
                 <div>
                   <strong>{group.serviceName}</strong>
                   <span>
-                    {group.serviceCode} · {sourceLabel(group.source)}
+                    {group.serviceCode} · {billingSourceLabel(group.source)}
                   </span>
                   <small>
                     {formatCabinetDate(group.firstServiceDate)} - {formatCabinetDate(group.lastServiceDate)}
@@ -73,16 +80,4 @@ function ServiceMetric({ label, value }: { label: string; value: string }) {
       <strong>{value}</strong>
     </article>
   );
-}
-
-function sourceLabel(source: BillingChargeSource) {
-  if (source === 'STORAGE') {
-    return 'хранение';
-  }
-
-  if (source === 'LOGISTICS') {
-    return 'логистика';
-  }
-
-  return 'ручная услуга';
 }

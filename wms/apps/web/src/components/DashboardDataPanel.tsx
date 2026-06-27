@@ -28,6 +28,7 @@ import {
   type TsdReviewOperation,
   type TsdReviewReason,
 } from '../lib/api';
+import { stockStatusLabel } from './client-cabinet/clientCabinetFormat';
 
 const dataTabs = [
   { id: 'clients', label: 'Клиенты', permission: 'clients:read', icon: UsersRound },
@@ -367,7 +368,7 @@ function renderStock(items: StockBalance[]) {
               <td>{balance.box?.code ?? '-'}</td>
               <td>{balance.pallet?.code ?? '-'}</td>
               <td>
-                <span className="status status--planned">{balance.status}</span>
+                <span className="status status--planned">{stockStatusLabel(balance.status)}</span>
               </td>
               <td>{balance.quantity}</td>
               <td>{formatDate(balance.updatedAt)}</td>

@@ -5,6 +5,7 @@ import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
 import { ListStorageOverviewDto } from './dto/list-storage-overview.dto';
 import { UpdateStorageTariffDto } from './dto/update-storage-tariff.dto';
+import { buildStorageOverviewWorkbook, storageOverviewXlsxMimeType } from './storage-overview-xlsx';
 
 @Injectable()
 export class StorageOverviewService {
@@ -59,31 +60,47 @@ export class StorageOverviewService {
     const currentBySku = groupCurrentStorage(balances);
     const history = calculateStorageHistory(movements, period.periodFrom, period.periodTo);
     const tariff = decimalToNumber(client.storagePriceRubPerLiterDay) ?? 0;
-    const rows = [...currentBySku.values()]
-      .map((row) => {
-        const historyRow = history.skuTotals.get(row.skuId);
+    const rows = [...new Set([...currentBySku.keys(), ...history.skuTotals.keys()])]
+      .map((skuId) => {
+        const currentRow = currentBySku.get(skuId);
+        const historyRow = history.skuTotals.get(skuId);
+        const row = currentRow ?? historyRow;
+        if (!row) {
+          return null;
+        }
         const literDays = roundQuantity(historyRow?.literDays ?? 0);
         const storageCostRub = roundMoney(literDays * tariff);
 
         return {
           ...row,
-          firstReceiptDate: history.firstReceiptBySku.get(row.skuId)?.toISOString() ?? null,
+          quantity: currentRow?.quantity ?? 0,
+          totalLiters: currentRow?.totalLiters ?? 0,
+          boxesCount: currentRow?.boxesCount ?? 0,
+          palletsCount: currentRow?.palletsCount ?? 0,
+          boxCodes: currentRow?.boxCodes ?? [],
+          palletCodes: currentRow?.palletCodes ?? [],
+          firstReceiptDate: history.firstReceiptBySku.get(skuId)?.toISOString() ?? null,
           literDays,
           storageCostRub,
         };
       })
+      .filter((row): row is StorageOverviewRow => Boolean(row))
       .sort((left, right) => right.storageCostRub - left.storageCostRub || left.name.localeCompare(right.name, 'ru'));
 
-    const totals = rows.reduce(
+    const totalsBase = rows.reduce(
       (acc, row) => ({
         quantity: acc.quantity + row.quantity,
         totalLiters: roundQuantity(acc.totalLiters + row.totalLiters),
         literDays: roundQuantity(acc.literDays + row.literDays),
-        storageCostRub: roundMoney(acc.storageCostRub + row.storageCostRub),
+        storageCostRub: 0,
         skuCount: acc.skuCount + 1,
       }),
       { skuCount: 0, quantity: 0, totalLiters: 0, literDays: 0, storageCostRub: 0 },
     );
+    const totals = {
+      ...totalsBase,
+      storageCostRub: roundMoney(totalsBase.literDays * tariff),
+    };
 
     return {
       client,
@@ -93,6 +110,7 @@ export class StorageOverviewService {
       totals,
       rows,
       daily: history.daily,
+      dailyRows: history.dailyRows,
       skippedWithoutVolume: rows.filter((row) => !row.volumeLiters || row.volumeLiters <= 0).length,
     };
   }
@@ -112,6 +130,17 @@ export class StorageOverviewService {
         storagePriceRubPerLiterDay: true,
       },
     });
+  }
+
+  async getOverviewXlsx(query: ListStorageOverviewDto, user: AuthUser) {
+    const overview = await this.getOverview(query, user);
+    const fileName = `storage-${safeFileName(overview.client.code)}-${formatDateKey(new Date(overview.periodFrom))}-${formatDateKey(new Date(overview.periodTo))}.xlsx`;
+
+    return {
+      fileName,
+      mimeType: storageOverviewXlsxMimeType(),
+      content: buildStorageOverviewWorkbook(overview),
+    };
   }
 }
 
@@ -179,9 +208,10 @@ function groupCurrentStorage(balances: StorageBalanceForOverview[]) {
 function calculateStorageHistory(movements: StorageMovementForOverview[], periodFrom: Date, periodTo: Date) {
   const storageMovements = movements.filter(isStorageRelevantMovement);
   const state = new Map<string, StorageState>();
-  const skuTotals = new Map<string, { skuId: string; literDays: number }>();
+  const skuTotals = new Map<string, StorageOverviewRow>();
   const firstReceiptBySku = new Map<string, Date>();
   const daily: Array<{ date: string; totalLiters: number; literDays: number; positions: number }> = [];
+  const dailyRows: StorageOverviewDailyRow[] = [];
   const days = listPeriodDays(periodFrom, periodTo);
 
   storageMovements
@@ -191,10 +221,8 @@ function calculateStorageHistory(movements: StorageMovementForOverview[], period
   days.forEach((day) => {
     const dayStart = startOfUtcDay(day);
     const dayEnd = endOfUtcDay(day);
-    const dayMovements = storageMovements.filter((movement) => movement.createdAt >= dayStart && movement.createdAt <= dayEnd);
-
-    dayMovements
-      .filter((movement) => movement.quantity > 0)
+    storageMovements
+      .filter((movement) => movement.createdAt >= dayStart && movement.createdAt <= dayEnd)
       .forEach((movement) => applyStorageMovement(state, movement, firstReceiptBySku));
 
     let totalLiters = 0;
@@ -206,7 +234,40 @@ function calculateStorageHistory(movements: StorageMovementForOverview[], period
       const rowLiters = row.quantity * row.volumeLiters;
       totalLiters += rowLiters;
       positions += 1;
-      const total = skuTotals.get(row.skuId) ?? { skuId: row.skuId, literDays: 0 };
+      dailyRows.push({
+        date: formatDateKey(day),
+        skuId: row.skuId,
+        barcode: row.barcode,
+        name: row.name,
+        internalSku: row.internalSku,
+        marketplaceArticle: row.marketplaceArticle,
+        size: row.size,
+        quantity: row.quantity,
+        volumeLiters: row.volumeLiters,
+        totalLiters: roundQuantity(rowLiters),
+        literDays: roundQuantity(rowLiters),
+      });
+      const total = skuTotals.get(row.skuId) ?? {
+        skuId: row.skuId,
+        barcode: row.barcode,
+        name: row.name,
+        internalSku: row.internalSku,
+        marketplaceArticle: row.marketplaceArticle,
+        size: row.size,
+        lengthCm: row.lengthCm,
+        widthCm: row.widthCm,
+        heightCm: row.heightCm,
+        volumeLiters: row.volumeLiters,
+        quantity: 0,
+        totalLiters: 0,
+        boxesCount: 0,
+        palletsCount: 0,
+        boxCodes: [],
+        palletCodes: [],
+        firstReceiptDate: null,
+        literDays: 0,
+        storageCostRub: 0,
+      };
       total.literDays += rowLiters;
       skuTotals.set(row.skuId, total);
     });
@@ -218,13 +279,9 @@ function calculateStorageHistory(movements: StorageMovementForOverview[], period
       literDays: roundedLiters,
       positions,
     });
-
-    dayMovements
-      .filter((movement) => movement.quantity < 0)
-      .forEach((movement) => applyStorageMovement(state, movement, firstReceiptBySku));
   });
 
-  return { skuTotals, firstReceiptBySku, daily };
+  return { skuTotals, firstReceiptBySku, daily, dailyRows };
 }
 
 function isStorageRelevantMovement(movement: StorageMovementForOverview) {
@@ -245,6 +302,14 @@ function applyStorageMovement(
   const volumeLiters = calculateSkuVolumeLiters(movement.sku);
   const current = state.get(movement.skuId) ?? {
     skuId: movement.skuId,
+    barcode: primaryBarcode(movement.sku),
+    name: movement.sku.name,
+    internalSku: movement.sku.internalSku,
+    marketplaceArticle: marketplaceArticle(movement.sku),
+    size: movement.sku.size ?? '',
+    lengthCm: decimalToNumber(movement.sku.lengthCm),
+    widthCm: decimalToNumber(movement.sku.widthCm),
+    heightCm: decimalToNumber(movement.sku.heightCm),
     quantity: 0,
     volumeLiters,
   };
@@ -259,6 +324,14 @@ function applyStorageMovement(
 
 type StorageState = {
   skuId: string;
+  barcode: string;
+  name: string;
+  internalSku: string;
+  marketplaceArticle: string;
+  size: string;
+  lengthCm?: number;
+  widthCm?: number;
+  heightCm?: number;
   quantity: number;
   volumeLiters: number;
 };
@@ -284,6 +357,26 @@ type StorageOverviewRow = {
   literDays: number;
   storageCostRub: number;
 };
+
+export type StorageOverviewPayload = Awaited<ReturnType<StorageOverviewService['getOverview']>>;
+
+type StorageOverviewDailyRow = {
+  date: string;
+  skuId: string;
+  barcode: string;
+  name: string;
+  internalSku: string;
+  marketplaceArticle: string;
+  size: string;
+  quantity: number;
+  volumeLiters: number;
+  totalLiters: number;
+  literDays: number;
+};
+
+function safeFileName(value: string) {
+  return value.replace(/[^a-zA-Z0-9а-яА-ЯёЁ._-]+/g, '_');
+}
 
 function normalizePeriod(periodFrom?: string, periodTo?: string) {
   const now = new Date();

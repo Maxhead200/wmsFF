@@ -1103,6 +1103,19 @@ export type StorageOverview = {
     literDays: number;
     positions: number;
   }>;
+  dailyRows: Array<{
+    date: string;
+    skuId: string;
+    barcode: string;
+    name: string;
+    internalSku: string;
+    marketplaceArticle: string;
+    size: string;
+    quantity: number;
+    volumeLiters: number;
+    totalLiters: number;
+    literDays: number;
+  }>;
   skippedWithoutVolume: number;
 };
 
@@ -2314,6 +2327,13 @@ export async function fetchStorageOverview(
   return request<StorageOverview>(withQuery('/stock/storage', filter), {
     accessToken,
   });
+}
+
+export async function downloadStorageOverviewXlsx(
+  accessToken: string,
+  filter: { clientId: string; periodFrom?: string; periodTo?: string },
+) {
+  return requestBlob(withQuery('/stock/storage.xlsx', filter), accessToken);
 }
 
 export async function updateStorageTariff(

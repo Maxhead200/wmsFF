@@ -416,8 +416,8 @@ function SkuModal({
           <aside className="catalog-modal__media">
             <SkuPhoto sku={sku} large />
             <div className="catalog-photo-strip">
-              {sku.marketplacePhotos.slice(0, 8).map((photo) => (
-                <img alt={sku.name} key={photo} src={photo} />
+              {sku.marketplacePhotos.map((photo, index) => (
+                <img alt={`${sku.name} ${index + 1}`} key={photo} src={photo} loading={index < 4 ? 'eager' : 'lazy'} />
               ))}
               {sku.marketplacePhotos.length === 0 ? <span>Фото из API пока нет</span> : null}
             </div>
@@ -446,27 +446,6 @@ function SkuModal({
               <CheckboxField disabled={!isEditing} label="Нужна этикетка" checked={form.needsLabel} onChange={(value) => onChange({ ...form, needsLabel: value })} />
               <CheckboxField disabled={!isEditing} label="Нужна перемаркировка" checked={form.needsRelabel} onChange={(value) => onChange({ ...form, needsRelabel: value })} />
             </div>
-
-            <section className="catalog-detail-section">
-              <h4>Характеристики из API</h4>
-              {sku.marketplaceCharacteristics.length ? (
-                <dl className="catalog-characteristics">
-                  {sku.marketplaceCharacteristics.map((item) => (
-                    <div key={`${item.name}-${item.value}`}>
-                      <dt>{item.name}</dt>
-                      <dd>{item.value}</dd>
-                    </div>
-                  ))}
-                </dl>
-              ) : (
-                <p className="catalog-muted">Характеристики из маркетплейса пока не загружены.</p>
-              )}
-            </section>
-
-            <section className="catalog-detail-section">
-              <h4>Сырые данные маркетплейса</h4>
-              <pre className="catalog-json">{JSON.stringify(sku.marketplacePayload ?? {}, null, 2)}</pre>
-            </section>
 
             {isEditing ? (
               <div className="catalog-card-form__actions">
@@ -531,7 +510,7 @@ function SkuPhoto({ large = false, sku }: { large?: boolean; sku: SkuSummary }) 
     );
   }
 
-  return <img className={large ? 'catalog-photo catalog-photo--large' : 'catalog-photo'} alt={sku.name} src={photo} />;
+  return <img className={large ? 'catalog-photo catalog-photo--large' : 'catalog-photo'} alt={sku.name} src={photo} loading={large ? 'eager' : 'lazy'} />;
 }
 
 function formFromSku(sku: SkuDetail): SkuForm {

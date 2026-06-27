@@ -23,6 +23,7 @@ type BillingInvoiceFormProps = {
 type InvoiceRow = {
   key: string;
   serviceId: string;
+  serviceSearch: string;
   description: string;
   unit: BillingUnit;
   quantity: string;
@@ -48,6 +49,7 @@ export function BillingInvoiceForm({ clients, session, onCreated }: BillingInvoi
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSavingPrices, setIsSavingPrices] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeServiceSearchKey, setActiveServiceSearchKey] = useState<string | null>(null);
 
   const serviceOptions = useMemo(() => services.filter((item) => item.isActive), [services]);
   const invoiceTotal = useMemo(() => rows.reduce((sum, row) => sum + rowTotal(row), 0), [rows]);
@@ -195,6 +197,7 @@ export function BillingInvoiceForm({ clients, session, onCreated }: BillingInvoi
         if (patch.serviceId !== undefined) {
           const selected = services.find((item) => item.service.id === patch.serviceId);
           if (selected) {
+            next.serviceSearch = serviceLabel(selected);
             next.description = selected.service.name;
             next.unit = selected.service.unit;
             next.unitPriceRub = String(numberFromInput(selected.priceRub));
@@ -205,6 +208,41 @@ export function BillingInvoiceForm({ clients, session, onCreated }: BillingInvoi
         return next;
       }),
     );
+  }
+
+  function updateServiceSearch(key: string, value: string) {
+    const selected = serviceOptions.find(
+      (item) => normalizedServiceLabel(item) === normalizeSearch(value) || normalizeSearch(item.service.code) === normalizeSearch(value),
+    );
+    if (selected) {
+      selectService(key, selected);
+      return;
+    }
+
+    setRows((current) =>
+      current.map((row) =>
+        row.key === key
+          ? {
+              ...row,
+              serviceId: '',
+              serviceSearch: value,
+              description: value,
+            }
+          : row,
+      ),
+    );
+  }
+
+  function selectService(key: string, item: ClientBillingServiceSummary) {
+    updateRow(key, {
+      serviceId: item.service.id,
+      serviceSearch: serviceLabel(item),
+      description: item.service.name,
+      unit: item.service.unit,
+      unitPriceRub: String(numberFromInput(item.priceRub)),
+      taxMode: item.taxMode,
+    });
+    setActiveServiceSearchKey(null);
   }
 
   function addRow() {
@@ -287,14 +325,36 @@ export function BillingInvoiceForm({ clients, session, onCreated }: BillingInvoi
                 {rows.map((row) => (
                   <tr key={row.key}>
                     <td>
-                      <select value={row.serviceId} onChange={(event) => updateRow(row.key, { serviceId: event.target.value })}>
-                        <option value="">Ручная строка</option>
-                        {serviceOptions.map((item) => (
-                          <option key={item.service.id} value={item.service.id}>
-                            {item.service.name}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="billing-service-combobox">
+                        <input
+                          autoComplete="off"
+                          value={row.serviceSearch}
+                          onBlur={() => window.setTimeout(() => setActiveServiceSearchKey(null), 120)}
+                          onChange={(event) => updateServiceSearch(row.key, event.target.value)}
+                          onFocus={() => setActiveServiceSearchKey(row.key)}
+                          placeholder="Начните вводить услугу"
+                        />
+                        {activeServiceSearchKey === row.key ? (
+                          <div className="billing-service-combobox__list">
+                            {filteredServiceOptions(serviceOptions, row.serviceSearch).map((item) => (
+                              <button
+                                key={item.service.id}
+                                type="button"
+                                onMouseDown={(event) => {
+                                  event.preventDefault();
+                                  selectService(row.key, item);
+                                }}
+                              >
+                                <strong>{item.service.name}</strong>
+                                <span>{item.service.code}</span>
+                              </button>
+                            ))}
+                            {filteredServiceOptions(serviceOptions, row.serviceSearch).length === 0 ? (
+                              <p>Совпадений нет</p>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
                     </td>
                     <td>
                       <input value={row.description} onChange={(event) => updateRow(row.key, { description: event.target.value })} />
@@ -366,6 +426,7 @@ function rowFromService(item: ClientBillingServiceSummary, serviceDate: string, 
   return {
     key: `${item.service.id}-${Date.now()}-${Math.random()}`,
     serviceId: item.service.id,
+    serviceSearch: serviceLabel(item),
     description: item.service.name,
     unit: item.service.unit,
     quantity: '0',
@@ -381,6 +442,7 @@ function emptyRow(serviceDate: string): InvoiceRow {
   return {
     key: `manual-${Date.now()}-${Math.random()}`,
     serviceId: '',
+    serviceSearch: '',
     description: '',
     unit: 'SERVICE',
     quantity: '0',
@@ -408,6 +470,31 @@ function numberFromInput(value: string | number | null | undefined) {
 
 function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function filteredServiceOptions(options: ClientBillingServiceSummary[], query: string) {
+  const normalized = normalizeSearch(query);
+  const filtered = normalized
+    ? options.filter(
+        (item) =>
+          normalizeSearch(item.service.name).startsWith(normalized) ||
+          normalizeSearch(item.service.code).startsWith(normalized),
+      )
+    : options;
+
+  return filtered.slice(0, 8);
+}
+
+function serviceLabel(item: ClientBillingServiceSummary) {
+  return item.service.name;
+}
+
+function normalizedServiceLabel(item: ClientBillingServiceSummary) {
+  return normalizeSearch(serviceLabel(item));
+}
+
+function normalizeSearch(value: string) {
+  return value.trim().toLocaleLowerCase('ru-RU');
 }
 
 function today() {

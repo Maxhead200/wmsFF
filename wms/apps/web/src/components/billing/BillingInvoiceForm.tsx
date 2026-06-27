@@ -49,7 +49,6 @@ export function BillingInvoiceForm({ clients, session, onCreated }: BillingInvoi
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSavingPrices, setIsSavingPrices] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeServiceSearchKey, setActiveServiceSearchKey] = useState<string | null>(null);
 
   const serviceOptions = useMemo(() => services.filter((item) => item.isActive), [services]);
   const invoiceTotal = useMemo(() => rows.reduce((sum, row) => sum + rowTotal(row), 0), [rows]);
@@ -242,7 +241,6 @@ export function BillingInvoiceForm({ clients, session, onCreated }: BillingInvoi
       unitPriceRub: String(numberFromInput(item.priceRub)),
       taxMode: item.taxMode,
     });
-    setActiveServiceSearchKey(null);
   }
 
   function addRow() {
@@ -328,32 +326,16 @@ export function BillingInvoiceForm({ clients, session, onCreated }: BillingInvoi
                       <div className="billing-service-combobox">
                         <input
                           autoComplete="off"
+                          list={`billing-services-${row.key}`}
                           value={row.serviceSearch}
-                          onBlur={() => window.setTimeout(() => setActiveServiceSearchKey(null), 120)}
                           onChange={(event) => updateServiceSearch(row.key, event.target.value)}
-                          onFocus={() => setActiveServiceSearchKey(row.key)}
                           placeholder="Начните вводить услугу"
                         />
-                        {activeServiceSearchKey === row.key ? (
-                          <div className="billing-service-combobox__list">
-                            {filteredServiceOptions(serviceOptions, row.serviceSearch).map((item) => (
-                              <button
-                                key={item.service.id}
-                                type="button"
-                                onMouseDown={(event) => {
-                                  event.preventDefault();
-                                  selectService(row.key, item);
-                                }}
-                              >
-                                <strong>{item.service.name}</strong>
-                                <span>{item.service.code}</span>
-                              </button>
-                            ))}
-                            {filteredServiceOptions(serviceOptions, row.serviceSearch).length === 0 ? (
-                              <p>Совпадений нет</p>
-                            ) : null}
-                          </div>
-                        ) : null}
+                        <datalist id={`billing-services-${row.key}`}>
+                          {filteredServiceOptions(serviceOptions, row.serviceSearch).map((item) => (
+                            <option key={item.service.id} label={item.service.code} value={item.service.name} />
+                          ))}
+                        </datalist>
                       </div>
                     </td>
                     <td>

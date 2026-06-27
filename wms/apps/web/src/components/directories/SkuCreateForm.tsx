@@ -1,12 +1,10 @@
 import { Save } from 'lucide-react';
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useState } from 'react';
 import {
-  createSku,
-  fetchClients,
+  createNomenclatureItem,
   type AuthSession,
-  type ClientSummary,
-  type CreateSkuPayload,
-  type SkuSummary,
+  type CreateNomenclaturePayload,
+  type NomenclatureSummary,
 } from '../../lib/api';
 import { DirectoryResultCard } from './DirectoryResultCard';
 
@@ -16,60 +14,23 @@ type SkuCreateFormProps = {
 };
 
 const emptySkuForm = {
-  clientId: '',
   internalSku: '',
-  clientSku: '',
   article: '',
   name: '',
   barcode: '',
+  printName: '',
+  unit: 'шт',
+  itemType: '',
   color: '',
   size: '',
-  lengthCm: '',
-  widthCm: '',
-  heightCm: '',
   needsChestnyZnak: false,
 };
 
 export function SkuCreateForm({ session, onCreated }: SkuCreateFormProps) {
-  const [clients, setClients] = useState<ClientSummary[]>([]);
   const [form, setForm] = useState(emptySkuForm);
-  const [createdSku, setCreatedSku] = useState<SkuSummary | null>(null);
+  const [createdSku, setCreatedSku] = useState<NomenclatureSummary | null>(null);
   const [error, setError] = useState('');
-  const [isLoadingClients, setLoadingClients] = useState(false);
   const [isSubmitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    let isActive = true;
-
-    async function loadClients() {
-      setLoadingClients(true);
-      setError('');
-
-      try {
-        const list = await fetchClients(session.accessToken);
-        if (!isActive) {
-          return;
-        }
-
-        setClients(list);
-        setForm((current) => ({ ...current, clientId: current.clientId || list[0]?.id || '' }));
-      } catch (caught) {
-        if (isActive) {
-          setError(caught instanceof Error ? caught.message : 'Не удалось загрузить клиентов.');
-        }
-      } finally {
-        if (isActive) {
-          setLoadingClients(false);
-        }
-      }
-    }
-
-    void loadClients();
-
-    return () => {
-      isActive = false;
-    };
-  }, [session.accessToken]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -78,9 +39,9 @@ export function SkuCreateForm({ session, onCreated }: SkuCreateFormProps) {
     setCreatedSku(null);
 
     try {
-      const created = await createSku(session.accessToken, compactPayload(form));
+      const created = await createNomenclatureItem(session.accessToken, compactPayload(form));
       setCreatedSku(created);
-      setForm({ ...emptySkuForm, clientId: form.clientId });
+      setForm(emptySkuForm);
       onCreated?.();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Не удалось создать SKU.');
@@ -94,30 +55,14 @@ export function SkuCreateForm({ session, onCreated }: SkuCreateFormProps) {
       <div className="directory-subheading">
         <div>
           <h3>Создать номенклатуру вручную</h3>
-          <span>Карточка товара привязывается к выбранному клиенту</span>
+          <span>Карточка товара создается в общем справочнике</span>
         </div>
       </div>
 
       <div className="directory-fields directory-fields--sku">
         <label>
-          <span>Клиент</span>
-          <select
-            value={form.clientId}
-            onChange={(event) => setForm({ ...form, clientId: event.target.value })}
-            disabled={isLoadingClients}
-            required
-          >
-            {clients.length === 0 ? <option value="">Клиенты не найдены</option> : null}
-            {clients.map((client) => (
-              <option key={client.id} value={client.id}>
-                {client.code} - {client.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
           <span>Внутренний SKU</span>
-          <input value={form.internalSku} onChange={(event) => setForm({ ...form, internalSku: event.target.value })} required />
+          <input value={form.internalSku} onChange={(event) => setForm({ ...form, internalSku: event.target.value })} />
         </label>
         <label>
           <span>Название</span>
@@ -128,12 +73,20 @@ export function SkuCreateForm({ session, onCreated }: SkuCreateFormProps) {
           <input value={form.barcode} onChange={(event) => setForm({ ...form, barcode: event.target.value })} />
         </label>
         <label>
-          <span>SKU клиента</span>
-          <input value={form.clientSku} onChange={(event) => setForm({ ...form, clientSku: event.target.value })} />
+          <span>Наименование для печати</span>
+          <input value={form.printName} onChange={(event) => setForm({ ...form, printName: event.target.value })} />
         </label>
         <label>
           <span>Артикул</span>
           <input value={form.article} onChange={(event) => setForm({ ...form, article: event.target.value })} />
+        </label>
+        <label>
+          <span>Единица хранения</span>
+          <input value={form.unit} onChange={(event) => setForm({ ...form, unit: event.target.value })} />
+        </label>
+        <label>
+          <span>Тип номенклатуры</span>
+          <input value={form.itemType} onChange={(event) => setForm({ ...form, itemType: event.target.value })} />
         </label>
         <label>
           <span>Цвет</span>
@@ -142,18 +95,6 @@ export function SkuCreateForm({ session, onCreated }: SkuCreateFormProps) {
         <label>
           <span>Размер</span>
           <input value={form.size} onChange={(event) => setForm({ ...form, size: event.target.value })} />
-        </label>
-        <label>
-          <span>Длина, см</span>
-          <input min="0.01" step="0.01" type="number" value={form.lengthCm} onChange={(event) => setForm({ ...form, lengthCm: event.target.value })} />
-        </label>
-        <label>
-          <span>Ширина, см</span>
-          <input min="0.01" step="0.01" type="number" value={form.widthCm} onChange={(event) => setForm({ ...form, widthCm: event.target.value })} />
-        </label>
-        <label>
-          <span>Высота, см</span>
-          <input min="0.01" step="0.01" type="number" value={form.heightCm} onChange={(event) => setForm({ ...form, heightCm: event.target.value })} />
         </label>
         <label className="directory-checkbox">
           <input
@@ -167,17 +108,17 @@ export function SkuCreateForm({ session, onCreated }: SkuCreateFormProps) {
 
       {error ? <p className="form-error">{error}</p> : null}
 
-      <button className="primary-button directory-submit" type="submit" disabled={isSubmitting || !form.clientId}>
+      <button className="primary-button directory-submit" type="submit" disabled={isSubmitting}>
         <Save size={16} aria-hidden="true" />
-        <span>{isSubmitting ? 'Сохранение' : 'Создать SKU'}</span>
+        <span>{isSubmitting ? 'Сохранение' : 'Создать номенклатуру'}</span>
       </button>
 
       {createdSku ? (
         <DirectoryResultCard
-          title="SKU создан"
+          title="Номенклатура создана"
           lines={[
             `${createdSku.internalSku} - ${createdSku.name}`,
-            createdSku.barcodes[0]?.value ? `ШК: ${createdSku.barcodes[0].value}` : 'штрихкод не задан',
+            createdSku.barcode ? `ШК: ${createdSku.barcode}` : 'штрихкод не задан',
           ]}
         />
       ) : null}
@@ -185,29 +126,22 @@ export function SkuCreateForm({ session, onCreated }: SkuCreateFormProps) {
   );
 }
 
-function compactPayload(form: typeof emptySkuForm): CreateSkuPayload {
+function compactPayload(form: typeof emptySkuForm): CreateNomenclaturePayload {
   return {
-    clientId: form.clientId,
-    internalSku: form.internalSku.trim(),
     name: form.name.trim(),
     needsChestnyZnak: form.needsChestnyZnak,
-    ...optionalString('clientSku', form.clientSku),
+    ...optionalString('internalSku', form.internalSku),
     ...optionalString('article', form.article),
     ...optionalString('barcode', form.barcode),
+    ...optionalString('printName', form.printName),
+    ...optionalString('unit', form.unit),
+    ...optionalString('itemType', form.itemType),
     ...optionalString('color', form.color),
     ...optionalString('size', form.size),
-    ...optionalNumber('lengthCm', form.lengthCm),
-    ...optionalNumber('widthCm', form.widthCm),
-    ...optionalNumber('heightCm', form.heightCm),
   };
 }
 
 function optionalString<T extends string>(key: T, value: string): Partial<Record<T, string>> {
   const trimmed = value.trim();
   return trimmed ? ({ [key]: trimmed } as Partial<Record<T, string>>) : {};
-}
-
-function optionalNumber<T extends string>(key: T, value: string): Partial<Record<T, number>> {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? ({ [key]: parsed } as Partial<Record<T, number>>) : {};
 }

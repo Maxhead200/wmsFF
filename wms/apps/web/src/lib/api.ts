@@ -899,9 +899,37 @@ export type SkuImportIssue = {
   severity: 'warning' | 'error';
 };
 
-export type SkuImportResult = {
+export type NomenclatureSummary = {
+  id: string;
+  internalSku: string;
+  article: string | null;
+  barcode: string | null;
+  name: string;
+  printName: string | null;
+  unit: string | null;
+  itemType: string | null;
+  color: string | null;
+  size: string | null;
+  needsChestnyZnak: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateNomenclaturePayload = {
+  internalSku?: string;
+  article?: string;
+  barcode?: string;
+  name: string;
+  printName?: string;
+  unit?: string;
+  itemType?: string;
+  color?: string;
+  size?: string;
+  needsChestnyZnak?: boolean;
+};
+
+export type NomenclatureImportResult = {
   fileName: string;
-  clientId: string;
   summary: {
     sourceRows: number;
     rows: number;
@@ -913,7 +941,7 @@ export type SkuImportResult = {
     warnings: number;
   };
   issues: SkuImportIssue[];
-  skus: SkuSummary[];
+  items: NomenclatureSummary[];
 };
 
 export type DeleteClientResult = {
@@ -2075,12 +2103,25 @@ export async function createSku(accessToken: string, payload: CreateSkuPayload) 
   });
 }
 
-export async function importSkusXlsx(accessToken: string, payload: { file: File; clientId: string }) {
+export async function fetchNomenclature(accessToken: string, filter: { search?: string } = {}) {
+  return request<NomenclatureSummary[]>(withQuery('/skus/nomenclature', filter), {
+    accessToken,
+  });
+}
+
+export async function createNomenclatureItem(accessToken: string, payload: CreateNomenclaturePayload) {
+  return request<NomenclatureSummary>('/skus/nomenclature', {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function importNomenclatureXlsx(accessToken: string, payload: { file: File }) {
   const form = new FormData();
   form.append('file', payload.file);
-  form.append('clientId', payload.clientId);
 
-  return requestMultipart<SkuImportResult>('/skus/import-xlsx', form, accessToken);
+  return requestMultipart<NomenclatureImportResult>('/skus/nomenclature/import-xlsx', form, accessToken);
 }
 
 export async function fetchStockBalances(accessToken: string, filter: { clientId?: string; search?: string } = {}) {

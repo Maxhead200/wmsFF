@@ -428,6 +428,25 @@ model Sku {
   @@unique([clientId, internalSku])
 }
 
+model NomenclatureItem {
+  id                 String   @id @default(uuid())
+  internalSku        String   @unique
+  article            String?
+  barcode            String?  @unique
+  name               String
+  printName          String?
+  unit               String?
+  itemType           String?
+  color              String?
+  size               String?
+  needsChestnyZnak   Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([name])
+  @@index([article])
+}
+
 model Barcode {
   id        String  @id @default(uuid())
   skuId     String

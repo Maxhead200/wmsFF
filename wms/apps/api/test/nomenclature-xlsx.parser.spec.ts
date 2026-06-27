@@ -9,15 +9,17 @@ describe('parseNomenclatureSheet', () => {
         ['Asus n6506m', '', 'шт', 'Asus n6506m', 'Услуга'],
         ['Honor MagicBook Pro 14', 'HMP-14', 'шт', 'Honor MagicBook Pro 14', 'Товар'],
       ],
-      { clientId: 'client-1' },
+      {},
     );
 
     expect(result.summary).toEqual({ sourceRows: 2, rows: 2, barcodes: 0 });
     expect(result.issues).toEqual([]);
     expect(result.items[0]).toMatchObject({
-      clientId: 'client-1',
       internalSku: 'Asus n6506m',
       name: 'Asus n6506m',
+      unit: 'шт',
+      printName: 'Asus n6506m',
+      itemType: 'Услуга',
       sourceRow: 2,
     });
     expect(result.items[1]).toMatchObject({
@@ -34,7 +36,7 @@ describe('parseNomenclatureSheet', () => {
         ['Товар 1', 'SKU-1'],
         ['Товар 1 копия', 'SKU-1'],
       ],
-      { clientId: 'client-1' },
+      {},
     );
 
     expect(result.items).toHaveLength(1);

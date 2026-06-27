@@ -1,6 +1,6 @@
 import { RefreshCw, Search } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
-import { fetchClients, fetchSkus, type AuthSession, type ClientSummary, type SkuSummary } from '../../lib/api';
+import { fetchNomenclature, type AuthSession, type NomenclatureSummary } from '../../lib/api';
 
 type SkuDirectoryTableProps = {
   session: AuthSession;
@@ -8,40 +8,12 @@ type SkuDirectoryTableProps = {
 };
 
 export function SkuDirectoryTable({ session, reloadKey }: SkuDirectoryTableProps) {
-  const [clients, setClients] = useState<ClientSummary[]>([]);
-  const [clientId, setClientId] = useState('');
   const [search, setSearch] = useState('');
   const [appliedSearch, setAppliedSearch] = useState('');
   const [localReloadKey, setLocalReloadKey] = useState(0);
-  const [skus, setSkus] = useState<SkuSummary[]>([]);
+  const [skus, setSkus] = useState<NomenclatureSummary[]>([]);
   const [error, setError] = useState('');
   const [isLoading, setLoading] = useState(false);
-
-  useEffect(() => {
-    let isActive = true;
-
-    async function loadClients() {
-      try {
-        const list = await fetchClients(session.accessToken);
-        if (!isActive) {
-          return;
-        }
-
-        setClients(list);
-        setClientId((current) => current || list[0]?.id || '');
-      } catch (caught) {
-        if (isActive) {
-          setError(caught instanceof Error ? caught.message : 'Не удалось загрузить клиентов.');
-        }
-      }
-    }
-
-    void loadClients();
-
-    return () => {
-      isActive = false;
-    };
-  }, [session.accessToken]);
 
   useEffect(() => {
     let isActive = true;
@@ -50,8 +22,7 @@ export function SkuDirectoryTable({ session, reloadKey }: SkuDirectoryTableProps
       setLoading(true);
       setError('');
       try {
-        const list = await fetchSkus(session.accessToken, {
-          clientId: clientId || undefined,
+        const list = await fetchNomenclature(session.accessToken, {
           search: appliedSearch || undefined,
         });
         if (isActive) {
@@ -73,7 +44,7 @@ export function SkuDirectoryTable({ session, reloadKey }: SkuDirectoryTableProps
     return () => {
       isActive = false;
     };
-  }, [appliedSearch, clientId, localReloadKey, reloadKey, session.accessToken]);
+  }, [appliedSearch, localReloadKey, reloadKey, session.accessToken]);
 
   function applySearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -85,23 +56,11 @@ export function SkuDirectoryTable({ session, reloadKey }: SkuDirectoryTableProps
       <div className="directory-subheading">
         <div>
           <h3>Номенклатура</h3>
-          <span>Последние 100 карточек по выбранному клиенту</span>
+          <span>Последние 100 карточек общего справочника</span>
         </div>
       </div>
 
       <form className="sku-table-toolbar" onSubmit={applySearch}>
-        <label className="directory-select-row">
-          <span>Клиент</span>
-          <select value={clientId} onChange={(event) => setClientId(event.target.value)}>
-            <option value="">Все доступные клиенты</option>
-            {clients.map((client) => (
-              <option key={client.id} value={client.id}>
-                {client.code} - {client.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
         <label className="directory-select-row">
           <span>Поиск</span>
           <div className="sku-search-box">
@@ -109,7 +68,7 @@ export function SkuDirectoryTable({ session, reloadKey }: SkuDirectoryTableProps
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Название, SKU или штрихкод"
+              placeholder="Название, артикул, SKU или штрихкод"
             />
           </div>
         </label>
@@ -134,6 +93,8 @@ export function SkuDirectoryTable({ session, reloadKey }: SkuDirectoryTableProps
               <th>Наименование</th>
               <th>Артикул</th>
               <th>Штрихкод</th>
+              <th>Ед.</th>
+              <th>Тип</th>
               <th>Цвет</th>
               <th>Размер</th>
             </tr>
@@ -144,14 +105,16 @@ export function SkuDirectoryTable({ session, reloadKey }: SkuDirectoryTableProps
                 <td>{sku.internalSku}</td>
                 <td>{sku.name}</td>
                 <td>{sku.article || '-'}</td>
-                <td>{sku.barcodes[0]?.value || '-'}</td>
+                <td>{sku.barcode || '-'}</td>
+                <td>{sku.unit || '-'}</td>
+                <td>{sku.itemType || '-'}</td>
                 <td>{sku.color || '-'}</td>
                 <td>{sku.size || '-'}</td>
               </tr>
             ))}
             {skus.length === 0 ? (
               <tr>
-                <td colSpan={6}>{isLoading ? 'Загрузка...' : 'Номенклатура не найдена'}</td>
+                <td colSpan={8}>{isLoading ? 'Загрузка...' : 'Номенклатура не найдена'}</td>
               </tr>
             ) : null}
           </tbody>

@@ -5,6 +5,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
 import { VolumeService } from '../stock/volume.service';
+import { CreateNomenclatureItemDto } from './dto/create-nomenclature-item.dto';
 import { CreateSkuDto } from './dto/create-sku.dto';
 import {
   parseNomenclatureSheet,
@@ -103,11 +104,56 @@ export class SkusService {
     });
   }
 
-  async importWorkbook(file: Express.Multer.File, clientId: string, user: AuthUser) {
-    this.clientScopes.requireClientAccess(user, clientId, 'write');
+  listNomenclature(filter: { search?: string }) {
+    const where: Prisma.NomenclatureItemWhereInput = filter.search
+      ? {
+          OR: [
+            { name: { contains: filter.search, mode: 'insensitive' } },
+            { printName: { contains: filter.search, mode: 'insensitive' } },
+            { internalSku: { contains: filter.search, mode: 'insensitive' } },
+            { article: { contains: filter.search, mode: 'insensitive' } },
+            { barcode: { contains: filter.search } },
+          ],
+        }
+      : {};
 
+    return this.prisma.nomenclatureItem.findMany({
+      where,
+      orderBy: { updatedAt: 'desc' },
+      take: 100,
+    });
+  }
+
+  async createNomenclature(dto: CreateNomenclatureItemDto) {
+    const internalSku = this.buildNomenclatureInternalSku(dto);
+
+    try {
+      return await this.prisma.nomenclatureItem.create({
+        data: {
+          internalSku,
+          article: cleanOptional(dto.article),
+          barcode: cleanOptional(dto.barcode),
+          name: dto.name.trim(),
+          printName: cleanOptional(dto.printName),
+          unit: cleanOptional(dto.unit),
+          itemType: cleanOptional(dto.itemType),
+          color: cleanOptional(dto.color),
+          size: cleanOptional(dto.size),
+          needsChestnyZnak: dto.needsChestnyZnak ?? false,
+        },
+      });
+    } catch (caught) {
+      if (isUniqueConstraintError(caught)) {
+        throw new BadRequestException('Такая номенклатура или штрихкод уже есть в общем справочнике.');
+      }
+
+      throw caught;
+    }
+  }
+
+  async importNomenclatureWorkbook(file: Express.Multer.File) {
     const rows = this.readFirstSheet(file.buffer);
-    const parsed = parseNomenclatureSheet(rows, { clientId });
+    const parsed = parseNomenclatureSheet(rows);
     const errors = parsed.issues.filter((issue) => issue.severity === 'error');
 
     if (parsed.items.length === 0) {
@@ -129,7 +175,7 @@ export class SkusService {
 
     for (const item of parsed.items) {
       try {
-        const result = await this.upsertImportedSku(item);
+        const result = await this.upsertImportedNomenclature(item);
         counters[result.created ? 'created' : 'updated'] += 1;
         savedSkus.push(result.sku);
       } catch (caught) {
@@ -147,84 +193,56 @@ export class SkusService {
 
     return {
       fileName: file.originalname,
-      clientId,
       summary: {
         ...parsed.summary,
         ...counters,
       },
       issues: parsed.issues,
-      skus: savedSkus,
+      items: savedSkus,
     };
   }
 
-  private async upsertImportedSku(item: NomenclatureImportItem) {
+  private async upsertImportedNomenclature(item: NomenclatureImportItem) {
     const existingByBarcode = item.barcode
-      ? await this.prisma.barcode.findFirst({
-          where: {
-            value: item.barcode,
-            sku: { clientId: item.clientId },
-          },
-          include: { sku: true },
+      ? await this.prisma.nomenclatureItem.findUnique({
+          where: { barcode: item.barcode },
         })
       : null;
 
     const existingSku =
-      existingByBarcode?.sku ??
-      (await this.prisma.sku.findUnique({
-        where: {
-          clientId_internalSku: {
-            clientId: item.clientId,
-            internalSku: item.internalSku,
-          },
-        },
+      existingByBarcode ??
+      (await this.prisma.nomenclatureItem.findUnique({
+        where: { internalSku: item.internalSku },
       }));
 
     const sku = existingSku
-      ? await this.prisma.sku.update({
+      ? await this.prisma.nomenclatureItem.update({
           where: { id: existingSku.id },
-          data: this.importedSkuData(item),
-          include: { barcodes: true },
+          data: this.importedNomenclatureData(item),
         })
-      : await this.prisma.sku.create({
-          data: this.importedSkuData(item),
-          include: { barcodes: true },
+      : await this.prisma.nomenclatureItem.create({
+          data: this.importedNomenclatureData(item),
         });
 
-    if (item.barcode) {
-      await this.prisma.barcode.upsert({
-        where: {
-          skuId_value: {
-            skuId: sku.id,
-            value: item.barcode,
-          },
-        },
-        update: { isPrimary: true },
-        create: {
-          skuId: sku.id,
-          value: item.barcode,
-          isPrimary: true,
-        },
-      });
-    }
-
-    return this.prisma.sku
-      .findUniqueOrThrow({
-        where: { id: sku.id },
-        include: { barcodes: true },
-      })
-      .then((saved) => ({ sku: saved, created: !existingSku }));
+    return { sku, created: !existingSku };
   }
 
-  private importedSkuData(item: NomenclatureImportItem): Prisma.SkuUncheckedCreateInput {
+  private importedNomenclatureData(item: NomenclatureImportItem): Prisma.NomenclatureItemUncheckedCreateInput {
     return {
-      clientId: item.clientId,
       internalSku: item.internalSku,
-      clientSku: item.clientSku,
       article: item.article,
+      barcode: item.barcode,
       name: item.name,
+      printName: item.printName,
+      unit: item.unit,
+      itemType: item.itemType,
       color: item.color,
       size: item.size,
     };
+  }
+
+  private buildNomenclatureInternalSku(dto: CreateNomenclatureItemDto) {
+    return (dto.internalSku || dto.article || dto.barcode || dto.name).trim().slice(0, 100);
   }
 
   private readFirstSheet(buffer: Buffer): SheetMatrix {
@@ -249,4 +267,13 @@ export class SkusService {
       heightCm: dto.heightCm,
     });
   }
+}
+
+function cleanOptional(value?: string) {
+  const trimmed = value?.trim();
+  return trimmed || undefined;
+}
+
+function isUniqueConstraintError(error: unknown) {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 }

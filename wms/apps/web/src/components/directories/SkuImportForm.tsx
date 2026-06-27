@@ -1,11 +1,9 @@
 import { AlertTriangle, FileSpreadsheet, Upload } from 'lucide-react';
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useState } from 'react';
 import {
-  fetchClients,
-  importSkusXlsx,
+  importNomenclatureXlsx,
   type AuthSession,
-  type ClientSummary,
-  type SkuImportResult,
+  type NomenclatureImportResult,
 } from '../../lib/api';
 import { DirectoryResultCard } from './DirectoryResultCard';
 
@@ -15,52 +13,13 @@ type SkuImportFormProps = {
 };
 
 export function SkuImportForm({ session, onImported }: SkuImportFormProps) {
-  const [clients, setClients] = useState<ClientSummary[]>([]);
-  const [clientId, setClientId] = useState('');
   const [file, setFile] = useState<File | null>(null);
-  const [result, setResult] = useState<SkuImportResult | null>(null);
+  const [result, setResult] = useState<NomenclatureImportResult | null>(null);
   const [error, setError] = useState('');
-  const [isLoadingClients, setLoadingClients] = useState(false);
   const [isSubmitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    let isActive = true;
-
-    async function loadClients() {
-      setLoadingClients(true);
-      setError('');
-      try {
-        const list = await fetchClients(session.accessToken);
-        if (!isActive) {
-          return;
-        }
-
-        setClients(list);
-        setClientId((current) => current || list[0]?.id || '');
-      } catch (caught) {
-        if (isActive) {
-          setError(caught instanceof Error ? caught.message : 'Не удалось загрузить клиентов.');
-        }
-      } finally {
-        if (isActive) {
-          setLoadingClients(false);
-        }
-      }
-    }
-
-    void loadClients();
-
-    return () => {
-      isActive = false;
-    };
-  }, [session.accessToken]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!clientId) {
-      setError('Выберите клиента для загрузки номенклатуры.');
-      return;
-    }
     if (!file) {
       setError('Выберите Excel-файл.');
       return;
@@ -70,7 +29,7 @@ export function SkuImportForm({ session, onImported }: SkuImportFormProps) {
     setError('');
     setResult(null);
     try {
-      const imported = await importSkusXlsx(session.accessToken, { file, clientId });
+      const imported = await importNomenclatureXlsx(session.accessToken, { file });
       setResult(imported);
       setFile(null);
       onImported?.();
@@ -90,19 +49,7 @@ export function SkuImportForm({ session, onImported }: SkuImportFormProps) {
         </div>
       </div>
 
-      <div className="directory-import-row directory-import-row--sku">
-        <label className="directory-select-row">
-          <span>Клиент</span>
-          <select value={clientId} onChange={(event) => setClientId(event.target.value)} disabled={isLoadingClients} required>
-            {clients.length === 0 ? <option value="">Клиенты не найдены</option> : null}
-            {clients.map((client) => (
-              <option key={client.id} value={client.id}>
-                {client.code} - {client.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
+      <div className="directory-import-row">
         <label className="directory-file-input">
           <FileSpreadsheet size={18} aria-hidden="true" />
           <span>{file ? file.name : 'Выбрать Excel-файл'}</span>
@@ -117,7 +64,7 @@ export function SkuImportForm({ session, onImported }: SkuImportFormProps) {
           />
         </label>
 
-        <button className="directory-submit" disabled={isSubmitting || !file || !clientId} type="submit">
+        <button className="directory-submit" disabled={isSubmitting || !file} type="submit">
           <Upload size={16} aria-hidden="true" />
           {isSubmitting ? 'Загружаем...' : 'Загрузить номенклатуру'}
         </button>

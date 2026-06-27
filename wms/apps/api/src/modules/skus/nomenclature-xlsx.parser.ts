@@ -2,12 +2,13 @@ export type SheetCell = string | number | boolean | Date | null | undefined;
 export type SheetMatrix = SheetCell[][];
 
 export type NomenclatureImportItem = {
-  clientId: string;
   internalSku: string;
-  clientSku?: string;
   article?: string;
   barcode?: string;
   name: string;
+  printName?: string;
+  unit?: string;
+  itemType?: string;
   color?: string;
   size?: string;
   sourceRow: number;
@@ -22,7 +23,6 @@ export type NomenclatureImportIssue = {
 };
 
 export type NomenclatureParseOptions = {
-  clientId: string;
 };
 
 type NomenclatureColumnMap = {
@@ -30,7 +30,8 @@ type NomenclatureColumnMap = {
   printName: number;
   article: number;
   barcode: number;
-  clientSku: number;
+  unit: number;
+  itemType: number;
   color: number;
   size: number;
 };
@@ -42,12 +43,13 @@ const DEFAULT_COLUMNS: NomenclatureColumnMap = {
   printName: 3,
   article: 1,
   barcode: MISSING_COLUMN,
-  clientSku: MISSING_COLUMN,
+  unit: 2,
+  itemType: 4,
   color: MISSING_COLUMN,
   size: MISSING_COLUMN,
 };
 
-export function parseNomenclatureSheet(rows: SheetMatrix, options: NomenclatureParseOptions) {
+export function parseNomenclatureSheet(rows: SheetMatrix, _options: NomenclatureParseOptions = {}) {
   const items: NomenclatureImportItem[] = [];
   const issues: NomenclatureImportIssue[] = [];
   const columns = detectColumns(rows);
@@ -62,11 +64,13 @@ export function parseNomenclatureSheet(rows: SheetMatrix, options: NomenclatureP
     const name = valueAt(row, columns.name) || valueAt(row, columns.printName);
     const article = valueAt(row, columns.article);
     const barcode = valueAt(row, columns.barcode);
-    const clientSku = valueAt(row, columns.clientSku);
+    const printName = valueAt(row, columns.printName);
+    const unit = valueAt(row, columns.unit);
+    const itemType = valueAt(row, columns.itemType);
     const color = valueAt(row, columns.color);
     const size = valueAt(row, columns.size);
 
-    if (!name && !article && !barcode && !clientSku) {
+    if (!name && !article && !barcode) {
       return;
     }
 
@@ -79,7 +83,7 @@ export function parseNomenclatureSheet(rows: SheetMatrix, options: NomenclatureP
       return;
     }
 
-    const internalSku = buildInternalSku(article || clientSku || barcode || name);
+    const internalSku = buildInternalSku(article || barcode || name);
     const dedupeKey = `${internalSku}|${barcode}`;
     if (seenKeys.has(dedupeKey)) {
       issues.push({
@@ -94,12 +98,13 @@ export function parseNomenclatureSheet(rows: SheetMatrix, options: NomenclatureP
     seenKeys.add(dedupeKey);
 
     items.push({
-      clientId: options.clientId,
       internalSku,
-      clientSku: clientSku || undefined,
       article: article || undefined,
       barcode: barcode || undefined,
       name,
+      printName: printName || undefined,
+      unit: unit || undefined,
+      itemType: itemType || undefined,
       color: color || undefined,
       size: size || undefined,
       sourceRow,
@@ -129,7 +134,8 @@ function detectColumns(rows: SheetMatrix): NomenclatureColumnMap {
       printName: findColumn(normalized, ['наименование для печати', 'печати']) ?? DEFAULT_COLUMNS.printName,
       article: findColumn(normalized, ['артикул', 'код', 'внутренний sku']) ?? DEFAULT_COLUMNS.article,
       barcode: findColumn(normalized, ['штрихкод', 'штрих код', 'баркод', 'шк']) ?? DEFAULT_COLUMNS.barcode,
-      clientSku: findColumn(normalized, ['sku клиента', 'артикул клиента']) ?? DEFAULT_COLUMNS.clientSku,
+      unit: findColumn(normalized, ['единица хранения', 'единица', 'ед']) ?? DEFAULT_COLUMNS.unit,
+      itemType: findColumn(normalized, ['тип номенклатуры', 'тип']) ?? DEFAULT_COLUMNS.itemType,
       color: findColumn(normalized, ['цвет']) ?? DEFAULT_COLUMNS.color,
       size: findColumn(normalized, ['размер']) ?? DEFAULT_COLUMNS.size,
     };

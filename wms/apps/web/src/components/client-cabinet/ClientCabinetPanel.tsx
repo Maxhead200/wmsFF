@@ -1,6 +1,7 @@
-import { RefreshCw } from 'lucide-react';
+import { Ban, CheckCircle2, Pencil, RefreshCw, Save, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  deleteClient,
   fetchBillingCharges,
   fetchBillingInvoiceDocument,
   fetchBillingInvoices,
@@ -14,6 +15,8 @@ import {
   fetchClientRequestTimeline,
   fetchClients,
   fetchStockBalances,
+  updateClient,
+  updateClientStatus,
   markClientNotificationRead,
   updateClientNotificationPreference,
   uploadClientRequestFile,
@@ -33,8 +36,11 @@ import {
   type ClientRequestDocument,
   type ClientRequestSummary,
   type ClientRequestTimeline,
+  type ClientKind,
   type ClientSummary,
+  type ClientStatus,
   type StockBalance,
+  type UpdateClientPayload,
 } from '../../lib/api';
 import { BillingInvoiceDocumentPreview } from '../billing/BillingInvoiceDocumentPreview';
 import { ClientRequestDocumentPreview } from '../client-requests/ClientRequestDocumentPreview';
@@ -81,6 +87,30 @@ type ClientCabinetClientSummary = {
   debtRub: number;
 };
 
+type ClientManagementForm = {
+  clientKind: ClientKind;
+  name: string;
+  legalName: string;
+  inn: string;
+  kpp: string;
+  ogrn: string;
+  legalAddress: string;
+  actualAddress: string;
+  phone: string;
+  email: string;
+  bankName: string;
+  bankBik: string;
+  bankAccount: string;
+  correspondentAccount: string;
+};
+
+const clientKindOptions: Array<{ value: ClientKind; label: string }> = [
+  { value: 'LEGAL_ENTITY', label: 'Юридическое лицо' },
+  { value: 'INDIVIDUAL_ENTREPRENEUR', label: 'Индивидуальный предприниматель' },
+  { value: 'SELF_EMPLOYED', label: 'Самозанятый' },
+  { value: 'INDIVIDUAL', label: 'Физическое лицо' },
+];
+
 const emptyData: CabinetData = {
   clients: [],
   stock: [],
@@ -103,6 +133,11 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
   const [filters, setFilters] = useState<ClientCabinetFiltersValue>(emptyClientCabinetFilters);
   const [stockSearch, setStockSearch] = useState('');
   const [activeSection, setActiveSection] = useState<ClientCabinetMetricTarget>('skus');
+  const [editingClientId, setEditingClientId] = useState('');
+  const [managementForm, setManagementForm] = useState<ClientManagementForm | null>(null);
+  const [managementMessage, setManagementMessage] = useState('');
+  const [managementError, setManagementError] = useState('');
+  const [isManagingClient, setManagingClient] = useState(false);
 
   useEffect(() => {
     void loadData();
@@ -356,9 +391,106 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
     setSelectedClientId(clientId);
     setStockSearch('');
     setActiveSection('skus');
+    setEditingClientId('');
+    setManagementForm(null);
+    setManagementError('');
+    setManagementMessage('');
+  }
+
+  function startClientEdit(client: ClientSummary) {
+    setEditingClientId(client.id);
+    setManagementForm(formFromClient(client));
+    setManagementError('');
+    setManagementMessage('');
+  }
+
+  function cancelClientEdit() {
+    setEditingClientId('');
+    setManagementForm(null);
+    setManagementError('');
+  }
+
+  async function saveClientEdit() {
+    if (!view.client || !managementForm) {
+      return;
+    }
+
+    setManagingClient(true);
+    setManagementError('');
+    setManagementMessage('');
+    try {
+      const updated = await updateClient(session.accessToken, view.client.id, compactClientPayload(managementForm));
+      replaceClient(updated);
+      setEditingClientId('');
+      setManagementForm(null);
+      setManagementMessage('Клиент сохранен.');
+    } catch (caught) {
+      setManagementError(caught instanceof Error ? caught.message : 'Не удалось сохранить клиента.');
+    } finally {
+      setManagingClient(false);
+    }
+  }
+
+  async function changeClientStatus(client: ClientSummary, status: ClientStatus) {
+    setManagingClient(true);
+    setManagementError('');
+    setManagementMessage('');
+    try {
+      const updated = await updateClientStatus(session.accessToken, client.id, status);
+      replaceClient(updated);
+      setManagementMessage(status === 'ACTIVE' ? 'Клиент активирован.' : 'Клиент заблокирован.');
+    } catch (caught) {
+      setManagementError(caught instanceof Error ? caught.message : 'Не удалось изменить статус клиента.');
+    } finally {
+      setManagingClient(false);
+    }
+  }
+
+  async function removeClient(client: ClientSummary) {
+    const confirmed = window.confirm(`Удалить клиента ${client.code} - ${client.name}? Если у клиента есть рабочие данные, WMS не даст удалить его.`);
+    if (!confirmed) {
+      return;
+    }
+
+    setManagingClient(true);
+    setManagementError('');
+    setManagementMessage('');
+    try {
+      const deleted = await deleteClient(session.accessToken, client.id);
+      setState((current) => {
+        const clients = current.data.clients.filter((item) => item.id !== deleted.id);
+        return {
+          ...current,
+          data: {
+            ...current.data,
+            clients,
+          },
+        };
+      });
+      const nextClientId = state.data.clients.find((item) => item.id !== deleted.id)?.id ?? '';
+      setSelectedClientId(nextClientId);
+      setEditingClientId('');
+      setManagementForm(null);
+      setManagementMessage(`Клиент ${deleted.code} - ${deleted.name} удален.`);
+    } catch (caught) {
+      setManagementError(caught instanceof Error ? caught.message : 'Не удалось удалить клиента.');
+    } finally {
+      setManagingClient(false);
+    }
+  }
+
+  function replaceClient(client: ClientSummary) {
+    setState((current) => ({
+      ...current,
+      data: {
+        ...current.data,
+        clients: current.data.clients.map((item) => (item.id === client.id ? client : item)),
+      },
+    }));
   }
 
   const showClientOverview = isInternalUser(session.user) && state.data.clients.length > 1;
+  const canManageClients = canUse(session.user, 'clients:write');
 
   return (
     <section className="client-cabinet-panel" aria-label="Кабинет клиента">
@@ -420,8 +552,66 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
               <span>{view.client.code}</span>
               <strong>{view.client.name}</strong>
             </div>
-            <span className="status status--ready">{view.client.status}</span>
+            <div className="client-cabinet-client__actions">
+              <span className={`client-cabinet-status client-cabinet-status--${view.client.status.toLowerCase()}`}>
+                {clientStatusLabel(view.client.status)}
+              </span>
+              {canManageClients ? (
+                <>
+                  <button
+                    className="icon-text-button"
+                    disabled={isManagingClient}
+                    onClick={() => startClientEdit(view.client!)}
+                    type="button"
+                  >
+                    <Pencil size={15} aria-hidden="true" />
+                    <span>Редактировать</span>
+                  </button>
+                  {view.client.status === 'ACTIVE' ? (
+                    <button
+                      className="icon-text-button"
+                      disabled={isManagingClient}
+                      onClick={() => void changeClientStatus(view.client!, 'PAUSED')}
+                      type="button"
+                    >
+                      <Ban size={15} aria-hidden="true" />
+                      <span>Заблокировать</span>
+                    </button>
+                  ) : (
+                    <button
+                      className="icon-text-button"
+                      disabled={isManagingClient}
+                      onClick={() => void changeClientStatus(view.client!, 'ACTIVE')}
+                      type="button"
+                    >
+                      <CheckCircle2 size={15} aria-hidden="true" />
+                      <span>Активировать</span>
+                    </button>
+                  )}
+                  <button
+                    className="icon-text-button client-cabinet-danger-button"
+                    disabled={isManagingClient}
+                    onClick={() => void removeClient(view.client!)}
+                    type="button"
+                  >
+                    <Trash2 size={15} aria-hidden="true" />
+                    <span>Удалить</span>
+                  </button>
+                </>
+              ) : null}
+            </div>
           </div>
+          {managementError ? <p className="form-error">{managementError}</p> : null}
+          {managementMessage ? <p className="form-success">{managementMessage}</p> : null}
+          {canManageClients && editingClientId === view.client.id && managementForm ? (
+            <ClientCabinetClientEditor
+              form={managementForm}
+              isSubmitting={isManagingClient}
+              onCancel={cancelClientEdit}
+              onChange={(patch) => setManagementForm((current) => (current ? { ...current, ...patch } : current))}
+              onSave={() => void saveClientEdit()}
+            />
+          ) : null}
 
           <ClientCabinetMetrics
             stock={view.stock}
@@ -534,6 +724,107 @@ function ClientCabinetClientCards({
   );
 }
 
+function ClientCabinetClientEditor({
+  form,
+  isSubmitting,
+  onCancel,
+  onChange,
+  onSave,
+}: {
+  form: ClientManagementForm;
+  isSubmitting: boolean;
+  onCancel: () => void;
+  onChange: (patch: Partial<ClientManagementForm>) => void;
+  onSave: () => void;
+}) {
+  return (
+    <div className="client-cabinet-client-editor">
+      <div className="client-cabinet-client-editor__heading">
+        <div>
+          <h3>Редактирование клиента</h3>
+          <span>реквизиты можно сохранить без ИНН, если его пока нет</span>
+        </div>
+        <button className="icon-button" onClick={onCancel} type="button" title="Закрыть" aria-label="Закрыть редактирование">
+          <X size={18} aria-hidden="true" />
+        </button>
+      </div>
+      <div className="client-cabinet-client-editor__grid">
+        <label>
+          <span>Тип клиента</span>
+          <select value={form.clientKind} onChange={(event) => onChange({ clientKind: event.target.value as ClientKind })}>
+            {clientKindOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Название</span>
+          <input value={form.name} onChange={(event) => onChange({ name: event.target.value })} />
+        </label>
+        <label>
+          <span>Юр. название</span>
+          <input value={form.legalName} onChange={(event) => onChange({ legalName: event.target.value })} />
+        </label>
+        <label>
+          <span>ИНН</span>
+          <input value={form.inn} onChange={(event) => onChange({ inn: event.target.value })} />
+        </label>
+        <label>
+          <span>КПП</span>
+          <input value={form.kpp} onChange={(event) => onChange({ kpp: event.target.value })} />
+        </label>
+        <label>
+          <span>ОГРН</span>
+          <input value={form.ogrn} onChange={(event) => onChange({ ogrn: event.target.value })} />
+        </label>
+        <label>
+          <span>Телефон</span>
+          <input value={form.phone} onChange={(event) => onChange({ phone: event.target.value })} />
+        </label>
+        <label>
+          <span>Почта</span>
+          <input type="email" value={form.email} onChange={(event) => onChange({ email: event.target.value })} />
+        </label>
+        <label>
+          <span>Юр. адрес</span>
+          <input value={form.legalAddress} onChange={(event) => onChange({ legalAddress: event.target.value })} />
+        </label>
+        <label>
+          <span>Факт. адрес</span>
+          <input value={form.actualAddress} onChange={(event) => onChange({ actualAddress: event.target.value })} />
+        </label>
+        <label>
+          <span>Банк</span>
+          <input value={form.bankName} onChange={(event) => onChange({ bankName: event.target.value })} />
+        </label>
+        <label>
+          <span>БИК</span>
+          <input value={form.bankBik} onChange={(event) => onChange({ bankBik: event.target.value })} />
+        </label>
+        <label>
+          <span>Расчетный счет</span>
+          <input value={form.bankAccount} onChange={(event) => onChange({ bankAccount: event.target.value })} />
+        </label>
+        <label>
+          <span>Корр. счет</span>
+          <input value={form.correspondentAccount} onChange={(event) => onChange({ correspondentAccount: event.target.value })} />
+        </label>
+      </div>
+      <div className="client-cabinet-client-editor__actions">
+        <button className="primary-button" disabled={isSubmitting || !form.name.trim()} onClick={onSave} type="button">
+          <Save size={16} aria-hidden="true" />
+          <span>{isSubmitting ? 'Сохранение' : 'Сохранить'}</span>
+        </button>
+        <button className="icon-text-button" disabled={isSubmitting} onClick={onCancel} type="button">
+          Отменить
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function buildClientSummary(client: ClientSummary, data: CabinetData): ClientCabinetClientSummary {
   const stock = data.stock.filter((balance) => balance.clientId === client.id);
   const invoices = data.invoices.filter((invoice) => invoice.clientId === client.id && invoice.status !== 'CANCELLED');
@@ -547,6 +838,57 @@ function buildClientSummary(client: ClientSummary, data: CabinetData): ClientCab
     ).length,
     debtRub: invoices.reduce((sum, invoice) => sum + Math.max(0, Number(invoice.totalRub) - Number(invoice.paidRub)), 0),
   };
+}
+
+function formFromClient(client: ClientSummary): ClientManagementForm {
+  return {
+    clientKind: client.clientKind,
+    name: client.name,
+    legalName: client.legalName ?? '',
+    inn: client.inn ?? '',
+    kpp: client.kpp ?? '',
+    ogrn: client.ogrn ?? '',
+    legalAddress: client.legalAddress ?? '',
+    actualAddress: client.actualAddress ?? '',
+    phone: client.phone ?? '',
+    email: client.email ?? '',
+    bankName: client.bankName ?? '',
+    bankBik: client.bankBik ?? '',
+    bankAccount: client.bankAccount ?? '',
+    correspondentAccount: client.correspondentAccount ?? '',
+  };
+}
+
+function compactClientPayload(form: ClientManagementForm): UpdateClientPayload {
+  return {
+    clientKind: form.clientKind,
+    name: form.name.trim(),
+    legalName: form.legalName.trim(),
+    inn: form.inn.trim(),
+    kpp: form.kpp.trim(),
+    ogrn: form.ogrn.trim(),
+    legalAddress: form.legalAddress.trim(),
+    actualAddress: form.actualAddress.trim(),
+    phone: form.phone.trim(),
+    email: form.email.trim(),
+    bankName: form.bankName.trim(),
+    bankBik: form.bankBik.trim(),
+    bankAccount: form.bankAccount.trim(),
+    correspondentAccount: form.correspondentAccount.trim(),
+  };
+}
+
+function clientStatusLabel(status: ClientStatus) {
+  const labels: Record<ClientStatus, string> = {
+    ACTIVE: 'Активен',
+    PAUSED: 'Заблокирован',
+    ARCHIVED: 'В архиве',
+  };
+  return labels[status];
+}
+
+function canUse(user: AuthSession['user'], permission: string) {
+  return user.permissionCodes.includes('system:admin') || user.permissionCodes.includes(permission);
 }
 
 function isInternalUser(user: AuthSession['user']) {

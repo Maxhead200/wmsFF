@@ -1,4 +1,4 @@
-import { Ban, CheckCircle2, Pencil, RefreshCw, Save, Trash2 } from 'lucide-react';
+import { Ban, CheckCircle2, Pencil, RefreshCw, Save, Trash2, X } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   deleteClient,
@@ -74,6 +74,7 @@ export function ClientRequisitesForm({ session }: ClientRequisitesFormProps) {
   const [isSubmitting, setSubmitting] = useState(false);
   const [isStatusSubmitting, setStatusSubmitting] = useState(false);
   const [isDeleting, setDeleting] = useState(false);
+  const [isEditorOpen, setEditorOpen] = useState(false);
   const selectedClient = useMemo(() => clients.find((client) => client.id === clientId) ?? null, [clientId, clients]);
 
   useEffect(() => {
@@ -214,7 +215,14 @@ export function ClientRequisitesForm({ session }: ClientRequisitesFormProps) {
                 </tr>
               ) : null}
               {clients.map((client) => (
-                <tr className={client.id === clientId ? 'selected' : ''} key={client.id} onClick={() => setClientId(client.id)}>
+                <tr
+                  className={client.id === clientId ? 'selected' : ''}
+                  key={client.id}
+                  onClick={() => {
+                    setClientId(client.id);
+                    setEditorOpen(true);
+                  }}
+                >
                   <td>{client.code}</td>
                   <td>{client.name}</td>
                   <td>
@@ -225,7 +233,15 @@ export function ClientRequisitesForm({ session }: ClientRequisitesFormProps) {
                   <td>{client.inn || 'не задан'}</td>
                   <td>{client.fulfillmentManager?.name || 'не назначен'}</td>
                   <td>
-                    <button className="icon-text-button client-table-select" type="button" onClick={() => setClientId(client.id)}>
+                    <button
+                      className="icon-text-button client-table-select"
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setClientId(client.id);
+                        setEditorOpen(true);
+                      }}
+                    >
                       <Pencil size={14} aria-hidden="true" />
                       <span>Редактировать</span>
                     </button>
@@ -237,7 +253,19 @@ export function ClientRequisitesForm({ session }: ClientRequisitesFormProps) {
         </div>
       </div>
 
-      {selectedClient ? (
+      {selectedClient && isEditorOpen ? (
+        <div className="client-modal-backdrop" role="presentation">
+          <section className="client-modal" role="dialog" aria-modal="true" aria-label="Карточка клиента">
+            <header className="client-modal__header">
+              <div>
+                <span>{selectedClient.code}</span>
+                <h3>{selectedClient.name}</h3>
+              </div>
+              <button className="icon-button" type="button" onClick={() => setEditorOpen(false)} aria-label="Закрыть карточку клиента">
+                <X size={18} aria-hidden="true" />
+              </button>
+            </header>
+
         <div className="client-control-panel">
           <div>
             <span>Статус клиента</span>
@@ -278,7 +306,6 @@ export function ClientRequisitesForm({ session }: ClientRequisitesFormProps) {
             </button>
           </div>
         </div>
-      ) : null}
 
       <div className="directory-fields directory-fields--client">
         <label>
@@ -383,6 +410,9 @@ export function ClientRequisitesForm({ session }: ClientRequisitesFormProps) {
             `${clientKindLabel(savedClient.clientKind)} · ИНН ${savedClient.inn ?? 'не задан'}`,
           ]}
         />
+      ) : null}
+          </section>
+        </div>
       ) : null}
     </form>
   );

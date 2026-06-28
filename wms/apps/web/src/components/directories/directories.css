@@ -213,6 +213,55 @@
   color: var(--danger);
 }
 
+.client-modal-backdrop {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(15 23 42 / 0.44);
+  padding: 18px;
+}
+
+.client-modal {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  width: min(980px, calc(100vw - 36px));
+  max-height: min(820px, calc(100vh - 36px));
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 22px 80px rgb(15 23 42 / 0.28);
+  padding: 16px;
+}
+
+.client-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 12px;
+}
+
+.client-modal__header span,
+.client-modal__header h3 {
+  display: block;
+}
+
+.client-modal__header span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.client-modal__header h3 {
+  margin: 3px 0 0;
+  font-size: 18px;
+}
+
 .directory-fields {
   display: grid;
   gap: 12px;

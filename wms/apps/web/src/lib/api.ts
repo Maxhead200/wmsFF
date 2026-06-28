@@ -1239,6 +1239,34 @@ export type ServiceClientStockCleanupResult = {
   after: ServiceClientStockSummary;
 };
 
+export type ServiceMaintenanceMode = {
+  enabled: boolean;
+  message: string;
+  updatedAt: string | null;
+  updatedByUserId: string | null;
+};
+
+export type ServiceOverview = {
+  maintenance: ServiceMaintenanceMode;
+  counters: {
+    clients: number;
+    users: number;
+    nomenclature: number;
+    skus: number;
+    services: number;
+    invoices: number;
+    stockRows: number;
+    stockQuantity: number;
+  };
+};
+
+export type ServiceBillingService = BillingServiceSummary & {
+  _count?: {
+    charges: number;
+    clientPrices: number;
+  };
+};
+
 export type StorageOverviewRow = {
   skuId: string;
   barcode: string;
@@ -2572,6 +2600,65 @@ export async function purgeServiceClientStock(accessToken: string, clientId: str
   return request<ServiceClientStockCleanupResult>(`/service/clients/${clientId}/stock-cleanup`, {
     method: 'POST',
     body: { confirmation },
+    accessToken,
+  });
+}
+
+export async function fetchServiceOverview(accessToken: string) {
+  return request<ServiceOverview>('/service/overview', {
+    accessToken,
+  });
+}
+
+export async function updateServiceMaintenance(
+  accessToken: string,
+  payload: { enabled: boolean; message?: string },
+) {
+  return request<ServiceMaintenanceMode>('/service/maintenance', {
+    method: 'PATCH',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function fetchServiceNomenclature(accessToken: string, filter: { search?: string } = {}) {
+  return request<NomenclatureSummary[]>(withQuery('/service/nomenclature', filter), {
+    accessToken,
+  });
+}
+
+export async function deleteServiceNomenclature(accessToken: string, id: string) {
+  return request<{ id: string; internalSku: string; name: string; deleted: true }>(`/service/nomenclature/${id}`, {
+    method: 'DELETE',
+    accessToken,
+  });
+}
+
+export async function fetchServiceBillingServices(accessToken: string) {
+  return request<ServiceBillingService[]>('/service/billing-services', {
+    accessToken,
+  });
+}
+
+export async function createServiceBillingService(accessToken: string, payload: CreateBillingServicePayload) {
+  return request<BillingServiceSummary>('/service/billing-services', {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function updateServiceBillingServiceStatus(accessToken: string, id: string, isActive: boolean) {
+  return request<BillingServiceSummary>(`/service/billing-services/${id}/status`, {
+    method: 'PATCH',
+    body: { isActive },
+    accessToken,
+  });
+}
+
+export async function deleteServiceBillingService(accessToken: string, id: string) {
+  return request<{ id: string; code: string; name: string; deleted: true }>(`/service/billing-services/${id}`, {
+    method: 'DELETE',
     accessToken,
   });
 }

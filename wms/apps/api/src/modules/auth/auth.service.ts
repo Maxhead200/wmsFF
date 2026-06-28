@@ -73,6 +73,11 @@ export class AuthService {
       throw new UnauthorizedException('Пользователь заблокирован.');
     }
 
+    const maintenance = await this.getMaintenanceMode();
+    if (maintenance.enabled && !this.isSystemAdmin(user)) {
+      throw new UnauthorizedException(maintenance.message || 'Вход временно закрыт: в WMS идут сервисные работы.');
+    }
+
     return this.authResponse(user);
   }
 
@@ -143,6 +148,29 @@ export class AuthService {
 
   private normalizeEmail(email: string) {
     return email.trim().toLowerCase();
+  }
+
+  private async getMaintenanceMode() {
+    const setting = await this.prisma.systemSetting.findUnique({
+      where: { key: 'SYSTEM_MAINTENANCE' },
+    });
+    const value = setting?.value;
+
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return { enabled: false, message: null as string | null };
+    }
+
+    const payload = value as { enabled?: unknown; message?: unknown };
+    return {
+      enabled: payload.enabled === true,
+      message: typeof payload.message === 'string' ? payload.message : null,
+    };
+  }
+
+  private isSystemAdmin(user: UserWithAccess) {
+    return user.roles.some((item) =>
+      item.role.permissions.some((permission) => permission.permission.code === 'system:admin'),
+    );
   }
 
   private clientScopeMode(roleCodes: string[], permissionCodes: string[], clientScopesCount: number) {

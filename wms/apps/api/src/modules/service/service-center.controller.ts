@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -10,6 +10,24 @@ import { ServiceCenterService } from './service-center.service';
 @Controller('service')
 export class ServiceCenterController {
   constructor(private readonly serviceCenter: ServiceCenterService) {}
+
+  @Get('overview')
+  getOverview() {
+    return this.serviceCenter.getOverview();
+  }
+
+  @Get('maintenance')
+  getMaintenanceMode() {
+    return this.serviceCenter.getMaintenanceMode();
+  }
+
+  @Patch('maintenance')
+  updateMaintenanceMode(
+    @Body() dto: { enabled?: boolean; message?: string },
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.serviceCenter.updateMaintenanceMode(dto, user);
+  }
 
   @Get('clients/:clientId/stock-cleanup')
   getClientStockCleanupPreview(@Param('clientId') clientId: string) {
@@ -23,5 +41,42 @@ export class ServiceCenterController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.serviceCenter.purgeClientStock(clientId, confirmation, user);
+  }
+
+  @Get('nomenclature')
+  listNomenclature(@Query('search') search?: string) {
+    return this.serviceCenter.listNomenclature({ search });
+  }
+
+  @Delete('nomenclature/:id')
+  deleteNomenclatureItem(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.serviceCenter.deleteNomenclatureItem(id, user);
+  }
+
+  @Get('billing-services')
+  listBillingServices() {
+    return this.serviceCenter.listBillingServices();
+  }
+
+  @Post('billing-services')
+  createBillingService(
+    @Body() dto: { code: string; name: string; unit?: never; defaultPriceRub?: number; isActive?: boolean },
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.serviceCenter.createBillingService(dto, user);
+  }
+
+  @Patch('billing-services/:id/status')
+  updateBillingServiceStatus(
+    @Param('id') id: string,
+    @Body('isActive') isActive: boolean,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.serviceCenter.updateBillingServiceStatus(id, isActive === true, user);
+  }
+
+  @Delete('billing-services/:id')
+  deleteBillingService(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.serviceCenter.deleteBillingService(id, user);
   }
 }

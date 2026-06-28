@@ -9,6 +9,7 @@ import { formatCabinetDate } from './clientCabinetFormat';
 type ClientCabinetNotificationsProps = {
   notifications: ClientNotificationSummary[];
   preferences: ClientNotificationPreferenceSummary[];
+  showPreferences?: boolean;
   onMarkRead: (notification: ClientNotificationSummary) => void;
   onTogglePreference: (preference: ClientNotificationPreferenceSummary, isEnabled: boolean) => void;
 };
@@ -57,13 +58,11 @@ const preferenceOrder: ClientNotificationEvent[] = [
 export function ClientCabinetNotifications({
   notifications,
   preferences,
+  showPreferences = true,
   onMarkRead,
   onTogglePreference,
 }: ClientCabinetNotificationsProps) {
   const unreadCount = notifications.filter((notification) => !notification.isRead).length;
-  const orderedPreferences = preferenceOrder
-    .map((eventType) => preferences.find((preference) => preference.eventType === eventType))
-    .filter(Boolean) as ClientNotificationPreferenceSummary[];
 
   return (
     <section className="client-cabinet-notifications" aria-label="Уведомления клиента">
@@ -72,26 +71,8 @@ export function ClientCabinetNotifications({
         <span className="status status--planned">{unreadCount} новых</span>
       </div>
 
-      {orderedPreferences.length > 0 ? (
-        <div className="client-notification-preferences" aria-label="Настройки уведомлений">
-          {orderedPreferences.map((preference) => {
-            const label = preferenceLabels[preference.eventType];
-
-            return (
-              <label className="client-notification-preference" key={`${preference.clientId}-${preference.eventType}`}>
-                <input
-                  type="checkbox"
-                  checked={preference.isEnabled}
-                  onChange={(event) => onTogglePreference(preference, event.target.checked)}
-                />
-                <span>
-                  <strong>{label.title}</strong>
-                  <small>{label.caption}</small>
-                </span>
-              </label>
-            );
-          })}
-        </div>
+      {showPreferences ? (
+        <ClientNotificationPreferences preferences={preferences} onTogglePreference={onTogglePreference} />
       ) : null}
 
       {notifications.length === 0 ? (
@@ -130,5 +111,43 @@ export function ClientCabinetNotifications({
         </div>
       )}
     </section>
+  );
+}
+
+export function ClientNotificationPreferences({
+  preferences,
+  onTogglePreference,
+}: {
+  preferences: ClientNotificationPreferenceSummary[];
+  onTogglePreference: (preference: ClientNotificationPreferenceSummary, isEnabled: boolean) => void;
+}) {
+  const orderedPreferences = preferenceOrder
+    .map((eventType) => preferences.find((preference) => preference.eventType === eventType))
+    .filter(Boolean) as ClientNotificationPreferenceSummary[];
+
+  if (orderedPreferences.length === 0) {
+    return <p className="panel-message">Настройки уведомлений пока не созданы.</p>;
+  }
+
+  return (
+    <div className="client-notification-preferences" aria-label="Настройки уведомлений">
+      {orderedPreferences.map((preference) => {
+        const label = preferenceLabels[preference.eventType];
+
+        return (
+          <label className="client-notification-preference" key={`${preference.clientId}-${preference.eventType}`}>
+            <input
+              type="checkbox"
+              checked={preference.isEnabled}
+              onChange={(event) => onTogglePreference(preference, event.target.checked)}
+            />
+            <span>
+              <strong>{label.title}</strong>
+              <small>{label.caption}</small>
+            </span>
+          </label>
+        );
+      })}
+    </div>
   );
 }

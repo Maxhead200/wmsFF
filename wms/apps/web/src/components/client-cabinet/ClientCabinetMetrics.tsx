@@ -9,7 +9,7 @@ import type {
 } from '../../lib/api';
 import { formatCabinetMoney, formatCabinetNumber } from './clientCabinetFormat';
 
-export type ClientCabinetMetricTarget = 'skus' | 'stock' | 'requests' | 'invoices';
+export type ClientCabinetMetricTarget = 'skus' | 'stock' | 'requests' | 'invoices' | 'settings';
 
 type ClientCabinetMetricsProps = {
   stock: StockBalance[];

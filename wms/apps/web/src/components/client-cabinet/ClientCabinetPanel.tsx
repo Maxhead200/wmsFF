@@ -48,6 +48,7 @@ import { ClientRequestDocumentPreview } from '../client-requests/ClientRequestDo
 import './client-cabinet.css';
 import { ClientCabinetExports } from './ClientCabinetExports';
 import { ClientCabinetMetrics, type ClientCabinetMetricTarget } from './ClientCabinetMetrics';
+import { ClientNotificationPreferences } from './ClientCabinetNotifications';
 import { ClientCabinetTables } from './ClientCabinetTables';
 import { ClientMarketplaceConnections } from './ClientMarketplaceConnections';
 import { ClientCabinetFilterPresets } from './ClientCabinetFilterPresets';
@@ -644,15 +645,6 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
           </div>
           {managementError ? <p className="form-error">{managementError}</p> : null}
           {managementMessage ? <p className="form-success">{managementMessage}</p> : null}
-          {view.client ? (
-            <ClientTelegramBox
-              chatId={telegramChatId}
-              canEdit={canEditTelegram}
-              isSaving={isSavingTelegram}
-              onChange={setTelegramChatId}
-              onSave={() => void saveTelegramChatId()}
-            />
-          ) : null}
           {canManageClients && editingClientId === view.client.id && managementForm ? (
             <ClientCabinetClientEditor
               form={managementForm}
@@ -704,6 +696,19 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
             notifications={view.notifications}
             notificationPreferences={view.notificationPreferences}
             activeSection={activeSection}
+            settingsContent={
+              <ClientCabinetSettings
+                chatId={telegramChatId}
+                canEditTelegram={canEditTelegram}
+                isSavingTelegram={isSavingTelegram}
+                notificationPreferences={view.notificationPreferences}
+                onTelegramChange={setTelegramChatId}
+                onSaveTelegram={() => void saveTelegramChatId()}
+                onToggleNotificationPreference={(preference, isEnabled) =>
+                  void toggleNotificationPreference(preference, isEnabled)
+                }
+              />
+            }
             onSectionChange={navigateToSection}
             onStockImported={loadData}
             onOpenRequestDocument={(request) => void openRequestDocument(request)}
@@ -868,6 +873,53 @@ function ClientCabinetClientTable({
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function ClientCabinetSettings({
+  chatId,
+  canEditTelegram,
+  isSavingTelegram,
+  notificationPreferences,
+  onTelegramChange,
+  onSaveTelegram,
+  onToggleNotificationPreference,
+}: {
+  chatId: string;
+  canEditTelegram: boolean;
+  isSavingTelegram: boolean;
+  notificationPreferences: ClientNotificationPreferenceSummary[];
+  onTelegramChange: (value: string) => void;
+  onSaveTelegram: () => void;
+  onToggleNotificationPreference: (preference: ClientNotificationPreferenceSummary, isEnabled: boolean) => void;
+}) {
+  return (
+    <div className="client-cabinet-settings">
+      <section className="client-cabinet-settings-card">
+        <div className="client-cabinet-section__heading">
+          <h3>Telegram</h3>
+          <span>Уведомления по счетам и статусам заявок</span>
+        </div>
+        <ClientTelegramBox
+          chatId={chatId}
+          canEdit={canEditTelegram}
+          isSaving={isSavingTelegram}
+          onChange={onTelegramChange}
+          onSave={onSaveTelegram}
+        />
+      </section>
+
+      <section className="client-cabinet-settings-card">
+        <div className="client-cabinet-section__heading">
+          <h3>Уведомления</h3>
+          <span>Что показывать в кабинете клиента</span>
+        </div>
+        <ClientNotificationPreferences
+          preferences={notificationPreferences}
+          onTogglePreference={onToggleNotificationPreference}
+        />
+      </section>
     </div>
   );
 }

@@ -882,7 +882,7 @@
 
 .client-cabinet-tabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 4px;
   padding: 4px;
   border: 1px solid var(--line);
@@ -915,6 +915,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.client-cabinet-tabs button span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .client-cabinet-table-toolbar {
@@ -961,6 +967,27 @@
 .client-cabinet-notifications {
   display: grid;
   gap: 10px;
+}
+
+.client-cabinet-settings-wrap,
+.client-cabinet-settings {
+  display: grid;
+  gap: 12px;
+}
+
+.client-cabinet-settings-card {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.client-cabinet-settings-card .client-cabinet-telegram {
+  border: 0;
+  background: transparent;
+  padding: 0;
 }
 
 .client-period-summary {

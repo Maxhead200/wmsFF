@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react';
-import { FileSpreadsheet, FileText, MessageSquareText, ReceiptText, Search } from 'lucide-react';
+import { FileSpreadsheet, FileText, MessageSquareText, ReceiptText, Search, Settings } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type {
   BillingChargeSummary,
   BillingInvoiceSummary,
@@ -53,6 +54,7 @@ type ClientCabinetTablesProps = {
   notifications: ClientNotificationSummary[];
   notificationPreferences: ClientNotificationPreferenceSummary[];
   activeSection: ClientCabinetMetricTarget;
+  settingsContent: ReactNode;
   onSectionChange: (section: ClientCabinetMetricTarget) => void;
   onStockSearchChange: (value: string) => void;
   onStockImported: () => Promise<void>;
@@ -92,6 +94,7 @@ export function ClientCabinetTables({
   notifications,
   notificationPreferences,
   activeSection,
+  settingsContent,
   onSectionChange,
   onStockSearchChange,
   onStockImported,
@@ -111,6 +114,7 @@ export function ClientCabinetTables({
     stock: 1,
     requests: 1,
     invoices: 1,
+    settings: 1,
   });
   const [selectedProduct, setSelectedProduct] = useState<SkuDetail | null>(null);
   const [productError, setProductError] = useState('');
@@ -154,6 +158,7 @@ export function ClientCabinetTables({
       <ClientCabinetNotifications
         notifications={notifications}
         preferences={notificationPreferences}
+        showPreferences={false}
         onMarkRead={onMarkNotificationRead}
         onTogglePreference={onToggleNotificationPreference}
       />
@@ -168,65 +173,72 @@ export function ClientCabinetTables({
           <TabButton label="Остатки" count={stockTabQuantity} tab="stock" activeTab={activeSection} onClick={onSectionChange} />
           <TabButton label="Заявки" count={requests.length} tab="requests" activeTab={activeSection} onClick={onSectionChange} />
           <TabButton label="Счета" count={invoices.length} tab="invoices" activeTab={activeSection} onClick={onSectionChange} />
+          <TabButton label="Настройки" icon={Settings} tab="settings" activeTab={activeSection} onClick={onSectionChange} />
         </div>
 
-        <div className="client-cabinet-table-toolbar">
-          <label className="client-cabinet-stock-search">
-            <Search size={16} aria-hidden="true" />
-            <input
-              type="search"
-              value={stockSearch}
-              onChange={(event) => onStockSearchChange(event.target.value)}
-              placeholder="Поиск по SKU, товару, штрихкоду, коробу"
+        {activeSection === 'settings' ? (
+          <div className="client-cabinet-settings-wrap">{settingsContent}</div>
+        ) : (
+          <>
+            <div className="client-cabinet-table-toolbar">
+              <label className="client-cabinet-stock-search">
+                <Search size={16} aria-hidden="true" />
+                <input
+                  type="search"
+                  value={stockSearch}
+                  onChange={(event) => onStockSearchChange(event.target.value)}
+                  placeholder="Поиск по SKU, товару, штрихкоду, коробу"
+                />
+              </label>
+              <span className="client-cabinet-table-count">
+                {tableCountText(activeSection, activeTotal, allTotal, activeQuantity, allQuantity)}
+              </span>
+              <button
+                className="icon-text-button"
+                type="button"
+                onClick={() => downloadClientCabinetStockExcel(client, visibleStock, canSeeStoragePlaces)}
+                disabled={visibleStock.length === 0}
+              >
+                <FileSpreadsheet size={15} aria-hidden="true" />
+                <span>Остатки Excel</span>
+              </button>
+            </div>
+
+            {canImportStock && (activeSection === 'skus' || activeSection === 'stock') ? (
+              <div className="client-cabinet-import-grid">
+                <ClientCabinetStockImport accessToken={accessToken} client={client} onImported={onStockImported} />
+                <ClientCabinetReceiptImport accessToken={accessToken} client={client} onImported={onStockImported} />
+              </div>
+            ) : null}
+
+            {productError ? <p className="form-error">{productError}</p> : null}
+
+            {renderActiveTable({
+              activeSection,
+              skuRows: visibleSkuRows,
+              stock: visibleStockRows,
+              canSeeStoragePlaces,
+              onOpenProductCard: (skuId) => void openProductCard(skuId),
+              requests: visibleRequestRows,
+              invoices: visibleInvoiceRows,
+              onOpenRequestDocument,
+              onOpenRequestTimeline,
+              onOpenInvoiceDocument,
+              onUploadRequestFile,
+              onDownloadRequestFile,
+            })}
+
+            <TablePager
+              page={currentPage}
+              pageCount={pageCount}
+              pageSize={pageSize}
+              total={activeTotal}
+              quantity={activeSection === 'stock' ? activeQuantity : null}
+              onPageChange={changePage}
+              onPageSizeChange={setPageSize}
             />
-          </label>
-          <span className="client-cabinet-table-count">
-            {tableCountText(activeSection, activeTotal, allTotal, activeQuantity, allQuantity)}
-          </span>
-          <button
-            className="icon-text-button"
-            type="button"
-            onClick={() => downloadClientCabinetStockExcel(client, visibleStock, canSeeStoragePlaces)}
-            disabled={visibleStock.length === 0}
-          >
-            <FileSpreadsheet size={15} aria-hidden="true" />
-            <span>Остатки Excel</span>
-          </button>
-        </div>
-
-        {canImportStock && (activeSection === 'skus' || activeSection === 'stock') ? (
-          <div className="client-cabinet-import-grid">
-            <ClientCabinetStockImport accessToken={accessToken} client={client} onImported={onStockImported} />
-            <ClientCabinetReceiptImport accessToken={accessToken} client={client} onImported={onStockImported} />
-          </div>
-        ) : null}
-
-        {productError ? <p className="form-error">{productError}</p> : null}
-
-        {renderActiveTable({
-          activeSection,
-          skuRows: visibleSkuRows,
-          stock: visibleStockRows,
-          canSeeStoragePlaces,
-          onOpenProductCard: (skuId) => void openProductCard(skuId),
-          requests: visibleRequestRows,
-          invoices: visibleInvoiceRows,
-          onOpenRequestDocument,
-          onOpenRequestTimeline,
-          onOpenInvoiceDocument,
-          onUploadRequestFile,
-          onDownloadRequestFile,
-        })}
-
-        <TablePager
-          page={currentPage}
-          pageCount={pageCount}
-          pageSize={pageSize}
-          total={activeTotal}
-          quantity={activeSection === 'stock' ? activeQuantity : null}
-          onPageChange={changePage}
-          onPageSizeChange={setPageSize}
-        />
+          </>
+        )}
       </section>
 
       {selectedProduct ? <ProductCardModal sku={selectedProduct} onClose={() => setSelectedProduct(null)} /> : null}
@@ -241,20 +253,22 @@ function canUse(user: AuthUser, permission: string) {
 function TabButton({
   label,
   count,
+  icon: Icon,
   tab,
   activeTab,
   onClick,
 }: {
   label: string;
-  count: number;
+  count?: number;
+  icon?: LucideIcon;
   tab: ClientCabinetMetricTarget;
   activeTab: ClientCabinetMetricTarget;
   onClick: (tab: ClientCabinetMetricTarget) => void;
 }) {
   return (
     <button className={tab === activeTab ? 'is-active' : ''} type="button" role="tab" onClick={() => onClick(tab)}>
-      <span>{label}</span>
-      <strong>{formatCabinetNumber(count)}</strong>
+      <span>{Icon ? <Icon size={15} aria-hidden="true" /> : null}{label}</span>
+      {typeof count === 'number' ? <strong>{formatCabinetNumber(count)}</strong> : null}
     </button>
   );
 }

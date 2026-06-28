@@ -40,4 +40,26 @@ describe('parseStockSheet', () => {
       quantity: 8,
     });
   });
+
+  it('оставляет строку с пустым штрихкодом для дальнейшей сверки с каталогом', () => {
+    const result = parseStockSheet(
+      [
+        ['Короб', null, null, 'Штрих код', 'logo_Наименование', null, 'Цвет', 'Размер', 'Количество Остаток'],
+        ['FFL_BOX_001'],
+        ['FFL_BOX_001', null, null, '', 'Костюм реглан синий', null, 'синий', 'L', '4'],
+      ],
+      { clientId: 'client-1' },
+    );
+
+    expect(result.issues).toEqual([]);
+    expect(result.summary).toEqual({ rows: 1, boxes: 1, barcodes: 0, totalQuantity: 4 });
+    expect(result.items[0]).toMatchObject({
+      boxCode: 'FFL_BOX_001',
+      barcode: '',
+      name: 'Костюм реглан синий',
+      color: 'синий',
+      size: 'L',
+      quantity: 4,
+    });
+  });
 });

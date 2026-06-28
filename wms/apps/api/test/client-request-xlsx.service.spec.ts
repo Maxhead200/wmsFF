@@ -291,6 +291,62 @@ describe('ClientRequestXlsxService', () => {
       }),
     );
   });
+
+  it('предлагает переклейку из каталога клиента, если нужного баркода нет в остатках', async () => {
+    const prisma = {
+      barcode: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      sku: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: 'sku-source',
+            internalSku: 'SRC-001',
+            clientSku: null,
+            article: null,
+            name: 'Костюм реглан синий',
+            size: 'L',
+            needsRelabel: false,
+            barcodes: [{ value: '111', isPrimary: true }],
+          },
+        ]),
+      },
+      stockBalance: {
+        groupBy: vi.fn().mockResolvedValue([{ skuId: 'sku-source', _sum: { quantity: 8 } }]),
+      },
+    };
+    const service = new ClientRequestXlsxService(
+      prisma as never,
+      new ClientScopeService(),
+      {
+        create: vi.fn(),
+        previewAvailability: vi.fn().mockResolvedValue({
+          lines: [availabilityLine({ index: 0, skuId: '', requestedQuantity: 4, stockQuantity: 0, availableQuantity: 0 })],
+        }),
+      } as never,
+    );
+
+    const preview = await service.previewOutboundRequest(
+      fileFixture([
+        ['Баркод', 'Наименование товара', 'Размер', 'Количество'],
+        ['222', 'Костюм реглан синий', 'L', 4],
+      ]),
+      { clientId: 'client-1', title: 'Excel сборка', destinationCity: 'Казань' },
+      user({ writableClientIds: ['client-1'], clientIds: ['client-1'] }),
+    );
+
+    expect(preview.canCommit).toBe(false);
+    expect(preview.lines[0].actionSuggestions).toEqual([
+      expect.objectContaining({
+        type: 'RELABEL',
+        sourceSkuId: 'sku-source',
+        sourceBarcode: '111',
+        targetBarcode: '222',
+        availableQuantity: 8,
+        quantity: 4,
+      }),
+    ]);
+  });
 });
 
 function fileFixture(rows: unknown[][], originalname = 'request.xlsx'): Express.Multer.File {

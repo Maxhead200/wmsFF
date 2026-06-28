@@ -700,6 +700,19 @@ export type OutboundRequestXlsxIssue = {
   severity: 'warning' | 'error';
 };
 
+export type OutboundRequestActionSuggestion = {
+  type: 'RELABEL' | 'CREATE_SKU';
+  title: string;
+  message: string;
+  sourceSkuId?: string;
+  sourceInternalSku?: string;
+  sourceName?: string;
+  sourceBarcode?: string;
+  targetBarcode?: string;
+  availableQuantity?: number;
+  quantity?: number;
+};
+
 export type OutboundRequestXlsxLine = {
   barcode?: string;
   originalName?: string;
@@ -720,6 +733,7 @@ export type OutboundRequestXlsxLine = {
   name: string | null;
   canFulfill: boolean;
   conflicts: ClientRequestAvailabilityConflict[];
+  actionSuggestions: OutboundRequestActionSuggestion[];
 };
 
 export type OutboundRequestXlsxPreview = {
@@ -1788,6 +1802,19 @@ export type StockImportIssue = {
   severity: 'warning' | 'error';
 };
 
+export type StockImportSuggestion = {
+  row: number;
+  type: 'FILL_BARCODE_FROM_CATALOG';
+  title: string;
+  message: string;
+  barcode?: string;
+  name?: string;
+  article?: string | null;
+  color?: string | null;
+  size?: string | null;
+  applied: boolean;
+};
+
 export type StockImportSummary = {
   rows: number;
   boxes: number;
@@ -1814,6 +1841,7 @@ export type StockImportPreview = {
   clientId: string;
   summary: StockImportSummary;
   issues: StockImportIssue[];
+  suggestions?: StockImportSuggestion[];
   sample: StockImportSampleItem[];
 };
 
@@ -1831,6 +1859,7 @@ export type ReceiptImportPreview = {
 export type StockImportCommitResult = {
   sourceDocument: string;
   summary: StockImportSummary;
+  suggestions?: StockImportSuggestion[];
   warnings: StockImportIssue[];
   result: {
     boxesTouched: number;

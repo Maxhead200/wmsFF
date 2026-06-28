@@ -945,6 +945,38 @@ h1 {
   font-weight: 800;
 }
 
+.import-suggestions {
+  display: grid;
+  gap: 8px;
+}
+
+.import-suggestion {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  background: #fff7ed;
+  padding: 10px 12px;
+}
+
+.import-suggestion--applied {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.import-suggestion strong,
+.import-suggestion span {
+  display: block;
+}
+
+.import-suggestion div > span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .import-table-wrap {
   overflow-x: auto;
   border: 1px solid var(--line);

@@ -42,6 +42,7 @@ export function StockPreviewResult({ preview }: { preview: StockImportPreview })
         ]}
       />
       <ImportIssues issues={preview.issues} />
+      <StockCatalogSuggestions suggestions={preview.suggestions ?? []} />
       <StockSampleTable preview={preview} />
     </div>
   );
@@ -62,7 +63,32 @@ export function StockCommitResultBlock({ result }: { result: StockImportCommitRe
           { label: 'Балансы', value: result.result.balancesTouched },
         ]}
       />
+      <StockCatalogSuggestions suggestions={result.suggestions ?? []} />
       <ImportIssues issues={result.warnings} emptyText="Предупреждений нет." />
+    </div>
+  );
+}
+
+function StockCatalogSuggestions({ suggestions }: { suggestions: StockImportPreview['suggestions'] }) {
+  if (!suggestions?.length) {
+    return null;
+  }
+
+  return (
+    <div className="import-suggestions">
+      {suggestions.slice(0, 12).map((suggestion) => (
+        <article className={suggestion.applied ? 'import-suggestion import-suggestion--applied' : 'import-suggestion'} key={`${suggestion.row}-${suggestion.message}`}>
+          <div>
+            <strong>
+              Строка {suggestion.row}: {suggestion.title}
+            </strong>
+            <span>{suggestion.message}</span>
+          </div>
+          <span className={suggestion.applied ? 'status status--done' : 'status status--planned'}>
+            {suggestion.applied ? 'Подставлено' : 'Нужно действие'}
+          </span>
+        </article>
+      ))}
     </div>
   );
 }

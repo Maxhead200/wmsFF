@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { ClientRequestPriority, ClientRequestType } from '@prisma/client';
+import { ClientRequestPriority, ClientRequestType, StockStatus } from '@prisma/client';
 import * as XLSX from 'xlsx';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
@@ -33,6 +33,20 @@ type HydratedOutboundLine = {
   name: string | null;
   canFulfill: boolean;
   conflicts: ClientRequestAvailabilityConflict[];
+  actionSuggestions: OutboundRequestActionSuggestion[];
+};
+
+type OutboundRequestActionSuggestion = {
+  type: 'RELABEL' | 'CREATE_SKU';
+  title: string;
+  message: string;
+  sourceSkuId?: string;
+  sourceInternalSku?: string;
+  sourceName?: string;
+  sourceBarcode?: string;
+  targetBarcode?: string;
+  availableQuantity?: number;
+  quantity?: number;
 };
 
 type OutboundRequestXlsxPreview = {
@@ -58,6 +72,7 @@ type ResolvedSku = {
   name: string;
   size?: string | null;
   needsRelabel: boolean;
+  barcodes?: Array<{ value: string; isPrimary: boolean }>;
 };
 
 type ResolvedParsedLine = {
@@ -143,9 +158,17 @@ export class ClientRequestXlsxService {
               select: {
                 id: true,
                 internalSku: true,
+                clientSku: true,
+                article: true,
                 name: true,
                 size: true,
                 needsRelabel: true,
+                barcodes: {
+                  select: {
+                    value: true,
+                    isPrimary: true,
+                  },
+                },
               },
             },
           },
@@ -170,6 +193,12 @@ export class ClientRequestXlsxService {
             name: true,
             size: true,
             needsRelabel: true,
+            barcodes: {
+              select: {
+                value: true,
+                isPrimary: true,
+              },
+            },
           },
         })
       : [];
@@ -180,6 +209,7 @@ export class ClientRequestXlsxService {
     }
     const skuMatches = buildSkuMatchesByProductName(skuRows);
     const resolvedLines = parsed.lines.map((line) => this.resolveParsedLine(line, barcodeMatches, skuMatches));
+    const actionSuggestionsByLine = await this.buildCatalogActionSuggestions(clientId, parsed.lines, resolvedLines, skuMatches);
 
     const availability = await this.clientRequests.previewAvailability(
       {
@@ -200,6 +230,7 @@ export class ClientRequestXlsxService {
       const { line, match, issueMessage } = resolvedLine;
       const firstRow = line.sourceRows[0] ?? 1;
       const availabilityLine = availability.lines[lineIndex];
+      const actionSuggestions = actionSuggestionsByLine.get(lineIndex) ?? [];
 
       if (!match) {
         issues.push({
@@ -208,7 +239,7 @@ export class ClientRequestXlsxService {
           message: issueMessage,
           severity: 'error',
         });
-        lines.push(this.emptyHydratedLine(line));
+        lines.push(this.emptyHydratedLine(line, actionSuggestions));
         continue;
       }
 
@@ -219,7 +250,7 @@ export class ClientRequestXlsxService {
           message: issueMessage,
           severity: 'error',
         });
-        lines.push(this.emptyHydratedLine(line));
+        lines.push(this.emptyHydratedLine(line, actionSuggestions));
         continue;
       }
 
@@ -258,6 +289,7 @@ export class ClientRequestXlsxService {
         name: match.sku.name,
         canFulfill: shortageQuantity === 0,
         conflicts,
+        actionSuggestions,
       });
     }
 
@@ -378,7 +410,7 @@ export class ClientRequestXlsxService {
     artSeller?: string;
     size?: string;
     sourceRows: number[];
-  }): HydratedOutboundLine {
+  }, actionSuggestions: OutboundRequestActionSuggestion[] = []): HydratedOutboundLine {
     return {
       barcode: line.barcode,
       originalName: line.name || line.artSeller,
@@ -399,7 +431,115 @@ export class ClientRequestXlsxService {
       name: null,
       canFulfill: false,
       conflicts: [],
+      actionSuggestions,
     };
+  }
+
+  private async buildCatalogActionSuggestions(
+    clientId: string,
+    lines: OutboundRequestXlsxLine[],
+    resolvedLines: ResolvedParsedLine[],
+    skuMatches: Map<string, ResolvedSku[]>,
+  ) {
+    const candidateSkuIds = new Set<string>();
+    const lineCandidates = new Map<number, ResolvedSku[]>();
+
+    lines.forEach((line, index) => {
+      const productName = normalizeText(line.name || line.artSeller);
+      const targetBarcode = line.barcode || line.relabelTargetBarcode;
+      if (!productName || !targetBarcode) {
+        return;
+      }
+
+      const candidates = filterSkusBySize(skuMatches.get(normalizeLookupKey(productName)) ?? [], line.size);
+      const currentSkuId = resolvedLines[index]?.match && resolvedLines[index].match !== 'duplicate' ? resolvedLines[index].match.sku.id : null;
+      const relabelCandidates = candidates.filter((sku) => sku.id !== currentSkuId || !skuHasBarcode(sku, targetBarcode));
+      if (relabelCandidates.length === 0) {
+        return;
+      }
+
+      lineCandidates.set(index, relabelCandidates);
+      relabelCandidates.forEach((sku) => candidateSkuIds.add(sku.id));
+    });
+
+    const stockBySkuId = await this.stockQuantityBySkuId(clientId, [...candidateSkuIds]);
+    const nomenclatureByBarcode = await this.nomenclatureByBarcode(lines.map((line) => line.barcode).filter((barcode): barcode is string => Boolean(barcode)));
+    const result = new Map<number, OutboundRequestActionSuggestion[]>();
+
+    lines.forEach((line, index) => {
+      const targetBarcode = line.barcode || line.relabelTargetBarcode;
+      const suggestions: OutboundRequestActionSuggestion[] = [];
+
+      for (const sku of lineCandidates.get(index) ?? []) {
+        const availableQuantity = stockBySkuId.get(sku.id) ?? 0;
+        if (!targetBarcode || availableQuantity <= 0) {
+          continue;
+        }
+
+        const sourceBarcode = primaryBarcodeValue(sku);
+        suggestions.push({
+          type: 'RELABEL',
+          title: 'Можно переклеить',
+          message: `В каталоге найден ${sku.internalSku} с остатком ${availableQuantity} шт. Можно взять этот SKU и переклеить на ${targetBarcode}.`,
+          sourceSkuId: sku.id,
+          sourceInternalSku: sku.internalSku,
+          sourceName: sku.name,
+          sourceBarcode: sourceBarcode ?? undefined,
+          targetBarcode,
+          availableQuantity,
+          quantity: Math.min(line.quantity, availableQuantity),
+        });
+      }
+
+      if (suggestions.length === 0 && targetBarcode && nomenclatureByBarcode.has(targetBarcode)) {
+        const item = nomenclatureByBarcode.get(targetBarcode)!;
+        suggestions.push({
+          type: 'CREATE_SKU',
+          title: 'Есть в общей номенклатуре',
+          message: `Баркод есть в общем справочнике: ${item.name}. Создайте SKU клиента или загрузите остатки по этому товару.`,
+          targetBarcode,
+        });
+      }
+
+      if (suggestions.length > 0) {
+        result.set(index, suggestions);
+      }
+    });
+
+    return result;
+  }
+
+  private async stockQuantityBySkuId(clientId: string, skuIds: string[]) {
+    const stockBalance = this.prisma.stockBalance;
+    if (skuIds.length === 0 || !stockBalance?.groupBy) {
+      return new Map<string, number>();
+    }
+
+    const rows = await stockBalance.groupBy({
+      by: ['skuId'],
+      where: {
+        clientId,
+        skuId: { in: skuIds },
+        status: StockStatus.AVAILABLE,
+      },
+      _sum: { quantity: true },
+    });
+
+    return new Map(rows.map((row) => [row.skuId, Number(row._sum.quantity ?? 0)]));
+  }
+
+  private async nomenclatureByBarcode(barcodes: string[]) {
+    const nomenclatureItem = this.prisma.nomenclatureItem;
+    if (barcodes.length === 0 || !nomenclatureItem?.findMany) {
+      return new Map<string, { barcode: string; name: string }>();
+    }
+
+    const rows = await nomenclatureItem.findMany({
+      where: { barcode: { in: [...new Set(barcodes)] } },
+      select: { barcode: true, name: true },
+    });
+
+    return new Map(rows.filter((row) => row.barcode).map((row) => [row.barcode!, { barcode: row.barcode!, name: row.name }]));
   }
 
   private buildImportComment(comment: string | undefined, sourceFile: string, preview: OutboundRequestXlsxPreview) {
@@ -534,6 +674,14 @@ function filterSkusBySize(skus: ResolvedSku[], size?: string) {
   }
 
   return skus.filter((sku) => sizesMatch(sku.size, size));
+}
+
+function primaryBarcodeValue(sku: Pick<ResolvedSku, 'barcodes'>) {
+  return sku.barcodes?.find((barcode) => barcode.isPrimary)?.value ?? sku.barcodes?.[0]?.value ?? null;
+}
+
+function skuHasBarcode(sku: Pick<ResolvedSku, 'barcodes'>, barcode: string) {
+  return Boolean(sku.barcodes?.some((item) => item.value === barcode));
 }
 
 function sizesMatch(skuSize?: string | null, requestedSize?: string | null) {

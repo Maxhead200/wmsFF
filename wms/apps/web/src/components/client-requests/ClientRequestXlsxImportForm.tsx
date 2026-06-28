@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, FileSpreadsheet, Send, Trash2, Upload } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, FileSpreadsheet, Send, Trash2, Upload, Wand2 } from 'lucide-react';
 import { useMemo, useState, type FormEvent } from 'react';
 import {
   createClientRequest,
@@ -7,6 +7,7 @@ import {
   type ClientRequestPriority,
   type ClientRequestSummary,
   type ClientSummary,
+  type OutboundRequestActionSuggestion,
   type OutboundRequestXlsxLine,
   type OutboundRequestXlsxPreview,
 } from '../../lib/api';
@@ -251,6 +252,24 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
                   aria-label={`Количество ${xlsxLineLabel(line)}`}
                 />
                 <small>{xlsxLineText(line)}</small>
+                {line.actionSuggestions?.length ? (
+                  <div className="client-request-xlsx-suggestions">
+                    {line.actionSuggestions.map((suggestion, suggestionIndex) => (
+                      <div className="client-request-xlsx-suggestion" key={`${suggestion.type}-${suggestion.targetBarcode ?? suggestionIndex}`}>
+                        <div>
+                          <strong>{suggestion.title}</strong>
+                          <span>{suggestion.message}</span>
+                        </div>
+                        {suggestion.type === 'RELABEL' && suggestion.sourceSkuId && suggestion.targetBarcode ? (
+                          <button className="primary-button client-request-suggestion-action" type="button" onClick={() => applyRelabelSuggestion(index, suggestion)}>
+                            <Wand2 size={14} aria-hidden="true" />
+                            <span>Применить</span>
+                          </button>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
                 <label className="client-request-xlsx-relabel">
                   <input
                     checked={line.needsRelabel}
@@ -315,6 +334,44 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
   function removeEditableLine(index: number) {
     setEditableLines((current) => current.filter((_, lineIndex) => lineIndex !== index));
   }
+
+  function applyRelabelSuggestion(index: number, suggestion: OutboundRequestActionSuggestion) {
+    if (!suggestion.sourceSkuId || !suggestion.targetBarcode) {
+      return;
+    }
+
+    const targetLine = editableLines[index];
+    if (targetLine) {
+      setConfirmedRelabels((confirmed) => ({ ...confirmed, [targetLine.key]: false }));
+    }
+
+    setEditableLines((current) =>
+      current.map((line, lineIndex) => {
+        if (lineIndex !== index) {
+          return line;
+        }
+
+        const availableQuantity = suggestion.availableQuantity ?? line.availableQuantity;
+        const relabelQuantity = Math.min(line.requestedQuantity, suggestion.quantity ?? line.requestedQuantity);
+
+        return {
+          ...line,
+          skuId: suggestion.sourceSkuId!,
+          internalSku: suggestion.sourceInternalSku ?? line.internalSku,
+          name: suggestion.sourceName ?? line.name,
+          barcode: suggestion.sourceBarcode ?? line.barcode,
+          relabelTargetBarcode: suggestion.targetBarcode,
+          relabelQuantity,
+          needsRelabel: true,
+          stockQuantity: Math.max(line.stockQuantity, availableQuantity),
+          availableQuantity,
+          shortageQuantity: Math.max(0, line.requestedQuantity - availableQuantity),
+          canFulfill: line.requestedQuantity <= availableQuantity,
+          actionSuggestions: [],
+        };
+      }),
+    );
+  }
 }
 
 type EditableXlsxLine = OutboundRequestXlsxLine & {
@@ -348,6 +405,9 @@ function xlsxLineText(line: EditableXlsxLine) {
   const relabelText = hasRelabel(line) ? ` Перемаркировка: ${line.barcode} -> ${line.relabelTargetBarcode}, ${line.relabelQuantity} шт.` : '';
 
   if (!line.skuId) {
+    if (line.actionSuggestions?.length) {
+      return 'Товар не найден в остатках, но WMS нашла варианты в каталоге. Выберите действие ниже.';
+    }
     return 'Товар не найден. Удалите строку или проверьте справочник SKU.';
   }
 

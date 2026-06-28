@@ -8,7 +8,7 @@ import { LogisticsService } from '../logistics/logistics.service';
 import { StockBalancesService } from '../stock/stock-balances.service';
 import { parseLogisticsTariffSheet } from './parsers/logistics-xlsx.parser';
 import { parseReceiptSheet, type ReceiptImportItem } from './parsers/receipt-xlsx.parser';
-import { parseStockSheet, type SheetMatrix, type StockImportItem } from './parsers/stock-xlsx.parser';
+import { parseStockSheet, type SheetMatrix, type StockImportIssue, type StockImportItem } from './parsers/stock-xlsx.parser';
 
 type CommitStockOptions = {
   clientId: string;
@@ -21,6 +21,19 @@ type CommitLogisticsOptions = {
   sourceFile?: string;
   activeFrom?: string;
   activeTo?: string;
+};
+
+type StockImportSuggestion = {
+  row: number;
+  type: 'FILL_BARCODE_FROM_CATALOG';
+  title: string;
+  message: string;
+  barcode?: string;
+  name?: string;
+  article?: string | null;
+  color?: string | null;
+  size?: string | null;
+  applied: boolean;
 };
 
 const STOCK_IMPORT_TRANSACTION_OPTIONS = {
@@ -37,16 +50,16 @@ export class ImportsService {
     private readonly logistics: LogisticsService,
   ) {}
 
-  previewStockWorkbook(buffer: Buffer, clientId: string, user: AuthUser) {
+  async previewStockWorkbook(buffer: Buffer, clientId: string, user: AuthUser) {
     this.clientScopes.requireClientAccess(user, clientId, 'write');
 
-    const rows = this.readFirstSheet(buffer);
-    const parsed = parseStockSheet(rows, { clientId });
+    const parsed = await this.parseStockWorkbookWithCatalog(buffer, clientId);
 
     return {
       clientId,
       summary: parsed.summary,
       issues: parsed.issues,
+      suggestions: parsed.suggestions,
       sample: parsed.items.slice(0, 20),
     };
   }
@@ -95,8 +108,7 @@ export class ImportsService {
   async commitStockWorkbook(buffer: Buffer, options: CommitStockOptions) {
     this.clientScopes.requireClientAccess(options.user, options.clientId, 'write');
 
-    const rows = this.readFirstSheet(buffer);
-    const parsed = parseStockSheet(rows, { clientId: options.clientId });
+    const parsed = await this.parseStockWorkbookWithCatalog(buffer, options.clientId);
     const errors = parsed.issues.filter((issue) => issue.severity === 'error');
 
     if (errors.length > 0) {
@@ -138,8 +150,23 @@ export class ImportsService {
     return {
       sourceDocument: options.sourceDocument,
       summary: parsed.summary,
+      suggestions: parsed.suggestions,
       warnings: parsed.issues.filter((issue) => issue.severity === 'warning'),
       result,
+    };
+  }
+
+  private async parseStockWorkbookWithCatalog(buffer: Buffer, clientId: string) {
+    const rows = this.readFirstSheet(buffer);
+    const parsed = parseStockSheet(rows, { clientId });
+    const enriched = await this.enrichStockItemsFromCatalog(parsed.items);
+
+    return {
+      ...parsed,
+      items: enriched.items,
+      issues: [...parsed.issues, ...enriched.issues],
+      suggestions: enriched.suggestions,
+      summary: stockImportSummary(enriched.items),
     };
   }
 
@@ -411,4 +438,159 @@ export class ImportsService {
         severity: 'error' as const,
       }));
   }
+
+  private async enrichStockItemsFromCatalog(items: StockImportItem[]) {
+    const missingBarcodeItems = items.filter((item) => !item.barcode);
+    if (missingBarcodeItems.length === 0) {
+      return { items, issues: [] as StockImportIssue[], suggestions: [] as StockImportSuggestion[] };
+    }
+
+    const lookupValues = [...new Set(missingBarcodeItems.map((item) => item.name).filter(Boolean))];
+    const catalogRows = lookupValues.length
+      ? await this.prisma.nomenclatureItem.findMany({
+          where: {
+            OR: [{ name: { in: lookupValues } }, { internalSku: { in: lookupValues } }, { article: { in: lookupValues } }],
+          },
+          select: {
+            barcode: true,
+            name: true,
+            article: true,
+            internalSku: true,
+            color: true,
+            size: true,
+          },
+        })
+      : [];
+    const catalogByKey = new Map<string, typeof catalogRows>();
+
+    for (const row of catalogRows) {
+      [row.name, row.internalSku, row.article].forEach((value) => {
+        const key = stockCatalogKey(value);
+        if (!key) {
+          return;
+        }
+
+        catalogByKey.set(key, [...(catalogByKey.get(key) ?? []), row]);
+      });
+    }
+
+    const issues: StockImportIssue[] = [];
+    const suggestions: StockImportSuggestion[] = [];
+    const enrichedItems: StockImportItem[] = items.map((item) => {
+      if (item.barcode) {
+        return item;
+      }
+
+      const matches = (catalogByKey.get(stockCatalogKey(item.name)) ?? []).filter((row) => stockCatalogPropertiesMatch(row, item));
+      const exactMatches = uniqueCatalogRows(matches);
+
+      const matchedBarcode = exactMatches[0]?.barcode;
+      if (exactMatches.length === 1 && matchedBarcode) {
+        const match = exactMatches[0];
+        suggestions.push({
+          row: item.sourceRow,
+          type: 'FILL_BARCODE_FROM_CATALOG',
+          title: 'Баркод взят из каталога',
+          message: `${match.name}: ${matchedBarcode}`,
+          barcode: matchedBarcode,
+          name: match.name,
+          article: match.article,
+          color: match.color,
+          size: match.size,
+          applied: true,
+        });
+        issues.push({
+          row: item.sourceRow,
+          message: `Штрихкод не был заполнен в файле, WMS взяла его из каталога: ${matchedBarcode}.`,
+          severity: 'warning',
+        });
+
+        return {
+          ...item,
+          barcode: matchedBarcode,
+          name: item.name || match.name,
+          color: item.color ?? match.color ?? undefined,
+          size: item.size ?? match.size ?? undefined,
+        };
+      }
+
+      if (exactMatches.length > 1) {
+        suggestions.push({
+          row: item.sourceRow,
+          type: 'FILL_BARCODE_FROM_CATALOG',
+          title: 'Нужно выбрать товар',
+          message: `В каталоге найдено несколько похожих карточек: ${exactMatches
+            .slice(0, 3)
+            .map((match) => [match.name, match.size, match.barcode].filter(Boolean).join(' / '))
+            .join('; ')}.`,
+          applied: false,
+        });
+        issues.push({
+          row: item.sourceRow,
+          message: 'Штрихкод не заполнен, а в каталоге найдено несколько вариантов. Уточните баркод в файле или карточку товара.',
+          severity: 'error',
+        });
+        return item;
+      }
+
+      const matchedWithoutBarcode = exactMatches[0];
+      if (matchedWithoutBarcode && !matchedWithoutBarcode.barcode) {
+        suggestions.push({
+          row: item.sourceRow,
+          type: 'FILL_BARCODE_FROM_CATALOG',
+          title: 'Карточка есть без баркода',
+          message: `${matchedWithoutBarcode.name}: заполните баркод в каталоге или в файле остатков.`,
+          name: matchedWithoutBarcode.name,
+          article: matchedWithoutBarcode.article,
+          color: matchedWithoutBarcode.color,
+          size: matchedWithoutBarcode.size,
+          applied: false,
+        });
+      }
+
+      issues.push({
+        row: item.sourceRow,
+        message: 'Не заполнен штрихкод. WMS не нашла один точный баркод в каталоге.',
+        severity: 'error',
+      });
+      return item;
+    });
+
+    return { items: enrichedItems, issues, suggestions };
+  }
+}
+
+function stockImportSummary(items: StockImportItem[]) {
+  const uniqueBoxes = new Set(items.map((item) => item.boxCode));
+  const uniqueBarcodes = new Set(items.map((item) => item.barcode).filter(Boolean));
+  const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+
+  return {
+    rows: items.length,
+    boxes: uniqueBoxes.size,
+    barcodes: uniqueBarcodes.size,
+    totalQuantity,
+  };
+}
+
+function stockCatalogKey(value?: string | null) {
+  return value?.trim().toLowerCase().replace(/\s+/g, ' ') ?? '';
+}
+
+function stockCatalogPropertiesMatch(
+  row: { color?: string | null; size?: string | null },
+  item: Pick<StockImportItem, 'color' | 'size'>,
+) {
+  return stockOptionalMatch(row.color, item.color) && stockOptionalMatch(row.size, item.size);
+}
+
+function stockOptionalMatch(left?: string | null, right?: string | null) {
+  const normalizedRight = stockCatalogKey(right);
+  return !normalizedRight || stockCatalogKey(left) === normalizedRight;
+}
+
+function uniqueCatalogRows<T extends { internalSku: string }>(rows: T[]) {
+  const result = new Map<string, T>();
+  rows.forEach((row) => result.set(row.internalSku, row));
+  return [...result.values()];
 }

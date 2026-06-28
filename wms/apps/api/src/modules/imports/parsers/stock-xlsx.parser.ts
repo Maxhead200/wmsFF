@@ -83,11 +83,6 @@ export function parseStockSheet(rows: SheetMatrix, options: StockParseOptions) {
       return;
     }
 
-    if (!barcode || barcode === '#N/A') {
-      issues.push({ row: sourceRow, message: 'Не заполнен штрихкод.', severity: 'error' });
-      return;
-    }
-
     if (!quantity || quantity < 0) {
       issues.push({ row: sourceRow, message: 'Количество должно быть положительным числом.', severity: 'error' });
       return;
@@ -102,7 +97,7 @@ export function parseStockSheet(rows: SheetMatrix, options: StockParseOptions) {
     items.push({
       clientId: options.clientId,
       boxCode: effectiveBox,
-      barcode,
+      barcode: isMissingImportText(barcode) ? '' : barcode,
       name: safeName,
       color: color || undefined,
       size: size || undefined,
@@ -112,7 +107,7 @@ export function parseStockSheet(rows: SheetMatrix, options: StockParseOptions) {
   });
 
   const uniqueBoxes = new Set(items.map((item) => item.boxCode));
-  const uniqueBarcodes = new Set(items.map((item) => item.barcode));
+  const uniqueBarcodes = new Set(items.map((item) => item.barcode).filter(Boolean));
   const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
 
   return {

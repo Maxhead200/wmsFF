@@ -216,6 +216,44 @@
   align-self: center;
 }
 
+.client-request-xlsx-suggestions {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 7px;
+}
+
+.client-request-xlsx-suggestion {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid rgb(180 83 9 / 0.28);
+  border-radius: 6px;
+  background: #fff7ed;
+  padding: 8px;
+}
+
+.client-request-xlsx-suggestion strong,
+.client-request-xlsx-suggestion span {
+  grid-column: auto;
+}
+
+.client-request-xlsx-suggestion strong {
+  display: block;
+  color: #7c2d12;
+  font-size: 12px;
+}
+
+.client-request-suggestion-action {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.client-request-suggestion-action span {
+  color: inherit;
+}
+
 .client-request-xlsx-relabel {
   grid-column: 1 / 3;
   display: inline-flex;

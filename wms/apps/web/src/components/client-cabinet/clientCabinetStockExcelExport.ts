@@ -13,7 +13,7 @@ export function downloadClientCabinetStockExcel(client: ClientSummary, stock: St
   ]);
 
   const rows = [
-    ['Клиент', client.code, client.name],
+    ['Клиент', client.name],
     ['Дата выгрузки', new Date().toLocaleString('ru-RU')],
     ['Строк остатков', stockRows.length],
     ['Единиц на остатке', formatCabinetNumber(stock.reduce((sum, balance) => sum + Number(balance.quantity), 0))],

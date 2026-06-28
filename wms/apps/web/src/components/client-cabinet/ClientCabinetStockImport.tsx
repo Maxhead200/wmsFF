@@ -99,7 +99,7 @@ export function ClientCabinetStockImport({ accessToken, client, onImported }: Cl
         <div>
           <h3>Загрузка остатков</h3>
           <span>
-            Клиент: {client.code} - {client.name}
+            Клиент: {client.name}
           </span>
         </div>
       </div>

@@ -450,7 +450,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
   }
 
   async function removeClient(client: ClientSummary) {
-    const confirmed = window.confirm(`Удалить клиента ${client.code} - ${client.name}? Если у клиента есть рабочие данные, WMS не даст удалить его.`);
+    const confirmed = window.confirm(`Удалить клиента ${client.name}? Если у клиента есть рабочие данные, WMS не даст удалить его.`);
     if (!confirmed) {
       return;
     }
@@ -474,7 +474,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
       setSelectedClientId(nextClientId);
       setEditingClientId('');
       setManagementForm(null);
-      setManagementMessage(`Клиент ${deleted.code} - ${deleted.name} удален.`);
+      setManagementMessage(`Клиент ${deleted.name} удален.`);
     } catch (caught) {
       setManagementError(caught instanceof Error ? caught.message : 'Не удалось удалить клиента.');
     } finally {
@@ -515,7 +515,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
               <select value={selectedClientId} onChange={(event) => selectClient(event.target.value)}>
                 {state.data.clients.map((client) => (
                   <option key={client.id} value={client.id}>
-                    {client.code} · {client.name}
+                    {client.name}
                   </option>
                 ))}
               </select>
@@ -563,7 +563,6 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
 
           <div className="client-cabinet-client">
             <div>
-              <span>{view.client.code}</span>
               <strong>{view.client.name}</strong>
             </div>
             <div className="client-cabinet-client__actions">
@@ -734,7 +733,6 @@ function ClientCabinetClientTable({
       <table className="client-cabinet-client-table">
         <thead>
           <tr>
-            <th>Код</th>
             <th>Клиент</th>
             <th>Статус</th>
             <th>SKU</th>
@@ -747,11 +745,6 @@ function ClientCabinetClientTable({
         <tbody>
           {cards.map((card) => (
             <tr className={card.client.id === selectedClientId ? 'is-active' : ''} key={card.client.id}>
-              <td>
-                <button className="client-cabinet-row-link" type="button" onClick={() => onSelect(card.client.id)}>
-                  {card.client.code}
-                </button>
-              </td>
               <td>
                 <button className="client-cabinet-row-link client-cabinet-row-link--name" type="button" onClick={() => onSelect(card.client.id)}>
                   {card.client.name}

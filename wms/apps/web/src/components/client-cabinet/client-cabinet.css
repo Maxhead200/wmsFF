@@ -453,17 +453,51 @@
 
 .client-cabinet-filters {
   display: grid;
-  grid-template-columns: minmax(160px, 0.8fr) minmax(0, 3fr) auto;
+  grid-template-columns: minmax(180px, auto) minmax(0, 1fr) auto;
   gap: 10px;
-  align-items: end;
+  align-items: center;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #ffffff;
   padding: 12px;
 }
 
-.client-cabinet-filters__title {
+.client-cabinet-filters__toggle {
   display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfdff;
+  color: var(--ink);
+  padding: 9px 11px;
+  font: inherit;
+  font-weight: 900;
+  text-align: left;
+}
+
+.client-cabinet-filters__toggle:hover,
+.client-cabinet-filters__toggle:focus-visible {
+  border-color: rgb(215 25 32 / 0.38);
+  color: var(--red-dark);
+  outline: none;
+}
+
+.client-cabinet-filters__toggle > svg {
+  flex: 0 0 auto;
+  color: var(--muted);
+  transition: transform 0.16s ease;
+}
+
+.client-cabinet-filters.is-expanded .client-cabinet-filters__toggle > svg {
+  transform: rotate(180deg);
+}
+
+.client-cabinet-filters__title {
+  display: inline-flex;
   min-width: 0;
   align-items: center;
   gap: 9px;
@@ -474,27 +508,35 @@
   color: var(--red-dark);
 }
 
-.client-cabinet-filters__title div {
+.client-cabinet-filters__title span {
   display: grid;
   min-width: 0;
   gap: 2px;
 }
 
-.client-cabinet-filters__title h3 {
+.client-cabinet-filters__title strong {
   overflow: hidden;
   font-size: 16px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.client-cabinet-filters__title span,
+.client-cabinet-filters__title small,
 .client-cabinet-filter-grid label span {
   color: var(--muted);
   font-size: 12px;
   font-weight: 800;
 }
 
+.client-cabinet-filters__toggle-text {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .client-cabinet-filter-grid {
+  grid-column: 1 / 4;
   display: grid;
   grid-template-columns: repeat(4, minmax(120px, 1fr));
   gap: 8px;
@@ -520,7 +562,6 @@
 }
 
 .client-cabinet-filter-summary {
-  grid-column: 2 / 4;
   display: flex;
   min-width: 0;
   flex-wrap: wrap;
@@ -541,7 +582,8 @@
 }
 
 .client-cabinet-filters__reset {
-  align-self: start;
+  grid-column: 1 / 4;
+  justify-self: start;
 }
 
 .client-cabinet-filters__reset:disabled {
@@ -1549,6 +1591,12 @@
   .client-cabinet-filters {
     grid-template-columns: 1fr;
     align-items: stretch;
+  }
+
+  .client-cabinet-filter-grid,
+  .client-cabinet-filter-summary,
+  .client-cabinet-filters__reset {
+    grid-column: 1;
   }
 
   .client-cabinet-presets {

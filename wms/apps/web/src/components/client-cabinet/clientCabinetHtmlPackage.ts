@@ -57,7 +57,7 @@ function buildHtmlPackage(data: ClientCabinetHtmlPackageData, documents: Printab
   }));
   const styles = uniqueText(parsedDocuments.flatMap((document) => document.styles));
   const period = packagePeriodLabel(data.filters);
-  const title = `Пакет документов ${data.client.code}`;
+  const title = `Пакет документов ${data.client.name}`;
 
   return `<!doctype html>
 <html lang="ru">

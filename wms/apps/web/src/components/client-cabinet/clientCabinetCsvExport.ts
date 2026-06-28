@@ -30,7 +30,7 @@ type CsvRow = Array<string | number | null | undefined>;
 
 export function downloadClientCabinetDocumentsCsv(data: ClientCabinetExportData) {
   const rows: CsvRow[] = [
-    ['Клиент', data.client.code, data.client.name],
+    ['Клиент', data.client.name],
     ['Период', exportPeriodLabel(data.filters)],
     [],
     ['Тип документа', 'Номер/название', 'Период/дата', 'Статус', 'Сумма', 'Оплачено', 'Остаток', 'Файлы', 'Комментарий'],
@@ -82,7 +82,7 @@ export function downloadClientCabinetDocumentsCsv(data: ClientCabinetExportData)
 
 export function downloadClientCabinetFinanceCsv(data: ClientCabinetExportData) {
   const rows: CsvRow[] = [
-    ['Клиент', data.client.code, data.client.name],
+    ['Клиент', data.client.name],
     ['Период', exportPeriodLabel(data.filters)],
     [],
     [

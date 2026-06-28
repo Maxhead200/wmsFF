@@ -86,7 +86,7 @@ export function ClientRequestTimelineModal({ timeline, onClose, onAddComment }: 
             <span>{requestTypeLabel(timeline.request.type)}</span>
             <h2>{timeline.request.title}</h2>
             <small>
-              {timeline.request.client.code} · {requestStatusLabel(timeline.request.status)}
+              {timeline.request.client.name} · {requestStatusLabel(timeline.request.status)}
             </small>
           </div>
           <button className="icon-button" type="button" onClick={onClose} title="Закрыть" aria-label="Закрыть историю">

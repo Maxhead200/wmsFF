@@ -10,6 +10,7 @@ import {
   PackageSearch,
   Printer,
   ShieldCheck,
+  Settings2,
   Truck,
   Upload,
 } from 'lucide-react';
@@ -29,6 +30,7 @@ export type WorkspaceId =
   | 'billing'
   | 'own-companies'
   | 'print'
+  | 'service'
   | 'data';
 
 export type WorkspaceNavItem = {
@@ -166,6 +168,16 @@ export const workspaceNav: WorkspaceNavItem[] = [
     audience: 'internal',
   },
   {
+    id: 'service',
+    title: 'Сервис',
+    eyebrow: 'Система',
+    description: 'Опасные операции владельца и администратора: очистка остатков клиента и системное обслуживание.',
+    permissions: ['system:admin'],
+    icon: Settings2,
+    status: 'ready',
+    audience: 'internal',
+  },
+  {
     id: 'data',
     title: 'Данные',
     eyebrow: 'Контроль',
@@ -194,6 +206,6 @@ export function canOpenWorkspace(user: AuthUser, item: WorkspaceNavItem) {
 }
 
 function isClientOnlyUser(user: AuthUser) {
-  const internalRoles = ['ADMIN', 'MANAGER', 'OPERATOR'];
+  const internalRoles = ['ADMIN', 'OWNER', 'MANAGER', 'OPERATOR'];
   return user.roleCodes.includes('CLIENT') && !user.roleCodes.some((roleCode) => internalRoles.includes(roleCode));
 }

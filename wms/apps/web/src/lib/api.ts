@@ -1209,6 +1209,36 @@ export type StockBalance = {
   } | null;
 };
 
+export type ServiceClientStockSummary = {
+  balanceRows: number;
+  quantity: number;
+  uniqueSkusInStock: number;
+  movements: number;
+  boxes: number;
+  pallets: number;
+  productMarks: number;
+};
+
+export type ServiceClientStockCleanupPreview = {
+  client: Pick<ClientSummary, 'id' | 'code' | 'name' | 'status'>;
+  summary: ServiceClientStockSummary;
+  confirmationText: string;
+  warning: string;
+};
+
+export type ServiceClientStockCleanupResult = {
+  client: Pick<ClientSummary, 'id' | 'code' | 'name' | 'status'>;
+  before: ServiceClientStockSummary;
+  deleted: {
+    productMarks: number;
+    balances: number;
+    movements: number;
+    boxes: number;
+    pallets: number;
+  };
+  after: ServiceClientStockSummary;
+};
+
 export type StorageOverviewRow = {
   skuId: string;
   barcode: string;
@@ -2528,6 +2558,20 @@ export async function importArticleMappingsXlsx(accessToken: string, payload: { 
 
 export async function fetchStockBalances(accessToken: string, filter: { clientId?: string; search?: string } = {}) {
   return request<StockBalance[]>(withQuery('/stock/balances', filter), {
+    accessToken,
+  });
+}
+
+export async function fetchServiceClientStockCleanupPreview(accessToken: string, clientId: string) {
+  return request<ServiceClientStockCleanupPreview>(`/service/clients/${clientId}/stock-cleanup`, {
+    accessToken,
+  });
+}
+
+export async function purgeServiceClientStock(accessToken: string, clientId: string, confirmation: string) {
+  return request<ServiceClientStockCleanupResult>(`/service/clients/${clientId}/stock-cleanup`, {
+    method: 'POST',
+    body: { confirmation },
     accessToken,
   });
 }

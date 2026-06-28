@@ -2,31 +2,26 @@ import type { ClientSummary, StockBalance } from '../../lib/api';
 import { formatCabinetDate, formatCabinetNumber, primaryBarcode, stockStatusLabel } from './clientCabinetFormat';
 
 export function downloadClientCabinetStockExcel(client: ClientSummary, stock: StockBalance[], canSeeStoragePlaces: boolean) {
-  const stockHeader = canSeeStoragePlaces
-    ? ['SKU', 'Наименование', 'Штрихкод', 'Короб', 'Паллета', 'Статус', 'Количество', 'Обновлено']
-    : ['SKU', 'Наименование', 'Штрихкод', 'Статус', 'Количество', 'Обновлено'];
-  const stockRows = stock.map((balance) => {
-    const storagePlaces = canSeeStoragePlaces ? [balance.box?.code ?? '', balance.pallet?.code ?? ''] : [];
-
-    return [
-      balance.sku.internalSku,
-      balance.sku.name,
-      primaryBarcode(balance),
-      ...storagePlaces,
-      stockStatusLabel(balance.status),
-      formatCabinetNumber(Number(balance.quantity)),
-      formatCabinetDate(balance.updatedAt),
-    ];
-  });
+  const stockHeader = ['SKU', 'Наименование', 'Штрихкод', 'Статус', 'Количество', 'Обновлено'];
+  const stockRows = aggregateStockRows(stock).map((row) => [
+    row.internalSku,
+    row.name,
+    row.barcode,
+    row.status,
+    formatCabinetNumber(row.quantity),
+    formatCabinetDate(row.updatedAt),
+  ]);
 
   const rows = [
     ['Клиент', client.code, client.name],
     ['Дата выгрузки', new Date().toLocaleString('ru-RU')],
-    ['Строк остатков', stock.length],
+    ['Строк остатков', stockRows.length],
+    ['Единиц на остатке', formatCabinetNumber(stock.reduce((sum, balance) => sum + Number(balance.quantity), 0))],
     [],
     stockHeader,
     ...stockRows,
   ];
+  const headerRowIndex = rows.indexOf(stockHeader);
 
   const html = `<!doctype html>
 <html>
@@ -39,11 +34,58 @@ export function downloadClientCabinetStockExcel(client: ClientSummary, stock: St
   </style>
 </head>
 <body>
-  <table>${rows.map((row, index) => rowHtml(row, index === 4)).join('')}</table>
+  <table>${rows.map((row, index) => rowHtml(row, index === headerRowIndex)).join('')}</table>
 </body>
 </html>`;
 
   downloadExcelHtml(stockExcelFileName(client.code), html);
+}
+
+type AggregatedStockRow = {
+  internalSku: string;
+  name: string;
+  barcode: string;
+  status: string;
+  quantity: number;
+  updatedAt: string;
+};
+
+function aggregateStockRows(stock: StockBalance[]) {
+  const byBarcode = new Map<string, AggregatedStockRow & { internalSkus: Set<string>; names: Set<string>; statuses: Set<string> }>();
+
+  stock.forEach((balance) => {
+    const barcode = primaryBarcode(balance) || `SKU:${balance.sku.id}`;
+    const existing = byBarcode.get(barcode) ?? {
+      internalSku: '',
+      name: '',
+      barcode: primaryBarcode(balance) || '',
+      status: '',
+      quantity: 0,
+      updatedAt: balance.updatedAt,
+      internalSkus: new Set<string>(),
+      names: new Set<string>(),
+      statuses: new Set<string>(),
+    };
+
+    existing.internalSkus.add(balance.sku.internalSku);
+    existing.names.add(balance.sku.name);
+    existing.statuses.add(stockStatusLabel(balance.status));
+    existing.quantity += Number(balance.quantity);
+    existing.updatedAt = latestDateString(existing.updatedAt, balance.updatedAt);
+    existing.internalSku = [...existing.internalSkus].sort((left, right) => left.localeCompare(right, 'ru')).join(', ');
+    existing.name = [...existing.names].sort((left, right) => left.localeCompare(right, 'ru')).join(', ');
+    existing.status = [...existing.statuses].sort((left, right) => left.localeCompare(right, 'ru')).join(', ');
+
+    byBarcode.set(barcode, existing);
+  });
+
+  return [...byBarcode.values()]
+    .map(({ internalSkus, names, statuses, ...row }) => row)
+    .sort((left, right) => left.name.localeCompare(right.name, 'ru') || left.barcode.localeCompare(right.barcode, 'ru'));
+}
+
+function latestDateString(left: string, right: string) {
+  return new Date(left).getTime() >= new Date(right).getTime() ? left : right;
 }
 
 function rowHtml(row: Array<string | number>, isHeader: boolean) {

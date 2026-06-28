@@ -341,6 +341,7 @@ model Client {
   actualAddress            String?
   phone                    String?
   email                    String?
+  telegramChatId           String?
   bankName                 String?
   bankBik                  String?
   bankAccount              String?

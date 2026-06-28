@@ -9,6 +9,7 @@ import {
   Prisma,
 } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { TelegramNotificationsService } from '../../common/telegram/telegram-notifications.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
 import { isClientNotificationEnabled } from '../client-notifications/client-notification-preferences';
@@ -31,6 +32,7 @@ export class BillingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly clientScopes: ClientScopeService,
+    private readonly telegram: TelegramNotificationsService,
   ) {}
 
   async listServices() {
@@ -640,7 +642,7 @@ export class BillingService {
       throw new BadRequestException('Нельзя вернуть в черновик счет с оплатами.');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.billingInvoice.update({
         where: { id: invoiceId },
         data: {
@@ -674,6 +676,11 @@ export class BillingService {
 
       return updated;
     });
+
+    if (invoice.status !== dto.status) {
+      void this.telegram.notifyClientInvoiceStatus(invoiceId, invoice.status, dto.status);
+    }
+    return updated;
   }
 
   async createPayment(dto: CreateBillingPaymentDto, user: AuthUser) {
@@ -711,7 +718,7 @@ export class BillingService {
     const nextPaidRub = roundMoney(paidRub + dto.amountRub);
     const nextStatus = nextPaidRub >= totalRub ? BillingInvoiceStatus.PAID : BillingInvoiceStatus.ISSUED;
 
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       await tx.billingPayment.create({
         data: {
           invoiceId: invoice.id,
@@ -750,6 +757,11 @@ export class BillingService {
 
       return updated;
     });
+
+    if (invoice.status !== nextStatus) {
+      void this.telegram.notifyClientInvoiceStatus(invoice.id, invoice.status, nextStatus);
+    }
+    return updated;
   }
 
   private async ensureRequestBelongsToClient(clientId: string, requestId?: string) {

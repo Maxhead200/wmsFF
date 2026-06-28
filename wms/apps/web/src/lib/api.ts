@@ -29,6 +29,7 @@ export type ClientSummary = {
   actualAddress: string | null;
   phone: string | null;
   email: string | null;
+  telegramChatId: string | null;
   bankName: string | null;
   bankBik: string | null;
   bankAccount: string | null;
@@ -1010,6 +1011,7 @@ export type CreateClientPayload = {
   legalAddress?: string;
   actualAddress?: string;
   phone?: string;
+  telegramChatId?: string;
   email?: string;
   bankName?: string;
   bankBik?: string;
@@ -1296,6 +1298,13 @@ export type ServiceClientIpRule = {
   createdByUserId: string | null;
   createdAt: string;
   client: Pick<ClientSummary, 'id' | 'code' | 'name'>;
+};
+
+export type ServiceTelegramSettings = {
+  enabled: boolean;
+  fulfillmentChatIds: string;
+  hasBotToken: boolean;
+  updatedAt: string | null;
 };
 
 export type StorageOverviewRow = {
@@ -2516,6 +2525,14 @@ export async function updateClient(accessToken: string, clientId: string, payloa
   });
 }
 
+export async function updateClientTelegram(accessToken: string, clientId: string, payload: { telegramChatId?: string }) {
+  return request<ClientSummary>(`/clients/${clientId}/telegram`, {
+    method: 'PATCH',
+    body: payload,
+    accessToken,
+  });
+}
+
 export async function updateClientStatus(accessToken: string, clientId: string, status: ClientStatus) {
   return request<ClientSummary>(`/clients/${clientId}/status`, {
     method: 'PATCH',
@@ -2678,6 +2695,31 @@ export async function updateServiceMaintenance(
 ) {
   return request<ServiceMaintenanceMode>('/service/maintenance', {
     method: 'PATCH',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function fetchServiceTelegramSettings(accessToken: string) {
+  return request<ServiceTelegramSettings>('/service/telegram', {
+    accessToken,
+  });
+}
+
+export async function updateServiceTelegramSettings(
+  accessToken: string,
+  payload: { enabled: boolean; botToken?: string; fulfillmentChatIds?: string },
+) {
+  return request<ServiceTelegramSettings>('/service/telegram', {
+    method: 'PATCH',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function sendServiceTelegramTest(accessToken: string, payload: { chatId: string; message?: string }) {
+  return request<{ ok?: boolean; skipped?: boolean; status?: number }>('/service/telegram/test', {
+    method: 'POST',
     body: payload,
     accessToken,
   });

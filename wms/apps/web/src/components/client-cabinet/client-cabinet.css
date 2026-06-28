@@ -87,6 +87,50 @@
   gap: 8px;
 }
 
+.client-cabinet-telegram {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(240px, 1.4fr) auto;
+  gap: 10px;
+  align-items: start;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.client-cabinet-telegram strong,
+.client-cabinet-telegram span,
+.client-cabinet-telegram small {
+  display: block;
+}
+
+.client-cabinet-telegram span,
+.client-cabinet-telegram small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.client-cabinet-telegram label {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.client-cabinet-telegram input {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfdff;
+  color: var(--ink);
+  padding: 0 10px;
+}
+
+.client-cabinet-telegram small {
+  line-height: 1.35;
+}
+
 .client-cabinet-status {
   display: inline-flex;
   min-height: 32px;
@@ -1685,6 +1729,10 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .client-cabinet-telegram {
+    grid-template-columns: 1fr;
+  }
+
   .client-marketplace-form,
   .client-cabinet-stock-import__fields {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1758,6 +1806,10 @@
   }
 
   .client-cabinet-client-editor__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .client-cabinet-telegram {
     grid-template-columns: 1fr;
   }
 

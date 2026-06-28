@@ -24,7 +24,7 @@
 
 .service-tabs {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 4px;
   padding: 4px;
   border: 1px solid var(--line);
@@ -86,7 +86,14 @@
   font-weight: 700;
 }
 
+.service-field small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .service-field input,
+.service-field input[type='checkbox'],
 .service-toolbar select,
 .service-toolbar input,
 .service-inline-form input,
@@ -98,6 +105,24 @@
   background: #fbfdff;
   color: var(--ink);
   padding: 0 11px;
+}
+
+.service-field--checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.service-field--checkbox input {
+  width: 18px;
+  min-height: 18px;
+}
+
+.service-form-grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(240px, 1.2fr) minmax(260px, 1.3fr) auto;
+  gap: 10px;
+  align-items: end;
 }
 
 .service-actions,
@@ -403,6 +428,7 @@
   }
 
   .service-tabs,
+  .service-form-grid,
   .service-inline-form--ip,
   .service-inline-form {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -413,6 +439,7 @@
   .service-modes,
   .service-metrics,
   .service-tabs,
+  .service-form-grid,
   .service-toolbar,
   .service-inline-form--ip,
   .service-inline-form,

@@ -3,6 +3,7 @@ import { BillingUnit } from '@prisma/client';
 import { isIP } from 'net';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuditLogService } from '../../common/audit/audit-log.service';
+import { TelegramNotificationsService } from '../../common/telegram/telegram-notifications.service';
 import type { AuthUser } from '../auth/auth.types';
 
 const CLEANUP_CONFIRMATION = 'ОЧИСТИТЬ';
@@ -14,6 +15,7 @@ export class ServiceCenterService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditLog: AuditLogService,
+    private readonly telegram: TelegramNotificationsService,
   ) {}
 
   async getOverview() {
@@ -210,6 +212,34 @@ export class ServiceCenterService {
       updatedAt: setting.updatedAt,
       updatedByUserId: setting.updatedByUserId,
     };
+  }
+
+  getTelegramSettings() {
+    return this.telegram.getPublicSettings();
+  }
+
+  async updateTelegramSettings(dto: { enabled?: boolean; botToken?: string; fulfillmentChatIds?: string }, user: AuthUser) {
+    const settings = await this.telegram.updateSettings(dto, user.id);
+    await this.auditLog.write({
+      userId: user.id,
+      action: 'service.telegram.update',
+      entity: 'system-setting',
+      entityId: 'TELEGRAM_NOTIFICATIONS',
+      payload: {
+        enabled: settings.enabled,
+        hasBotToken: settings.hasBotToken,
+        fulfillmentChatIds: settings.fulfillmentChatIds,
+      },
+    });
+    return settings;
+  }
+
+  async sendTelegramTest(dto: { chatId?: string; message?: string }) {
+    const chatId = dto.chatId?.trim();
+    if (!chatId) {
+      throw new BadRequestException('Укажите Telegram chat_id для теста.');
+    }
+    return this.telegram.sendTestMessage(chatId, dto.message?.trim() || 'Тестовое уведомление WMS LOGOFF.');
   }
 
   async getClientStockCleanupPreview(clientId: string) {

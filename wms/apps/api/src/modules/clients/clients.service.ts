@@ -5,6 +5,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
 import { CreateClientDto } from './dto/create-client.dto';
+import { UpdateClientTelegramDto } from './dto/update-client-telegram.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
 
 type ClientImportIssue = {
@@ -194,6 +195,23 @@ export class ClientsService {
     }
   }
 
+  async updateTelegram(id: string, dto: UpdateClientTelegramDto, user: AuthUser) {
+    this.clientScopes.requireClientAccess(user, id, 'write');
+
+    try {
+      return await this.prisma.client.update({
+        where: { id },
+        data: { telegramChatId: normalizeNullableString(dto.telegramChatId) },
+        select: this.clientSummarySelect(),
+      });
+    } catch (caught) {
+      if (isRecordNotFoundError(caught)) {
+        throw new NotFoundException('Клиент не найден.');
+      }
+      throw caught;
+    }
+  }
+
   async delete(id: string, user: AuthUser) {
     this.clientScopes.requireGlobalClientAccess(user);
 
@@ -365,6 +383,7 @@ export class ClientsService {
       actualAddress: true,
       phone: true,
       email: true,
+      telegramChatId: true,
       bankName: true,
       bankBik: true,
       bankAccount: true,
@@ -392,6 +411,7 @@ const optionalClientFields = [
   'legalAddress',
   'actualAddress',
   'phone',
+  'telegramChatId',
   'email',
   'bankName',
   'bankBik',

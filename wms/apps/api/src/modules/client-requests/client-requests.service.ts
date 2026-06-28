@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ClientNotificationEvent, ClientRequestEventType, ClientRequestStatus, ClientRequestType, Prisma, StockStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { TelegramNotificationsService } from '../../common/telegram/telegram-notifications.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
 import { isClientNotificationEnabled } from '../client-notifications/client-notification-preferences';
@@ -16,6 +17,7 @@ export class ClientRequestsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly clientScopes: ClientScopeService,
+    private readonly telegram: TelegramNotificationsService,
   ) {}
 
   list(query: ListClientRequestsDto, user: AuthUser) {
@@ -128,7 +130,7 @@ export class ClientRequestsService {
     const destinationCity = normalizeRequiredText(dto.destinationCity, 'Город поставки обязателен.');
 
     // Русский комментарий: клиентская заявка всегда стартует как SUBMITTED; статусы меняет отдельный workflow.
-    return this.prisma.$transaction(async (tx) => {
+    const created = await this.prisma.$transaction(async (tx) => {
       const request = await tx.clientRequest.create({
         data: {
           clientId: dto.clientId,
@@ -172,6 +174,9 @@ export class ClientRequestsService {
 
       return request;
     });
+
+    void this.telegram.notifyFulfillmentNewRequest(created.id);
+    return created;
   }
 
   async updateStatus(id: string, dto: UpdateClientRequestStatusDto, user: AuthUser) {
@@ -187,7 +192,7 @@ export class ClientRequestsService {
     // Русский комментарий: даже менеджер с ограниченным scope не меняет статусы чужого клиента.
     this.clientScopes.requireClientAccess(user, request.clientId, 'write');
 
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.clientRequest.update({
         where: { id },
         data: {
@@ -228,6 +233,11 @@ export class ClientRequestsService {
 
       return updated;
     });
+
+    if (request.status !== dto.status) {
+      void this.telegram.notifyClientRequestStatus(id, request.status, dto.status);
+    }
+    return updated;
   }
 
   async cancel(id: string, user: AuthUser) {
@@ -250,7 +260,7 @@ export class ClientRequestsService {
       throw new BadRequestException('Заявку нельзя отменить: склад уже начал обработку.');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.clientRequest.update({
         where: { id },
         data: {
@@ -289,6 +299,9 @@ export class ClientRequestsService {
 
       return updated;
     });
+
+    void this.telegram.notifyClientRequestStatus(id, request.status, ClientRequestStatus.CANCELLED);
+    return updated;
   }
 
   private async ensureSkuItemsBelongToClient(clientId: string, items: Array<{ skuId?: string }>) {

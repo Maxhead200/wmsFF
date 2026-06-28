@@ -30,6 +30,7 @@ type ClientRequisitesFormState = {
   actualAddress: string;
   phone: string;
   email: string;
+  telegramChatId: string;
   bankName: string;
   bankBik: string;
   bankAccount: string;
@@ -48,6 +49,7 @@ const emptyForm: ClientRequisitesFormState = {
   actualAddress: '',
   phone: '',
   email: '',
+  telegramChatId: '',
   bankName: '',
   bankBik: '',
   bankAccount: '',
@@ -366,6 +368,10 @@ export function ClientRequisitesForm({ session }: ClientRequisitesFormProps) {
           />
         </label>
         <label>
+          <span>Telegram chat_id</span>
+          <input value={form.telegramChatId} onChange={(event) => setForm({ ...form, telegramChatId: event.target.value })} />
+        </label>
+        <label>
           <span>Юр. адрес</span>
           <input value={form.legalAddress} onChange={(event) => setForm({ ...form, legalAddress: event.target.value })} />
         </label>
@@ -430,6 +436,7 @@ function formFromClient(client: ClientSummary): ClientRequisitesFormState {
     actualAddress: client.actualAddress ?? '',
     phone: client.phone ?? '',
     email: client.email ?? '',
+    telegramChatId: client.telegramChatId ?? '',
     bankName: client.bankName ?? '',
     bankBik: client.bankBik ?? '',
     bankAccount: client.bankAccount ?? '',
@@ -450,6 +457,7 @@ function compactPayload(form: ClientRequisitesFormState): UpdateClientPayload {
     actualAddress: form.actualAddress,
     phone: form.phone,
     email: form.email,
+    telegramChatId: form.telegramChatId,
     bankName: form.bankName,
     bankBik: form.bankBik,
     bankAccount: form.bankAccount,

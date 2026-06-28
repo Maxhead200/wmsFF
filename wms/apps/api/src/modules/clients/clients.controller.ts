@@ -5,6 +5,7 @@ import type { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { CreateClientDto } from './dto/create-client.dto';
+import { UpdateClientTelegramDto } from './dto/update-client-telegram.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
 import { ClientsService } from './clients.service';
 
@@ -49,6 +50,11 @@ export class ClientsController {
   @RequirePermissions('clients:write')
   updateStatus(@Param('id') id: string, @Body('status') status: string, @CurrentUser() user: AuthUser) {
     return this.clients.updateStatus(id, status, user);
+  }
+
+  @Patch(':id/telegram')
+  updateTelegram(@Param('id') id: string, @Body() dto: UpdateClientTelegramDto, @CurrentUser() user: AuthUser) {
+    return this.clients.updateTelegram(id, dto, user);
   }
 
   @Delete(':id')

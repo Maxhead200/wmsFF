@@ -36,6 +36,7 @@ const emptyClientForm = {
   actualAddress: '',
   phone: '',
   email: '',
+  telegramChatId: '',
   bankName: '',
   bankBik: '',
   bankAccount: '',
@@ -261,6 +262,10 @@ export function ClientCreateForm({ session }: ClientCreateFormProps) {
             />
           </label>
           <label>
+            <span>Telegram chat_id</span>
+            <input value={form.telegramChatId} onChange={(event) => setForm({ ...form, telegramChatId: event.target.value })} />
+          </label>
+          <label>
             <span>Менеджер фулфилмента</span>
             <select
               value={form.fulfillmentManagerUserId}
@@ -463,6 +468,7 @@ function compactPayload(form: typeof emptyClientForm): CreateClientPayload {
     ...optionalString('actualAddress', form.actualAddress),
     ...optionalString('phone', form.phone),
     ...optionalString('email', form.email),
+    ...optionalString('telegramChatId', form.telegramChatId),
     ...optionalString('bankName', form.bankName),
     ...optionalString('bankBik', form.bankBik),
     ...optionalString('bankAccount', form.bankAccount),

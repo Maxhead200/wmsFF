@@ -1,6 +1,7 @@
 ﻿import {
   AlertTriangle,
   Ban,
+  Bell,
   CheckCircle2,
   Clock,
   Database,
@@ -9,6 +10,7 @@
   Monitor,
   Power,
   RefreshCw,
+  Send,
   Settings2,
   ShieldAlert,
   Trash2,
@@ -23,14 +25,17 @@ import {
   fetchServiceBillingServices,
   fetchServiceClientStockCleanupPreview,
   fetchServiceClientIpRules,
+  fetchServiceTelegramSettings,
   fetchServiceNomenclature,
   fetchServiceOnlineSessions,
   fetchServiceOverview,
   createServiceClientIpRule,
+  sendServiceTelegramTest,
   purgeServiceClientStock,
   updateClientStatus,
   updateServiceBillingServiceStatus,
   updateServiceMaintenance,
+  updateServiceTelegramSettings,
   createServiceBillingService,
   type AuthSession,
   type BillingUnit,
@@ -44,6 +49,7 @@ import {
   type ServiceClientStockSummary,
   type ServiceOnlineSession,
   type ServiceOverview,
+  type ServiceTelegramSettings,
 } from '../../lib/api';
 import { billingUnitOptions } from '../billing/billingMeta';
 import './service-center.css';
@@ -54,7 +60,7 @@ type LoadState<T> = {
   error?: string;
 };
 
-type ServiceTab = 'maintenance' | 'sessions' | 'clients' | 'stock' | 'nomenclature' | 'services';
+type ServiceTab = 'maintenance' | 'sessions' | 'clients' | 'stock' | 'nomenclature' | 'services' | 'telegram';
 
 type ServiceCenterPanelProps = {
   session: AuthSession;
@@ -77,6 +83,7 @@ const tabs: Array<{ id: ServiceTab; label: string; icon: typeof Settings2 }> = [
   { id: 'stock', label: 'Остатки', icon: Database },
   { id: 'nomenclature', label: 'Номенклатура', icon: Eraser },
   { id: 'services', label: 'Услуги', icon: Settings2 },
+  { id: 'telegram', label: 'Telegram', icon: Bell },
 ];
 
 export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
@@ -96,6 +103,8 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
   const [sessions, setSessions] = useState<LoadState<ServiceOnlineSession[]>>({ status: 'idle', data: [] });
   const [ipRules, setIpRules] = useState<LoadState<ServiceClientIpRule[]>>({ status: 'idle', data: [] });
   const [ipForm, setIpForm] = useState({ ipAddress: '', comment: '' });
+  const [telegram, setTelegram] = useState<LoadState<ServiceTelegramSettings | null>>({ status: 'idle', data: null });
+  const [telegramForm, setTelegramForm] = useState({ enabled: false, botToken: '', fulfillmentChatIds: '', testChatId: '', testMessage: '' });
   const [serviceForm, setServiceForm] = useState({ code: '', name: '', unit: 'SERVICE' as BillingUnit, defaultPriceRub: '' });
 
   const selectedClient = useMemo(
@@ -142,6 +151,9 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
       if (ipRules.status === 'idle') {
         void loadIpRules();
       }
+    }
+    if (activeTab === 'telegram' && telegram.status === 'idle') {
+      void loadTelegramSettings();
     }
   }, [activeTab]);
 
@@ -320,6 +332,54 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
     }
   }
 
+  async function loadTelegramSettings() {
+    setTelegram((current) => ({ ...current, status: 'loading', error: undefined }));
+    try {
+      const settings = await fetchServiceTelegramSettings(session.accessToken);
+      setTelegram({ status: 'ready', data: settings });
+      setTelegramForm((current) => ({
+        ...current,
+        enabled: settings.enabled,
+        botToken: '',
+        fulfillmentChatIds: settings.fulfillmentChatIds,
+      }));
+    } catch (caught) {
+      setTelegram((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
+    }
+  }
+
+  async function saveTelegramSettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    try {
+      const settings = await updateServiceTelegramSettings(session.accessToken, {
+        enabled: telegramForm.enabled,
+        botToken: telegramForm.botToken || undefined,
+        fulfillmentChatIds: telegramForm.fulfillmentChatIds,
+      });
+      setTelegram({ status: 'ready', data: settings });
+      setTelegramForm((current) => ({ ...current, botToken: '' }));
+      setActionMessage('Настройки Telegram сохранены.');
+    } catch (caught) {
+      setTelegram((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
+    }
+  }
+
+  async function sendTelegramTest(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!telegramForm.testChatId.trim()) {
+      return;
+    }
+    try {
+      await sendServiceTelegramTest(session.accessToken, {
+        chatId: telegramForm.testChatId,
+        message: telegramForm.testMessage || undefined,
+      });
+      setActionMessage('Тестовое сообщение Telegram отправлено.');
+    } catch (caught) {
+      setTelegram((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
+    }
+  }
+
   async function removeIpRule(rule: ServiceClientIpRule) {
     if (!window.confirm(`Удалить IP ${rule.ipAddress} для клиента ${rule.client.code}?`)) {
       return;
@@ -440,6 +500,17 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
           }}
           onCreateIpRule={(event) => void createIpRule(event)}
           onDeleteIpRule={(rule) => void removeIpRule(rule)}
+        />
+      ) : null}
+
+      {activeTab === 'telegram' ? (
+        <TelegramSettingsPanel
+          form={telegramForm}
+          settings={telegram}
+          onChange={setTelegramForm}
+          onRefresh={() => void loadTelegramSettings()}
+          onSave={(event) => void saveTelegramSettings(event)}
+          onTest={(event) => void sendTelegramTest(event)}
         />
       ) : null}
 
@@ -652,6 +723,85 @@ function SessionsAndIpPanel({
           </tr>
         ))}
       </ServiceTable>
+    </div>
+  );
+}
+
+function TelegramSettingsPanel({
+  form,
+  settings,
+  onChange,
+  onRefresh,
+  onSave,
+  onTest,
+}: {
+  form: { enabled: boolean; botToken: string; fulfillmentChatIds: string; testChatId: string; testMessage: string };
+  settings: LoadState<ServiceTelegramSettings | null>;
+  onChange: (form: { enabled: boolean; botToken: string; fulfillmentChatIds: string; testChatId: string; testMessage: string }) => void;
+  onRefresh: () => void;
+  onSave: (event: FormEvent<HTMLFormElement>) => void;
+  onTest: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <div className="service-card">
+      <div className="service-card__heading">
+        <strong>Telegram-уведомления</strong>
+        <button className="secondary-button" type="button" onClick={onRefresh}>
+          <RefreshCw size={16} /> Обновить
+        </button>
+      </div>
+      {settings.status === 'error' ? <div className="service-message service-message--error">{settings.error}</div> : null}
+      <form className="service-form-grid" onSubmit={onSave}>
+        <label className="service-field service-field--checkbox">
+          <input checked={form.enabled} type="checkbox" onChange={(event) => onChange({ ...form, enabled: event.target.checked })} />
+          <span>Включить отправку уведомлений</span>
+        </label>
+        <label className="service-field">
+          <span>API token бота</span>
+          <input
+            autoComplete="off"
+            placeholder={settings.data?.hasBotToken ? 'Токен сохранен, новый вводить не обязательно' : '123456:ABC...'}
+            type="password"
+            value={form.botToken}
+            onChange={(event) => onChange({ ...form, botToken: event.target.value })}
+          />
+        </label>
+        <label className="service-field">
+          <span>Chat ID фулфилмента</span>
+          <input
+            placeholder="Один или несколько chat_id через запятую"
+            value={form.fulfillmentChatIds}
+            onChange={(event) => onChange({ ...form, fulfillmentChatIds: event.target.value })}
+          />
+          <small>
+            Как узнать: напишите боту любое сообщение, затем откройте ссылку getUpdates с API token бота и возьмите значение message.chat.id. Для группы сначала добавьте бота в группу.
+          </small>
+        </label>
+        <button className="primary-button" type="submit">
+          <CheckCircle2 size={16} /> Сохранить Telegram
+        </button>
+      </form>
+
+      <div className="service-inline-note">
+        Клиентский chat_id указывается в кабинете клиента. Бот Telegram может писать только пользователю или группе, где его уже запустили или добавили.
+      </div>
+
+      <form className="service-inline-form" onSubmit={onTest}>
+        <input
+          required
+          placeholder="chat_id для теста"
+          value={form.testChatId}
+          onChange={(event) => onChange({ ...form, testChatId: event.target.value })}
+        />
+        <input
+          placeholder="Текст теста"
+          value={form.testMessage}
+          onChange={(event) => onChange({ ...form, testMessage: event.target.value })}
+        />
+        <button className="secondary-button" type="submit">
+          <Send size={16} /> Отправить тест
+        </button>
+      </form>
     </div>
   );
 }

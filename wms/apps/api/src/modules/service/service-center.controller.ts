@@ -53,6 +53,24 @@ export class ServiceCenterController {
     return this.serviceCenter.updateMaintenanceMode(dto, user);
   }
 
+  @Get('telegram')
+  getTelegramSettings() {
+    return this.serviceCenter.getTelegramSettings();
+  }
+
+  @Patch('telegram')
+  updateTelegramSettings(
+    @Body() dto: { enabled?: boolean; botToken?: string; fulfillmentChatIds?: string },
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.serviceCenter.updateTelegramSettings(dto, user);
+  }
+
+  @Post('telegram/test')
+  sendTelegramTest(@Body() dto: { chatId?: string; message?: string }) {
+    return this.serviceCenter.sendTelegramTest(dto);
+  }
+
   @Get('clients/:clientId/stock-cleanup')
   getClientStockCleanupPreview(@Param('clientId') clientId: string) {
     return this.serviceCenter.getClientStockCleanupPreview(clientId);

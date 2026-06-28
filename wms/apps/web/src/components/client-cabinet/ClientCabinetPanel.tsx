@@ -16,6 +16,7 @@ import {
   fetchClients,
   fetchStockBalances,
   updateClient,
+  updateClientTelegram,
   updateClientStatus,
   markClientNotificationRead,
   updateClientNotificationPreference,
@@ -99,6 +100,7 @@ type ClientManagementForm = {
   actualAddress: string;
   phone: string;
   email: string;
+  telegramChatId: string;
   bankName: string;
   bankBik: string;
   bankAccount: string;
@@ -139,6 +141,8 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
   const [managementMessage, setManagementMessage] = useState('');
   const [managementError, setManagementError] = useState('');
   const [isManagingClient, setManagingClient] = useState(false);
+  const [telegramChatId, setTelegramChatId] = useState('');
+  const [isSavingTelegram, setSavingTelegram] = useState(false);
 
   useEffect(() => {
     void loadData();
@@ -210,6 +214,10 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
       },
     };
   }, [filters, selectedClientId, session.user, state.data, stockSearch]);
+
+  useEffect(() => {
+    setTelegramChatId(view.client?.telegramChatId ?? '');
+  }, [view.client?.id, view.client?.telegramChatId]);
 
   async function loadData() {
     setDocumentError(null);
@@ -434,6 +442,25 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
     }
   }
 
+  async function saveTelegramChatId() {
+    if (!view.client) {
+      return;
+    }
+
+    setSavingTelegram(true);
+    setManagementError('');
+    setManagementMessage('');
+    try {
+      const updated = await updateClientTelegram(session.accessToken, view.client.id, { telegramChatId });
+      replaceClient(updated);
+      setManagementMessage('Telegram chat_id сохранен.');
+    } catch (caught) {
+      setManagementError(caught instanceof Error ? caught.message : 'Не удалось сохранить Telegram chat_id.');
+    } finally {
+      setSavingTelegram(false);
+    }
+  }
+
   async function changeClientStatus(client: ClientSummary, status: ClientStatus) {
     setManagingClient(true);
     setManagementError('');
@@ -500,6 +527,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
 
   const showClientOverview = isInternalUser(session.user) && state.data.clients.length > 1;
   const canManageClients = canUse(session.user, 'clients:write');
+  const canEditTelegram = view.client ? canManageClients || canWriteClient(session.user, view.client.id) : false;
 
   return (
     <section className="client-cabinet-panel" aria-label="Кабинет клиента">
@@ -616,6 +644,15 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
           </div>
           {managementError ? <p className="form-error">{managementError}</p> : null}
           {managementMessage ? <p className="form-success">{managementMessage}</p> : null}
+          {view.client ? (
+            <ClientTelegramBox
+              chatId={telegramChatId}
+              canEdit={canEditTelegram}
+              isSaving={isSavingTelegram}
+              onChange={setTelegramChatId}
+              onSave={() => void saveTelegramChatId()}
+            />
+          ) : null}
           {canManageClients && editingClientId === view.client.id && managementForm ? (
             <ClientCabinetClientEditor
               form={managementForm}
@@ -835,6 +872,44 @@ function ClientCabinetClientTable({
   );
 }
 
+function ClientTelegramBox({
+  chatId,
+  canEdit,
+  isSaving,
+  onChange,
+  onSave,
+}: {
+  chatId: string;
+  canEdit: boolean;
+  isSaving: boolean;
+  onChange: (value: string) => void;
+  onSave: () => void;
+}) {
+  return (
+    <div className="client-cabinet-telegram">
+      <div>
+        <strong>Telegram-уведомления</strong>
+        <span>Укажите chat_id, чтобы получать сообщения по счетам и статусам заявок.</span>
+      </div>
+      <label>
+        <input
+          disabled={!canEdit || isSaving}
+          placeholder="Например 123456789 или -1001234567890"
+          value={chatId}
+          onChange={(event) => onChange(event.target.value)}
+        />
+        <small>
+          Как узнать: откройте Telegram, напишите нашему боту любое сообщение, затем попросите менеджера посмотреть ваш chat_id в логах/через getUpdates. Для группы добавьте бота в группу и используйте chat_id группы, обычно он начинается с -100.
+        </small>
+      </label>
+      <button className="icon-text-button" disabled={!canEdit || isSaving} type="button" onClick={onSave}>
+        <Save size={15} aria-hidden="true" />
+        <span>{isSaving ? 'Сохранение' : 'Сохранить'}</span>
+      </button>
+    </div>
+  );
+}
+
 function ClientCabinetClientEditor({
   form,
   isSubmitting,
@@ -897,6 +972,10 @@ function ClientCabinetClientEditor({
         <label>
           <span>Почта</span>
           <input type="email" value={form.email} onChange={(event) => onChange({ email: event.target.value })} />
+        </label>
+        <label>
+          <span>Telegram chat_id</span>
+          <input value={form.telegramChatId} onChange={(event) => onChange({ telegramChatId: event.target.value })} />
         </label>
         <label>
           <span>Юр. адрес</span>
@@ -978,6 +1057,7 @@ function formFromClient(client: ClientSummary): ClientManagementForm {
     actualAddress: client.actualAddress ?? '',
     phone: client.phone ?? '',
     email: client.email ?? '',
+    telegramChatId: client.telegramChatId ?? '',
     bankName: client.bankName ?? '',
     bankBik: client.bankBik ?? '',
     bankAccount: client.bankAccount ?? '',
@@ -997,6 +1077,7 @@ function compactClientPayload(form: ClientManagementForm): UpdateClientPayload {
     actualAddress: form.actualAddress.trim(),
     phone: form.phone.trim(),
     email: form.email.trim(),
+    telegramChatId: form.telegramChatId.trim(),
     bankName: form.bankName.trim(),
     bankBik: form.bankBik.trim(),
     bankAccount: form.bankAccount.trim(),
@@ -1006,6 +1087,10 @@ function compactClientPayload(form: ClientManagementForm): UpdateClientPayload {
 
 function canUse(user: AuthSession['user'], permission: string) {
   return user.permissionCodes.includes('system:admin') || user.permissionCodes.includes(permission);
+}
+
+function canWriteClient(user: AuthSession['user'], clientId: string) {
+  return user.clientScopeMode === 'ALL' || user.writableClientIds.includes(clientId);
 }
 
 function isInternalUser(user: AuthSession['user']) {

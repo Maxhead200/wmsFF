@@ -12,6 +12,7 @@ import {
   StockStatus,
 } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { TelegramNotificationsService } from '../../common/telegram/telegram-notifications.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
 import { clientRequestPackageInclude } from '../client-requests/client-request-packages.include';
@@ -82,6 +83,7 @@ export class StockOperationsService {
     private readonly prisma: PrismaService,
     private readonly clientScopes: ClientScopeService,
     private readonly balances: StockBalancesService,
+    private readonly telegram: TelegramNotificationsService,
   ) {}
 
   transferBetweenBoxes(dto: TransferBetweenBoxesDto, user: AuthUser) {
@@ -168,10 +170,10 @@ export class StockOperationsService {
     });
   }
 
-  pickClientRequest(dto: PickClientRequestDto, user: AuthUser) {
+  async pickClientRequest(dto: PickClientRequestDto, user: AuthUser) {
     const baseKey = dto.idempotencyKey ?? `pick-request:${dto.requestId}`;
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const existingMovement = await tx.stockMovement.findFirst({
         where: { idempotencyKey: { startsWith: `${baseKey}:` } },
       });
@@ -179,10 +181,13 @@ export class StockOperationsService {
       if (existingMovement) {
         const packages = await this.listRequestPackages(tx, dto.requestId);
         return {
+          notification: null,
+          response: {
           idempotencyKey: baseKey,
           status: 'ALREADY_APPLIED',
           requestId: dto.requestId,
           packages,
+          },
         };
       }
 
@@ -277,28 +282,43 @@ export class StockOperationsService {
       });
 
       return {
+        notification: { requestId: request.id, statusFrom: request.status, statusTo: ClientRequestStatus.IN_WORK },
+        response: {
         idempotencyKey: baseKey,
         status: 'APPLIED',
         requestId: request.id,
         clientId: request.clientId,
         pickedLines: this.formatFulfillmentLines(plan, 'pickedQuantity'),
+        },
       };
     });
+
+    if (result.notification) {
+      void this.telegram.notifyClientRequestStatus(
+        result.notification.requestId,
+        result.notification.statusFrom,
+        result.notification.statusTo,
+      );
+    }
+    return result.response;
   }
 
-  packageClientRequest(dto: FulfillClientRequestDto, user: AuthUser) {
+  async packageClientRequest(dto: FulfillClientRequestDto, user: AuthUser) {
     const baseKey = dto.idempotencyKey ?? `pack-request:${dto.requestId}`;
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const existingMovement = await tx.stockMovement.findFirst({
         where: { idempotencyKey: { startsWith: `${baseKey}:` } },
       });
 
       if (existingMovement) {
         return {
+          notification: null,
+          response: {
           idempotencyKey: baseKey,
           status: 'ALREADY_APPLIED',
           requestId: dto.requestId,
+          },
         };
       }
 
@@ -347,29 +367,44 @@ export class StockOperationsService {
       });
 
       return {
+        notification: { requestId: request.id, statusFrom: request.status, statusTo: ClientRequestStatus.PACKED },
+        response: {
         idempotencyKey: baseKey,
         status: 'APPLIED',
         requestId: request.id,
         clientId: request.clientId,
         packedLines: this.formatFulfillmentLines(plan, 'packedQuantity'),
         packages,
+        },
       };
     });
+
+    if (result.notification) {
+      void this.telegram.notifyClientRequestStatus(
+        result.notification.requestId,
+        result.notification.statusFrom,
+        result.notification.statusTo,
+      );
+    }
+    return result.response;
   }
 
-  shipClientRequest(dto: FulfillClientRequestDto, user: AuthUser) {
+  async shipClientRequest(dto: FulfillClientRequestDto, user: AuthUser) {
     const baseKey = dto.idempotencyKey ?? `ship-request:${dto.requestId}`;
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const existingMovement = await tx.stockMovement.findFirst({
         where: { idempotencyKey: { startsWith: `${baseKey}:` } },
       });
 
       if (existingMovement) {
         return {
+          notification: null,
+          response: {
           idempotencyKey: baseKey,
           status: 'ALREADY_APPLIED',
           requestId: dto.requestId,
+          },
         };
       }
 
@@ -418,13 +453,25 @@ export class StockOperationsService {
       });
 
       return {
+        notification: { requestId: request.id, statusFrom: request.status, statusTo: ClientRequestStatus.DONE },
+        response: {
         idempotencyKey: baseKey,
         status: 'APPLIED',
         requestId: request.id,
         clientId: request.clientId,
         shippedLines: this.formatFulfillmentLines(plan, 'shippedQuantity'),
+        },
       };
     });
+
+    if (result.notification) {
+      void this.telegram.notifyClientRequestStatus(
+        result.notification.requestId,
+        result.notification.statusFrom,
+        result.notification.statusTo,
+      );
+    }
+    return result.response;
   }
 
   receiveIntoBox(dto: ReceiveIntoBoxInput, user: AuthUser) {

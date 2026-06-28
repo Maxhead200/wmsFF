@@ -20,6 +20,7 @@ export type UserPrinterGroupScope = {
 
 export type TokenPayload = {
   sub: string;
+  sessionId?: string;
   deviceId?: string;
   deviceCode?: string;
   iat: number;

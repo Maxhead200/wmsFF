@@ -6,6 +6,7 @@ import type { TokenPayload } from './auth.types';
 const TOKEN_TTL_SECONDS = 60 * 60 * 8;
 
 export type AccessTokenOptions = {
+  sessionId?: string;
   deviceId?: string;
   deviceCode?: string;
 };
@@ -18,6 +19,7 @@ export class AccessTokenService {
     const now = Math.floor(Date.now() / 1000);
     const payload: TokenPayload = {
       sub: userId,
+      sessionId: options.sessionId,
       deviceId: options.deviceId,
       deviceCode: options.deviceCode,
       iat: now,

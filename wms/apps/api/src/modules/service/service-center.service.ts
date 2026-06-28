@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { BillingUnit } from '@prisma/client';
+import { isIP } from 'net';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuditLogService } from '../../common/audit/audit-log.service';
 import type { AuthUser } from '../auth/auth.types';
@@ -16,9 +17,17 @@ export class ServiceCenterService {
   ) {}
 
   async getOverview() {
-    const [clients, users, nomenclature, skus, services, invoices, stock, maintenance] = await Promise.all([
+    const onlineSince = new Date(Date.now() - 1000 * 60 * 15);
+    const [clients, users, onlineUsers, nomenclature, skus, services, invoices, stock, maintenance] = await Promise.all([
       this.prisma.client.count(),
       this.prisma.user.count(),
+      this.prisma.userSession.count({
+        where: {
+          revokedAt: null,
+          expiresAt: { gt: new Date() },
+          lastSeenAt: { gte: onlineSince },
+        },
+      }),
       this.prisma.nomenclatureItem.count(),
       this.prisma.sku.count(),
       this.prisma.billingService.count(),
@@ -35,6 +44,7 @@ export class ServiceCenterService {
       counters: {
         clients,
         users,
+        onlineUsers,
         nomenclature,
         skus,
         services,
@@ -43,6 +53,115 @@ export class ServiceCenterService {
         stockQuantity: stock._sum.quantity ?? 0,
       },
     };
+  }
+
+  listOnlineSessions() {
+    const onlineSince = new Date(Date.now() - 1000 * 60 * 15);
+    return this.prisma.userSession.findMany({
+      where: {
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+        lastSeenAt: { gte: onlineSince },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            roles: {
+              include: {
+                role: {
+                  select: {
+                    code: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+            clientScopes: {
+              include: {
+                client: {
+                  select: {
+                    id: true,
+                    code: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { lastSeenAt: 'desc' },
+      take: 200,
+    });
+  }
+
+  listClientIpRules(clientId?: string) {
+    return this.prisma.clientAllowedIp.findMany({
+      where: clientId ? { clientId } : {},
+      include: {
+        client: { select: { id: true, code: true, name: true } },
+      },
+      orderBy: [{ client: { name: 'asc' } }, { ipAddress: 'asc' }],
+    });
+  }
+
+  async createClientIpRule(clientId: string, dto: { ipAddress?: string; comment?: string }, user: AuthUser) {
+    await this.findClient(clientId);
+    const ipAddress = normalizeIp(dto.ipAddress);
+    if (!ipAddress || isIP(ipAddress) === 0) {
+      throw new BadRequestException('Укажите корректный IP-адрес.');
+    }
+
+    try {
+      const rule = await this.prisma.clientAllowedIp.create({
+        data: {
+          clientId,
+          ipAddress,
+          comment: dto.comment?.trim() || null,
+          createdByUserId: user.id,
+        },
+        include: {
+          client: { select: { id: true, code: true, name: true } },
+        },
+      });
+      await this.auditLog.write({
+        userId: user.id,
+        action: 'service.client-ip.create',
+        entity: 'client-allowed-ip',
+        entityId: rule.id,
+        payload: { clientId, ipAddress },
+      });
+      return rule;
+    } catch (caught) {
+      if (isUniqueConstraintError(caught)) {
+        throw new BadRequestException('Такой IP уже разрешен для выбранного клиента.');
+      }
+      throw caught;
+    }
+  }
+
+  async deleteClientIpRule(id: string, user: AuthUser) {
+    const rule = await this.prisma.clientAllowedIp.findUnique({
+      where: { id },
+      include: { client: { select: { id: true, code: true, name: true } } },
+    });
+    if (!rule) {
+      throw new NotFoundException('IP-правило не найдено.');
+    }
+
+    await this.prisma.clientAllowedIp.delete({ where: { id } });
+    await this.auditLog.write({
+      userId: user.id,
+      action: 'service.client-ip.delete',
+      entity: 'client-allowed-ip',
+      entityId: id,
+      payload: { clientId: rule.clientId, ipAddress: rule.ipAddress },
+    });
+
+    return { id, ipAddress: rule.ipAddress, client: rule.client, deleted: true };
   }
 
   async getMaintenanceMode() {
@@ -340,4 +459,8 @@ function isUniqueConstraintError(caught: unknown) {
     'code' in caught &&
     (caught as { code?: string }).code === 'P2002'
   );
+}
+
+function normalizeIp(ipAddress?: string) {
+  return ipAddress?.trim().replace(/^::ffff:/, '') ?? '';
 }

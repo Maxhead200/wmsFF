@@ -29,6 +29,13 @@ type UserWithAccess = {
   }>;
 };
 
+type RequestMeta = {
+  ipAddress?: string;
+  userAgent?: string;
+};
+
+const ACCESS_TOKEN_TTL_MS = 1000 * 60 * 60 * 8;
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -39,7 +46,7 @@ export class AuthService {
     private readonly tokens: AccessTokenService,
   ) {}
 
-  async bootstrapAdmin(dto: BootstrapAdminDto) {
+  async bootstrapAdmin(dto: BootstrapAdminDto, requestMeta: RequestMeta = {}) {
     this.assertBootstrapSecret(dto.bootstrapSecret);
 
     const usersCount = await this.prisma.user.count();
@@ -60,10 +67,10 @@ export class AuthService {
       include: this.userAccessInclude(),
     });
 
-    return this.authResponse(user);
+    return this.authResponse(user, requestMeta);
   }
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, requestMeta: RequestMeta = {}) {
     const user = await this.findUserWithAccess(this.normalizeEmail(dto.email));
     if (!user || !(await this.passwords.verify(dto.password, user.passwordHash))) {
       throw new UnauthorizedException('Неверный логин или пароль.');
@@ -78,7 +85,9 @@ export class AuthService {
       throw new UnauthorizedException(maintenance.message || 'Вход временно закрыт: в WMS идут сервисные работы.');
     }
 
-    return this.authResponse(user);
+    await this.assertClientIpAllowed(user, requestMeta.ipAddress);
+
+    return this.authResponse(user, requestMeta);
   }
 
   private async findUserWithAccess(email: string) {
@@ -88,11 +97,12 @@ export class AuthService {
     });
   }
 
-  private authResponse(user: UserWithAccess) {
+  private async authResponse(user: UserWithAccess, requestMeta: RequestMeta = {}) {
     const authUser = this.toAuthUser(user);
+    const session = await this.createSession(user, requestMeta);
 
     return {
-      accessToken: this.tokens.sign(user.id),
+      accessToken: this.tokens.sign(user.id, { sessionId: session.id }),
       tokenType: 'Bearer',
       user: authUser,
     };
@@ -173,6 +183,59 @@ export class AuthService {
     );
   }
 
+  private async assertClientIpAllowed(user: UserWithAccess, ipAddress?: string) {
+    if (this.isSystemAdmin(user) || !this.isClientOnlyUser(user)) {
+      return;
+    }
+
+    const clientIds = user.clientScopes.filter((scope) => scope.canRead).map((scope) => scope.clientId);
+    if (clientIds.length === 0) {
+      return;
+    }
+
+    const rules = await this.prisma.clientAllowedIp.findMany({
+      where: { clientId: { in: clientIds } },
+      select: { ipAddress: true },
+    });
+    if (rules.length === 0) {
+      return;
+    }
+
+    const normalizedIp = this.normalizeIp(ipAddress);
+    if (!normalizedIp || !rules.some((rule) => rule.ipAddress === normalizedIp)) {
+      throw new UnauthorizedException('Вход с этого IP-адреса запрещен для клиента.');
+    }
+  }
+
+  private async createSession(user: UserWithAccess, requestMeta: RequestMeta) {
+    const userAgent = requestMeta.userAgent?.slice(0, 500) || null;
+    const parsedAgent = parseUserAgent(userAgent ?? '');
+    const now = new Date();
+
+    return this.prisma.userSession.create({
+      data: {
+        userId: user.id,
+        ipAddress: this.normalizeIp(requestMeta.ipAddress),
+        userAgent,
+        appName: parsedAgent.appName,
+        browserName: parsedAgent.browserName,
+        startedAt: now,
+        lastSeenAt: now,
+        expiresAt: new Date(now.getTime() + ACCESS_TOKEN_TTL_MS),
+      },
+    });
+  }
+
+  private isClientOnlyUser(user: UserWithAccess) {
+    const roleCodes = user.roles.map((item) => item.role.code);
+    const internalRoles = ['ADMIN', 'OWNER', 'MANAGER', 'OPERATOR'];
+    return roleCodes.includes('CLIENT') && !roleCodes.some((roleCode) => internalRoles.includes(roleCode));
+  }
+
+  private normalizeIp(ipAddress?: string) {
+    return ipAddress?.trim().replace(/^::ffff:/, '') || null;
+  }
+
   private clientScopeMode(roleCodes: string[], permissionCodes: string[], clientScopesCount: number) {
     if (permissionCodes.includes('system:admin')) {
       return 'ALL';
@@ -184,4 +247,27 @@ export class AuthService {
 
     return 'LIMITED';
   }
+}
+
+function parseUserAgent(userAgent: string) {
+  const lower = userAgent.toLowerCase();
+  const isMobileApp = lower.includes('okhttp') || lower.includes('dalvik') || lower.includes('logoff-tsd');
+  const browserName = lower.includes('edg/')
+    ? 'Microsoft Edge'
+    : lower.includes('opr/') || lower.includes('opera')
+      ? 'Opera'
+      : lower.includes('chrome/')
+        ? 'Chrome'
+        : lower.includes('firefox/')
+          ? 'Firefox'
+          : lower.includes('safari/')
+            ? 'Safari'
+            : userAgent
+              ? 'Неизвестный браузер'
+              : 'Не указан';
+
+  return {
+    appName: isMobileApp ? 'Мобильное приложение / ТСД' : 'Веб-интерфейс',
+    browserName,
+  };
 }

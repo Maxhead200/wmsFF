@@ -1251,6 +1251,7 @@ export type ServiceOverview = {
   counters: {
     clients: number;
     users: number;
+    onlineUsers: number;
     nomenclature: number;
     skus: number;
     services: number;
@@ -1265,6 +1266,36 @@ export type ServiceBillingService = BillingServiceSummary & {
     charges: number;
     clientPrices: number;
   };
+};
+
+export type ServiceOnlineSession = {
+  id: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  appName: string | null;
+  browserName: string | null;
+  startedAt: string;
+  lastSeenAt: string;
+  expiresAt: string;
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    roles: Array<{ role: { code: string; name: string } }>;
+    clientScopes: Array<{
+      client: Pick<ClientSummary, 'id' | 'code' | 'name'>;
+    }>;
+  };
+};
+
+export type ServiceClientIpRule = {
+  id: string;
+  clientId: string;
+  ipAddress: string;
+  comment: string | null;
+  createdByUserId: string | null;
+  createdAt: string;
+  client: Pick<ClientSummary, 'id' | 'code' | 'name'>;
 };
 
 export type StorageOverviewRow = {
@@ -2606,6 +2637,37 @@ export async function purgeServiceClientStock(accessToken: string, clientId: str
 
 export async function fetchServiceOverview(accessToken: string) {
   return request<ServiceOverview>('/service/overview', {
+    accessToken,
+  });
+}
+
+export async function fetchServiceOnlineSessions(accessToken: string) {
+  return request<ServiceOnlineSession[]>('/service/sessions/online', {
+    accessToken,
+  });
+}
+
+export async function fetchServiceClientIpRules(accessToken: string, filter: { clientId?: string } = {}) {
+  return request<ServiceClientIpRule[]>(withQuery('/service/client-ip-rules', filter), {
+    accessToken,
+  });
+}
+
+export async function createServiceClientIpRule(
+  accessToken: string,
+  clientId: string,
+  payload: { ipAddress: string; comment?: string },
+) {
+  return request<ServiceClientIpRule>(`/service/clients/${clientId}/ip-rules`, {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function deleteServiceClientIpRule(accessToken: string, id: string) {
+  return request<{ id: string; ipAddress: string; deleted: true }>(`/service/client-ip-rules/${id}`, {
+    method: 'DELETE',
     accessToken,
   });
 }

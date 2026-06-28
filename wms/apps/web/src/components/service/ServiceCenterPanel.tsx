@@ -1,9 +1,12 @@
-import {
+﻿import {
   AlertTriangle,
   Ban,
   CheckCircle2,
+  Clock,
   Database,
   Eraser,
+  Globe2,
+  Monitor,
   Power,
   RefreshCw,
   Settings2,
@@ -14,12 +17,16 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 're
 import {
   deleteClient,
   deleteServiceBillingService,
+  deleteServiceClientIpRule,
   deleteServiceNomenclature,
   fetchClients,
   fetchServiceBillingServices,
   fetchServiceClientStockCleanupPreview,
+  fetchServiceClientIpRules,
   fetchServiceNomenclature,
+  fetchServiceOnlineSessions,
   fetchServiceOverview,
+  createServiceClientIpRule,
   purgeServiceClientStock,
   updateClientStatus,
   updateServiceBillingServiceStatus,
@@ -31,9 +38,11 @@ import {
   type ClientSummary,
   type NomenclatureSummary,
   type ServiceBillingService,
+  type ServiceClientIpRule,
   type ServiceClientStockCleanupPreview,
   type ServiceClientStockCleanupResult,
   type ServiceClientStockSummary,
+  type ServiceOnlineSession,
   type ServiceOverview,
 } from '../../lib/api';
 import { billingUnitOptions } from '../billing/billingMeta';
@@ -45,7 +54,7 @@ type LoadState<T> = {
   error?: string;
 };
 
-type ServiceTab = 'maintenance' | 'clients' | 'stock' | 'nomenclature' | 'services';
+type ServiceTab = 'maintenance' | 'sessions' | 'clients' | 'stock' | 'nomenclature' | 'services';
 
 type ServiceCenterPanelProps = {
   session: AuthSession;
@@ -62,11 +71,12 @@ const emptySummary: ServiceClientStockSummary = {
 };
 
 const tabs: Array<{ id: ServiceTab; label: string; icon: typeof Settings2 }> = [
-  { id: 'maintenance', label: 'Режим', icon: Power },
-  { id: 'clients', label: 'Клиенты', icon: ShieldAlert },
-  { id: 'stock', label: 'Остатки', icon: Database },
-  { id: 'nomenclature', label: 'Номенклатура', icon: Eraser },
-  { id: 'services', label: 'Услуги', icon: Settings2 },
+  { id: 'maintenance', label: 'Р РµР¶РёРј', icon: Power },
+  { id: 'sessions', label: 'Сессии', icon: Monitor },
+  { id: 'clients', label: 'РљР»РёРµРЅС‚С‹', icon: ShieldAlert },
+  { id: 'stock', label: 'РћСЃС‚Р°С‚РєРё', icon: Database },
+  { id: 'nomenclature', label: 'РќРѕРјРµРЅРєР»Р°С‚СѓСЂР°', icon: Eraser },
+  { id: 'services', label: 'РЈСЃР»СѓРіРё', icon: Settings2 },
 ];
 
 export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
@@ -78,11 +88,14 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
   const [confirmation, setConfirmation] = useState('');
   const [result, setResult] = useState<ServiceClientStockCleanupResult | null>(null);
   const [isPurging, setPurging] = useState(false);
-  const [maintenanceMessage, setMaintenanceMessage] = useState('В WMS идут сервисные работы. Вход временно закрыт.');
+  const [maintenanceMessage, setMaintenanceMessage] = useState('Р’ WMS РёРґСѓС‚ СЃРµСЂРІРёСЃРЅС‹Рµ СЂР°Р±РѕС‚С‹. Р’С…РѕРґ РІСЂРµРјРµРЅРЅРѕ Р·Р°РєСЂС‹С‚.');
   const [actionMessage, setActionMessage] = useState('');
   const [nomenclatureSearch, setNomenclatureSearch] = useState('');
   const [nomenclature, setNomenclature] = useState<LoadState<NomenclatureSummary[]>>({ status: 'idle', data: [] });
   const [services, setServices] = useState<LoadState<ServiceBillingService[]>>({ status: 'idle', data: [] });
+  const [sessions, setSessions] = useState<LoadState<ServiceOnlineSession[]>>({ status: 'idle', data: [] });
+  const [ipRules, setIpRules] = useState<LoadState<ServiceClientIpRule[]>>({ status: 'idle', data: [] });
+  const [ipForm, setIpForm] = useState({ ipAddress: '', comment: '' });
   const [serviceForm, setServiceForm] = useState({ code: '', name: '', unit: 'SERVICE' as BillingUnit, defaultPriceRub: '' });
 
   const selectedClient = useMemo(
@@ -121,6 +134,14 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
     }
     if (activeTab === 'services' && services.status === 'idle') {
       void loadServices();
+    }
+    if (activeTab === 'sessions') {
+      if (sessions.status === 'idle') {
+        void loadSessions();
+      }
+      if (ipRules.status === 'idle') {
+        void loadIpRules();
+      }
     }
   }, [activeTab]);
 
@@ -166,7 +187,7 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
       setOverview((current) =>
         current.data ? { status: 'ready', data: { ...current.data, maintenance } } : current,
       );
-      setActionMessage(enabled ? 'Режим обслуживания включен.' : 'Режим обслуживания выключен.');
+      setActionMessage(enabled ? 'Р РµР¶РёРј РѕР±СЃР»СѓР¶РёРІР°РЅРёСЏ РІРєР»СЋС‡РµРЅ.' : 'Р РµР¶РёРј РѕР±СЃР»СѓР¶РёРІР°РЅРёСЏ РІС‹РєР»СЋС‡РµРЅ.');
     } catch (caught) {
       setOverview((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
     }
@@ -187,7 +208,7 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
         data: {
           client: purged.client,
           summary: purged.after,
-          confirmationText: preview.data?.confirmationText ?? 'ОЧИСТИТЬ',
+          confirmationText: preview.data?.confirmationText ?? 'РћР§РРЎРўРРўР¬',
           warning: preview.data?.warning ?? '',
         },
       });
@@ -209,14 +230,14 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
     try {
       const updated = await updateClientStatus(session.accessToken, selectedClient.id, status);
       setClients((current) => ({ ...current, data: current.data.map((client) => (client.id === updated.id ? updated : client)) }));
-      setActionMessage(status === 'ACTIVE' ? 'Клиент активирован.' : 'Клиент заблокирован.');
+      setActionMessage(status === 'ACTIVE' ? 'РљР»РёРµРЅС‚ Р°РєС‚РёРІРёСЂРѕРІР°РЅ.' : 'РљР»РёРµРЅС‚ Р·Р°Р±Р»РѕРєРёСЂРѕРІР°РЅ.');
     } catch (caught) {
       setClients((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
     }
   }
 
   async function removeClient() {
-    if (!selectedClient || !window.confirm(`Удалить клиента ${selectedClient.code} - ${selectedClient.name}?`)) {
+    if (!selectedClient || !window.confirm(`РЈРґР°Р»РёС‚СЊ РєР»РёРµРЅС‚Р° ${selectedClient.code} - ${selectedClient.name}?`)) {
       return;
     }
 
@@ -226,7 +247,7 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
       const nextClients = clients.data.filter((client) => client.id !== deleted.id);
       setClients({ status: 'ready', data: nextClients });
       setSelectedClientId(nextClients[0]?.id ?? '');
-      setActionMessage(`Клиент ${deleted.code} удален.`);
+      setActionMessage(`РљР»РёРµРЅС‚ ${deleted.code} СѓРґР°Р»РµРЅ.`);
       void loadOverview();
     } catch (caught) {
       setClients((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
@@ -243,13 +264,13 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
   }
 
   async function removeNomenclature(item: NomenclatureSummary) {
-    if (!window.confirm(`Удалить номенклатуру ${item.internalSku} - ${item.name}?`)) {
+    if (!window.confirm(`РЈРґР°Р»РёС‚СЊ РЅРѕРјРµРЅРєР»Р°С‚СѓСЂСѓ ${item.internalSku} - ${item.name}?`)) {
       return;
     }
     try {
       await deleteServiceNomenclature(session.accessToken, item.id);
       setNomenclature((current) => ({ ...current, data: current.data.filter((row) => row.id !== item.id) }));
-      setActionMessage('Номенклатура удалена.');
+      setActionMessage('РќРѕРјРµРЅРєР»Р°С‚СѓСЂР° СѓРґР°Р»РµРЅР°.');
       void loadOverview();
     } catch (caught) {
       setNomenclature((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
@@ -265,6 +286,54 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
     }
   }
 
+  async function loadSessions() {
+    setSessions((current) => ({ ...current, status: 'loading', error: undefined }));
+    try {
+      setSessions({ status: 'ready', data: await fetchServiceOnlineSessions(session.accessToken) });
+    } catch (caught) {
+      setSessions((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
+    }
+  }
+
+  async function loadIpRules(clientId = selectedClientId) {
+    setIpRules((current) => ({ ...current, status: 'loading', error: undefined }));
+    try {
+      setIpRules({ status: 'ready', data: await fetchServiceClientIpRules(session.accessToken, { clientId: clientId || undefined }) });
+    } catch (caught) {
+      setIpRules((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
+    }
+  }
+
+  async function createIpRule(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedClientId) {
+      return;
+    }
+
+    try {
+      const created = await createServiceClientIpRule(session.accessToken, selectedClientId, ipForm);
+      setIpRules((current) => ({ ...current, data: [created, ...current.data] }));
+      setIpForm({ ipAddress: '', comment: '' });
+      setActionMessage('IP добавлен в доступ клиента.');
+    } catch (caught) {
+      setIpRules((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
+    }
+  }
+
+  async function removeIpRule(rule: ServiceClientIpRule) {
+    if (!window.confirm(`Удалить IP ${rule.ipAddress} для клиента ${rule.client.code}?`)) {
+      return;
+    }
+
+    try {
+      await deleteServiceClientIpRule(session.accessToken, rule.id);
+      setIpRules((current) => ({ ...current, data: current.data.filter((item) => item.id !== rule.id) }));
+      setActionMessage('IP удален из доступа клиента.');
+    } catch (caught) {
+      setIpRules((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
+    }
+  }
+
   async function createService(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     try {
@@ -276,7 +345,7 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
       });
       setServices((current) => ({ ...current, data: [created, ...current.data] }));
       setServiceForm({ code: '', name: '', unit: 'SERVICE', defaultPriceRub: '' });
-      setActionMessage('Услуга создана.');
+      setActionMessage('РЈСЃР»СѓРіР° СЃРѕР·РґР°РЅР°.');
       void loadOverview();
     } catch (caught) {
       setServices((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
@@ -296,13 +365,13 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
   }
 
   async function removeService(service: ServiceBillingService) {
-    if (!window.confirm(`Удалить услугу ${service.code} - ${service.name}?`)) {
+    if (!window.confirm(`РЈРґР°Р»РёС‚СЊ СѓСЃР»СѓРіСѓ ${service.code} - ${service.name}?`)) {
       return;
     }
     try {
       await deleteServiceBillingService(session.accessToken, service.id);
       setServices((current) => ({ ...current, data: current.data.filter((item) => item.id !== service.id) }));
-      setActionMessage('Услуга удалена.');
+      setActionMessage('РЈСЃР»СѓРіР° СѓРґР°Р»РµРЅР°.');
       void loadOverview();
     } catch (caught) {
       setServices((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
@@ -310,16 +379,16 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
   }
 
   return (
-    <section className="service-panel" aria-label="Сервисное меню">
+    <section className="service-panel" aria-label="РЎРµСЂРІРёСЃРЅРѕРµ РјРµРЅСЋ">
       <div className="panel-heading service-panel__heading">
         <div>
-          <p className="eyebrow">Сервисное меню</p>
-          <h2>Управление системными данными</h2>
+          <p className="eyebrow">РЎРµСЂРІРёСЃРЅРѕРµ РјРµРЅСЋ</p>
+          <h2>РЈРїСЂР°РІР»РµРЅРёРµ СЃРёСЃС‚РµРјРЅС‹РјРё РґР°РЅРЅС‹РјРё</h2>
         </div>
         <ShieldAlert size={22} aria-hidden="true" />
       </div>
 
-      <div className="service-tabs" role="tablist" aria-label="Раздел сервисного меню">
+      <div className="service-tabs" role="tablist" aria-label="Р Р°Р·РґРµР» СЃРµСЂРІРёСЃРЅРѕРіРѕ РјРµРЅСЋ">
         {tabs.map((tab) => (
           <button className={activeTab === tab.id ? 'active' : ''} key={tab.id} type="button" onClick={() => setActiveTab(tab.id)}>
             <tab.icon size={16} aria-hidden="true" />
@@ -335,24 +404,43 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
       {activeTab === 'maintenance' ? (
         <div className="service-card">
           <div className="service-card__heading">
-            <strong>Блокировка входа пользователей</strong>
+            <strong>Р‘Р»РѕРєРёСЂРѕРІРєР° РІС…РѕРґР° РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№</strong>
             <span className={overview.data?.maintenance.enabled ? 'status status--planned' : 'status status--ready'}>
-              {overview.data?.maintenance.enabled ? 'Включена' : 'Выключена'}
+              {overview.data?.maintenance.enabled ? 'Р’РєР»СЋС‡РµРЅР°' : 'Р’С‹РєР»СЋС‡РµРЅР°'}
             </span>
           </div>
           <label className="service-field">
-            <span>Сообщение при входе</span>
+            <span>РЎРѕРѕР±С‰РµРЅРёРµ РїСЂРё РІС…РѕРґРµ</span>
             <input value={maintenanceMessage} onChange={(event) => setMaintenanceMessage(event.target.value)} />
           </label>
           <div className="service-actions">
             <button className="danger-button" type="button" onClick={() => void toggleMaintenance(true)}>
-              <Ban size={16} /> Закрыть вход
+              <Ban size={16} /> Р—Р°РєСЂС‹С‚СЊ РІС…РѕРґ
             </button>
             <button className="secondary-button" type="button" onClick={() => void toggleMaintenance(false)}>
-              <CheckCircle2 size={16} /> Открыть вход
+              <CheckCircle2 size={16} /> РћС‚РєСЂС‹С‚СЊ РІС…РѕРґ
             </button>
           </div>
         </div>
+      ) : null}
+
+      {activeTab === 'sessions' ? (
+        <SessionsAndIpPanel
+          clients={clients.data}
+          ipForm={ipForm}
+          ipRules={ipRules}
+          selectedClientId={selectedClientId}
+          sessions={sessions}
+          onIpForm={setIpForm}
+          onRefreshSessions={() => void loadSessions()}
+          onRefreshIpRules={() => void loadIpRules()}
+          onSelectClient={(clientId) => {
+            setSelectedClientId(clientId);
+            void loadIpRules(clientId);
+          }}
+          onCreateIpRule={(event) => void createIpRule(event)}
+          onDeleteIpRule={(rule) => void removeIpRule(rule)}
+        />
       ) : null}
 
       {activeTab === 'clients' ? (
@@ -387,13 +475,13 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
       {activeTab === 'nomenclature' ? (
         <div className="service-card">
           <div className="service-toolbar">
-            <input placeholder="Поиск по названию, артикулу, штрихкоду" value={nomenclatureSearch} onChange={(event) => setNomenclatureSearch(event.target.value)} />
+            <input placeholder="РџРѕРёСЃРє РїРѕ РЅР°Р·РІР°РЅРёСЋ, Р°СЂС‚РёРєСѓР»Сѓ, С€С‚СЂРёС…РєРѕРґСѓ" value={nomenclatureSearch} onChange={(event) => setNomenclatureSearch(event.target.value)} />
             <button className="secondary-button" type="button" onClick={() => void loadNomenclature()}>
-              <RefreshCw size={16} /> Показать
+              <RefreshCw size={16} /> РџРѕРєР°Р·Р°С‚СЊ
             </button>
           </div>
           {nomenclature.status === 'error' ? <div className="service-message service-message--error">{nomenclature.error}</div> : null}
-          <ServiceTable columns={['SKU', 'Название', 'Штрихкод', 'Артикул', 'Действие']}>
+          <ServiceTable columns={['SKU', 'РќР°Р·РІР°РЅРёРµ', 'РЁС‚СЂРёС…РєРѕРґ', 'РђСЂС‚РёРєСѓР»', 'Р”РµР№СЃС‚РІРёРµ']}>
             {nomenclature.data.map((item) => (
               <tr key={item.id}>
                 <td>{item.internalSku}</td>
@@ -401,7 +489,7 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
                 <td>{item.barcode || '-'}</td>
                 <td>{item.article || '-'}</td>
                 <td>
-                  <button className="danger-link" type="button" onClick={() => void removeNomenclature(item)}>Удалить</button>
+                  <button className="danger-link" type="button" onClick={() => void removeNomenclature(item)}>РЈРґР°Р»РёС‚СЊ</button>
                 </td>
               </tr>
             ))}
@@ -412,16 +500,16 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
       {activeTab === 'services' ? (
         <div className="service-card">
           <form className="service-inline-form" onSubmit={(event) => void createService(event)}>
-            <input required placeholder="Код" value={serviceForm.code} onChange={(event) => setServiceForm({ ...serviceForm, code: event.target.value })} />
-            <input required placeholder="Название услуги" value={serviceForm.name} onChange={(event) => setServiceForm({ ...serviceForm, name: event.target.value })} />
+            <input required placeholder="РљРѕРґ" value={serviceForm.code} onChange={(event) => setServiceForm({ ...serviceForm, code: event.target.value })} />
+            <input required placeholder="РќР°Р·РІР°РЅРёРµ СѓСЃР»СѓРіРё" value={serviceForm.name} onChange={(event) => setServiceForm({ ...serviceForm, name: event.target.value })} />
             <select value={serviceForm.unit} onChange={(event) => setServiceForm({ ...serviceForm, unit: event.target.value as BillingUnit })}>
               {billingUnitOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
-            <input min="0" step="0.01" type="number" placeholder="Цена" value={serviceForm.defaultPriceRub} onChange={(event) => setServiceForm({ ...serviceForm, defaultPriceRub: event.target.value })} />
-            <button className="primary-button" type="submit">Создать</button>
+            <input min="0" step="0.01" type="number" placeholder="Р¦РµРЅР°" value={serviceForm.defaultPriceRub} onChange={(event) => setServiceForm({ ...serviceForm, defaultPriceRub: event.target.value })} />
+            <button className="primary-button" type="submit">РЎРѕР·РґР°С‚СЊ</button>
           </form>
           {services.status === 'error' ? <div className="service-message service-message--error">{services.error}</div> : null}
-          <ServiceTable columns={['Код', 'Услуга', 'Ед.', 'Цена', 'Используется', 'Действия']}>
+          <ServiceTable columns={['РљРѕРґ', 'РЈСЃР»СѓРіР°', 'Р•Рґ.', 'Р¦РµРЅР°', 'РСЃРїРѕР»СЊР·СѓРµС‚СЃСЏ', 'Р”РµР№СЃС‚РІРёСЏ']}>
             {services.data.map((service) => (
               <tr key={service.id}>
                 <td>{service.code}</td>
@@ -431,9 +519,9 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
                 <td>{(service._count?.charges ?? 0) + (service._count?.clientPrices ?? 0)}</td>
                 <td>
                   <button className="secondary-link" type="button" onClick={() => void toggleService(service)}>
-                    {service.isActive ? 'Отключить' : 'Включить'}
+                    {service.isActive ? 'РћС‚РєР»СЋС‡РёС‚СЊ' : 'Р’РєР»СЋС‡РёС‚СЊ'}
                   </button>
-                  <button className="danger-link" type="button" onClick={() => void removeService(service)}>Удалить</button>
+                  <button className="danger-link" type="button" onClick={() => void removeService(service)}>РЈРґР°Р»РёС‚СЊ</button>
                 </td>
               </tr>
             ))}
@@ -451,12 +539,119 @@ function renderOverview(overview: ServiceOverview | null) {
 
   return (
     <div className="service-metrics">
-      <Metric icon={<Database size={17} />} label="Клиентов" value={overview.counters.clients} />
-      <Metric icon={<Database size={17} />} label="Пользователей" value={overview.counters.users} />
-      <Metric icon={<Database size={17} />} label="Номенклатура" value={overview.counters.nomenclature} />
+      <Metric icon={<Database size={17} />} label="РљР»РёРµРЅС‚РѕРІ" value={overview.counters.clients} />
+      <Metric icon={<Database size={17} />} label="РџРѕР»СЊР·РѕРІР°С‚РµР»РµР№" value={overview.counters.users} />
+      <Metric icon={<Database size={17} />} label="РќРѕРјРµРЅРєР»Р°С‚СѓСЂР°" value={overview.counters.nomenclature} />
       <Metric icon={<Database size={17} />} label="SKU" value={overview.counters.skus} />
-      <Metric icon={<Database size={17} />} label="Услуги" value={overview.counters.services} />
-      <Metric icon={<Database size={17} />} label="Остаток, шт" value={overview.counters.stockQuantity} />
+      <Metric icon={<Database size={17} />} label="РЈСЃР»СѓРіРё" value={overview.counters.services} />
+      <Metric icon={<Database size={17} />} label="РћСЃС‚Р°С‚РѕРє, С€С‚" value={overview.counters.stockQuantity} />
+    </div>
+  );
+}
+
+function SessionsAndIpPanel({
+  clients,
+  ipForm,
+  ipRules,
+  selectedClientId,
+  sessions,
+  onCreateIpRule,
+  onDeleteIpRule,
+  onIpForm,
+  onRefreshIpRules,
+  onRefreshSessions,
+  onSelectClient,
+}: {
+  clients: ClientSummary[];
+  ipForm: { ipAddress: string; comment: string };
+  ipRules: LoadState<ServiceClientIpRule[]>;
+  selectedClientId: string;
+  sessions: LoadState<ServiceOnlineSession[]>;
+  onCreateIpRule: (event: FormEvent<HTMLFormElement>) => void;
+  onDeleteIpRule: (rule: ServiceClientIpRule) => void;
+  onIpForm: (form: { ipAddress: string; comment: string }) => void;
+  onRefreshIpRules: () => void;
+  onRefreshSessions: () => void;
+  onSelectClient: (clientId: string) => void;
+}) {
+  return (
+    <div className="service-card">
+      <div className="service-card__heading">
+        <strong>Пользователи онлайн</strong>
+        <button className="secondary-button" type="button" onClick={onRefreshSessions}>
+          <RefreshCw size={16} /> Обновить
+        </button>
+      </div>
+      {sessions.status === 'error' ? <div className="service-message service-message--error">{sessions.error}</div> : null}
+      <ServiceTable columns={['Пользователь', 'Клиент', 'Приложение', 'Браузер', 'IP', 'Открыта', 'Активность']}>
+        {sessions.data.length === 0 ? (
+          <tr>
+            <td colSpan={7}>Активных сессий нет</td>
+          </tr>
+        ) : null}
+        {sessions.data.map((item) => (
+          <tr key={item.id}>
+            <td>
+              <strong>{item.user.name}</strong>
+              <span>{item.user.email}</span>
+            </td>
+            <td>{sessionClients(item)}</td>
+            <td><Monitor size={14} /> {item.appName || '-'}</td>
+            <td>{item.browserName || '-'}</td>
+            <td><Globe2 size={14} /> {item.ipAddress || '-'}</td>
+            <td><Clock size={14} /> {formatSessionAge(item.startedAt)}</td>
+            <td>{formatDateTime(item.lastSeenAt)}</td>
+          </tr>
+        ))}
+      </ServiceTable>
+
+      <div className="service-card__heading service-card__heading--sub">
+        <strong>Разрешенные IP клиента</strong>
+        <button className="secondary-button" type="button" onClick={onRefreshIpRules}>
+          <RefreshCw size={16} /> Обновить
+        </button>
+      </div>
+      <div className="service-toolbar">
+        <select value={selectedClientId} onChange={(event) => onSelectClient(event.target.value)}>
+          {clients.map((client) => (
+            <option key={client.id} value={client.id}>
+              {client.code} · {client.name}
+            </option>
+          ))}
+        </select>
+        <span className="service-inline-note">Если список пустой, вход с любого IP разрешен.</span>
+      </div>
+      <form className="service-inline-form service-inline-form--ip" onSubmit={onCreateIpRule}>
+        <input
+          required
+          placeholder="IP-адрес"
+          value={ipForm.ipAddress}
+          onChange={(event) => onIpForm({ ...ipForm, ipAddress: event.target.value })}
+        />
+        <input
+          placeholder="Комментарий"
+          value={ipForm.comment}
+          onChange={(event) => onIpForm({ ...ipForm, comment: event.target.value })}
+        />
+        <button className="primary-button" type="submit">Добавить IP</button>
+      </form>
+      {ipRules.status === 'error' ? <div className="service-message service-message--error">{ipRules.error}</div> : null}
+      <ServiceTable columns={['Клиент', 'IP', 'Комментарий', 'Добавлен', 'Действие']}>
+        {ipRules.data.length === 0 ? (
+          <tr>
+            <td colSpan={5}>IP-ограничений нет</td>
+          </tr>
+        ) : null}
+        {ipRules.data.map((rule) => (
+          <tr key={rule.id}>
+            <td>{rule.client.code} · {rule.client.name}</td>
+            <td>{rule.ipAddress}</td>
+            <td>{rule.comment || '-'}</td>
+            <td>{formatDateTime(rule.createdAt)}</td>
+            <td><button className="danger-link" type="button" onClick={() => onDeleteIpRule(rule)}>Удалить</button></td>
+          </tr>
+        ))}
+      </ServiceTable>
     </div>
   );
 }
@@ -480,11 +675,11 @@ function ServiceClientsTable({
   return (
     <div className="service-card">
       <div className="service-card__heading">
-        <strong>Управление клиентами</strong>
-        <button className="secondary-button" type="button" onClick={onRefresh}><RefreshCw size={16} /> Обновить</button>
+        <strong>РЈРїСЂР°РІР»РµРЅРёРµ РєР»РёРµРЅС‚Р°РјРё</strong>
+        <button className="secondary-button" type="button" onClick={onRefresh}><RefreshCw size={16} /> РћР±РЅРѕРІРёС‚СЊ</button>
       </div>
       {clients.status === 'error' ? <div className="service-message service-message--error">{clients.error}</div> : null}
-      <ServiceTable columns={['Код', 'Название', 'ИНН', 'Статус', 'Менеджер']}>
+      <ServiceTable columns={['РљРѕРґ', 'РќР°Р·РІР°РЅРёРµ', 'РРќРќ', 'РЎС‚Р°С‚СѓСЃ', 'РњРµРЅРµРґР¶РµСЂ']}>
         {clients.data.map((client) => (
           <tr className={client.id === selectedClientId ? 'is-selected' : ''} key={client.id} onClick={() => onSelect(client.id)}>
             <td>{client.code}</td>
@@ -496,9 +691,9 @@ function ServiceClientsTable({
         ))}
       </ServiceTable>
       <div className="service-actions">
-        <button className="secondary-button" type="button" disabled={!selected || selected.status === 'ACTIVE'} onClick={() => onStatus('ACTIVE')}>Активировать</button>
-        <button className="secondary-button" type="button" disabled={!selected || selected.status === 'PAUSED'} onClick={() => onStatus('PAUSED')}>Заблокировать</button>
-        <button className="danger-button" type="button" disabled={!selected} onClick={onDelete}><Trash2 size={16} /> Удалить клиента</button>
+        <button className="secondary-button" type="button" disabled={!selected || selected.status === 'ACTIVE'} onClick={() => onStatus('ACTIVE')}>РђРєС‚РёРІРёСЂРѕРІР°С‚СЊ</button>
+        <button className="secondary-button" type="button" disabled={!selected || selected.status === 'PAUSED'} onClick={() => onStatus('PAUSED')}>Р—Р°Р±Р»РѕРєРёСЂРѕРІР°С‚СЊ</button>
+        <button className="danger-button" type="button" disabled={!selected} onClick={onDelete}><Trash2 size={16} /> РЈРґР°Р»РёС‚СЊ РєР»РёРµРЅС‚Р°</button>
       </div>
     </div>
   );
@@ -523,31 +718,31 @@ function StockCleanup(props: {
     <div className="service-card">
       <div className="service-cleanup__controls">
         <label>
-          <span>Клиент</span>
+          <span>РљР»РёРµРЅС‚</span>
           <select value={props.selectedClientId} onChange={(event) => props.onSelect(event.target.value)}>
-            {props.clients.map((client) => <option key={client.id} value={client.id}>{client.code} · {client.name}</option>)}
+            {props.clients.map((client) => <option key={client.id} value={client.id}>{client.code} В· {client.name}</option>)}
           </select>
         </label>
-        <button className="secondary-button" type="button" onClick={props.onRefresh} disabled={!props.selectedClientId}><RefreshCw size={16} /> Обновить</button>
+        <button className="secondary-button" type="button" onClick={props.onRefresh} disabled={!props.selectedClientId}><RefreshCw size={16} /> РћР±РЅРѕРІРёС‚СЊ</button>
       </div>
       {props.preview.status === 'error' ? <div className="service-message service-message--error">{props.preview.error}</div> : null}
       <div className="service-metrics">
-        <Metric icon={<Database size={17} />} label="Единиц" value={props.currentSummary.quantity} />
+        <Metric icon={<Database size={17} />} label="Р•РґРёРЅРёС†" value={props.currentSummary.quantity} />
         <Metric icon={<Database size={17} />} label="SKU" value={props.currentSummary.uniqueSkusInStock} />
         <Metric icon={<Eraser size={17} />} label="Balances" value={props.currentSummary.balanceRows} />
-        <Metric icon={<Eraser size={17} />} label="Движений" value={props.currentSummary.movements} />
-        <Metric icon={<Eraser size={17} />} label="Коробов" value={props.currentSummary.boxes} />
-        <Metric icon={<Eraser size={17} />} label="Паллет" value={props.currentSummary.pallets} />
+        <Metric icon={<Eraser size={17} />} label="Р”РІРёР¶РµРЅРёР№" value={props.currentSummary.movements} />
+        <Metric icon={<Eraser size={17} />} label="РљРѕСЂРѕР±РѕРІ" value={props.currentSummary.boxes} />
+        <Metric icon={<Eraser size={17} />} label="РџР°Р»Р»РµС‚" value={props.currentSummary.pallets} />
       </div>
-      <div className="service-warning"><AlertTriangle size={18} />{props.preview.data?.warning ?? 'Выберите клиента для очистки.'}</div>
+      <div className="service-warning"><AlertTriangle size={18} />{props.preview.data?.warning ?? 'Р’С‹Р±РµСЂРёС‚Рµ РєР»РёРµРЅС‚Р° РґР»СЏ РѕС‡РёСЃС‚РєРё.'}</div>
       <div className="service-danger-zone">
         <label>
-          <span>Подтверждение</span>
-          <input value={props.confirmation} onChange={(event) => props.onConfirmation(event.target.value)} placeholder={`Введите ${props.preview.data?.confirmationText ?? 'ОЧИСТИТЬ'}`} />
+          <span>РџРѕРґС‚РІРµСЂР¶РґРµРЅРёРµ</span>
+          <input value={props.confirmation} onChange={(event) => props.onConfirmation(event.target.value)} placeholder={`Р’РІРµРґРёС‚Рµ ${props.preview.data?.confirmationText ?? 'РћР§РРЎРўРРўР¬'}`} />
         </label>
-        <button className="danger-button" type="button" onClick={props.onPurge} disabled={!props.canPurge || props.isPurging}><Trash2 size={16} /> Очистить остатки</button>
+        <button className="danger-button" type="button" onClick={props.onPurge} disabled={!props.canPurge || props.isPurging}><Trash2 size={16} /> РћС‡РёСЃС‚РёС‚СЊ РѕСЃС‚Р°С‚РєРё</button>
       </div>
-      {props.result ? <div className="service-message service-message--success"><CheckCircle2 size={18} />Остатки клиента очищены.</div> : null}
+      {props.result ? <div className="service-message service-message--success"><CheckCircle2 size={18} />РћСЃС‚Р°С‚РєРё РєР»РёРµРЅС‚Р° РѕС‡РёС‰РµРЅС‹.</div> : null}
     </div>
   );
 }
@@ -575,13 +770,40 @@ function Metric({ icon, label, value }: { icon: ReactNode; label: string; value:
 
 function clientStatusLabel(status: ClientStatus) {
   const labels: Record<ClientStatus, string> = {
-    ACTIVE: 'Активен',
-    PAUSED: 'Заблокирован',
-    ARCHIVED: 'В архиве',
+    ACTIVE: 'РђРєС‚РёРІРµРЅ',
+    PAUSED: 'Р—Р°Р±Р»РѕРєРёСЂРѕРІР°РЅ',
+    ARCHIVED: 'Р’ Р°СЂС…РёРІРµ',
   };
   return labels[status];
 }
 
+function sessionClients(session: ServiceOnlineSession) {
+  const clients = session.user.clientScopes.map((scope) => `${scope.client.code} · ${scope.client.name}`);
+  return clients.length ? clients.join(', ') : 'Внутренний пользователь';
+}
+
+function formatSessionAge(value: string) {
+  const startedAt = new Date(value).getTime();
+  const minutes = Math.max(0, Math.floor((Date.now() - startedAt) / 60_000));
+  if (minutes < 60) {
+    return `${minutes} мин`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const restMinutes = minutes % 60;
+  return restMinutes ? `${hours} ч ${restMinutes} мин` : `${hours} ч`;
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
 function errorMessage(caught: unknown) {
-  return caught instanceof Error ? caught.message : 'Не удалось выполнить действие.';
+  return caught instanceof Error ? caught.message : 'РќРµ СѓРґР°Р»РѕСЃСЊ РІС‹РїРѕР»РЅРёС‚СЊ РґРµР№СЃС‚РІРёРµ.';
 }

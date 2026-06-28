@@ -55,6 +55,18 @@ export class AuthGuard implements CanActivate {
       throw new ForbiddenException('Пользователь заблокирован.');
     }
 
+    if (payload.sessionId) {
+      await this.prisma.userSession.updateMany({
+        where: {
+          id: payload.sessionId,
+          revokedAt: null,
+        },
+        data: {
+          lastSeenAt: new Date(),
+        },
+      });
+    }
+
     const roleCodes = user.roles.map((item) => item.role.code);
     const permissionCodes = [
       ...new Set(user.roles.flatMap((item) => item.role.permissions.map((permission) => permission.permission.code))),

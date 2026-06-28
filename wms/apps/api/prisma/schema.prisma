@@ -237,6 +237,7 @@ model User {
   roles                          UserRole[]
   clientScopes                   UserClient[]
   printerScopes                  UserPrinterGroup[]
+  sessions                       UserSession[]
   tsdDevices                     TsdDevice[]
   createdClientRequests          ClientRequest[]                @relation("ClientRequestCreatedBy")
   assignedClientRequests         ClientRequest[]                @relation("ClientRequestAssignedTo")
@@ -364,6 +365,7 @@ model Client {
   notifications            ClientNotification[]
   notificationPreferences  ClientNotificationPreference[]
   marketplaceConnections   ClientMarketplaceConnection[]
+  allowedIps               ClientAllowedIp[]
   articleMappings          ClientArticleMapping[]
   productMarks             ProductMark[]
   requestComments          ClientRequestComment[]
@@ -372,6 +374,38 @@ model Client {
   updatedAt                DateTime                       @updatedAt
 
   @@index([fulfillmentManagerUserId])
+}
+
+model UserSession {
+  id             String    @id @default(uuid())
+  userId         String
+  accessTokenId  String?   @unique
+  ipAddress      String?
+  userAgent      String?
+  appName        String?
+  browserName    String?
+  startedAt      DateTime  @default(now())
+  lastSeenAt     DateTime  @default(now())
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, lastSeenAt])
+  @@index([lastSeenAt])
+  @@index([expiresAt])
+}
+
+model ClientAllowedIp {
+  id              String   @id @default(uuid())
+  clientId        String
+  ipAddress       String
+  comment         String?
+  createdByUserId String?
+  client          Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+
+  @@unique([clientId, ipAddress])
+  @@index([clientId])
 }
 
 model ClientArticleMapping {

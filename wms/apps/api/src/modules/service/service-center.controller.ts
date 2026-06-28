@@ -16,6 +16,30 @@ export class ServiceCenterController {
     return this.serviceCenter.getOverview();
   }
 
+  @Get('sessions/online')
+  listOnlineSessions() {
+    return this.serviceCenter.listOnlineSessions();
+  }
+
+  @Get('client-ip-rules')
+  listClientIpRules(@Query('clientId') clientId?: string) {
+    return this.serviceCenter.listClientIpRules(clientId);
+  }
+
+  @Post('clients/:clientId/ip-rules')
+  createClientIpRule(
+    @Param('clientId') clientId: string,
+    @Body() dto: { ipAddress?: string; comment?: string },
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.serviceCenter.createClientIpRule(clientId, dto, user);
+  }
+
+  @Delete('client-ip-rules/:id')
+  deleteClientIpRule(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.serviceCenter.deleteClientIpRule(id, user);
+  }
+
   @Get('maintenance')
   getMaintenanceMode() {
     return this.serviceCenter.getMaintenanceMode();

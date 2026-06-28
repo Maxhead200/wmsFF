@@ -736,6 +736,17 @@ export type OutboundRequestXlsxLine = {
   actionSuggestions: OutboundRequestActionSuggestion[];
 };
 
+export type OutboundRequestRelabelSourceOption = {
+  skuId: string;
+  internalSku: string;
+  clientSku?: string | null;
+  article?: string | null;
+  name: string;
+  barcode?: string | null;
+  size?: string | null;
+  availableQuantity: number;
+};
+
 export type OutboundRequestXlsxPreview = {
   clientId: string;
   title: string;
@@ -748,6 +759,7 @@ export type OutboundRequestXlsxPreview = {
     shortageQuantity: number;
   };
   issues: OutboundRequestXlsxIssue[];
+  relabelSourceOptions: OutboundRequestRelabelSourceOption[];
   lines: OutboundRequestXlsxLine[];
 };
 

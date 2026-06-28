@@ -313,6 +313,21 @@ describe('ClientRequestXlsxService', () => {
       },
       stockBalance: {
         groupBy: vi.fn().mockResolvedValue([{ skuId: 'sku-source', _sum: { quantity: 8 } }]),
+        findMany: vi.fn().mockResolvedValue([
+          {
+            skuId: 'sku-source',
+            quantity: 8,
+            sku: {
+              id: 'sku-source',
+              internalSku: 'SRC-001',
+              clientSku: null,
+              article: 'ART-1',
+              name: 'Костюм реглан синий',
+              size: 'L',
+              barcodes: [{ value: '111', isPrimary: true }],
+            },
+          },
+        ]),
       },
     };
     const service = new ClientRequestXlsxService(
@@ -336,6 +351,14 @@ describe('ClientRequestXlsxService', () => {
     );
 
     expect(preview.canCommit).toBe(false);
+    expect(preview.relabelSourceOptions).toEqual([
+      expect.objectContaining({
+        skuId: 'sku-source',
+        internalSku: 'SRC-001',
+        barcode: '111',
+        availableQuantity: 8,
+      }),
+    ]);
     expect(preview.lines[0].actionSuggestions).toEqual([
       expect.objectContaining({
         type: 'RELABEL',

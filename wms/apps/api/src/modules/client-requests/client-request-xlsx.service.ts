@@ -61,7 +61,19 @@ type OutboundRequestXlsxPreview = {
     shortageQuantity: number;
   };
   issues: OutboundRequestXlsxIssue[];
+  relabelSourceOptions: OutboundRequestRelabelSourceOption[];
   lines: HydratedOutboundLine[];
+};
+
+type OutboundRequestRelabelSourceOption = {
+  skuId: string;
+  internalSku: string;
+  clientSku?: string | null;
+  article?: string | null;
+  name: string;
+  barcode?: string | null;
+  size?: string | null;
+  availableQuantity: number;
 };
 
 type ResolvedSku = {
@@ -210,6 +222,7 @@ export class ClientRequestXlsxService {
     const skuMatches = buildSkuMatchesByProductName(skuRows);
     const resolvedLines = parsed.lines.map((line) => this.resolveParsedLine(line, barcodeMatches, skuMatches));
     const actionSuggestionsByLine = await this.buildCatalogActionSuggestions(clientId, parsed.lines, resolvedLines, skuMatches);
+    const relabelSourceOptions = await this.buildRelabelSourceOptions(clientId);
 
     const availability = await this.clientRequests.previewAvailability(
       {
@@ -307,6 +320,7 @@ export class ClientRequestXlsxService {
         shortageQuantity: totalShortageQuantity,
       },
       issues,
+      relabelSourceOptions,
       lines,
     };
   }
@@ -540,6 +554,63 @@ export class ClientRequestXlsxService {
     });
 
     return new Map(rows.filter((row) => row.barcode).map((row) => [row.barcode!, { barcode: row.barcode!, name: row.name }]));
+  }
+
+  private async buildRelabelSourceOptions(clientId: string): Promise<OutboundRequestRelabelSourceOption[]> {
+    const stockBalance = this.prisma.stockBalance;
+    if (!stockBalance?.findMany) {
+      return [];
+    }
+
+    const rows = await stockBalance.findMany({
+      where: {
+        clientId,
+        status: StockStatus.AVAILABLE,
+        quantity: { gt: 0 },
+      },
+      select: {
+        skuId: true,
+        quantity: true,
+        sku: {
+          select: {
+            id: true,
+            internalSku: true,
+            clientSku: true,
+            article: true,
+            name: true,
+            size: true,
+            barcodes: {
+              select: {
+                value: true,
+                isPrimary: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const bySku = new Map<string, { sku: (typeof rows)[number]['sku']; availableQuantity: number }>();
+    for (const row of rows) {
+      const existing = bySku.get(row.skuId);
+      bySku.set(row.skuId, {
+        sku: row.sku,
+        availableQuantity: (existing?.availableQuantity ?? 0) + Number(row.quantity ?? 0),
+      });
+    }
+
+    return [...bySku.values()]
+      .map(({ sku, availableQuantity }) => ({
+        skuId: sku.id,
+        internalSku: sku.internalSku,
+        clientSku: sku.clientSku,
+        article: sku.article,
+        name: sku.name,
+        barcode: primaryBarcodeValue(sku),
+        size: sku.size,
+        availableQuantity,
+      }))
+      .sort((left, right) => left.internalSku.localeCompare(right.internalSku, 'ru'));
   }
 
   private buildImportComment(comment: string | undefined, sourceFile: string, preview: OutboundRequestXlsxPreview) {

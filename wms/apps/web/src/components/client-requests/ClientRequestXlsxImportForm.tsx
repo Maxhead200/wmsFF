@@ -8,6 +8,7 @@ import {
   type ClientRequestSummary,
   type ClientSummary,
   type OutboundRequestActionSuggestion,
+  type OutboundRequestRelabelSourceOption,
   type OutboundRequestXlsxLine,
   type OutboundRequestXlsxPreview,
 } from '../../lib/api';
@@ -71,8 +72,13 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
       setEditableLines(
         nextPreview.lines.map((line, index) => ({
           ...line,
-          needsRelabel: Boolean(line.needsRelabel),
+          needsRelabel: Boolean(line.needsRelabel || line.relabelTargetBarcode),
           key: `${line.barcode ?? line.originalName ?? line.internalSku ?? index}-${index}`,
+          relabelSourceSelected: Boolean(line.relabelTargetBarcode),
+          relabelTargetSkuId: line.relabelTargetBarcode ? null : line.skuId,
+          relabelTargetName: line.relabelTargetBarcode ? null : line.name,
+          relabelTargetInternalSku: line.relabelTargetBarcode ? null : line.internalSku,
+          relabelTargetOriginalBarcode: line.relabelTargetBarcode ?? line.barcode,
         })),
       );
       setConfirmedRelabels({});
@@ -278,6 +284,22 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
                   />
                   <span>Перемаркировать</span>
                 </label>
+                {line.needsRelabel ? (
+                  <div className="client-request-xlsx-relabel-source">
+                    <label>
+                      <span>Из какого артикула переклеить</span>
+                      <select value={line.relabelSourceSelected ? line.skuId ?? '' : ''} onChange={(event) => selectRelabelSource(index, event.target.value)}>
+                        <option value="">Выберите остаток на складе</option>
+                        {(preview.relabelSourceOptions ?? []).map((option) => (
+                          <option key={option.skuId} value={option.skuId}>
+                            {relabelSourceOptionLabel(option)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <small>Цель перемаркировки: {relabelTargetLabel(line)}</small>
+                  </div>
+                ) : null}
                 <button
                   className="icon-button client-request-row-remove"
                   type="button"
@@ -326,8 +348,37 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
   }
 
   function updateEditableLineRelabel(index: number, needsRelabel: boolean) {
+    const targetLine = editableLines[index];
+    if (targetLine) {
+      setConfirmedRelabels((confirmed) => ({ ...confirmed, [targetLine.key]: false }));
+    }
+
     setEditableLines((current) =>
-      current.map((line, lineIndex) => (lineIndex === index ? { ...line, needsRelabel } : line)),
+      current.map((line, lineIndex) => {
+        if (lineIndex !== index) {
+          return line;
+        }
+
+        if (!needsRelabel) {
+          return {
+            ...line,
+            needsRelabel: false,
+            relabelTargetBarcode: undefined,
+            relabelQuantity: undefined,
+            relabelSourceSelected: false,
+          };
+        }
+
+        return {
+          ...line,
+          needsRelabel: true,
+          relabelTargetSkuId: line.relabelTargetSkuId ?? line.skuId,
+          relabelTargetName: line.relabelTargetName ?? line.name,
+          relabelTargetInternalSku: line.relabelTargetInternalSku ?? line.internalSku,
+          relabelTargetOriginalBarcode: line.relabelTargetOriginalBarcode ?? line.relabelTargetBarcode ?? line.barcode,
+          relabelSourceSelected: false,
+        };
+      }),
     );
   }
 
@@ -359,10 +410,57 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
           skuId: suggestion.sourceSkuId!,
           internalSku: suggestion.sourceInternalSku ?? line.internalSku,
           name: suggestion.sourceName ?? line.name,
-          barcode: suggestion.sourceBarcode ?? line.barcode,
+          barcode: suggestion.sourceBarcode ?? undefined,
           relabelTargetBarcode: suggestion.targetBarcode,
           relabelQuantity,
           needsRelabel: true,
+          relabelSourceSelected: true,
+          relabelTargetOriginalBarcode: suggestion.targetBarcode,
+          stockQuantity: Math.max(line.stockQuantity, availableQuantity),
+          availableQuantity,
+          shortageQuantity: Math.max(0, line.requestedQuantity - availableQuantity),
+          canFulfill: line.requestedQuantity <= availableQuantity,
+          actionSuggestions: [],
+        };
+      }),
+    );
+  }
+
+  function selectRelabelSource(index: number, skuId: string) {
+    const option = preview?.relabelSourceOptions.find((item) => item.skuId === skuId);
+    const targetLine = editableLines[index];
+    if (targetLine) {
+      setConfirmedRelabels((confirmed) => ({ ...confirmed, [targetLine.key]: false }));
+    }
+
+    setEditableLines((current) =>
+      current.map((line, lineIndex) => {
+        if (lineIndex !== index) {
+          return line;
+        }
+
+        if (!option) {
+          return {
+            ...line,
+            relabelSourceSelected: false,
+            relabelTargetBarcode: undefined,
+            relabelQuantity: undefined,
+          };
+        }
+
+        const targetBarcode = line.relabelTargetOriginalBarcode ?? line.relabelTargetBarcode ?? line.barcode;
+        const availableQuantity = option.availableQuantity;
+
+        return {
+          ...line,
+          skuId: option.skuId,
+          internalSku: option.internalSku,
+          name: option.name,
+          barcode: option.barcode ?? undefined,
+          relabelTargetBarcode: targetBarcode,
+          relabelQuantity: Math.min(line.requestedQuantity, availableQuantity),
+          needsRelabel: true,
+          relabelSourceSelected: true,
           stockQuantity: Math.max(line.stockQuantity, availableQuantity),
           availableQuantity,
           shortageQuantity: Math.max(0, line.requestedQuantity - availableQuantity),
@@ -377,6 +475,11 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
 type EditableXlsxLine = OutboundRequestXlsxLine & {
   key: string;
   needsRelabel: boolean;
+  relabelSourceSelected?: boolean;
+  relabelTargetSkuId?: string | null;
+  relabelTargetName?: string | null;
+  relabelTargetInternalSku?: string | null;
+  relabelTargetOriginalBarcode?: string | null;
 };
 
 function adjustedShortage(line: EditableXlsxLine) {
@@ -384,6 +487,10 @@ function adjustedShortage(line: EditableXlsxLine) {
 }
 
 function adjustedCanFulfill(line: EditableXlsxLine) {
+  if (line.needsRelabel && (!hasRelabel(line) || !line.relabelSourceSelected)) {
+    return false;
+  }
+
   return Boolean(line.skuId) && adjustedShortage(line) === 0;
 }
 
@@ -420,6 +527,25 @@ function xlsxLineText(line: EditableXlsxLine) {
 
 function xlsxLineLabel(line: EditableXlsxLine) {
   return line.internalSku ?? line.originalName ?? line.barcode ?? line.name ?? 'товар';
+}
+
+function relabelTargetLabel(line: EditableXlsxLine) {
+  return [line.relabelTargetInternalSku, line.relabelTargetName, line.relabelTargetOriginalBarcode ?? line.relabelTargetBarcode]
+    .filter(Boolean)
+    .join(' / ') || 'не определена';
+}
+
+function relabelSourceOptionLabel(option: OutboundRequestRelabelSourceOption) {
+  return [
+    option.internalSku,
+    option.article,
+    option.name,
+    option.size,
+    option.barcode ? `ШК ${option.barcode}` : null,
+    `${option.availableQuantity} шт.`,
+  ]
+    .filter(Boolean)
+    .join(' / ');
 }
 
 function xlsxLineComment(line: EditableXlsxLine) {

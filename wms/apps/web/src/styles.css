@@ -1427,3 +1427,468 @@ h1 {
     grid-template-columns: 1fr;
   }
 }
+
+/* Компактный современный слой интерфейса: единый вид рабочих панелей, кнопок, форм и таблиц. */
+:root {
+  --accent: #d71920;
+  --accent-strong: #a80f16;
+  --accent-soft: #fff1f2;
+  --text: #111827;
+  --text-soft: #475569;
+  --border-subtle: #e2e8f0;
+  --panel-shadow: 0 10px 30px rgb(15 23 42 / 0.06);
+  --panel-shadow-hover: 0 16px 40px rgb(15 23 42 / 0.1);
+}
+
+body {
+  background:
+    linear-gradient(180deg, #f8fafc 0, #eef2f7 100%);
+  color: var(--text);
+}
+
+.app-layout {
+  grid-template-columns: 248px minmax(0, 1fr);
+}
+
+.app-sidebar {
+  background: #111318;
+  border-right-color: #242833;
+}
+
+.app-sidebar__brand {
+  padding: 16px 16px 14px;
+}
+
+.app-sidebar__brand strong {
+  font-size: 20px;
+}
+
+.workspace-nav {
+  gap: 10px;
+  padding: 12px 10px;
+}
+
+.workspace-nav__group {
+  gap: 3px;
+}
+
+.workspace-nav__group p {
+  margin: 6px 0 2px;
+  padding: 0 9px;
+  font-size: 10px;
+}
+
+.workspace-nav button {
+  grid-template-columns: 20px minmax(0, 1fr);
+  min-height: 34px;
+  border-radius: 7px;
+  padding: 0 9px;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.workspace-nav button:hover {
+  background: #1f2430;
+  color: #ffffff;
+}
+
+.workspace-nav button.active {
+  border-color: rgb(215 25 32 / 0.35);
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+  color: var(--accent-strong);
+}
+
+.app-sidebar__footer {
+  padding: 10px 14px;
+}
+
+.app-sidebar__footer strong {
+  min-width: 28px;
+  height: 28px;
+}
+
+.workspace-header {
+  min-height: 70px;
+  padding: 12px 18px;
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.workspace-header__title h1 {
+  font-size: 24px;
+}
+
+.workspace-header__description {
+  margin-top: 3px;
+  font-size: 12px;
+}
+
+.workspace-content {
+  padding: 14px 16px 18px;
+}
+
+.workspace-footer {
+  min-height: 34px;
+  border-top-width: 2px;
+  padding: 0 16px;
+}
+
+.workspace-user {
+  border-color: var(--border-subtle);
+  border-radius: 7px;
+  padding: 6px;
+}
+
+.workspace-user strong {
+  font-size: 13px;
+}
+
+.workspace-user span:not(.status) {
+  font-size: 11px;
+}
+
+.section-heading {
+  margin-bottom: 10px;
+}
+
+.section-heading h2,
+.workspace-group__heading h2 {
+  font-size: 18px;
+}
+
+.eyebrow {
+  margin-bottom: 3px;
+  color: var(--accent-strong);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.primary-button,
+.secondary-button,
+.icon-text-button,
+.review-action,
+.billing-tabs button,
+.import-tabs button,
+.data-tabs button {
+  border-radius: 7px;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.primary-button {
+  min-height: 34px;
+  border-color: var(--accent-strong);
+  background: var(--accent);
+  box-shadow: 0 8px 18px rgb(215 25 32 / 0.16);
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.primary-button:hover:not(:disabled) {
+  background: var(--accent-strong);
+  box-shadow: 0 10px 22px rgb(215 25 32 / 0.22);
+  transform: translateY(-1px);
+}
+
+.icon-button {
+  width: 34px;
+  height: 34px;
+  border-color: var(--border-subtle);
+  border-radius: 7px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease,
+    color 0.15s ease;
+}
+
+.icon-button:hover:not(:disabled),
+.icon-text-button:hover:not(:disabled),
+.secondary-button:hover:not(:disabled) {
+  border-color: rgb(215 25 32 / 0.32);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  box-shadow: 0 8px 18px rgb(15 23 42 / 0.08);
+}
+
+.icon-text-button,
+.secondary-button,
+.review-action {
+  min-height: 32px;
+  background: #ffffff;
+  font-size: 12px;
+}
+
+input,
+select,
+textarea {
+  font-size: 13px;
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+button:focus-visible {
+  border-color: var(--accent-strong);
+  outline: 3px solid rgb(215 25 32 / 0.12);
+  outline-offset: 1px;
+}
+
+.auth-panel,
+.import-panel,
+.data-panel,
+.billing-panel,
+.client-cabinet-panel,
+.directory-panel,
+.logistics-panel,
+.warehouse-panel,
+.catalog-panel,
+.print-panel,
+.access-panel,
+.own-companies-panel {
+  border-color: var(--border-subtle);
+  border-radius: 8px;
+  box-shadow: var(--panel-shadow);
+}
+
+.workspace-summary,
+.workspace-tiles,
+.metrics-grid,
+.module-grid {
+  gap: 10px;
+}
+
+.workspace-summary article,
+.workspace-tile,
+.metric-tile,
+.module-card,
+.import-metric,
+.role-item,
+.client-cabinet-client,
+.client-cabinet-client-editor,
+.client-marketplace-panel,
+.client-cabinet-stock-import,
+.own-company-form,
+.own-companies-default {
+  border-color: var(--border-subtle);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.03);
+}
+
+.workspace-summary article {
+  min-height: 62px;
+  padding: 10px;
+}
+
+.workspace-tile {
+  grid-template-columns: 36px minmax(0, 1fr) 18px;
+  min-height: 122px;
+  gap: 10px;
+  padding: 12px;
+}
+
+.workspace-tile:hover {
+  border-color: rgb(215 25 32 / 0.28);
+  box-shadow: var(--panel-shadow-hover);
+  transform: translateY(-1px);
+}
+
+.workspace-tile__icon {
+  width: 36px;
+  height: 36px;
+}
+
+.workspace-tile__body {
+  gap: 5px;
+}
+
+.workspace-tile strong {
+  font-size: 15px;
+}
+
+.workspace-tile small {
+  font-size: 12px;
+}
+
+.status {
+  display: inline-flex;
+  min-height: 22px;
+  align-items: center;
+  padding: 2px 7px;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.form-error,
+.form-success,
+.issue,
+.panel-message {
+  border-radius: 7px;
+}
+
+.import-panel,
+.data-panel,
+.billing-panel,
+.client-cabinet-panel,
+.directory-panel,
+.own-companies-panel {
+  margin-bottom: 18px;
+  padding: 14px;
+}
+
+.billing-tabs,
+.import-tabs,
+.data-tabs,
+.segmented-control {
+  border-color: var(--border-subtle);
+  border-radius: 8px;
+  background: #f1f5f9;
+  padding: 3px;
+}
+
+.billing-tabs button,
+.import-tabs button,
+.data-tabs button,
+.segmented-control button {
+  min-height: 32px;
+  font-size: 12px;
+}
+
+.billing-tabs button.active,
+.import-tabs button.active,
+.data-tabs button.active,
+.segmented-control button.active {
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgb(15 23 42 / 0.08);
+}
+
+.billing-fields input,
+.billing-fields select,
+.billing-status-select select,
+.import-fields input,
+.import-fields select,
+.auth-form input,
+.client-cabinet-client-select select,
+.client-cabinet-client-editor__grid input,
+.client-cabinet-client-editor__grid select,
+.review-reason-select,
+.billing-table--invoice-form input,
+.billing-table--invoice-form select {
+  min-height: 34px;
+  border-color: var(--border-subtle);
+  border-radius: 7px;
+  background: #ffffff;
+  padding-inline: 9px;
+}
+
+.billing-fields label > span:first-child,
+.import-fields label > span:first-child,
+.auth-form label span,
+.client-cabinet-client-select span,
+.client-cabinet-client-editor__heading span,
+.client-cabinet-client-editor__grid label span {
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.billing-table-wrap,
+.import-table-wrap,
+.data-table-wrap,
+.own-companies-table-wrap {
+  border-color: var(--border-subtle);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.03);
+}
+
+.billing-table,
+.import-table,
+.data-table,
+.own-companies-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+}
+
+.billing-table th,
+.billing-table td,
+.import-table th,
+.import-table td,
+.data-table th,
+.data-table td,
+.own-companies-table th,
+.own-companies-table td {
+  border-bottom-color: var(--border-subtle);
+  padding: 8px 10px;
+}
+
+.billing-table th,
+.import-table th,
+.data-table th,
+.own-companies-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.billing-table tbody tr:hover,
+.import-table tbody tr:hover,
+.data-table tbody tr:hover,
+.own-companies-table tbody tr:hover {
+  background: #fffafa;
+}
+
+.metric-tile {
+  min-height: 62px;
+  padding: 10px;
+}
+
+.module-card {
+  min-height: 138px;
+  padding: 14px;
+}
+
+.module-card__header {
+  margin-bottom: 16px;
+}
+
+@media (max-width: 900px) {
+  .app-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-header {
+    min-height: auto;
+  }
+
+  .workspace-nav {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .workspace-content {
+    padding: 10px;
+  }
+
+  .import-panel,
+  .data-panel,
+  .billing-panel,
+  .client-cabinet-panel,
+  .directory-panel,
+  .own-companies-panel {
+    padding: 10px;
+  }
+}

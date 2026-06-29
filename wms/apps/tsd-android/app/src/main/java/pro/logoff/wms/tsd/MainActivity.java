@@ -178,6 +178,9 @@ public class MainActivity extends Activity {
         runAsync(() -> {
             JSONObject response = api.login(login.trim(), password);
             JSONObject user = response.getJSONObject("user");
+            if (!canUseTsd(user)) {
+                throw new IllegalStateException("Нет доступа к ТСД. Попросите администратора включить галочку Работа с ТСД в профиле.");
+            }
             token = response.getString("accessToken");
             userId = user.getString("id");
             userName = user.optString("name", login.trim());
@@ -1161,6 +1164,20 @@ public class MainActivity extends Activity {
             return a + " / " + b;
         }
         return firstNonEmpty(a, b, "-");
+    }
+
+    private static boolean canUseTsd(JSONObject user) {
+        JSONArray permissions = user.optJSONArray("permissionCodes");
+        if (permissions == null) {
+            return false;
+        }
+        for (int i = 0; i < permissions.length(); i++) {
+            String code = permissions.optString(i);
+            if ("system:admin".equals(code) || "tsd:use".equals(code)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static String activeWorkersLabel(JSONArray workers) {

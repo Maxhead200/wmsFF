@@ -68,8 +68,8 @@ export class TsdDeviceService {
     const permissionCodes = user.roles.flatMap((item) =>
       item.role.permissions.map((permission) => permission.permission.code),
     );
-    if (!permissionCodes.includes('stock:write') && !permissionCodes.includes('system:admin')) {
-      throw new BadRequestException('Пользователь ТСД должен иметь право stock:write.');
+    if (!permissionCodes.includes('tsd:use') && !permissionCodes.includes('system:admin')) {
+      throw new BadRequestException('Пользователь ТСД должен иметь право Работа с ТСД.');
     }
 
     const secret = this.generateSecret();
@@ -187,8 +187,8 @@ export class TsdDeviceService {
         device.user.roles.flatMap((item) => item.role.permissions.map((permission) => permission.permission.code)),
       ),
     ];
-    if (!permissionCodes.includes('stock:write') && !permissionCodes.includes('system:admin')) {
-      throw new UnauthorizedException('У пользователя ТСД нет права stock:write.');
+    if (!permissionCodes.includes('tsd:use') && !permissionCodes.includes('system:admin')) {
+      throw new UnauthorizedException('У пользователя ТСД нет права Работа с ТСД.');
     }
 
     await this.prisma.tsdDevice.update({

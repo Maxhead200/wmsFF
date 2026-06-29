@@ -128,11 +128,15 @@ export function TsdApp() {
         email: loginForm.email,
         password: loginForm.password,
       });
+      if (!canUseTsd(nextSession)) {
+        setMessage('Нет доступа к ТСД. Попросите администратора включить галочку Работа с ТСД в профиле.');
+        return;
+      }
       setSession(nextSession);
       const nextDeviceCode = normalizeDeviceCode(loginForm.deviceCode || deviceCode);
       setDeviceCode(nextDeviceCode);
       setLoginForm((current) => ({ ...current, password: '', deviceCode: nextDeviceCode }));
-      setMessage(`Сборщик ${nextSession.user.name} подключен.`);
+      setMessage(`Сотрудник ${nextSession.user.name} подключен.`);
     } catch (caught) {
       setMessage(errorMessage(caught));
     }
@@ -326,7 +330,7 @@ export function TsdApp() {
       <main className="tsd-shell">
         <SplashLogo />
         <form className="tsd-card tsd-login" onSubmit={(event) => void submitLogin(event)}>
-          <h1>Вход сборщика</h1>
+          <h1>Вход сотрудника</h1>
           <label>
             <span>Логин</span>
             <input autoComplete="username" value={loginForm.email} onChange={(event) => setLoginForm({ ...loginForm, email: event.target.value })} />
@@ -605,6 +609,10 @@ function loadTsdState(): TsdStoredState {
   } catch {
     return { session: null, deviceCode: 'TSD-01', confirmedBarcodes: [], queue: [], lines: [], receiptId: createReceiptId() };
   }
+}
+
+function canUseTsd(session: AuthSession) {
+  return session.user.permissionCodes.includes('system:admin') || session.user.permissionCodes.includes('tsd:use');
 }
 
 function saveTsdState(state: TsdStoredState) {

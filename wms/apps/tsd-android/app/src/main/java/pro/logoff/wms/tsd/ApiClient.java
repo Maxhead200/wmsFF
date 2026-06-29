@@ -67,7 +67,7 @@ final class ApiClient {
         connection.setReadTimeout(20000);
         connection.setRequestProperty("Accept", "application/json");
         connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-        connection.setRequestProperty("User-Agent", "LOGOff-TSD-Android/0.1.4");
+        connection.setRequestProperty("User-Agent", "LOGOff-TSD-Android/0.1.5");
         if (token != null && !token.isEmpty()) {
             connection.setRequestProperty("Authorization", "Bearer " + token);
         }

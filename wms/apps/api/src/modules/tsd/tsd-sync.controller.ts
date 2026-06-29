@@ -9,7 +9,7 @@ import { TsdReviewService } from './tsd-review.service';
 import { TsdSyncService } from './tsd-sync.service';
 
 @ApiTags('tsd')
-@RequirePermissions('stock:write')
+@RequirePermissions('tsd:use')
 @Controller('tsd')
 export class TsdSyncController {
   constructor(
@@ -24,31 +24,26 @@ export class TsdSyncController {
   }
 
   @Get('clients')
-  @RequirePermissions('stock:write')
   listClients(@CurrentUser() user: AuthUser) {
     return this.sync.listClients(user);
   }
 
   @Get('requests/active')
-  @RequirePermissions('stock:write')
   listActiveRequests(@CurrentUser() user: AuthUser) {
     return this.sync.listActiveRequests(user);
   }
 
   @Get('requests/:id/box-search')
-  @RequirePermissions('stock:write')
   getRequestBoxSearch(@Param('id') id: string, @Query('deviceCode') deviceCode: string, @CurrentUser() user: AuthUser) {
     return this.sync.getRequestBoxSearch(id, user, deviceCode);
   }
 
   @Post('requests/:id/box-search/scan')
-  @RequirePermissions('stock:write')
   scanRequestBox(@Param('id') id: string, @Body() dto: { boxCode?: string; deviceCode?: string }, @CurrentUser() user: AuthUser) {
     return this.sync.scanRequestBox(id, dto, user);
   }
 
   @Get('sku-by-barcode')
-  @RequirePermissions('stock:write')
   getSkuByBarcode(@Query('clientId') clientId: string, @Query('barcode') barcode: string, @CurrentUser() user: AuthUser) {
     return this.sync.getSkuByBarcode(clientId, barcode, user);
   }

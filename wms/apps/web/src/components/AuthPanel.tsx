@@ -1,4 +1,4 @@
-import { KeyRound, LogIn, ShieldPlus } from 'lucide-react';
+import { KeyRound, LogIn, ShieldPlus, Smartphone } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 import { bootstrapAdmin, login, type AuthSession } from '../lib/api';
 
@@ -113,6 +113,20 @@ export function AuthPanel({ onSession }: AuthPanelProps) {
             <span>{isSubmitting ? 'Проверка' : mode === 'login' ? 'Войти' : 'Создать администратора'}</span>
           </button>
         </form>
+
+        <div className="auth-download">
+          <div>
+            <strong>ТСД для сотрудников</strong>
+            <span>Android-клиент для приемки, сборки заявок и инвентаризации.</span>
+          </div>
+          <a className="secondary-button" href="/downloads/logoff-tsd.apk">
+            <Smartphone size={16} aria-hidden="true" />
+            <span>Скачать</span>
+          </a>
+          <a className="auth-download__link" href="/tsd-app">
+            Веб-версия ТСД
+          </a>
+        </div>
       </section>
     </main>
   );

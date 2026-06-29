@@ -395,7 +395,7 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
     setTsdUsers((current) => ({ ...current, status: 'loading', error: undefined }));
     try {
       const users = await fetchUsers(session.accessToken);
-      setTsdUsers({ status: 'ready', data: users.filter((user) => user.roles.some((item) => item.role.code === 'OPERATOR')) });
+      setTsdUsers({ status: 'ready', data: users.filter((user) => user.roles.some((item) => item.role.code === 'TSD')) });
     } catch (caught) {
       setTsdUsers((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
     }
@@ -409,7 +409,7 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
         name: tsdUserForm.name,
         email: tsdUserForm.email,
         password: tsdUserForm.password,
-        roleCodes: ['OPERATOR'],
+        roleCodes: ['OPERATOR', 'TSD'],
         clientIds,
         writableClientIds: clientIds,
       });

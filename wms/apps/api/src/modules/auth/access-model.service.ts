@@ -13,6 +13,7 @@ const permissions = [
   ['warehouse:write', 'Изменение коробов, паллет и зон'],
   ['stock:read', 'Просмотр остатков'],
   ['stock:write', 'Складские операции и ledger'],
+  ['tsd:use', 'Работа с ТСД'],
   ['client-requests:read', 'Просмотр клиентских заявок'],
   ['client-requests:write', 'Создание клиентских заявок'],
   ['client-requests:status', 'Изменение статусов клиентских заявок'],
@@ -80,6 +81,10 @@ const rolePermissions: Record<string, { name: string; permissions: string[] }> =
       'billing:read',
       'print:write',
     ],
+  },
+  TSD: {
+    name: 'Работа с ТСД',
+    permissions: ['tsd:use'],
   },
   CLIENT: {
     name: 'Клиент',

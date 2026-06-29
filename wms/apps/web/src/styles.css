@@ -597,6 +597,41 @@ h1 {
   margin-top: 4px;
 }
 
+.auth-download {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  margin-top: 18px;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+
+.auth-download strong,
+.auth-download span {
+  display: block;
+}
+
+.auth-download strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.auth-download > div span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.auth-download__link {
+  grid-column: 1 / -1;
+  color: var(--red-dark);
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
 .form-error {
   border: 1px solid #fecaca;
   border-radius: 6px;

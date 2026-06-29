@@ -1,6 +1,6 @@
 {
-  "versionCode": 6,
-  "versionName": "0.1.5",
+  "versionCode": 7,
+  "versionName": "0.1.6",
   "apkUrl": "https://wms.logoff.pro/downloads/logoff-tsd.apk",
-  "releaseNotes": "Добавлена проверка права Работа с ТСД и ссылка для сотрудников на странице входа."
+  "releaseNotes": "Добавлено меню настроек ТСД: выбор масштаба интерфейса и языка приложения."
 }

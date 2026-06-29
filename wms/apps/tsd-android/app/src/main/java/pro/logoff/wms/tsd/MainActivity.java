@@ -77,6 +77,8 @@ public class MainActivity extends Activity {
     private String receiptId = newReceiptId();
     private String boxCode = "";
     private String pendingBarcode = "";
+    private String interfaceMode = "recommended";
+    private String language = "ru";
     private boolean boxSearchScanBusy = false;
     private String lastBoxSearchScanCode = "";
     private long lastBoxSearchScanAtMs = 0L;
@@ -142,23 +144,23 @@ public class MainActivity extends Activity {
         LinearLayout root = page();
         root.setPadding(dp(18), dp(24), dp(18), dp(18));
         addLogo(root, false);
-        addTitle(root, "Вход сотрудника");
+        addTitle(root, tr("login.title"));
 
-        EditText login = input("Логин", false);
+        EditText login = input(tr("login.login"), false);
         login.setText(prefs.getString("login", ""));
-        EditText password = input("Пароль", true);
-        EditText device = input("Код ТСД / места", false);
+        EditText password = input(tr("login.password"), true);
+        EditText device = input(tr("login.device"), false);
         device.setText(deviceCode);
-        EditText server = input("Сервер WMS", false);
+        EditText server = input(tr("login.server"), false);
         server.setText(apiUrl);
 
-        Button button = primary("Подключиться к WMS");
+        Button button = primary(tr("login.connect"));
         button.setOnClickListener(v -> {
             apiUrl = text(server);
             api = new ApiClient(apiUrl);
             login(login.getText().toString(), password.getText().toString(), device.getText().toString());
         });
-        Button update = secondary("Проверить обновление");
+        Button update = secondary(tr("menu.update"));
         update.setOnClickListener(v -> checkForUpdate(true));
 
         root.addView(login);
@@ -210,33 +212,37 @@ public class MainActivity extends Activity {
         addHeader(root);
         addStatus(root);
 
-        Button receipt = primary("Приемка товара");
-        receipt.setTextSize(22);
+        Button receipt = primary(tr("menu.receipt"));
+        receipt.setTextSize(scaledText(22));
         receipt.setMinHeight(dp(86));
         receipt.setOnClickListener(v -> showReceiptStart());
         root.addView(receipt);
 
-        Button pick = primary("Сборка заявки");
-        pick.setTextSize(22);
+        Button pick = primary(tr("menu.pick"));
+        pick.setTextSize(scaledText(22));
         pick.setMinHeight(dp(86));
         pick.setOnClickListener(v -> showPickRequests());
         root.addView(pick);
 
-        Button inventory = primary("Инвентаризация");
-        inventory.setTextSize(22);
+        Button inventory = primary(tr("menu.inventory"));
+        inventory.setTextSize(scaledText(22));
         inventory.setMinHeight(dp(86));
         inventory.setOnClickListener(v -> showInventoryMenu());
         root.addView(inventory);
 
-        Button sync = secondary("Синхронизировать очередь (" + queue.size() + ")");
+        Button sync = secondary(tr("menu.sync") + " (" + queue.size() + ")");
         sync.setOnClickListener(v -> syncQueue());
         root.addView(sync);
 
-        Button update = secondary("Проверить обновление");
+        Button settings = secondary(tr("menu.settings"));
+        settings.setOnClickListener(v -> showSettings());
+        root.addView(settings);
+
+        Button update = secondary(tr("menu.update"));
         update.setOnClickListener(v -> checkForUpdate(true));
         root.addView(update);
 
-        Button exit = secondary("Выйти");
+        Button exit = secondary(tr("menu.exit"));
         exit.setOnClickListener(v -> {
             if (queue.size() > 0) {
                 toast("Сначала синхронизируйте очередь: " + queue.size());
@@ -247,6 +253,69 @@ public class MainActivity extends Activity {
             showLogin();
         });
         root.addView(exit);
+        setContentView(wrap(root));
+    }
+
+    private void showSettings() {
+        setBackAction(() -> showMenu());
+        LinearLayout root = page();
+        root.setPadding(dp(14), dp(16), dp(14), dp(14));
+        addHeader(root);
+        addTitle(root, tr("settings.title"));
+        root.addView(note(tr("settings.note")));
+
+        TextView scaleLabel = note(tr("settings.scale"));
+        scaleLabel.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        root.addView(scaleLabel);
+
+        Spinner scale = new Spinner(this);
+        ArrayAdapter<Choice> scaleAdapter = new ArrayAdapter<>(
+            this,
+            android.R.layout.simple_spinner_dropdown_item,
+            new Choice[] {
+                new Choice("recommended", tr("settings.scale.recommended")),
+                new Choice("compact", tr("settings.scale.compact")),
+                new Choice("large", tr("settings.scale.large")),
+            }
+        );
+        scale.setAdapter(scaleAdapter);
+        scale.setSelection(choiceIndex(scaleAdapter, interfaceMode));
+        root.addView(scale, matchWrap());
+
+        TextView languageLabel = note(tr("settings.language"));
+        languageLabel.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        root.addView(languageLabel);
+
+        Spinner lang = new Spinner(this);
+        ArrayAdapter<Choice> langAdapter = new ArrayAdapter<>(
+            this,
+            android.R.layout.simple_spinner_dropdown_item,
+            new Choice[] {
+                new Choice("ru", "Русский"),
+                new Choice("uz", "O'zbekcha"),
+                new Choice("en", "English"),
+            }
+        );
+        lang.setAdapter(langAdapter);
+        lang.setSelection(choiceIndex(langAdapter, language));
+        root.addView(lang, matchWrap());
+
+        Button save = primary(tr("settings.save"));
+        save.setOnClickListener(v -> {
+            Choice scaleChoice = (Choice) scale.getSelectedItem();
+            Choice langChoice = (Choice) lang.getSelectedItem();
+            interfaceMode = scaleChoice.value;
+            language = langChoice.value;
+            prefs.edit()
+                .putString("interfaceMode", interfaceMode)
+                .putString("language", language)
+                .apply();
+            toast(tr("settings.saved"));
+            showMenu();
+        });
+        root.addView(save);
+
+        addBackButton(root, tr("common.back"), () -> showMenu());
         setContentView(wrap(root));
     }
 
@@ -1017,7 +1086,7 @@ public class MainActivity extends Activity {
     private void addTitle(LinearLayout root, String title) {
         TextView view = new TextView(this);
         view.setText(title);
-        view.setTextSize(24);
+        view.setTextSize(scaledText(24));
         view.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         view.setTextColor(Color.rgb(35, 30, 30));
         view.setPadding(0, dp(10), 0, dp(12));
@@ -1047,7 +1116,7 @@ public class MainActivity extends Activity {
     private EditText input(String hint, boolean password) {
         EditText input = new EditText(this);
         input.setHint(hint);
-        input.setTextSize(20);
+        input.setTextSize(scaledText(20));
         input.setSingleLine(true);
         input.setInputType(password ? InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD : InputType.TYPE_CLASS_TEXT);
         input.setPadding(dp(12), dp(10), dp(12), dp(10));
@@ -1060,7 +1129,7 @@ public class MainActivity extends Activity {
     private TextView note(String value) {
         TextView view = new TextView(this);
         view.setText(value);
-        view.setTextSize(16);
+        view.setTextSize(scaledText(16));
         view.setTextColor(Color.rgb(62, 54, 54));
         view.setPadding(0, dp(4), 0, dp(8));
         return view;
@@ -1070,10 +1139,10 @@ public class MainActivity extends Activity {
         Button button = new Button(this);
         button.setText(text);
         button.setTextColor(Color.WHITE);
-        button.setTextSize(18);
+        button.setTextSize(scaledText(18));
         button.setAllCaps(false);
         button.setBackgroundColor(RED);
-        button.setMinHeight(dp(58));
+        button.setMinHeight(dp(scaledSize(58)));
         button.setLayoutParams(buttonParams());
         return button;
     }
@@ -1081,9 +1150,9 @@ public class MainActivity extends Activity {
     private Button secondary(String text) {
         Button button = new Button(this);
         button.setText(text);
-        button.setTextSize(17);
+        button.setTextSize(scaledText(17));
         button.setAllCaps(false);
-        button.setMinHeight(dp(54));
+        button.setMinHeight(dp(scaledSize(54)));
         button.setLayoutParams(buttonParams());
         return button;
     }
@@ -1116,6 +1185,119 @@ public class MainActivity extends Activity {
         return Math.round(value * getResources().getDisplayMetrics().density);
     }
 
+    private int scaledSize(int value) {
+        return Math.round(value * interfaceScale());
+    }
+
+    private float scaledText(float value) {
+        return value * interfaceScale();
+    }
+
+    private float interfaceScale() {
+        if ("compact".equals(interfaceMode)) {
+            return 0.88f;
+        }
+        if ("large".equals(interfaceMode)) {
+            return 1.14f;
+        }
+        return 1.0f;
+    }
+
+    private int choiceIndex(ArrayAdapter<Choice> adapter, String value) {
+        for (int i = 0; i < adapter.getCount(); i++) {
+            Choice choice = adapter.getItem(i);
+            if (choice != null && choice.value.equals(value)) {
+                return i;
+            }
+        }
+        return 0;
+    }
+
+    private String tr(String key) {
+        if ("uz".equals(language)) {
+            switch (key) {
+                case "common.back": return "Orqaga";
+                case "login.title": return "Xodim kirishi";
+                case "login.login": return "Login";
+                case "login.password": return "Parol";
+                case "login.device": return "TSD / joy kodi";
+                case "login.server": return "WMS serveri";
+                case "login.connect": return "WMS ga ulanish";
+                case "menu.receipt": return "Tovar qabul qilish";
+                case "menu.pick": return "Buyurtma yig'ish";
+                case "menu.inventory": return "Inventarizatsiya";
+                case "menu.sync": return "Navbatni sinxronlash";
+                case "menu.settings": return "Sozlamalar";
+                case "menu.update": return "Yangilanishni tekshirish";
+                case "menu.exit": return "Chiqish";
+                case "settings.title": return "Sozlamalar";
+                case "settings.note": return "Interfeys o'lchami va ilova tilini tanlang.";
+                case "settings.scale": return "Interfeys o'lchami";
+                case "settings.scale.recommended": return "Tavsiya etilgan";
+                case "settings.scale.compact": return "Ixcham";
+                case "settings.scale.large": return "Katta";
+                case "settings.language": return "Til";
+                case "settings.save": return "Sozlamalarni saqlash";
+                case "settings.saved": return "Sozlamalar saqlandi";
+                default: return key;
+            }
+        }
+        if ("en".equals(language)) {
+            switch (key) {
+                case "common.back": return "Back";
+                case "login.title": return "Employee login";
+                case "login.login": return "Login";
+                case "login.password": return "Password";
+                case "login.device": return "TSD / station code";
+                case "login.server": return "WMS server";
+                case "login.connect": return "Connect to WMS";
+                case "menu.receipt": return "Goods receiving";
+                case "menu.pick": return "Pick request";
+                case "menu.inventory": return "Inventory";
+                case "menu.sync": return "Sync queue";
+                case "menu.settings": return "Settings";
+                case "menu.update": return "Check update";
+                case "menu.exit": return "Exit";
+                case "settings.title": return "Settings";
+                case "settings.note": return "Choose the interface scale and app language.";
+                case "settings.scale": return "Interface scale";
+                case "settings.scale.recommended": return "Recommended";
+                case "settings.scale.compact": return "Compact";
+                case "settings.scale.large": return "Large";
+                case "settings.language": return "Language";
+                case "settings.save": return "Save settings";
+                case "settings.saved": return "Settings saved";
+                default: return key;
+            }
+        }
+        switch (key) {
+            case "common.back": return "Назад";
+            case "login.title": return "Вход сотрудника";
+            case "login.login": return "Логин";
+            case "login.password": return "Пароль";
+            case "login.device": return "Код ТСД / места";
+            case "login.server": return "Сервер WMS";
+            case "login.connect": return "Подключиться к WMS";
+            case "menu.receipt": return "Приемка товара";
+            case "menu.pick": return "Сборка заявки";
+            case "menu.inventory": return "Инвентаризация";
+            case "menu.sync": return "Синхронизировать очередь";
+            case "menu.settings": return "Настройки";
+            case "menu.update": return "Проверить обновление";
+            case "menu.exit": return "Выйти";
+            case "settings.title": return "Настройки";
+            case "settings.note": return "Выберите удобный масштаб интерфейса и язык приложения.";
+            case "settings.scale": return "Разрешение / масштаб интерфейса";
+            case "settings.scale.recommended": return "Рекомендованное";
+            case "settings.scale.compact": return "Желаемое компактное";
+            case "settings.scale.large": return "Желаемое крупное";
+            case "settings.language": return "Язык";
+            case "settings.save": return "Сохранить настройки";
+            case "settings.saved": return "Настройки сохранены";
+            default: return key;
+        }
+    }
+
     private String text(EditText input) {
         return input.getText().toString().trim();
     }
@@ -1137,6 +1319,8 @@ public class MainActivity extends Activity {
         userId = prefs.getString("userId", "");
         userName = prefs.getString("userName", "");
         deviceCode = prefs.getString("deviceCode", "TSD-01");
+        interfaceMode = prefs.getString("interfaceMode", "recommended");
+        language = prefs.getString("language", "ru");
     }
 
     private String normalizeDevice(String value) {
@@ -1207,6 +1391,21 @@ public class MainActivity extends Activity {
 
     private interface Job {
         void run() throws Exception;
+    }
+
+    private static final class Choice {
+        final String value;
+        final String label;
+
+        Choice(String value, String label) {
+            this.value = value;
+            this.label = label;
+        }
+
+        @Override
+        public String toString() {
+            return label;
+        }
     }
 
     private static final class Client {

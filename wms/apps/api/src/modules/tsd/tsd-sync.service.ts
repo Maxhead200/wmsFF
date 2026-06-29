@@ -122,14 +122,14 @@ export class TsdSyncService {
     const foundBoxes = await this.loadFoundSearchBoxes(requestId);
     const wasAlreadyFound = matchedBox ? foundBoxes.has(matchedBox) : false;
 
-    if (matchedBox) {
+    if (matchedBox && !wasAlreadyFound) {
       foundBoxes.add(matchedBox);
       await this.saveFoundSearchBoxes(requestId, foundBoxes, user.id);
     }
 
     return this.boxSearchState(requestId, requiredBoxes, foundBoxes, {
       boxCode: scannedBox,
-      matched: Boolean(matchedBox),
+      matched: Boolean(matchedBox) && !wasAlreadyFound,
       alreadyFound: wasAlreadyFound,
       matchedBox: matchedBox ?? null,
     });

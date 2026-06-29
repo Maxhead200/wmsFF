@@ -10,7 +10,9 @@ import android.net.NetworkInfo;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.Editable;
 import android.text.InputType;
+import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.inputmethod.EditorInfo;
 import android.widget.ArrayAdapter;
@@ -58,6 +60,9 @@ public class MainActivity extends Activity {
     private String receiptId = newReceiptId();
     private String boxCode = "";
     private String pendingBarcode = "";
+    private boolean boxSearchScanBusy = false;
+    private String lastBoxSearchScanCode = "";
+    private long lastBoxSearchScanAtMs = 0L;
 
     @Override
     protected void onCreate(Bundle bundle) {
@@ -296,23 +301,47 @@ public class MainActivity extends Activity {
             toast("Сканируйте номер короба.");
             return;
         }
+        long now = System.currentTimeMillis();
+        if (normalized.equalsIgnoreCase(lastBoxSearchScanCode) && now - lastBoxSearchScanAtMs < 1500) {
+            return;
+        }
+        if (boxSearchScanBusy) {
+            return;
+        }
+        boxSearchScanBusy = true;
+        lastBoxSearchScanCode = normalized;
+        lastBoxSearchScanAtMs = now;
 
         runAsync(() -> {
-            JSONObject state = api.scanBoxSearch(token, request.id, normalized);
-            JSONObject lastScan = state.optJSONObject("lastScan");
-            main.post(() -> {
-                if (lastScan != null && lastScan.optBoolean("matched")) {
-                    toast(lastScan.optBoolean("alreadyFound") ? "Короб уже был найден." : "Нужный короб найден. Переместите его в зону сборки.");
-                } else {
-                    toast("Этот короб не участвует в сборке заявки.");
-                }
-                showBoxSearch(request, state);
-            });
+            try {
+                JSONObject state = api.scanBoxSearch(token, request.id, normalized);
+                JSONObject lastScan = state.optJSONObject("lastScan");
+                main.post(() -> {
+                    boolean foundNow = lastScan != null && lastScan.optBoolean("matched");
+                    if (lastScan != null && lastScan.optBoolean("alreadyFound")) {
+                        toast("Короб уже найден и больше не участвует в сравнении.");
+                    } else if (foundNow) {
+                        toast("Нужный короб найден. Переместите его в зону сборки.");
+                    } else {
+                        toast("Этот короб не участвует в сборке заявки.");
+                    }
+                    showBoxSearch(request, state, foundNow);
+                });
+            } finally {
+                main.post(() -> boxSearchScanBusy = false);
+            }
         });
     }
 
     private void showBoxSearch(PickRequest request, JSONObject state) {
+        showBoxSearch(request, state, false);
+    }
+
+    private void showBoxSearch(PickRequest request, JSONObject state, boolean flashGreen) {
         LinearLayout root = page();
+        if (flashGreen) {
+            root.setBackgroundColor(Color.rgb(12, 128, 72));
+        }
         root.setPadding(dp(14), dp(16), dp(14), dp(14));
         addHeader(root);
         addTitle(root, "Поиск коробов");
@@ -337,10 +366,8 @@ public class MainActivity extends Activity {
             scanBoxForRequest(request, text(scan));
             return true;
         });
-        Button scanButton = primary("Проверить короб");
-        scanButton.setOnClickListener(v -> scanBoxForRequest(request, text(scan)));
+        attachAutoScan(scan, request);
         root.addView(scan);
-        root.addView(scanButton);
 
         JSONArray boxes = state.optJSONArray("boxes");
         if (boxes == null || boxes.length() == 0) {
@@ -379,7 +406,36 @@ public class MainActivity extends Activity {
         collapse.setOnClickListener(v -> leaveBoxSearch(request, state));
         root.addView(collapse);
         setContentView(wrap(root));
+        if (flashGreen) {
+            main.postDelayed(() -> root.setBackgroundColor(BG), 450);
+        }
         scan.requestFocus();
+    }
+
+    private void attachAutoScan(EditText scan, PickRequest request) {
+        final Runnable[] pending = new Runnable[1];
+        scan.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable editable) {
+                if (pending[0] != null) {
+                    main.removeCallbacks(pending[0]);
+                }
+                String value = editable.toString().trim();
+                if (value.isEmpty()) {
+                    return;
+                }
+                pending[0] = () -> scanBoxForRequest(request, value);
+                main.postDelayed(pending[0], 300);
+            }
+        });
     }
 
     private void leaveBoxSearch(PickRequest request, JSONObject state) {

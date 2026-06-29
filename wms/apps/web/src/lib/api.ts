@@ -1649,6 +1649,15 @@ export type TsdDeviceSummary = {
   };
 };
 
+export type TsdDeviceSettings = {
+  maxActiveDevices: number;
+  activeDevices: number;
+  totalDevices: number;
+  defaultLimit: number;
+  updatedAt: string | null;
+  updatedByUserId: string | null;
+};
+
 export type CreateTsdDevicePayload = {
   code: string;
   name: string;
@@ -3003,6 +3012,20 @@ export async function updateUserPrinterScopes(
 
 export async function fetchTsdDevices(accessToken: string) {
   return request<TsdDeviceSummary[]>('/tsd/devices', {
+    accessToken,
+  });
+}
+
+export async function fetchTsdDeviceSettings(accessToken: string) {
+  return request<TsdDeviceSettings>('/tsd/devices/settings', {
+    accessToken,
+  });
+}
+
+export async function updateTsdDeviceSettings(accessToken: string, payload: { maxActiveDevices: number }) {
+  return request<TsdDeviceSettings>('/tsd/devices/settings', {
+    method: 'PATCH',
+    body: payload,
     accessToken,
   });
 }

@@ -7,6 +7,9 @@ import { PasswordService } from '../auth/password.service';
 import { CreateTsdDeviceDto } from './dto/create-tsd-device.dto';
 import { LoginTsdDeviceDto } from './dto/login-tsd-device.dto';
 
+const TSD_DEVICE_LIMIT_KEY = 'TSD_DEVICE_LIMIT';
+const DEFAULT_TSD_DEVICE_LIMIT = 4;
+
 @Injectable()
 export class TsdDeviceService {
   constructor(
@@ -39,6 +42,8 @@ export class TsdDeviceService {
   }
 
   async createDevice(dto: CreateTsdDeviceDto) {
+    await this.assertCanCreateActiveDevice();
+
     const user = await this.prisma.user.findUnique({
       where: { id: dto.userId },
       include: {
@@ -89,6 +94,56 @@ export class TsdDeviceService {
     return {
       ...device,
       deviceSecret: secret,
+    };
+  }
+
+  async getDeviceSettings() {
+    const [settings, activeDevices, totalDevices] = await Promise.all([
+      this.resolveDeviceLimit(),
+      this.prisma.tsdDevice.count({ where: { status: TsdDeviceStatus.ACTIVE } }),
+      this.prisma.tsdDevice.count(),
+    ]);
+
+    return {
+      maxActiveDevices: settings.maxActiveDevices,
+      activeDevices,
+      totalDevices,
+      defaultLimit: DEFAULT_TSD_DEVICE_LIMIT,
+      updatedAt: settings.updatedAt,
+      updatedByUserId: settings.updatedByUserId,
+    };
+  }
+
+  async updateDeviceSettings(dto: { maxActiveDevices?: number }, user: { id: string }) {
+    const maxActiveDevices = Number(dto.maxActiveDevices);
+    if (!Number.isInteger(maxActiveDevices) || maxActiveDevices < 1 || maxActiveDevices > 999) {
+      throw new BadRequestException('Лимит ТСД должен быть целым числом от 1 до 999.');
+    }
+    const activeDevices = await this.prisma.tsdDevice.count({ where: { status: TsdDeviceStatus.ACTIVE } });
+    if (maxActiveDevices < activeDevices) {
+      throw new BadRequestException(`Лимит не может быть меньше числа активных ТСД: сейчас активно ${activeDevices}.`);
+    }
+
+    const setting = await this.prisma.systemSetting.upsert({
+      where: { key: TSD_DEVICE_LIMIT_KEY },
+      update: {
+        value: { maxActiveDevices },
+        updatedByUserId: user.id,
+      },
+      create: {
+        key: TSD_DEVICE_LIMIT_KEY,
+        value: { maxActiveDevices },
+        updatedByUserId: user.id,
+      },
+    });
+
+    return {
+      maxActiveDevices,
+      activeDevices,
+      totalDevices: await this.prisma.tsdDevice.count(),
+      defaultLimit: DEFAULT_TSD_DEVICE_LIMIT,
+      updatedAt: setting.updatedAt,
+      updatedByUserId: setting.updatedByUserId,
     };
   }
 
@@ -184,5 +239,33 @@ export class TsdDeviceService {
 
   private normalizeCode(code: string) {
     return code.trim().toUpperCase();
+  }
+
+  private async assertCanCreateActiveDevice() {
+    const [{ maxActiveDevices }, activeDevices] = await Promise.all([
+      this.resolveDeviceLimit(),
+      this.prisma.tsdDevice.count({ where: { status: TsdDeviceStatus.ACTIVE } }),
+    ]);
+
+    if (activeDevices >= maxActiveDevices) {
+      throw new BadRequestException(
+        `Достигнут лимит активных ТСД: ${activeDevices} из ${maxActiveDevices}. Владелец или админ может увеличить лимит в настройках ТСД.`,
+      );
+    }
+  }
+
+  private async resolveDeviceLimit() {
+    const setting = await this.prisma.systemSetting.findUnique({
+      where: { key: TSD_DEVICE_LIMIT_KEY },
+    });
+    const value = setting?.value;
+    const payload = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+    const maxActiveDevices = Number(payload.maxActiveDevices);
+
+    return {
+      maxActiveDevices: Number.isInteger(maxActiveDevices) && maxActiveDevices > 0 ? maxActiveDevices : DEFAULT_TSD_DEVICE_LIMIT,
+      updatedAt: setting?.updatedAt ?? null,
+      updatedByUserId: setting?.updatedByUserId ?? null,
+    };
   }
 }

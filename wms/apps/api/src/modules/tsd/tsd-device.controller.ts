@@ -1,5 +1,7 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import type { AuthUser } from '../auth/auth.types';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { CreateTsdDeviceDto } from './dto/create-tsd-device.dto';
@@ -16,6 +18,20 @@ export class TsdDeviceController {
   @RequirePermissions('users:read')
   listDevices() {
     return this.devices.listDevices();
+  }
+
+  @Get('devices/settings')
+  @ApiBearerAuth()
+  @RequirePermissions('users:read')
+  getDeviceSettings() {
+    return this.devices.getDeviceSettings();
+  }
+
+  @Patch('devices/settings')
+  @ApiBearerAuth()
+  @RequirePermissions('system:admin')
+  updateDeviceSettings(@Body() dto: { maxActiveDevices?: number }, @CurrentUser() user: AuthUser) {
+    return this.devices.updateDeviceSettings(dto, user);
   }
 
   @Post('devices')

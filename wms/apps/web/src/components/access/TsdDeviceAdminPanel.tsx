@@ -2,10 +2,13 @@ import { RefreshCw, Save } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   createTsdDevice,
+  fetchTsdDeviceSettings,
   fetchTsdDevices,
   fetchUsers,
+  updateTsdDeviceSettings,
   type AuthSession,
   type CreatedTsdDevice,
+  type TsdDeviceSettings,
   type TsdDeviceSummary,
   type UserSummary,
 } from '../../lib/api';
@@ -23,6 +26,8 @@ const emptyForm = {
 
 export function TsdDeviceAdminPanel({ session }: TsdDeviceAdminPanelProps) {
   const [devices, setDevices] = useState<TsdDeviceSummary[]>([]);
+  const [settings, setSettings] = useState<TsdDeviceSettings | null>(null);
+  const [limitInput, setLimitInput] = useState('4');
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [createdDevice, setCreatedDevice] = useState<CreatedTsdDevice | null>(null);
@@ -34,6 +39,7 @@ export function TsdDeviceAdminPanel({ session }: TsdDeviceAdminPanelProps) {
     () => users.filter((user) => user.roles.some((item) => item.role.code !== 'CLIENT')),
     [users],
   );
+  const canManageLimit = session.user.permissionCodes.includes('system:admin');
 
   useEffect(() => {
     void loadData();
@@ -49,7 +55,10 @@ export function TsdDeviceAdminPanel({ session }: TsdDeviceAdminPanelProps) {
         fetchTsdDevices(session.accessToken),
         fetchUsers(session.accessToken),
       ]);
+      const nextSettings = await fetchTsdDeviceSettings(session.accessToken);
       setDevices(nextDevices);
+      setSettings(nextSettings);
+      setLimitInput(String(nextSettings.maxActiveDevices));
       setUsers(nextUsers);
       const nextOperators = nextUsers.filter((user) => user.roles.some((item) => item.role.code !== 'CLIENT'));
       setForm((current) => ({ ...current, userId: current.userId || nextOperators[0]?.id || '' }));
@@ -82,8 +91,57 @@ export function TsdDeviceAdminPanel({ session }: TsdDeviceAdminPanelProps) {
     }
   }
 
+  async function submitLimit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitting(true);
+    setError('');
+
+    try {
+      const nextSettings = await updateTsdDeviceSettings(session.accessToken, {
+        maxActiveDevices: Number(limitInput),
+      });
+      setSettings(nextSettings);
+      setLimitInput(String(nextSettings.maxActiveDevices));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Не удалось сохранить лимит ТСД.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <div className="access-form">
+      <form className="access-form" onSubmit={submitLimit}>
+        <div className="access-fields">
+          <label>
+            <span>Лимит активных ТСД</span>
+            <input
+              disabled={!canManageLimit}
+              min={1}
+              max={999}
+              step={1}
+              type="number"
+              value={limitInput}
+              onChange={(event) => setLimitInput(event.target.value)}
+            />
+          </label>
+          <label>
+            <span>Сейчас активно</span>
+            <input disabled value={`${settings?.activeDevices ?? devices.filter((device) => device.status === 'ACTIVE').length} из ${settings?.maxActiveDevices ?? 4}`} />
+          </label>
+          <label>
+            <span>Всего создано</span>
+            <input disabled value={settings?.totalDevices ?? devices.length} />
+          </label>
+        </div>
+        <div className="access-actions">
+          <button className="primary-button access-submit" type="submit" disabled={!canManageLimit || isSubmitting || isLoading}>
+            <Save size={16} aria-hidden="true" />
+            <span>Сохранить лимит</span>
+          </button>
+        </div>
+      </form>
+
       <form className="access-form" onSubmit={submit}>
         <div className="access-fields">
           <label>

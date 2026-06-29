@@ -20,6 +20,7 @@ import { RequirePermissions } from '../auth/decorators/require-permissions.decor
 import { PickInstructionService } from '../stock/pick-instruction.service';
 import { ClientRequestFilesService } from './client-request-files.service';
 import { ClientRequestHistoryService } from './client-request-history.service';
+import { ClientRequestMarketplaceTemplateService } from './client-request-marketplace-template.service';
 import { ClientRequestDocumentService } from './client-request-document.service';
 import { ClientRequestPdfService } from './client-request-pdf.service';
 import { ClientRequestXlsxService } from './client-request-xlsx.service';
@@ -41,6 +42,7 @@ export class ClientRequestsController {
     private readonly pdf: ClientRequestPdfService,
     private readonly files: ClientRequestFilesService,
     private readonly history: ClientRequestHistoryService,
+    private readonly marketplaceTemplates: ClientRequestMarketplaceTemplateService,
     private readonly xlsx: ClientRequestXlsxService,
     private readonly pickInstructions: PickInstructionService,
   ) {}
@@ -88,6 +90,34 @@ export class ClientRequestsController {
     @Res({ passthrough: true }) response: Response,
   ) {
     const file = await this.pickInstructions.getRequestInstructionXlsx(id, user);
+    response.setHeader('Content-Type', file.mimeType);
+    response.setHeader('Content-Length', String(file.content.length));
+    response.setHeader('Content-Disposition', contentDisposition(file.fileName));
+
+    return new StreamableFile(file.content);
+  }
+
+  @Get(':id/marketplace-products.xlsx')
+  async downloadMarketplaceProductsTemplate(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthUser,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const file = await this.marketplaceTemplates.getProductsTemplate(id, user);
+    response.setHeader('Content-Type', file.mimeType);
+    response.setHeader('Content-Length', String(file.content.length));
+    response.setHeader('Content-Disposition', contentDisposition(file.fileName));
+
+    return new StreamableFile(file.content);
+  }
+
+  @Get(':id/marketplace-packages.xlsx')
+  async downloadMarketplacePackagesTemplate(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthUser,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const file = await this.marketplaceTemplates.getPackagesTemplate(id, user);
     response.setHeader('Content-Type', file.mimeType);
     response.setHeader('Content-Length', String(file.content.length));
     response.setHeader('Content-Disposition', contentDisposition(file.fileName));

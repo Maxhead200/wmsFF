@@ -3393,6 +3393,14 @@ export async function downloadPickInstructionXlsx(accessToken: string, requestId
   return requestBlob(`/client-requests/${requestId}/pick-instruction.xlsx`, accessToken);
 }
 
+export async function downloadMarketplaceProductsTemplateXlsx(accessToken: string, requestId: string) {
+  return requestBlob(`/client-requests/${requestId}/marketplace-products.xlsx`, accessToken);
+}
+
+export async function downloadMarketplacePackagesTemplateXlsx(accessToken: string, requestId: string) {
+  return requestBlob(`/client-requests/${requestId}/marketplace-packages.xlsx`, accessToken);
+}
+
 export async function packageClientRequest(
   accessToken: string,
   payload: { requestId: string; idempotencyKey?: string; comment?: string; packages?: unknown[] },

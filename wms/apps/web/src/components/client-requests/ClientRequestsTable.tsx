@@ -16,6 +16,8 @@ type ClientRequestsTableProps = {
   onStatusChange: (requestId: string, status: ClientRequestStatus) => void;
   onCancelRequest: (request: ClientRequestSummary) => void;
   onOpenDocument?: (request: ClientRequestSummary) => void;
+  onDownloadMarketplaceProductsTemplate?: (request: ClientRequestSummary) => void;
+  onDownloadMarketplacePackagesTemplate?: (request: ClientRequestSummary) => void;
   onOpenPickInstruction?: (request: ClientRequestSummary) => void;
   onDownloadPickInstruction?: (request: ClientRequestSummary) => void;
   onPickOutbound: (request: ClientRequestSummary) => void;
@@ -37,6 +39,8 @@ export function ClientRequestsTable({
   onStatusChange,
   onCancelRequest,
   onOpenDocument,
+  onDownloadMarketplaceProductsTemplate,
+  onDownloadMarketplacePackagesTemplate,
   onOpenPickInstruction,
   onDownloadPickInstruction,
   onPickOutbound,
@@ -87,6 +91,28 @@ export function ClientRequestsTable({
                   >
                     <FileText size={15} aria-hidden="true" />
                     <span>Состав</span>
+                  </button>
+                ) : null}
+                {request.type === 'OUTBOUND' && onDownloadMarketplaceProductsTemplate ? (
+                  <button
+                    className="document-open-button"
+                    type="button"
+                    onClick={() => onDownloadMarketplaceProductsTemplate(request)}
+                    title="Скачать шаблон WB/Ozon для товаров"
+                  >
+                    <FileDown size={15} aria-hidden="true" />
+                    <span>Товары WB/Ozon</span>
+                  </button>
+                ) : null}
+                {request.type === 'OUTBOUND' && onDownloadMarketplacePackagesTemplate ? (
+                  <button
+                    className="document-open-button"
+                    type="button"
+                    onClick={() => onDownloadMarketplacePackagesTemplate(request)}
+                    title="Скачать шаблон WB/Ozon для упаковки"
+                  >
+                    <PackageCheck size={15} aria-hidden="true" />
+                    <span>Упаковка WB/Ozon</span>
                   </button>
                 ) : null}
               </td>

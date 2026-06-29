@@ -2,6 +2,8 @@ import { ClipboardList, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
   cancelClientRequest,
+  downloadMarketplacePackagesTemplateXlsx,
+  downloadMarketplaceProductsTemplateXlsx,
   downloadPickInstructionXlsx,
   fetchClientRequestDocument,
   fetchClientRequests,
@@ -159,6 +161,28 @@ export function ClientRequestsPanel({ session }: ClientRequestsPanelProps) {
     }
   }
 
+  async function downloadMarketplaceProductsTemplate(request: ClientRequestSummary) {
+    setError(null);
+
+    try {
+      const blob = await downloadMarketplaceProductsTemplateXlsx(session.accessToken, request.id);
+      downloadBlob(blob, `marketplace-products-${safeDownloadName(request.title)}-${request.id.slice(0, 8)}.xlsx`);
+    } catch (caught) {
+      setError(errorMessage(caught));
+    }
+  }
+
+  async function downloadMarketplacePackagesTemplate(request: ClientRequestSummary) {
+    setError(null);
+
+    try {
+      const blob = await downloadMarketplacePackagesTemplateXlsx(session.accessToken, request.id);
+      downloadBlob(blob, `marketplace-packages-${safeDownloadName(request.title)}-${request.id.slice(0, 8)}.xlsx`);
+    } catch (caught) {
+      setError(errorMessage(caught));
+    }
+  }
+
   async function packageOutboundRequest(request: ClientRequestSummary) {
     setError(null);
 
@@ -240,6 +264,8 @@ export function ClientRequestsPanel({ session }: ClientRequestsPanelProps) {
           (requestId, status) => void changeStatus(requestId, status),
           (request) => void cancelRequest(request),
           (request) => void openRequestDocument(request),
+          (request) => void downloadMarketplaceProductsTemplate(request),
+          (request) => void downloadMarketplacePackagesTemplate(request),
           (request) => void openPickInstruction(request),
           (request) => void downloadPickInstruction(request),
           (request) => void pickOutboundRequest(request),
@@ -272,6 +298,8 @@ function renderRequests(
   onStatusChange: (requestId: string, status: ClientRequestStatus) => void,
   onCancelRequest: (request: ClientRequestSummary) => void,
   onOpenDocument: (request: ClientRequestSummary) => void,
+  onDownloadMarketplaceProductsTemplate: (request: ClientRequestSummary) => void,
+  onDownloadMarketplacePackagesTemplate: (request: ClientRequestSummary) => void,
   onOpenPickInstruction: (request: ClientRequestSummary) => void,
   onDownloadPickInstruction: (request: ClientRequestSummary) => void,
   onPickOutbound: (request: ClientRequestSummary) => void,
@@ -306,6 +334,8 @@ function renderRequests(
         onStatusChange={onStatusChange}
         onCancelRequest={onCancelRequest}
         onOpenDocument={onOpenDocument}
+        onDownloadMarketplaceProductsTemplate={onDownloadMarketplaceProductsTemplate}
+        onDownloadMarketplacePackagesTemplate={onDownloadMarketplacePackagesTemplate}
         onOpenPickInstruction={onOpenPickInstruction}
         onDownloadPickInstruction={onDownloadPickInstruction}
         onPickOutbound={onPickOutbound}

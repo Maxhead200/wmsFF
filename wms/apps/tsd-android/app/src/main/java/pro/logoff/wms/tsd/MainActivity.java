@@ -142,7 +142,7 @@ public class MainActivity extends Activity {
         LinearLayout root = page();
         root.setPadding(dp(18), dp(24), dp(18), dp(18));
         addLogo(root, false);
-        addTitle(root, "Вход сборщицы");
+        addTitle(root, "Вход сотрудника");
 
         EditText login = input("Логин", false);
         login.setText(prefs.getString("login", ""));
@@ -191,7 +191,7 @@ public class MainActivity extends Activity {
                 .putString("deviceCode", deviceCode)
                 .apply();
             main.post(() -> {
-                toast("Сборщик " + userName + " подключен.");
+                toast("Сотрудник " + userName + " подключен.");
                 showMenu();
                 loadClients();
                 syncQueue();
@@ -793,7 +793,7 @@ public class MainActivity extends Activity {
         }
         String owner = queue.ownerUserId();
         if (!owner.isEmpty() && !owner.equals(userId)) {
-            toast("Очередь создана другим сборщиком. Войдите под ним для синхронизации.");
+            toast("Очередь создана другим сотрудником. Войдите под ним для синхронизации.");
             return;
         }
         runAsync(() -> {
@@ -1173,7 +1173,7 @@ public class MainActivity extends Activity {
             if (worker == null) {
                 continue;
             }
-            String name = firstNonEmpty(worker.optString("userName"), "сборщик");
+            String name = firstNonEmpty(worker.optString("userName"), "сотрудник");
             String device = firstNonEmpty(worker.optString("deviceCode"), "ТСД");
             String stage = firstNonEmpty(worker.optString("stage"), "в работе");
             labels.add(name + " / " + device + " / " + stage);

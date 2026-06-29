@@ -1,6 +1,7 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { UserStatus } from '@prisma/client';
 import { AccessModelService } from '../auth/access-model.service';
+import type { AuthUser } from '../auth/auth.types';
 import { PasswordService } from '../auth/password.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -157,6 +158,64 @@ export class UsersService {
     });
 
     return this.findUserSummary(userId);
+  }
+
+  async delete(userId: string, currentUser: AuthUser) {
+    if (userId === currentUser.id) {
+      throw new BadRequestException('Нельзя удалить собственную учетную запись.');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        roles: {
+          select: {
+            role: {
+              select: {
+                permissions: {
+                  select: {
+                    permission: {
+                      select: { code: true },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Пользователь не найден.');
+    }
+
+    const hasSystemAdmin = user.roles.some((item) =>
+      item.role.permissions.some((permission) => permission.permission.code === 'system:admin'),
+    );
+    if (hasSystemAdmin) {
+      await this.ensureSystemAdminSurvives(userId, []);
+    }
+
+    const deletedEmail = `deleted-${Date.now()}-${user.email}`.slice(0, 180);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.userSession.deleteMany({ where: { userId } });
+      await tx.tsdDevice.deleteMany({ where: { userId } });
+      await tx.userRole.deleteMany({ where: { userId } });
+      await tx.userClient.deleteMany({ where: { userId } });
+      await tx.userPrinterGroup.deleteMany({ where: { userId } });
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          email: deletedEmail,
+          status: UserStatus.BLOCKED,
+        },
+      });
+    });
+
+    return { id: userId, deleted: true };
   }
 
   async listRoles() {

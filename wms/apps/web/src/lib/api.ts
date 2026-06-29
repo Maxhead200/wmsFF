@@ -1613,6 +1613,11 @@ export type CreateUserPayload = {
   writableClientIds?: string[];
 };
 
+export type DeleteUserResult = {
+  id: string;
+  deleted: true;
+};
+
 export type UpdateUserClientScopesPayload = {
   scopes: Array<{
     clientId: string;
@@ -2971,6 +2976,13 @@ export async function createUser(accessToken: string, payload: CreateUserPayload
   return request<UserSummary>('/users', {
     method: 'POST',
     body: payload,
+    accessToken,
+  });
+}
+
+export async function deleteUser(accessToken: string, userId: string) {
+  return request<DeleteUserResult>(`/users/${userId}`, {
+    method: 'DELETE',
     accessToken,
   });
 }

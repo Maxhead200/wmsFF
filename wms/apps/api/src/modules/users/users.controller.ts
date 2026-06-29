@@ -1,5 +1,7 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import type { AuthUser } from '../auth/auth.types';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserClientScopesDto } from './dto/update-user-client-scopes.dto';
@@ -41,6 +43,12 @@ export class UsersController {
   @RequirePermissions('users:write')
   updateRoles(@Param('id') id: string, @Body() dto: UpdateUserRolesDto) {
     return this.users.updateRoles(id, dto);
+  }
+
+  @Delete(':id')
+  @RequirePermissions('users:write')
+  delete(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.users.delete(id, user);
   }
 
   @Get('roles')

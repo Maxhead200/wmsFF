@@ -22,6 +22,7 @@ import {
   deleteServiceBillingService,
   deleteServiceClientIpRule,
   deleteServiceNomenclature,
+  deleteUser,
   fetchClients,
   fetchServiceBillingServices,
   fetchServiceClientStockCleanupPreview,
@@ -414,7 +415,22 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
       });
       setTsdUsers((current) => ({ ...current, status: 'ready', data: [created, ...current.data] }));
       setTsdUserForm({ name: '', email: '', password: '', clientId: '' });
-      setActionMessage('Сборщица ТСД создана. Логин и пароль можно ввести на ТСД один раз.');
+      setActionMessage('Сотрудник ТСД создан. Логин и пароль можно ввести на ТСД один раз.');
+    } catch (caught) {
+      setTsdUsers((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
+    }
+  }
+
+  async function removeTsdUser(user: UserSummary) {
+    if (!window.confirm(`Удалить пользователя ТСД ${user.name} (${user.email})?`)) {
+      return;
+    }
+
+    try {
+      await deleteUser(session.accessToken, user.id);
+      setTsdUsers((current) => ({ ...current, data: current.data.filter((item) => item.id !== user.id) }));
+      setActionMessage('Пользователь ТСД удален. Доступ и активные сессии отключены.');
+      void loadOverview();
     } catch (caught) {
       setTsdUsers((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
     }
@@ -561,6 +577,7 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
           users={tsdUsers}
           onChange={setTsdUserForm}
           onCreate={(event) => void createTsdUser(event)}
+          onDelete={(user) => void removeTsdUser(user)}
           onRefresh={() => void loadTsdUsers()}
         />
       ) : null}
@@ -863,6 +880,7 @@ function TsdServicePanel({
   users,
   onChange,
   onCreate,
+  onDelete,
   onRefresh,
 }: {
   clients: ClientSummary[];
@@ -870,6 +888,7 @@ function TsdServicePanel({
   users: LoadState<UserSummary[]>;
   onChange: (form: { name: string; email: string; password: string; clientId: string }) => void;
   onCreate: (event: FormEvent<HTMLFormElement>) => void;
+  onDelete: (user: UserSummary) => void;
   onRefresh: () => void;
 }) {
   const appUrl = `${window.location.origin}/tsd-app`;
@@ -883,12 +902,12 @@ function TsdServicePanel({
       </div>
       <div className="service-warning">
         <Smartphone size={18} />
-        Установите APK на Android-ТСД, войдите логином сборщицы и проверьте код устройства. Резервная веб-версия: {appUrl}
+        Установите APK на Android-ТСД, войдите логином сотрудника и проверьте код устройства. Резервная веб-версия: {appUrl}
       </div>
 
       <form className="service-inline-form" onSubmit={onCreate}>
-        <input required placeholder="Имя сборщицы" value={form.name} onChange={(event) => onChange({ ...form, name: event.target.value })} />
-        <input required placeholder="Логин сборщицы" autoComplete="username" value={form.email} onChange={(event) => onChange({ ...form, email: event.target.value })} />
+        <input required placeholder="Имя сотрудника" value={form.name} onChange={(event) => onChange({ ...form, name: event.target.value })} />
+        <input required placeholder="Логин сотрудника" autoComplete="username" value={form.email} onChange={(event) => onChange({ ...form, email: event.target.value })} />
         <input required minLength={10} placeholder="Пароль от 10 символов" type="text" value={form.password} onChange={(event) => onChange({ ...form, password: event.target.value })} />
         <select value={form.clientId} onChange={(event) => onChange({ ...form, clientId: event.target.value })}>
           <option value="">Все клиенты</option>
@@ -898,20 +917,20 @@ function TsdServicePanel({
             </option>
           ))}
         </select>
-        <button className="primary-button" type="submit">Создать сборщицу</button>
+        <button className="primary-button" type="submit">Создать сотрудника</button>
       </form>
 
       <div className="service-card__heading service-card__heading--sub">
-        <strong>Сборщицы и операторы ТСД</strong>
+        <strong>Сотрудники и операторы ТСД</strong>
         <button className="secondary-button" type="button" onClick={onRefresh}>
           <RefreshCw size={16} /> Обновить
         </button>
       </div>
       {users.status === 'error' ? <div className="service-message service-message--error">{users.error}</div> : null}
-      <ServiceTable columns={['Имя', 'Логин', 'Статус', 'Клиенты']}>
+      <ServiceTable columns={['Имя', 'Логин', 'Статус', 'Клиенты', 'Действия']}>
         {users.data.length === 0 ? (
           <tr>
-            <td colSpan={4}>Операторы ТСД не созданы</td>
+            <td colSpan={5}>Операторы ТСД не созданы</td>
           </tr>
         ) : null}
         {users.data.map((user) => (
@@ -920,6 +939,11 @@ function TsdServicePanel({
             <td>{user.email}</td>
             <td>{user.status}</td>
             <td>{user.clientScopes.length ? user.clientScopes.map((scope) => scope.client.name).join(', ') : 'Все клиенты'}</td>
+            <td>
+              <button className="danger-link" type="button" onClick={() => onDelete(user)}>
+                <Trash2 size={14} /> Удалить
+              </button>
+            </td>
           </tr>
         ))}
       </ServiceTable>

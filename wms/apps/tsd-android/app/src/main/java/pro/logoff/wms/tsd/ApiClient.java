@@ -46,6 +46,27 @@ final class ApiClient {
         return new JSONObject(request("GET", path, token, null));
     }
 
+    JSONObject relabelState(String token, String requestId, String deviceCode) throws IOException, JSONException {
+        String path = "/tsd/requests/" + enc(requestId) + "/relabel?deviceCode=" + enc(deviceCode);
+        return new JSONObject(request("GET", path, token, null));
+    }
+
+    JSONObject scanRelabelSource(String token, String requestId, String boxCode, String barcode, String deviceCode) throws IOException, JSONException {
+        JSONObject body = new JSONObject()
+            .put("boxCode", boxCode)
+            .put("barcode", barcode)
+            .put("deviceCode", deviceCode);
+        return new JSONObject(request("POST", "/tsd/requests/" + enc(requestId) + "/relabel/scan-source", token, body.toString()));
+    }
+
+    JSONObject scanRelabelTarget(String token, String requestId, String lineId, String targetBarcode, String deviceCode) throws IOException, JSONException {
+        JSONObject body = new JSONObject()
+            .put("lineId", lineId)
+            .put("targetBarcode", targetBarcode)
+            .put("deviceCode", deviceCode);
+        return new JSONObject(request("POST", "/tsd/requests/" + enc(requestId) + "/relabel/scan-target", token, body.toString()));
+    }
+
     JSONObject scanBoxSearch(String token, String requestId, String boxCode, String deviceCode) throws IOException, JSONException {
         JSONObject body = new JSONObject()
             .put("boxCode", boxCode)
@@ -72,7 +93,7 @@ final class ApiClient {
         connection.setReadTimeout(20000);
         connection.setRequestProperty("Accept", "application/json");
         connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-        connection.setRequestProperty("User-Agent", "LOGOff-TSD-Android/0.1.8");
+        connection.setRequestProperty("User-Agent", "LOGOff-TSD-Android/0.1.9");
         if (token != null && !token.isEmpty()) {
             connection.setRequestProperty("Authorization", "Bearer " + token);
         }

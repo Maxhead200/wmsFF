@@ -145,6 +145,84 @@ export class TsdSyncService {
     });
   }
 
+  async getRequestRelabel(requestId: string, user: AuthUser, deviceCode?: string) {
+    await this.touchRequestWorker(requestId, user, 'Перемаркировка', deviceCode);
+    const document = await this.pickInstructions.getRequestInstruction(requestId, user);
+    const tasks = this.relabelTasks(document);
+    const completed = await this.loadRelabelCompleted(requestId);
+    return this.relabelState(requestId, tasks, completed, null);
+  }
+
+  async scanRelabelSource(
+    requestId: string,
+    dto: { boxCode?: string; barcode?: string; deviceCode?: string },
+    user: AuthUser,
+  ) {
+    await this.touchRequestWorker(requestId, user, 'Перемаркировка', dto.deviceCode);
+    const boxCode = dto.boxCode?.trim();
+    const barcode = dto.barcode?.trim();
+    if (!boxCode || !barcode) {
+      throw new BadRequestException('Сканируйте короб и исходный штрихкод.');
+    }
+
+    const document = await this.pickInstructions.getRequestInstruction(requestId, user);
+    const tasks = this.relabelTasks(document);
+    const completed = await this.loadRelabelCompleted(requestId);
+    const task = tasks.find(
+      (item) =>
+        normalizeBoxCode(item.sourceBox) === normalizeBoxCode(boxCode) &&
+        normalizeBoxCode(item.sourceBarcode) === normalizeBoxCode(barcode) &&
+        item.quantity - (completed.get(item.id) ?? 0) > 0,
+    );
+
+    if (!task) {
+      throw new BadRequestException('В этом коробе нет товара с таким ШК для перемаркировки.');
+    }
+
+    return this.relabelState(requestId, tasks, completed, {
+      type: 'source',
+      matched: true,
+      task,
+    });
+  }
+
+  async scanRelabelTarget(
+    requestId: string,
+    dto: { lineId?: string; targetBarcode?: string; deviceCode?: string },
+    user: AuthUser,
+  ) {
+    await this.touchRequestWorker(requestId, user, 'Перемаркировка', dto.deviceCode);
+    const lineId = dto.lineId?.trim();
+    const targetBarcode = dto.targetBarcode?.trim();
+    if (!lineId || !targetBarcode) {
+      throw new BadRequestException('Сканируйте новый штрихкод перемаркировки.');
+    }
+
+    const document = await this.pickInstructions.getRequestInstruction(requestId, user);
+    const tasks = this.relabelTasks(document);
+    const task = tasks.find((item) => item.id === lineId);
+    if (!task) {
+      throw new BadRequestException('Строка перемаркировки не найдена.');
+    }
+    if (normalizeBoxCode(task.targetBarcode) !== normalizeBoxCode(targetBarcode)) {
+      throw new BadRequestException('Новый ШК не совпадает с заданием перемаркировки.');
+    }
+
+    const completed = await this.loadRelabelCompleted(requestId);
+    const current = completed.get(task.id) ?? 0;
+    if (current >= task.quantity) {
+      throw new BadRequestException('Эта строка перемаркировки уже выполнена.');
+    }
+    completed.set(task.id, current + 1);
+    await this.saveRelabelCompleted(requestId, completed, user.id);
+
+    return this.relabelState(requestId, tasks, completed, {
+      type: 'target',
+      matched: true,
+      task,
+    });
+  }
+
   async getSkuByBarcode(clientId: string, barcode: string, user: AuthUser) {
     const normalizedClientId = clientId?.trim();
     const normalizedBarcode = barcode?.trim();
@@ -398,6 +476,116 @@ export class TsdSyncService {
     });
   }
 
+  private relabelTasks(document: {
+    warehouseRows: Array<{
+      sourceBox: string;
+      artOnBox: string;
+      barcodeOnBox: string;
+      size: string;
+      quantity: number;
+      rebrandNote: string;
+    }>;
+  }) {
+    const tasks = new Map<string, RelabelTask>();
+    for (const row of document.warehouseRows) {
+      const parsed = parseRelabelNote(row.rebrandNote);
+      if (!row.sourceBox || !parsed) {
+        continue;
+      }
+      const key = relabelTaskId(row.sourceBox, parsed.sourceBarcode, parsed.targetBarcode, row.artOnBox, row.size);
+      const existing = tasks.get(key);
+      if (existing) {
+        existing.quantity += row.quantity;
+        continue;
+      }
+      tasks.set(key, {
+        id: key,
+        sourceBox: row.sourceBox,
+        article: row.artOnBox,
+        size: row.size,
+        sourceBarcode: parsed.sourceBarcode,
+        targetBarcode: parsed.targetBarcode,
+        quantity: row.quantity,
+      });
+    }
+    return [...tasks.values()].sort((left, right) =>
+      left.sourceBox.localeCompare(right.sourceBox, 'ru', { numeric: true }) ||
+      left.article.localeCompare(right.article, 'ru', { numeric: true }) ||
+      left.sourceBarcode.localeCompare(right.sourceBarcode, 'ru', { numeric: true }),
+    );
+  }
+
+  private async loadRelabelCompleted(requestId: string) {
+    const setting = await this.prisma.systemSetting.findUnique({
+      where: { key: relabelKey(requestId) },
+    });
+    const value = setting?.value;
+    const payload = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+    const completed = payload.completed && typeof payload.completed === 'object' && !Array.isArray(payload.completed)
+      ? (payload.completed as Record<string, unknown>)
+      : {};
+    return new Map(
+      Object.entries(completed)
+        .map(([key, value]) => [key, Number(value)] as const)
+        .filter(([, value]) => Number.isInteger(value) && value > 0),
+    );
+  }
+
+  private async saveRelabelCompleted(requestId: string, completed: Map<string, number>, userId: string) {
+    const value = Object.fromEntries([...completed.entries()].filter(([, count]) => count > 0));
+    await this.prisma.systemSetting.upsert({
+      where: { key: relabelKey(requestId) },
+      update: {
+        value: { completed: value },
+        updatedByUserId: userId,
+      },
+      create: {
+        key: relabelKey(requestId),
+        value: { completed: value },
+        updatedByUserId: userId,
+      },
+    });
+  }
+
+  private relabelState(
+    requestId: string,
+    tasks: RelabelTask[],
+    completed: Map<string, number>,
+    lastScan: null | { type: 'source' | 'target'; matched: boolean; task: RelabelTask },
+  ) {
+    const rows = tasks.map((task) => {
+      const done = Math.min(completed.get(task.id) ?? 0, task.quantity);
+      return {
+        ...task,
+        completed: done,
+        remaining: Math.max(0, task.quantity - done),
+      };
+    });
+    const pendingRows = rows.filter((row) => row.remaining > 0);
+    const boxes = [...new Set(pendingRows.map((row) => row.sourceBox))]
+      .sort((left, right) => left.localeCompare(right, 'ru', { numeric: true }))
+      .map((boxCode) => {
+        const boxRows = pendingRows.filter((row) => row.sourceBox === boxCode);
+        return {
+          boxCode,
+          totalRemaining: boxRows.reduce((sum, row) => sum + row.remaining, 0),
+          rows: boxRows,
+        };
+      });
+    const total = rows.reduce((sum, row) => sum + row.quantity, 0);
+    const completedCount = rows.reduce((sum, row) => sum + row.completed, 0);
+    return {
+      requestId,
+      total,
+      completed: completedCount,
+      remaining: Math.max(0, total - completedCount),
+      isComplete: total === completedCount,
+      boxes,
+      rows: pendingRows,
+      lastScan,
+    };
+  }
+
   private async loadRequestWorkers(requestIds: string[]) {
     const keys = requestIds.map(requestWorkersKey);
     const settings = keys.length
@@ -495,6 +683,20 @@ function requestWorkersKey(requestId: string) {
   return `TSD_REQUEST_WORKERS:${requestId}`;
 }
 
+function relabelKey(requestId: string) {
+  return `TSD_RELABEL:${requestId}`;
+}
+
+type RelabelTask = {
+  id: string;
+  sourceBox: string;
+  article: string;
+  size: string;
+  sourceBarcode: string;
+  targetBarcode: string;
+  quantity: number;
+};
+
 type RequestWorker = {
   userId: string;
   userName: string;
@@ -531,6 +733,20 @@ function normalizeWorkerDeviceCode(user: AuthUser, deviceCode?: string) {
 
 function normalizeBoxCode(value: string) {
   return value.trim().toUpperCase();
+}
+
+function parseRelabelNote(value: string) {
+  const match = value.match(/перемаркировать\s+(.+?)\s*->\s*(.+)$/i);
+  if (!match) {
+    return null;
+  }
+  const sourceBarcode = match[1]?.trim();
+  const targetBarcode = match[2]?.trim();
+  return sourceBarcode && targetBarcode ? { sourceBarcode, targetBarcode } : null;
+}
+
+function relabelTaskId(sourceBox: string, sourceBarcode: string, targetBarcode: string, article: string, size: string) {
+  return Buffer.from([sourceBox, sourceBarcode, targetBarcode, article, size].join('\u0001')).toString('base64url');
 }
 
 function normalizeTsdStage(stage?: string) {

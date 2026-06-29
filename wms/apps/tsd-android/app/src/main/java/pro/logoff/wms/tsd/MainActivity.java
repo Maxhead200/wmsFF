@@ -414,11 +414,11 @@ public class MainActivity extends Activity {
         root.addView(boxes);
 
         Button relabel = primary("2. " + tr("pick.relabel"));
-        relabel.setOnClickListener(v -> loadRequestStage(request, "relabel"));
+        relabel.setOnClickListener(v -> loadRelabelState(request));
         root.addView(relabel);
 
         Button moves = primary("3. " + tr("pick.moves"));
-        moves.setOnClickListener(v -> loadRequestStage(request, "moves"));
+        moves.setOnClickListener(v -> loadMovesStage(request));
         root.addView(moves);
 
         addBackButton(root, tr("pick.backToRequests"), () -> showPickRequests());
@@ -442,6 +442,222 @@ public class MainActivity extends Activity {
                     return;
                 }
                 showRequestStage(request, state, stage);
+            });
+        });
+    }
+
+    private void loadRelabelState(PickRequest request) {
+        runAsync(() -> {
+            JSONObject state = api.relabelState(token, request.id, deviceCode);
+            main.post(() -> showRelabelBoxes(request, state));
+        });
+    }
+
+    private void loadMovesStage(PickRequest request) {
+        runAsync(() -> {
+            JSONObject relabel = api.relabelState(token, request.id, deviceCode);
+            if (!relabel.optBoolean("isComplete")) {
+                main.post(() -> showRelabelBoxes(request, relabel));
+                return;
+            }
+            JSONObject state = api.requestStage(token, request.id, deviceCode, "moves");
+            main.post(() -> showRequestStage(request, state, "moves"));
+        });
+    }
+
+    private void showRelabelBoxes(PickRequest request, JSONObject state) {
+        setBackAction(() -> showPickRequestActions(request));
+        LinearLayout root = page();
+        root.setPadding(dp(14), dp(16), dp(14), dp(14));
+        addHeader(root);
+        addTitle(root, tr("stage.relabelTitle"));
+        root.addView(note(tr("pick.request") + ": " + request.shortNumber()));
+        root.addView(note(tr("common.client") + ": " + request.clientName));
+        root.addView(note(tr("relabel.progress") + ": " + state.optInt("completed") + " / " + state.optInt("total")));
+
+        JSONArray boxes = state.optJSONArray("boxes");
+        if (state.optBoolean("isComplete")) {
+            TextView done = note(tr("relabel.complete"));
+            done.setTextColor(GREEN);
+            root.addView(done);
+            Button moves = primary("3. " + tr("pick.moves"));
+            moves.setOnClickListener(v -> loadMovesStage(request));
+            root.addView(moves);
+        } else if (boxes == null || boxes.length() == 0) {
+            root.addView(note(tr("relabel.empty")));
+        } else {
+            root.addView(note(tr("relabel.selectBox")));
+            for (int i = 0; i < boxes.length(); i++) {
+                JSONObject box = boxes.optJSONObject(i);
+                if (box == null) {
+                    continue;
+                }
+                String boxCode = box.optString("boxCode");
+                Button button = secondary(boxCode + "\n" + tr("boxSearch.progressRemaining") + ": " + box.optInt("totalRemaining"));
+                button.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
+                button.setOnClickListener(v -> showRelabelBox(request, state, boxCode));
+                root.addView(button);
+            }
+        }
+
+        Button refresh = secondary(tr("common.refresh"));
+        refresh.setOnClickListener(v -> loadRelabelState(request));
+        root.addView(refresh);
+        addBackButton(root, tr("pick.backToRequests"), () -> showPickRequestActions(request));
+        setContentView(wrap(root));
+    }
+
+    private void showRelabelBox(PickRequest request, JSONObject state, String boxCode) {
+        JSONObject box = findRelabelBox(state, boxCode);
+        if (box == null) {
+            showRelabelBoxes(request, state);
+            return;
+        }
+        setBackAction(() -> showRelabelBoxes(request, state));
+        LinearLayout root = page();
+        root.setPadding(dp(14), dp(16), dp(14), dp(14));
+        addHeader(root);
+        addTitle(root, tr("common.box") + " " + boxCode);
+        root.addView(note(tr("stage.relabelHint")));
+
+        EditText scan = input(tr("relabel.scanSource"), false);
+        scan.setSingleLine(true);
+        scan.setImeOptions(EditorInfo.IME_ACTION_DONE);
+        scan.setOnEditorActionListener((v, actionId, event) -> {
+            scanRelabelSource(request, boxCode, text(scan));
+            return true;
+        });
+        root.addView(scan);
+
+        JSONArray rows = box.optJSONArray("rows");
+        if (rows == null || rows.length() == 0) {
+            root.addView(note(tr("relabel.boxDone")));
+        } else {
+            root.addView(note(tr("relabel.products")));
+            for (int i = 0; i < rows.length(); i++) {
+                JSONObject row = rows.optJSONObject(i);
+                if (row == null) {
+                    continue;
+                }
+                root.addView(relabelRowView(row));
+            }
+        }
+
+        Button refresh = secondary(tr("common.refresh"));
+        refresh.setOnClickListener(v -> loadRelabelState(request));
+        root.addView(refresh);
+        addBackButton(root, tr("stage.relabelTitle"), () -> showRelabelBoxes(request, state));
+        setContentView(wrap(root));
+        scan.requestFocus();
+    }
+
+    private TextView relabelRowView(JSONObject row) {
+        TextView view = note(
+            tr("receipt.article") + ": " + firstNonEmpty(row.optString("article"), "-")
+                + "\n" + tr("receipt.sizeColor") + ": " + firstNonEmpty(row.optString("size"), "-")
+                + "\n" + tr("relabel.from") + ": " + row.optString("sourceBarcode")
+                + "\n" + tr("relabel.to") + ": " + row.optString("targetBarcode")
+                + "\n" + tr("boxSearch.progressRemaining") + ": " + row.optInt("remaining")
+        );
+        view.setTextSize(scaledText(18));
+        view.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        view.setPadding(dp(12), dp(12), dp(12), dp(12));
+        view.setBackgroundColor(Color.WHITE);
+        LinearLayout.LayoutParams params = matchWrap();
+        params.setMargins(0, dp(4), 0, dp(4));
+        view.setLayoutParams(params);
+        return view;
+    }
+
+    private JSONObject findRelabelBox(JSONObject state, String boxCode) {
+        JSONArray boxes = state.optJSONArray("boxes");
+        if (boxes == null) {
+            return null;
+        }
+        for (int i = 0; i < boxes.length(); i++) {
+            JSONObject box = boxes.optJSONObject(i);
+            if (box != null && boxCode.equals(box.optString("boxCode"))) {
+                return box;
+            }
+        }
+        return null;
+    }
+
+    private void scanRelabelSource(PickRequest request, String boxCode, String barcode) {
+        if (barcode.trim().isEmpty()) {
+            toast(tr("receipt.scanBarcodeToast"));
+            return;
+        }
+        runAsync(() -> {
+            JSONObject state = api.scanRelabelSource(token, request.id, boxCode, barcode, deviceCode);
+            JSONObject lastScan = state.optJSONObject("lastScan");
+            JSONObject task = lastScan == null ? null : lastScan.optJSONObject("task");
+            main.post(() -> {
+                if (task == null) {
+                    toast(tr("relabel.sourceNotFound"));
+                    showRelabelBox(request, state, boxCode);
+                    return;
+                }
+                confirmRelabelSource(request, boxCode, state, task);
+            });
+        });
+    }
+
+    private void confirmRelabelSource(PickRequest request, String boxCode, JSONObject state, JSONObject task) {
+        String message = tr("common.box") + ": " + boxCode
+            + "\n" + tr("receipt.article") + ": " + firstNonEmpty(task.optString("article"), "-")
+            + "\n" + tr("receipt.sizeColor") + ": " + firstNonEmpty(task.optString("size"), "-")
+            + "\n" + tr("relabel.from") + ": " + task.optString("sourceBarcode")
+            + "\n" + tr("relabel.to") + ": " + task.optString("targetBarcode");
+        new AlertDialog.Builder(this)
+            .setTitle(tr("relabel.confirmSource"))
+            .setMessage(message)
+            .setPositiveButton(tr("receipt.confirmYes"), (dialog, which) -> showRelabelTargetScan(request, boxCode, task))
+            .setNegativeButton(tr("receipt.confirmNo"), (dialog, which) -> showRelabelBox(request, state, boxCode))
+            .show();
+    }
+
+    private void showRelabelTargetScan(PickRequest request, String boxCode, JSONObject task) {
+        setBackAction(() -> loadRelabelState(request));
+        LinearLayout root = page();
+        root.setPadding(dp(14), dp(16), dp(14), dp(14));
+        addHeader(root);
+        addTitle(root, tr("relabel.scanTargetTitle"));
+        root.addView(note(tr("common.box") + ": " + boxCode));
+        root.addView(note(tr("relabel.from") + ": " + task.optString("sourceBarcode")));
+        root.addView(note(tr("relabel.to") + ": " + task.optString("targetBarcode")));
+
+        EditText scan = input(tr("relabel.scanTarget"), false);
+        scan.setSingleLine(true);
+        scan.setImeOptions(EditorInfo.IME_ACTION_DONE);
+        scan.setOnEditorActionListener((v, actionId, event) -> {
+            scanRelabelTarget(request, boxCode, task, text(scan));
+            return true;
+        });
+        root.addView(scan);
+        addBackButton(root, tr("common.back"), () -> loadRelabelState(request));
+        setContentView(wrap(root));
+        scan.requestFocus();
+    }
+
+    private void scanRelabelTarget(PickRequest request, String boxCode, JSONObject task, String targetBarcode) {
+        if (targetBarcode.trim().isEmpty()) {
+            toast(tr("relabel.scanTargetToast"));
+            return;
+        }
+        runAsync(() -> {
+            JSONObject state = api.scanRelabelTarget(token, request.id, task.optString("id"), targetBarcode, deviceCode);
+            main.post(() -> {
+                toast(tr("relabel.itemDone"));
+                if (state.optBoolean("isComplete")) {
+                    showRelabelBoxes(request, state);
+                    return;
+                }
+                if (findRelabelBox(state, boxCode) == null) {
+                    showRelabelBoxes(request, state);
+                } else {
+                    showRelabelBox(request, state, boxCode);
+                }
             });
         });
     }
@@ -1414,6 +1630,21 @@ public class MainActivity extends Activity {
                 case "stage.movesTitle": return "Qutilar bo'yicha ko'chirishlar";
                 case "stage.relabelHint": return "Qayta markalashni topilgan qutilar bo'yicha bajaring. Agar quti hali topilmagan bo'lsa, uni avval qidirishda skanerlang.";
                 case "stage.movesHint": return "Ko'chirishlarni faqat topilgan qutilar bo'yicha bajaring. Yangi qutiga ko'chirish skani keyingi ekranda yoziladi.";
+                case "relabel.progress": return "Qayta markalash";
+                case "relabel.complete": return "Qayta markalash tugadi. Endi ko'chirishlarga o'tish mumkin.";
+                case "relabel.empty": return "Qayta markalash uchun vazifalar yo'q.";
+                case "relabel.selectBox": return "Qayta markalash kerak bo'lgan qutini tanlang:";
+                case "relabel.scanSource": return "Eski SHKni skanerlash";
+                case "relabel.boxDone": return "Bu qutida qayta markalash tugadi.";
+                case "relabel.products": return "Qayta markalanadigan tovarlar:";
+                case "relabel.from": return "Eski SHK";
+                case "relabel.to": return "Yangi SHK";
+                case "relabel.sourceNotFound": return "Bu qutida bunday SHK qayta markalash uchun yo'q.";
+                case "relabel.confirmSource": return "Tovarni tasdiqlang";
+                case "relabel.scanTargetTitle": return "Yangi SHKni skanerlang";
+                case "relabel.scanTarget": return "Yangi SHK";
+                case "relabel.scanTargetToast": return "Yangi SHKni skanerlang.";
+                case "relabel.itemDone": return "Qayta markalash belgilandi.";
                 case "boxSearch.title": return "Qutilarni qidirish";
                 case "boxSearch.scanBoxToast": return "Quti raqamini skanerlang.";
                 case "boxSearch.alreadyFound": return "Quti allaqachon topilgan va solishtirishda qatnashmaydi.";
@@ -1545,6 +1776,21 @@ public class MainActivity extends Activity {
                 case "stage.movesTitle": return "Box movements";
                 case "stage.relabelHint": return "Perform relabeling using the found boxes. If a box is not found yet, scan it in box search first.";
                 case "stage.movesHint": return "Perform movements only from found boxes. Movement scan into a new box will be recorded on the next screen.";
+                case "relabel.progress": return "Relabeling";
+                case "relabel.complete": return "Relabeling is complete. You can proceed to movements.";
+                case "relabel.empty": return "No relabeling tasks.";
+                case "relabel.selectBox": return "Select a box for relabeling:";
+                case "relabel.scanSource": return "Scan old barcode";
+                case "relabel.boxDone": return "Relabeling is complete in this box.";
+                case "relabel.products": return "Products to relabel:";
+                case "relabel.from": return "Old barcode";
+                case "relabel.to": return "New barcode";
+                case "relabel.sourceNotFound": return "This box has no such barcode for relabeling.";
+                case "relabel.confirmSource": return "Confirm product";
+                case "relabel.scanTargetTitle": return "Scan new barcode";
+                case "relabel.scanTarget": return "New barcode";
+                case "relabel.scanTargetToast": return "Scan the new barcode.";
+                case "relabel.itemDone": return "Relabeling marked complete.";
                 case "boxSearch.title": return "Box search";
                 case "boxSearch.scanBoxToast": return "Scan box number.";
                 case "boxSearch.alreadyFound": return "Box is already found and no longer participates in matching.";
@@ -1675,6 +1921,21 @@ public class MainActivity extends Activity {
             case "stage.movesTitle": return "Перемещения по коробам";
             case "stage.relabelHint": return "Выполняйте перемаркировку по найденным коробам. Если короб еще не найден, сначала просканируйте его в поиске.";
             case "stage.movesHint": return "Выполняйте перемещения только из найденных коробов. Скан перемещения в новый короб будет записываться на следующем экране.";
+            case "relabel.progress": return "Перемаркировка";
+            case "relabel.complete": return "Перемаркировка завершена. Можно переходить к перемещениям.";
+            case "relabel.empty": return "Заданий на перемаркировку нет.";
+            case "relabel.selectBox": return "Выберите короб для перемаркировки:";
+            case "relabel.scanSource": return "Скан старого ШК";
+            case "relabel.boxDone": return "В этом коробе перемаркировка завершена.";
+            case "relabel.products": return "Товары для перемаркировки:";
+            case "relabel.from": return "Старый ШК";
+            case "relabel.to": return "Новый ШК";
+            case "relabel.sourceNotFound": return "В этом коробе нет такого ШК для перемаркировки.";
+            case "relabel.confirmSource": return "Подтвердите товар";
+            case "relabel.scanTargetTitle": return "Скан нового ШК";
+            case "relabel.scanTarget": return "Новый ШК";
+            case "relabel.scanTargetToast": return "Сканируйте новый ШК.";
+            case "relabel.itemDone": return "Перемаркировка отмечена.";
             case "boxSearch.title": return "Поиск коробов";
             case "boxSearch.scanBoxToast": return "Сканируйте номер короба.";
             case "boxSearch.alreadyFound": return "Короб уже найден и больше не участвует в сравнении.";

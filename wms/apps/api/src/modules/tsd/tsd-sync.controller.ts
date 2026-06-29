@@ -48,6 +48,29 @@ export class TsdSyncController {
     return this.sync.scanRequestBox(id, dto, user);
   }
 
+  @Get('requests/:id/relabel')
+  getRequestRelabel(@Param('id') id: string, @Query('deviceCode') deviceCode: string, @CurrentUser() user: AuthUser) {
+    return this.sync.getRequestRelabel(id, user, deviceCode);
+  }
+
+  @Post('requests/:id/relabel/scan-source')
+  scanRelabelSource(
+    @Param('id') id: string,
+    @Body() dto: { boxCode?: string; barcode?: string; deviceCode?: string },
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.sync.scanRelabelSource(id, dto, user);
+  }
+
+  @Post('requests/:id/relabel/scan-target')
+  scanRelabelTarget(
+    @Param('id') id: string,
+    @Body() dto: { lineId?: string; targetBarcode?: string; deviceCode?: string },
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.sync.scanRelabelTarget(id, dto, user);
+  }
+
   @Get('sku-by-barcode')
   getSkuByBarcode(@Query('clientId') clientId: string, @Query('barcode') barcode: string, @CurrentUser() user: AuthUser) {
     return this.sync.getSkuByBarcode(clientId, barcode, user);

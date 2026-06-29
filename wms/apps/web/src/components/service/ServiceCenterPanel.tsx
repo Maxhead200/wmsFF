@@ -6,6 +6,7 @@
   Clock,
   Database,
   Eraser,
+  FileText,
   Globe2,
   Monitor,
   Power,
@@ -26,6 +27,7 @@ import {
   deleteUser,
   fetchClients,
   fetchServiceBillingServices,
+  fetchServiceClientRequestCleanupPreview,
   fetchServiceClientStockCleanupPreview,
   fetchServiceClientIpRules,
   fetchServiceTelegramSettings,
@@ -36,6 +38,7 @@ import {
   createUser,
   fetchUsers,
   sendServiceTelegramTest,
+  purgeServiceClientRequests,
   purgeServiceClientStock,
   updateClientStatus,
   updateServiceBillingServiceStatus,
@@ -49,6 +52,9 @@ import {
   type NomenclatureSummary,
   type ServiceBillingService,
   type ServiceClientIpRule,
+  type ServiceClientRequestCleanupPreview,
+  type ServiceClientRequestCleanupResult,
+  type ServiceClientRequestCleanupSummary,
   type ServiceClientStockCleanupPreview,
   type ServiceClientStockCleanupResult,
   type ServiceClientStockSummary,
@@ -67,7 +73,7 @@ type LoadState<T> = {
   error?: string;
 };
 
-type ServiceTab = 'maintenance' | 'sessions' | 'users' | 'clients' | 'stock' | 'nomenclature' | 'services' | 'telegram' | 'tsd';
+type ServiceTab = 'maintenance' | 'sessions' | 'users' | 'clients' | 'stock' | 'requests' | 'nomenclature' | 'services' | 'telegram' | 'tsd';
 
 type ServiceCenterPanelProps = {
   session: AuthSession;
@@ -83,12 +89,29 @@ const emptySummary: ServiceClientStockSummary = {
   productMarks: 0,
 };
 
+const emptyRequestSummary: ServiceClientRequestCleanupSummary = {
+  requests: 0,
+  items: 0,
+  files: 0,
+  comments: 0,
+  events: 0,
+  packages: 0,
+  packageItems: 0,
+  pickWaveLinks: 0,
+  notifications: 0,
+  billingCharges: 0,
+  deliveryRequests: 0,
+  byStatus: {},
+  byType: {},
+};
+
 const tabs: Array<{ id: ServiceTab; label: string; icon: typeof Settings2 }> = [
   { id: 'maintenance', label: 'Режим', icon: Power },
   { id: 'sessions', label: 'Сессии', icon: Monitor },
   { id: 'users', label: 'Пользователи', icon: UserCog },
   { id: 'clients', label: 'Клиенты', icon: ShieldAlert },
   { id: 'stock', label: 'Остатки', icon: Database },
+  { id: 'requests', label: 'Заявки', icon: FileText },
   { id: 'nomenclature', label: 'Номенклатура', icon: Eraser },
   { id: 'services', label: 'Услуги', icon: Settings2 },
   { id: 'telegram', label: 'Telegram', icon: Bell },
@@ -104,6 +127,10 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
   const [confirmation, setConfirmation] = useState('');
   const [result, setResult] = useState<ServiceClientStockCleanupResult | null>(null);
   const [isPurging, setPurging] = useState(false);
+  const [requestPreview, setRequestPreview] = useState<LoadState<ServiceClientRequestCleanupPreview | null>>({ status: 'idle', data: null });
+  const [requestConfirmation, setRequestConfirmation] = useState('');
+  const [requestCleanupResult, setRequestCleanupResult] = useState<ServiceClientRequestCleanupResult | null>(null);
+  const [isPurgingRequests, setPurgingRequests] = useState(false);
   const [maintenanceMessage, setMaintenanceMessage] = useState('В WMS идут сервисные работы. Вход временно закрыт.');
   const [actionMessage, setActionMessage] = useState('');
   const [nomenclatureSearch, setNomenclatureSearch] = useState('');
@@ -123,11 +150,17 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
     [clients.data, selectedClientId],
   );
   const currentSummary = preview.data?.summary ?? emptySummary;
+  const currentRequestSummary = requestPreview.data?.summary ?? emptyRequestSummary;
   const canPurge =
     Boolean(selectedClientId) &&
     preview.status === 'ready' &&
     confirmation === preview.data?.confirmationText &&
     currentSummary.quantity + currentSummary.balanceRows + currentSummary.movements + currentSummary.boxes + currentSummary.pallets > 0;
+  const canPurgeRequests =
+    Boolean(selectedClientId) &&
+    requestPreview.status === 'ready' &&
+    requestConfirmation === requestPreview.data?.confirmationText &&
+    currentRequestSummary.requests > 0;
 
   useEffect(() => {
     void loadOverview();
@@ -137,10 +170,16 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
   useEffect(() => {
     if (!selectedClientId) {
       setPreview({ status: 'idle', data: null });
+      setRequestPreview({ status: 'idle', data: null });
       return;
     }
-    void loadPreview(selectedClientId);
-  }, [selectedClientId]);
+    if (activeTab === 'stock') {
+      void loadPreview(selectedClientId);
+    }
+    if (activeTab === 'requests') {
+      void loadRequestPreview(selectedClientId);
+    }
+  }, [selectedClientId, activeTab]);
 
   useEffect(() => {
     if (overview.data?.maintenance.message) {
@@ -168,6 +207,12 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
     }
     if (activeTab === 'tsd' && tsdUsers.status === 'idle') {
       void loadTsdUsers();
+    }
+    if (activeTab === 'stock' && selectedClientId && preview.status === 'idle') {
+      void loadPreview(selectedClientId);
+    }
+    if (activeTab === 'requests' && selectedClientId && requestPreview.status === 'idle') {
+      void loadRequestPreview(selectedClientId);
     }
   }, [activeTab]);
 
@@ -244,6 +289,50 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
       setPreview((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
     } finally {
       setPurging(false);
+    }
+  }
+
+  async function loadRequestPreview(clientId = selectedClientId) {
+    if (!clientId) {
+      return;
+    }
+
+    setRequestPreview((current) => ({ ...current, status: 'loading', error: undefined }));
+    setRequestCleanupResult(null);
+    try {
+      setRequestPreview({ status: 'ready', data: await fetchServiceClientRequestCleanupPreview(session.accessToken, clientId) });
+      setRequestConfirmation('');
+    } catch (caught) {
+      setRequestPreview((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
+    }
+  }
+
+  async function purgeRequests() {
+    if (!selectedClientId || !canPurgeRequests) {
+      return;
+    }
+
+    setPurgingRequests(true);
+    setRequestCleanupResult(null);
+    try {
+      const purged = await purgeServiceClientRequests(session.accessToken, selectedClientId, requestConfirmation);
+      setRequestCleanupResult(purged);
+      setRequestPreview({
+        status: 'ready',
+        data: {
+          client: purged.client,
+          summary: purged.after,
+          recentRequests: [],
+          confirmationText: requestPreview.data?.confirmationText ?? 'УДАЛИТЬ ЗАЯВКИ',
+          warning: requestPreview.data?.warning ?? '',
+        },
+      });
+      setRequestConfirmation('');
+      void loadOverview();
+    } catch (caught) {
+      setRequestPreview((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
+    } finally {
+      setPurgingRequests(false);
     }
   }
 
@@ -613,6 +702,23 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
           onRefresh={() => loadPreview()}
           onConfirmation={setConfirmation}
           onPurge={() => void purgeStock()}
+        />
+      ) : null}
+
+      {activeTab === 'requests' ? (
+        <RequestCleanup
+          clients={clients.data}
+          selectedClientId={selectedClientId}
+          preview={requestPreview}
+          confirmation={requestConfirmation}
+          result={requestCleanupResult}
+          isPurging={isPurgingRequests}
+          currentSummary={currentRequestSummary}
+          canPurge={canPurgeRequests}
+          onSelect={setSelectedClientId}
+          onRefresh={() => loadRequestPreview()}
+          onConfirmation={setRequestConfirmation}
+          onPurge={() => void purgeRequests()}
         />
       ) : null}
 
@@ -1043,6 +1149,92 @@ function StockCleanup(props: {
         <button className="danger-button" type="button" onClick={props.onPurge} disabled={!props.canPurge || props.isPurging}><Trash2 size={16} /> Очистить остатки</button>
       </div>
       {props.result ? <div className="service-message service-message--success"><CheckCircle2 size={18} />Остатки клиента очищены.</div> : null}
+    </div>
+  );
+}
+
+function RequestCleanup(props: {
+  clients: ClientSummary[];
+  selectedClientId: string;
+  preview: LoadState<ServiceClientRequestCleanupPreview | null>;
+  confirmation: string;
+  result: ServiceClientRequestCleanupResult | null;
+  isPurging: boolean;
+  currentSummary: ServiceClientRequestCleanupSummary;
+  canPurge: boolean;
+  onSelect: (clientId: string) => void;
+  onRefresh: () => void;
+  onConfirmation: (value: string) => void;
+  onPurge: () => void;
+}) {
+  return (
+    <div className="service-card">
+      <div className="service-cleanup__controls">
+        <label>
+          <span>Клиент</span>
+          <select value={props.selectedClientId} onChange={(event) => props.onSelect(event.target.value)}>
+            {props.clients.map((client) => <option key={client.id} value={client.id}>{client.code} · {client.name}</option>)}
+          </select>
+        </label>
+        <button className="secondary-button" type="button" onClick={props.onRefresh} disabled={!props.selectedClientId}>
+          <RefreshCw size={16} /> Обновить
+        </button>
+      </div>
+      {props.preview.status === 'error' ? <div className="service-message service-message--error">{props.preview.error}</div> : null}
+      <div className="service-metrics">
+        <Metric icon={<FileText size={17} />} label="Заявок" value={props.currentSummary.requests} />
+        <Metric icon={<FileText size={17} />} label="Строк" value={props.currentSummary.items} />
+        <Metric icon={<FileText size={17} />} label="Файлов" value={props.currentSummary.files} />
+        <Metric icon={<FileText size={17} />} label="Упаковок" value={props.currentSummary.packages} />
+        <Metric icon={<FileText size={17} />} label="Комментариев" value={props.currentSummary.comments} />
+        <Metric icon={<FileText size={17} />} label="Истории" value={props.currentSummary.events} />
+      </div>
+
+      <div className="service-warning"><AlertTriangle size={18} />{props.preview.data?.warning ?? 'Выберите клиента для удаления заявок.'}</div>
+
+      <div className="service-card__heading service-card__heading--sub">
+        <strong>Последние заявки клиента</strong>
+        <span className="service-inline-note">Показаны последние 20 заявок перед удалением.</span>
+      </div>
+      <ServiceTable columns={['Дата', 'Заявка', 'Тип', 'Статус', 'Город', 'Состав']}>
+        {props.preview.data?.recentRequests.length ? null : (
+          <tr>
+            <td colSpan={6}>Заявок у выбранного клиента нет</td>
+          </tr>
+        )}
+        {props.preview.data?.recentRequests.map((request) => (
+          <tr key={request.id}>
+            <td>{formatDateTime(request.createdAt)}</td>
+            <td>{request.title}</td>
+            <td>{request.type}</td>
+            <td>{request.status}</td>
+            <td>{request.destinationCity || '-'}</td>
+            <td>
+              {request._count.items} строк · {request._count.files} файлов · {request._count.packages} упаковок · {request._count.comments} комм.
+            </td>
+          </tr>
+        ))}
+      </ServiceTable>
+
+      <div className="service-danger-zone">
+        <label>
+          <span>Подтверждение</span>
+          <input
+            value={props.confirmation}
+            onChange={(event) => props.onConfirmation(event.target.value)}
+            placeholder={`Введите ${props.preview.data?.confirmationText ?? 'УДАЛИТЬ ЗАЯВКИ'}`}
+          />
+        </label>
+        <button className="danger-button" type="button" onClick={props.onPurge} disabled={!props.canPurge || props.isPurging}>
+          <Trash2 size={16} /> Удалить заявки клиента
+        </button>
+      </div>
+      {props.result ? (
+        <div className="service-message service-message--success">
+          <CheckCircle2 size={18} />
+          Заявки клиента удалены. Отвязано начислений: {props.result.deleted.billingChargesUnlinked}, логистики: {props.result.deleted.deliveryRequestsUnlinked}, уведомлений: {props.result.deleted.notificationsUnlinked}.
+        </div>
+      ) : null}
     </div>
   );
 }

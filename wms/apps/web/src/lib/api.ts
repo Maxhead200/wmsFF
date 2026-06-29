@@ -1241,6 +1241,57 @@ export type ServiceClientStockCleanupResult = {
   after: ServiceClientStockSummary;
 };
 
+export type ServiceClientRequestCleanupSummary = {
+  requests: number;
+  items: number;
+  files: number;
+  comments: number;
+  events: number;
+  packages: number;
+  packageItems: number;
+  pickWaveLinks: number;
+  notifications: number;
+  billingCharges: number;
+  deliveryRequests: number;
+  byStatus: Record<string, number>;
+  byType: Record<string, number>;
+};
+
+export type ServiceClientRequestCleanupPreview = {
+  client: Pick<ClientSummary, 'id' | 'code' | 'name' | 'status'>;
+  summary: ServiceClientRequestCleanupSummary;
+  recentRequests: Array<{
+    id: string;
+    title: string;
+    type: string;
+    status: string;
+    destinationCity: string | null;
+    createdAt: string;
+    updatedAt: string;
+    _count: {
+      items: number;
+      files: number;
+      packages: number;
+      comments: number;
+    };
+  }>;
+  confirmationText: string;
+  warning: string;
+};
+
+export type ServiceClientRequestCleanupResult = {
+  client: Pick<ClientSummary, 'id' | 'code' | 'name' | 'status'>;
+  before: ServiceClientRequestCleanupSummary;
+  deleted: {
+    requests: number;
+    notificationsUnlinked: number;
+    billingChargesUnlinked: number;
+    deliveryRequestsUnlinked: number;
+    systemSettings: number;
+  };
+  after: ServiceClientRequestCleanupSummary;
+};
+
 export type ServiceMaintenanceMode = {
   enabled: boolean;
   message: string;
@@ -2753,6 +2804,20 @@ export async function fetchServiceClientStockCleanupPreview(accessToken: string,
 
 export async function purgeServiceClientStock(accessToken: string, clientId: string, confirmation: string) {
   return request<ServiceClientStockCleanupResult>(`/service/clients/${clientId}/stock-cleanup`, {
+    method: 'POST',
+    body: { confirmation },
+    accessToken,
+  });
+}
+
+export async function fetchServiceClientRequestCleanupPreview(accessToken: string, clientId: string) {
+  return request<ServiceClientRequestCleanupPreview>(`/service/clients/${clientId}/request-cleanup`, {
+    accessToken,
+  });
+}
+
+export async function purgeServiceClientRequests(accessToken: string, clientId: string, confirmation: string) {
+  return request<ServiceClientRequestCleanupResult>(`/service/clients/${clientId}/request-cleanup`, {
     method: 'POST',
     body: { confirmation },
     accessToken,

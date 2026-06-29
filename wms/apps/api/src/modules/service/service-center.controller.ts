@@ -85,6 +85,20 @@ export class ServiceCenterController {
     return this.serviceCenter.purgeClientStock(clientId, confirmation, user);
   }
 
+  @Get('clients/:clientId/request-cleanup')
+  getClientRequestCleanupPreview(@Param('clientId') clientId: string) {
+    return this.serviceCenter.getClientRequestCleanupPreview(clientId);
+  }
+
+  @Post('clients/:clientId/request-cleanup')
+  purgeClientRequests(
+    @Param('clientId') clientId: string,
+    @Body('confirmation') confirmation: string | undefined,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.serviceCenter.purgeClientRequests(clientId, confirmation, user);
+  }
+
   @Get('nomenclature')
   listNomenclature(@Query('search') search?: string) {
     return this.serviceCenter.listNomenclature({ search });

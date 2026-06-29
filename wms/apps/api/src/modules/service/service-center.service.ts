@@ -7,6 +7,7 @@ import { TelegramNotificationsService } from '../../common/telegram/telegram-not
 import type { AuthUser } from '../auth/auth.types';
 
 const CLEANUP_CONFIRMATION = 'ОЧИСТИТЬ';
+const REQUEST_CLEANUP_CONFIRMATION = 'УДАЛИТЬ ЗАЯВКИ';
 
 const MAINTENANCE_KEY = 'SYSTEM_MAINTENANCE';
 
@@ -300,6 +301,134 @@ export class ServiceCenterService {
     };
   }
 
+  async getClientRequestCleanupPreview(clientId: string) {
+    const client = await this.findClient(clientId);
+    const summary = await this.getClientRequestsSummary(clientId);
+    const recentRequests = await this.prisma.clientRequest.findMany({
+      where: { clientId },
+      select: {
+        id: true,
+        title: true,
+        type: true,
+        status: true,
+        destinationCity: true,
+        createdAt: true,
+        updatedAt: true,
+        _count: {
+          select: {
+            items: true,
+            files: true,
+            packages: true,
+            comments: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+
+    return {
+      client,
+      summary,
+      recentRequests,
+      confirmationText: REQUEST_CLEANUP_CONFIRMATION,
+      warning:
+        'Будут удалены заявки выбранного клиента: строки, файлы, комментарии, история, упаковки и привязки к волнам сборки. Остатки, клиенты, пользователи, SKU, начисления и логистика останутся; у начислений и логистики будет снята ссылка на удаленные заявки.',
+    };
+  }
+
+  async purgeClientRequests(clientId: string, confirmation: string | undefined, user: AuthUser) {
+    if (confirmation !== REQUEST_CLEANUP_CONFIRMATION) {
+      throw new BadRequestException(`Для удаления заявок введите подтверждение: ${REQUEST_CLEANUP_CONFIRMATION}.`);
+    }
+
+    const client = await this.findClient(clientId);
+    const before = await this.getClientRequestsSummary(clientId);
+    const requests = await this.prisma.clientRequest.findMany({
+      where: { clientId },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        type: true,
+        createdAt: true,
+      },
+    });
+    const requestIds = requests.map((request) => request.id);
+
+    if (requestIds.length === 0) {
+      return {
+        client,
+        before,
+        deleted: {
+          requests: 0,
+          notificationsUnlinked: 0,
+          billingChargesUnlinked: 0,
+          deliveryRequestsUnlinked: 0,
+          systemSettings: 0,
+        },
+        after: before,
+      };
+    }
+
+    const systemSettingKeys = requestIds.flatMap((requestId) => [
+      `TSD_BOX_SEARCH:${requestId}`,
+      `TSD_RELABEL:${requestId}`,
+      `TSD_MOVES:${requestId}`,
+      `TSD_REQUEST_WORKERS:${requestId}`,
+    ]);
+
+    const deleted = await this.prisma.$transaction(async (tx) => {
+      const notifications = await tx.clientNotification.updateMany({
+        where: { clientId, requestId: { in: requestIds } },
+        data: { requestId: null },
+      });
+      const billingCharges = await tx.billingCharge.updateMany({
+        where: { clientId, requestId: { in: requestIds } },
+        data: { requestId: null },
+      });
+      const deliveryRequests = await tx.logisticsDeliveryRequest.updateMany({
+        where: { clientId, requestId: { in: requestIds } },
+        data: { requestId: null },
+      });
+      const systemSettings = await tx.systemSetting.deleteMany({
+        where: { key: { in: systemSettingKeys } },
+      });
+      const requestsDeleted = await tx.clientRequest.deleteMany({
+        where: { clientId, id: { in: requestIds } },
+      });
+
+      return {
+        requests: requestsDeleted.count,
+        notificationsUnlinked: notifications.count,
+        billingChargesUnlinked: billingCharges.count,
+        deliveryRequestsUnlinked: deliveryRequests.count,
+        systemSettings: systemSettings.count,
+      };
+    });
+
+    await this.auditLog.write({
+      userId: user.id,
+      action: 'service.client-requests.purge',
+      entity: 'client',
+      entityId: clientId,
+      payload: {
+        clientCode: client.code,
+        clientName: client.name,
+        before,
+        deleted,
+        requestIds,
+      },
+    });
+
+    return {
+      client,
+      before,
+      deleted,
+      after: await this.getClientRequestsSummary(clientId),
+    };
+  }
+
   async listNomenclature(filter: { search?: string }) {
     const search = filter.search?.trim();
     return this.prisma.nomenclatureItem.findMany({
@@ -478,6 +607,62 @@ export class ServiceCenterService {
       boxes,
       pallets,
       productMarks,
+    };
+  }
+
+  private async getClientRequestsSummary(clientId: string) {
+    const [
+      requests,
+      items,
+      files,
+      comments,
+      events,
+      packages,
+      packageItems,
+      pickWaveLinks,
+      notifications,
+      billingCharges,
+      deliveryRequests,
+      byStatus,
+      byType,
+    ] = await Promise.all([
+      this.prisma.clientRequest.count({ where: { clientId } }),
+      this.prisma.clientRequestItem.count({ where: { request: { clientId } } }),
+      this.prisma.clientRequestFile.count({ where: { clientId } }),
+      this.prisma.clientRequestComment.count({ where: { clientId } }),
+      this.prisma.clientRequestEvent.count({ where: { clientId } }),
+      this.prisma.clientRequestPackage.count({ where: { clientId } }),
+      this.prisma.clientRequestPackageItem.count({ where: { package: { clientId } } }),
+      this.prisma.pickWaveRequest.count({ where: { request: { clientId } } }),
+      this.prisma.clientNotification.count({ where: { clientId, requestId: { not: null } } }),
+      this.prisma.billingCharge.count({ where: { clientId, requestId: { not: null } } }),
+      this.prisma.logisticsDeliveryRequest.count({ where: { clientId, requestId: { not: null } } }),
+      this.prisma.clientRequest.groupBy({
+        by: ['status'],
+        where: { clientId },
+        _count: { _all: true },
+      }),
+      this.prisma.clientRequest.groupBy({
+        by: ['type'],
+        where: { clientId },
+        _count: { _all: true },
+      }),
+    ]);
+
+    return {
+      requests,
+      items,
+      files,
+      comments,
+      events,
+      packages,
+      packageItems,
+      pickWaveLinks,
+      notifications,
+      billingCharges,
+      deliveryRequests,
+      byStatus: Object.fromEntries(byStatus.map((item) => [item.status, item._count._all])),
+      byType: Object.fromEntries(byType.map((item) => [item.type, item._count._all])),
     };
   }
 }

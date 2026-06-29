@@ -61,9 +61,9 @@ export class TsdSyncService {
     });
   }
 
-  listActiveRequests(user: AuthUser) {
+  async listActiveRequests(user: AuthUser) {
     const clientFilter = this.clientScopes.resolveClientFilter(user);
-    return this.prisma.clientRequest.findMany({
+    const requests = await this.prisma.clientRequest.findMany({
       where: {
         clientId: clientFilter,
         type: ClientRequestType.OUTBOUND,
@@ -99,9 +99,15 @@ export class TsdSyncService {
         },
       },
     });
+    const workerMap = await this.loadRequestWorkers(requests.map((request) => request.id));
+    return requests.map((request) => ({
+      ...request,
+      activeWorkers: workerMap.get(request.id) ?? [],
+    }));
   }
 
-  async getRequestBoxSearch(requestId: string, user: AuthUser) {
+  async getRequestBoxSearch(requestId: string, user: AuthUser, deviceCode?: string) {
+    await this.touchRequestWorker(requestId, user, 'Поиск коробов', deviceCode);
     const document = await this.pickInstructions.getRequestInstruction(requestId, user);
     const requiredBoxes = this.requiredSearchBoxes(document);
     const foundBoxes = await this.loadFoundSearchBoxes(requestId);
@@ -109,7 +115,8 @@ export class TsdSyncService {
     return this.boxSearchState(requestId, requiredBoxes, foundBoxes, null);
   }
 
-  async scanRequestBox(requestId: string, dto: { boxCode?: string }, user: AuthUser) {
+  async scanRequestBox(requestId: string, dto: { boxCode?: string; deviceCode?: string }, user: AuthUser) {
+    await this.touchRequestWorker(requestId, user, 'Поиск коробов', dto.deviceCode);
     const scannedBox = dto.boxCode?.trim();
     if (!scannedBox) {
       throw new BadRequestException('Сканируйте номер короба.');
@@ -388,6 +395,68 @@ export class TsdSyncService {
     });
   }
 
+  private async loadRequestWorkers(requestIds: string[]) {
+    const keys = requestIds.map(requestWorkersKey);
+    const settings = keys.length
+      ? await this.prisma.systemSetting.findMany({
+          where: { key: { in: keys } },
+        })
+      : [];
+    const now = Date.now();
+    const byRequest = new Map<string, RequestWorker[]>();
+
+    for (const setting of settings) {
+      const requestId = setting.key.replace('TSD_REQUEST_WORKERS:', '');
+      const value = setting.value;
+      const payload = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+      const rawWorkers = Array.isArray(payload.workers) ? payload.workers : [];
+      const workers = rawWorkers
+        .map(parseRequestWorker)
+        .filter((worker): worker is RequestWorker => worker !== null)
+        .filter((worker) => now - Date.parse(worker.lastSeenAt) <= 10 * 60 * 1000)
+        .sort((left, right) => right.lastSeenAt.localeCompare(left.lastSeenAt));
+      byRequest.set(requestId, workers);
+    }
+
+    return byRequest;
+  }
+
+  private async touchRequestWorker(requestId: string, user: AuthUser, stage: string, deviceCode?: string) {
+    const key = requestWorkersKey(requestId);
+    const setting = await this.prisma.systemSetting.findUnique({ where: { key } });
+    const value = setting?.value;
+    const payload = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+    const now = new Date().toISOString();
+    const cutoff = Date.now() - 10 * 60 * 1000;
+    const workers = (Array.isArray(payload.workers) ? payload.workers : [])
+      .map(parseRequestWorker)
+      .filter((worker): worker is RequestWorker => worker !== null)
+      .filter((worker) => Date.parse(worker.lastSeenAt) > cutoff)
+      .filter((worker) => worker.userId !== user.id || worker.deviceCode !== normalizeWorkerDeviceCode(user, deviceCode));
+
+    workers.unshift({
+      userId: user.id,
+      userName: user.name,
+      deviceId: user.deviceId ?? '',
+      deviceCode: normalizeWorkerDeviceCode(user, deviceCode),
+      stage,
+      lastSeenAt: now,
+    });
+
+    await this.prisma.systemSetting.upsert({
+      where: { key },
+      update: {
+        value: { workers: workers.slice(0, 12) },
+        updatedByUserId: user.id,
+      },
+      create: {
+        key,
+        value: { workers: workers.slice(0, 12) },
+        updatedByUserId: user.id,
+      },
+    });
+  }
+
   private boxSearchState(
     requestId: string,
     requiredBoxes: string[],
@@ -417,6 +486,44 @@ export class TsdSyncService {
 
 function boxSearchKey(requestId: string) {
   return `TSD_BOX_SEARCH:${requestId}`;
+}
+
+function requestWorkersKey(requestId: string) {
+  return `TSD_REQUEST_WORKERS:${requestId}`;
+}
+
+type RequestWorker = {
+  userId: string;
+  userName: string;
+  deviceId: string;
+  deviceCode: string;
+  stage: string;
+  lastSeenAt: string;
+};
+
+function parseRequestWorker(value: unknown): RequestWorker | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+  const payload = value as Record<string, unknown>;
+  const userId = typeof payload.userId === 'string' ? payload.userId : '';
+  const lastSeenAt = typeof payload.lastSeenAt === 'string' ? payload.lastSeenAt : '';
+  if (!userId || !lastSeenAt || Number.isNaN(Date.parse(lastSeenAt))) {
+    return null;
+  }
+
+  return {
+    userId,
+    userName: typeof payload.userName === 'string' ? payload.userName : 'ТСД',
+    deviceId: typeof payload.deviceId === 'string' ? payload.deviceId : '',
+    deviceCode: typeof payload.deviceCode === 'string' ? payload.deviceCode : '',
+    stage: typeof payload.stage === 'string' ? payload.stage : 'В работе',
+    lastSeenAt,
+  };
+}
+
+function normalizeWorkerDeviceCode(user: AuthUser, deviceCode?: string) {
+  return (user.deviceCode ?? deviceCode ?? '').trim().toUpperCase();
 }
 
 function normalizeBoxCode(value: string) {

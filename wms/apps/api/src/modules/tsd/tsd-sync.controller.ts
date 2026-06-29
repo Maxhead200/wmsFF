@@ -37,13 +37,13 @@ export class TsdSyncController {
 
   @Get('requests/:id/box-search')
   @RequirePermissions('stock:write')
-  getRequestBoxSearch(@Param('id') id: string, @CurrentUser() user: AuthUser) {
-    return this.sync.getRequestBoxSearch(id, user);
+  getRequestBoxSearch(@Param('id') id: string, @Query('deviceCode') deviceCode: string, @CurrentUser() user: AuthUser) {
+    return this.sync.getRequestBoxSearch(id, user, deviceCode);
   }
 
   @Post('requests/:id/box-search/scan')
   @RequirePermissions('stock:write')
-  scanRequestBox(@Param('id') id: string, @Body() dto: { boxCode?: string }, @CurrentUser() user: AuthUser) {
+  scanRequestBox(@Param('id') id: string, @Body() dto: { boxCode?: string; deviceCode?: string }, @CurrentUser() user: AuthUser) {
     return this.sync.scanRequestBox(id, dto, user);
   }
 

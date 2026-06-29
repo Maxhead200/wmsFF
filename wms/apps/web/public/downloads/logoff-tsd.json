@@ -1,0 +1,6 @@
+{
+  "versionCode": 3,
+  "versionName": "0.1.2",
+  "apkUrl": "https://wms.logoff.pro/downloads/logoff-tsd.apk",
+  "releaseNotes": "Добавлены автоматическая проверка обновлений, подсветка заявок в работе на других ТСД и новый логотип ТСД."
+}

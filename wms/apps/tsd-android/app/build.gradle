@@ -10,7 +10,11 @@ android {
         applicationId "pro.logoff.wms.tsd"
         minSdk 23
         targetSdk 35
-        versionCode 1
-        versionName "0.1.0"
+        versionCode 3
+        versionName "0.1.2"
     }
+}
+
+dependencies {
+    implementation "androidx.core:core:1.13.1"
 }

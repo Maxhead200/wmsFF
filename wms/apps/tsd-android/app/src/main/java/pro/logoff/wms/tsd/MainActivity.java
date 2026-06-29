@@ -3,13 +3,18 @@ package pro.logoff.wms.tsd;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageInfo;
 import android.graphics.Color;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
@@ -24,10 +29,21 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.core.content.FileProvider;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Locale;
@@ -36,6 +52,7 @@ import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
     private static final String DEFAULT_API_URL = "https://wms.logoff.pro/api/v1";
+    private static final String UPDATE_MANIFEST_URL = "https://wms.logoff.pro/downloads/logoff-tsd.json";
     private static final int RED = Color.rgb(180, 0, 18);
     private static final int BG = Color.rgb(247, 244, 241);
 
@@ -65,6 +82,7 @@ public class MainActivity extends Activity {
     private long lastBoxSearchScanAtMs = 0L;
     private Runnable backAction = null;
     private long lastRootBackAtMs = 0L;
+    private boolean updateCheckRunning = false;
 
     @Override
     protected void onCreate(Bundle bundle) {
@@ -76,10 +94,12 @@ public class MainActivity extends Activity {
         main.postDelayed(() -> {
             if (token.isEmpty()) {
                 showLogin();
+                checkForUpdate(false);
             } else {
                 showMenu();
                 loadClients();
                 syncQueue();
+                checkForUpdate(false);
             }
         }, 700);
     }
@@ -107,9 +127,9 @@ public class MainActivity extends Activity {
         LinearLayout root = page();
         root.setGravity(Gravity.CENTER);
         TextView logo = new TextView(this);
-        logo.setText("LOGOff");
+        logo.setText("ТСД");
         logo.setTextColor(Color.WHITE);
-        logo.setTextSize(30);
+        logo.setTextSize(34);
         logo.setGravity(Gravity.CENTER);
         logo.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         logo.setBackgroundColor(RED);
@@ -138,12 +158,15 @@ public class MainActivity extends Activity {
             api = new ApiClient(apiUrl);
             login(login.getText().toString(), password.getText().toString(), device.getText().toString());
         });
+        Button update = secondary("Проверить обновление");
+        update.setOnClickListener(v -> checkForUpdate(true));
 
         root.addView(login);
         root.addView(password);
         root.addView(device);
         root.addView(server);
         root.addView(button);
+        root.addView(update);
         setContentView(wrap(root));
     }
 
@@ -172,6 +195,7 @@ public class MainActivity extends Activity {
                 showMenu();
                 loadClients();
                 syncQueue();
+                checkForUpdate(false);
             });
         });
     }
@@ -204,6 +228,10 @@ public class MainActivity extends Activity {
         Button sync = secondary("Синхронизировать очередь (" + queue.size() + ")");
         sync.setOnClickListener(v -> syncQueue());
         root.addView(sync);
+
+        Button update = secondary("Проверить обновление");
+        update.setOnClickListener(v -> checkForUpdate(true));
+        root.addView(update);
 
         Button exit = secondary("Выйти");
         exit.setOnClickListener(v -> {
@@ -258,7 +286,7 @@ public class MainActivity extends Activity {
         root.setPadding(dp(14), dp(16), dp(14), dp(14));
         addHeader(root);
         addTitle(root, "Сборка заявки");
-        root.addView(note("Выберите активную заявку. В списке видно номер, клиента и город."));
+        root.addView(note("Выберите активную заявку. Желтым подсвечены заявки, где уже кто-то работает с ТСД."));
 
         Button refresh = secondary("Обновить заявки");
         refresh.setOnClickListener(v -> loadPickRequests(true));
@@ -271,6 +299,10 @@ public class MainActivity extends Activity {
         for (PickRequest request : pickRequests) {
             Button item = secondary(request.label());
             item.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
+            if (request.hasActiveWorkers()) {
+                item.setTextColor(Color.rgb(76, 48, 0));
+                item.setBackgroundColor(Color.rgb(255, 231, 153));
+            }
             item.setOnClickListener(v -> showPickRequestActions(request));
             root.addView(item);
         }
@@ -291,6 +323,11 @@ public class MainActivity extends Activity {
         root.addView(note("Клиент: " + request.clientName));
         root.addView(note("Город: " + firstNonEmpty(request.city, "-")));
         root.addView(note("Статус: " + request.status + " · строк: " + request.itemsCount));
+        if (request.hasActiveWorkers()) {
+            TextView working = note("Уже в работе: " + request.activeWorkersText);
+            working.setTextColor(Color.rgb(120, 72, 0));
+            root.addView(working);
+        }
 
         Button boxes = primary("1. Поиск коробов");
         boxes.setOnClickListener(v -> loadBoxSearch(request));
@@ -310,7 +347,7 @@ public class MainActivity extends Activity {
 
     private void loadBoxSearch(PickRequest request) {
         runAsync(() -> {
-            JSONObject state = api.boxSearch(token, request.id);
+            JSONObject state = api.boxSearch(token, request.id, deviceCode);
             main.post(() -> showBoxSearch(request, state));
         });
     }
@@ -334,7 +371,7 @@ public class MainActivity extends Activity {
 
         runAsync(() -> {
             try {
-                JSONObject state = api.scanBoxSearch(token, request.id, normalized);
+                JSONObject state = api.scanBoxSearch(token, request.id, normalized, deviceCode);
                 JSONObject lastScan = state.optJSONObject("lastScan");
                 main.post(() -> {
                     boolean foundNow = lastScan != null && lastScan.optBoolean("matched");
@@ -727,13 +764,16 @@ public class MainActivity extends Activity {
                 JSONObject item = loaded.getJSONObject(i);
                 JSONObject client = item.optJSONObject("client");
                 JSONObject count = item.optJSONObject("_count");
+                JSONArray activeWorkers = item.optJSONArray("activeWorkers");
                 next.add(new PickRequest(
                     item.optString("id"),
                     item.optString("title"),
                     item.optString("status"),
                     item.optString("destinationCity"),
                     client == null ? "" : client.optString("name"),
-                    count == null ? 0 : count.optInt("items")
+                    count == null ? 0 : count.optInt("items"),
+                    activeWorkers == null ? 0 : activeWorkers.length(),
+                    activeWorkersLabel(activeWorkers)
                 ));
             }
             main.post(() -> {
@@ -761,6 +801,167 @@ public class MainActivity extends Activity {
             queue.removeKeys(results);
             main.post(() -> toast("Синхронизация завершена. В очереди: " + queue.size()));
         });
+    }
+
+    private void checkForUpdate(boolean manual) {
+        if (updateCheckRunning) {
+            if (manual) {
+                toast("Проверка обновления уже идет.");
+            }
+            return;
+        }
+        if (!isOnline()) {
+            if (manual) {
+                toast("Нет интернета. Проверить обновление сейчас нельзя.");
+            }
+            return;
+        }
+
+        updateCheckRunning = true;
+        io.execute(() -> {
+            try {
+                JSONObject update = readJson(UPDATE_MANIFEST_URL);
+                int latestCode = update.optInt("versionCode", 0);
+                int currentCode = currentVersionCode();
+                main.post(() -> {
+                    if (latestCode > currentCode) {
+                        showUpdateDialog(update);
+                    } else if (manual) {
+                        toast("Установлена последняя версия: " + currentVersionName());
+                    }
+                });
+            } catch (Exception error) {
+                if (manual) {
+                    main.post(() -> toast(error.getMessage() == null ? "Не удалось проверить обновление." : error.getMessage()));
+                }
+            } finally {
+                main.post(() -> updateCheckRunning = false);
+            }
+        });
+    }
+
+    private void showUpdateDialog(JSONObject update) {
+        String versionName = update.optString("versionName", "");
+        String notes = update.optString("releaseNotes", "");
+        String message = "Доступна новая версия"
+            + (versionName.isEmpty() ? "." : ": " + versionName + ".")
+            + "\n\n" + (notes.isEmpty() ? "Нажмите обновить, чтобы скачать и установить APK." : notes);
+        new AlertDialog.Builder(this)
+            .setTitle("Обновление LOGOff TSD")
+            .setMessage(message)
+            .setPositiveButton("Обновить", (dialog, which) -> downloadAndInstallUpdate(update.optString("apkUrl", "")))
+            .setNegativeButton("Позже", null)
+            .show();
+    }
+
+    private void downloadAndInstallUpdate(String apkUrl) {
+        if (apkUrl == null || apkUrl.trim().isEmpty()) {
+            toast("В манифесте обновления не указан APK.");
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !getPackageManager().canRequestPackageInstalls()) {
+            toast("Разрешите установку из этого приложения и нажмите обновить еще раз.");
+            Intent intent = new Intent(
+                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                Uri.parse("package:" + getPackageName())
+            );
+            startActivity(intent);
+            return;
+        }
+
+        toast("Скачиваю обновление...");
+        runAsync(() -> {
+            File apk = downloadApk(apkUrl);
+            main.post(() -> installApk(apk));
+        });
+    }
+
+    private File downloadApk(String apkUrl) throws Exception {
+        File dir = new File(getExternalFilesDir(null), "updates");
+        if (!dir.exists() && !dir.mkdirs()) {
+            throw new IllegalStateException("Не удалось создать папку обновлений.");
+        }
+        File target = new File(dir, "logoff-tsd-update.apk");
+        HttpURLConnection connection = (HttpURLConnection) new URL(apkUrl).openConnection();
+        connection.setConnectTimeout(12000);
+        connection.setReadTimeout(60000);
+        connection.setRequestProperty("User-Agent", "LOGOff-TSD-Android/" + currentVersionName());
+        int code = connection.getResponseCode();
+        if (code >= 400) {
+            throw new IllegalStateException("Не удалось скачать обновление: HTTP " + code);
+        }
+        try (InputStream input = new BufferedInputStream(connection.getInputStream());
+             FileOutputStream output = new FileOutputStream(target, false)) {
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = input.read(buffer)) != -1) {
+                output.write(buffer, 0, read);
+            }
+        } finally {
+            connection.disconnect();
+        }
+        return target;
+    }
+
+    private void installApk(File apk) {
+        Uri uri = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N
+            ? FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", apk)
+            : Uri.fromFile(apk);
+        Intent intent = new Intent(Intent.ACTION_VIEW);
+        intent.setDataAndType(uri, "application/vnd.android.package-archive");
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        startActivity(intent);
+    }
+
+    private JSONObject readJson(String url) throws Exception {
+        HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
+        connection.setConnectTimeout(12000);
+        connection.setReadTimeout(20000);
+        connection.setRequestProperty("Accept", "application/json");
+        connection.setRequestProperty("User-Agent", "LOGOff-TSD-Android/" + currentVersionName());
+        int code = connection.getResponseCode();
+        String response = readAll(code >= 400 ? connection.getErrorStream() : connection.getInputStream());
+        connection.disconnect();
+        if (code >= 400) {
+            throw new IllegalStateException("Не удалось проверить обновление: HTTP " + code);
+        }
+        return new JSONObject(response);
+    }
+
+    private String currentVersionName() {
+        try {
+            PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
+            return info.versionName == null ? "0" : info.versionName;
+        } catch (Exception ignored) {
+            return "0";
+        }
+    }
+
+    private int currentVersionCode() {
+        try {
+            PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                return (int) info.getLongVersionCode();
+            }
+            return info.versionCode;
+        } catch (Exception ignored) {
+            return 0;
+        }
+    }
+
+    private static String readAll(InputStream stream) throws Exception {
+        if (stream == null) {
+            return "";
+        }
+        StringBuilder builder = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                builder.append(line);
+            }
+        }
+        return builder.toString();
     }
 
     private void runAsync(Job job) {
@@ -798,14 +999,14 @@ public class MainActivity extends Activity {
 
     private void addLogo(LinearLayout root, boolean compact) {
         TextView logo = new TextView(this);
-        logo.setText("LOGOff");
+        logo.setText("ТСД");
         logo.setTextColor(Color.WHITE);
         logo.setGravity(Gravity.CENTER);
         logo.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        logo.setTextSize(compact ? 13 : 30);
+        logo.setTextSize(compact ? 18 : 34);
         logo.setBackgroundColor(RED);
         int size = compact ? dp(48) : dp(132);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(size, compact ? dp(48) : dp(92));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(size, compact ? dp(48) : dp(132));
         params.setMargins(0, 0, compact ? dp(10) : 0, dp(12));
         root.addView(logo, params);
     }
@@ -962,6 +1163,31 @@ public class MainActivity extends Activity {
         return firstNonEmpty(a, b, "-");
     }
 
+    private static String activeWorkersLabel(JSONArray workers) {
+        if (workers == null || workers.length() == 0) {
+            return "";
+        }
+        ArrayList<String> labels = new ArrayList<>();
+        for (int i = 0; i < workers.length(); i++) {
+            JSONObject worker = workers.optJSONObject(i);
+            if (worker == null) {
+                continue;
+            }
+            String name = firstNonEmpty(worker.optString("userName"), "сборщик");
+            String device = firstNonEmpty(worker.optString("deviceCode"), "ТСД");
+            String stage = firstNonEmpty(worker.optString("stage"), "в работе");
+            labels.add(name + " / " + device + " / " + stage);
+        }
+        StringBuilder builder = new StringBuilder();
+        for (String label : labels) {
+            if (builder.length() > 0) {
+                builder.append("; ");
+            }
+            builder.append(label);
+        }
+        return builder.toString();
+    }
+
     private interface Job {
         void run() throws Exception;
     }
@@ -988,14 +1214,27 @@ public class MainActivity extends Activity {
         final String city;
         final String clientName;
         final int itemsCount;
+        final int activeWorkersCount;
+        final String activeWorkersText;
 
-        PickRequest(String id, String title, String status, String city, String clientName, int itemsCount) {
+        PickRequest(
+            String id,
+            String title,
+            String status,
+            String city,
+            String clientName,
+            int itemsCount,
+            int activeWorkersCount,
+            String activeWorkersText
+        ) {
             this.id = id == null ? "" : id;
             this.title = title == null ? "" : title;
             this.status = status == null ? "" : status;
             this.city = city == null ? "" : city;
             this.clientName = clientName == null || clientName.isEmpty() ? "-" : clientName;
             this.itemsCount = itemsCount;
+            this.activeWorkersCount = activeWorkersCount;
+            this.activeWorkersText = activeWorkersText == null ? "" : activeWorkersText;
         }
 
         String shortNumber() {
@@ -1006,7 +1245,15 @@ public class MainActivity extends Activity {
         }
 
         String label() {
-            return shortNumber() + "\n" + clientName + " · " + firstNonEmpty(city, "город не указан");
+            String base = shortNumber() + "\n" + clientName + " · " + firstNonEmpty(city, "город не указан");
+            if (!hasActiveWorkers()) {
+                return base;
+            }
+            return base + "\nВ работе: " + activeWorkersText;
+        }
+
+        boolean hasActiveWorkers() {
+            return activeWorkersCount > 0 && !activeWorkersText.isEmpty();
         }
     }
 }

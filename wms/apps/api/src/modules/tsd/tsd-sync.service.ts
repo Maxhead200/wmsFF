@@ -223,6 +223,114 @@ export class TsdSyncService {
     });
   }
 
+  async getRequestMoves(requestId: string, user: AuthUser, deviceCode?: string) {
+    await this.touchRequestWorker(requestId, user, 'Перемещения', deviceCode);
+    const document = await this.pickInstructions.getRequestInstruction(requestId, user);
+    const tasks = this.moveTasks(document);
+    const moveState = await this.loadMoveState(requestId);
+    return this.movesState(requestId, tasks, moveState, null);
+  }
+
+  async openMoveTargetBox(
+    requestId: string,
+    dto: { targetBoxCode?: string; deviceCode?: string },
+    user: AuthUser,
+  ) {
+    await this.touchRequestWorker(requestId, user, 'Перемещения', dto.deviceCode);
+    const targetBoxCode = dto.targetBoxCode?.trim();
+    if (!targetBoxCode) {
+      throw new BadRequestException('Сканируйте новый короб для перемещений.');
+    }
+
+    const document = await this.pickInstructions.getRequestInstruction(requestId, user);
+    const tasks = this.moveTasks(document);
+    const moveState = await this.loadMoveState(requestId);
+    moveState.currentTargetBox = targetBoxCode;
+    await this.saveMoveState(requestId, moveState, user.id);
+    return this.movesState(requestId, tasks, moveState, { type: 'target', matched: true, targetBoxCode });
+  }
+
+  async scanMoveItem(
+    requestId: string,
+    dto: { sourceBox?: string; barcode?: string; targetBoxCode?: string; deviceCode?: string },
+    user: AuthUser,
+  ) {
+    await this.touchRequestWorker(requestId, user, 'Перемещения', dto.deviceCode);
+    const sourceBox = dto.sourceBox?.trim();
+    const barcode = dto.barcode?.trim();
+    if (!sourceBox || !barcode) {
+      throw new BadRequestException('Сканируйте исходный короб и ШК товара для перемещения.');
+    }
+
+    const request = await this.prisma.clientRequest.findUnique({
+      where: { id: requestId },
+      select: { id: true, clientId: true, type: true, status: true },
+    });
+    if (!request) {
+      throw new NotFoundException('Клиентская заявка не найдена.');
+    }
+    if (request.type !== ClientRequestType.OUTBOUND) {
+      throw new BadRequestException('Перемещения ТСД доступны только для заявок на отгрузку.');
+    }
+    this.clientScopes.requireClientAccess(user, request.clientId, 'write');
+
+    const document = await this.pickInstructions.getRequestInstruction(requestId, user);
+    const tasks = this.moveTasks(document);
+    const moveState = await this.loadMoveState(requestId);
+    const targetBoxCode = dto.targetBoxCode?.trim() || moveState.currentTargetBox;
+    if (!targetBoxCode) {
+      throw new BadRequestException('Сначала сканируйте новый короб, в который складывается товар.');
+    }
+
+    const task = tasks.find(
+      (item) =>
+        normalizeBoxCode(item.sourceBox) === normalizeBoxCode(sourceBox) &&
+        normalizeBoxCode(item.barcode) === normalizeBoxCode(barcode) &&
+        item.quantity - (moveState.completed.get(item.id) ?? 0) > 0,
+    );
+    if (!task) {
+      throw new BadRequestException('Этот товар не требуется перемещать из выбранного короба.');
+    }
+
+    const current = moveState.completed.get(task.id) ?? 0;
+    await this.stockOperations.transferBetweenBoxes(
+      {
+        clientId: request.clientId,
+        barcode: task.barcode,
+        fromBoxCode: task.sourceBox,
+        toBoxCode: targetBoxCode,
+        quantity: 1,
+        status: StockStatus.AVAILABLE,
+        sourceDocument: requestId,
+        idempotencyKey: `tsd-move:${requestId}:${task.id}:${current + 1}`,
+        comment: `ТСД ${dto.deviceCode || user.deviceCode || ''}, сотрудник ${user.name}: перемещение по заявке ${requestId}`,
+      },
+      user,
+    );
+
+    moveState.currentTargetBox = targetBoxCode;
+    moveState.completed.set(task.id, current + 1);
+    await this.saveMoveState(requestId, moveState, user.id);
+    await this.finalizeTsdPackingIfReady(requestId, user, document, tasks, moveState);
+    return this.movesState(requestId, tasks, moveState, { type: 'item', matched: true, task, targetBoxCode });
+  }
+
+  async finishRequestMoves(requestId: string, dto: { deviceCode?: string }, user: AuthUser) {
+    await this.touchRequestWorker(requestId, user, 'Перемещения', dto.deviceCode);
+    const document = await this.pickInstructions.getRequestInstruction(requestId, user);
+    const tasks = this.moveTasks(document);
+    const moveState = await this.loadMoveState(requestId);
+    const remaining = tasks.reduce((sum, task) => sum + Math.max(0, task.quantity - (moveState.completed.get(task.id) ?? 0)), 0);
+    if (remaining > 0) {
+      throw new BadRequestException(`Перемещения еще не завершены. Осталось единиц: ${remaining}.`);
+    }
+
+    moveState.currentTargetBox = '';
+    await this.saveMoveState(requestId, moveState, user.id);
+    await this.finalizeTsdPackingIfReady(requestId, user, document, tasks, moveState);
+    return this.movesState(requestId, tasks, moveState, { type: 'finish', matched: true });
+  }
+
   async getSkuByBarcode(clientId: string, barcode: string, user: AuthUser) {
     const normalizedClientId = clientId?.trim();
     const normalizedBarcode = barcode?.trim();
@@ -586,6 +694,243 @@ export class TsdSyncService {
     };
   }
 
+  private moveTasks(document: {
+    warehouseBalanceMoves: Array<{
+      sourceBox: string;
+      artOnBox: string;
+      barcodeOnBox: string;
+      size: string;
+      quantity: number;
+      newBox: string;
+    }>;
+  }) {
+    const tasks = new Map<string, MoveTask>();
+    for (const row of document.warehouseBalanceMoves) {
+      if (!row.sourceBox || !row.barcodeOnBox || row.quantity <= 0) {
+        continue;
+      }
+      const key = moveTaskId(row.sourceBox, row.barcodeOnBox, row.artOnBox, row.size);
+      const existing = tasks.get(key);
+      if (existing) {
+        existing.quantity += row.quantity;
+        continue;
+      }
+      tasks.set(key, {
+        id: key,
+        sourceBox: row.sourceBox,
+        article: row.artOnBox,
+        size: row.size,
+        barcode: row.barcodeOnBox,
+        suggestedTargetBox: row.newBox,
+        quantity: row.quantity,
+      });
+    }
+    return [...tasks.values()].sort((left, right) =>
+      left.sourceBox.localeCompare(right.sourceBox, 'ru', { numeric: true }) ||
+      left.article.localeCompare(right.article, 'ru', { numeric: true }) ||
+      left.barcode.localeCompare(right.barcode, 'ru', { numeric: true }),
+    );
+  }
+
+  private async loadMoveState(requestId: string): Promise<MoveState> {
+    const setting = await this.prisma.systemSetting.findUnique({
+      where: { key: movesKey(requestId) },
+    });
+    const value = setting?.value;
+    const payload = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+    const completed = payload.completed && typeof payload.completed === 'object' && !Array.isArray(payload.completed)
+      ? (payload.completed as Record<string, unknown>)
+      : {};
+    return {
+      currentTargetBox: typeof payload.currentTargetBox === 'string' ? payload.currentTargetBox : '',
+      completed: new Map(
+        Object.entries(completed)
+          .map(([key, value]) => [key, Number(value)] as const)
+          .filter(([, value]) => Number.isInteger(value) && value > 0),
+      ),
+    };
+  }
+
+  private async saveMoveState(requestId: string, state: MoveState, userId: string) {
+    const completed = Object.fromEntries([...state.completed.entries()].filter(([, count]) => count > 0));
+    await this.prisma.systemSetting.upsert({
+      where: { key: movesKey(requestId) },
+      update: {
+        value: { currentTargetBox: state.currentTargetBox, completed },
+        updatedByUserId: userId,
+      },
+      create: {
+        key: movesKey(requestId),
+        value: { currentTargetBox: state.currentTargetBox, completed },
+        updatedByUserId: userId,
+      },
+    });
+  }
+
+  private movesState(
+    requestId: string,
+    tasks: MoveTask[],
+    state: MoveState,
+    lastScan: null | { type: string; matched: boolean; task?: MoveTask; targetBoxCode?: string },
+  ) {
+    const rows = tasks.map((task) => {
+      const done = Math.min(state.completed.get(task.id) ?? 0, task.quantity);
+      return {
+        ...task,
+        completed: done,
+        remaining: Math.max(0, task.quantity - done),
+      };
+    });
+    const pendingRows = rows.filter((row) => row.remaining > 0);
+    const boxes = [...new Set(pendingRows.map((row) => row.sourceBox))]
+      .sort((left, right) => left.localeCompare(right, 'ru', { numeric: true }))
+      .map((boxCode) => {
+        const boxRows = pendingRows.filter((row) => row.sourceBox === boxCode);
+        return {
+          boxCode,
+          totalRemaining: boxRows.reduce((sum, row) => sum + row.remaining, 0),
+          rows: boxRows,
+        };
+      });
+    const total = rows.reduce((sum, row) => sum + row.quantity, 0);
+    const completed = rows.reduce((sum, row) => sum + row.completed, 0);
+    return {
+      requestId,
+      total,
+      completed,
+      remaining: Math.max(0, total - completed),
+      isComplete: total === completed,
+      currentTargetBox: state.currentTargetBox,
+      boxes,
+      rows: pendingRows,
+      lastScan,
+    };
+  }
+
+  private async finalizeTsdPackingIfReady(
+    requestId: string,
+    user: AuthUser,
+    document: Awaited<ReturnType<PickInstructionService['getRequestInstruction']>>,
+    tasks: MoveTask[],
+    state: MoveState,
+  ) {
+    const moveRemaining = tasks.reduce((sum, task) => sum + Math.max(0, task.quantity - (state.completed.get(task.id) ?? 0)), 0);
+    if (moveRemaining > 0) {
+      return;
+    }
+
+    const requiredBoxes = this.requiredSearchBoxes(document);
+    const foundBoxes = await this.loadFoundSearchBoxes(requestId);
+    if (!this.boxSearchState(requestId, requiredBoxes, foundBoxes, null).isComplete) {
+      return;
+    }
+
+    const relabelTasks = this.relabelTasks(document);
+    const relabelCompleted = await this.loadRelabelCompleted(requestId);
+    if (!this.relabelState(requestId, relabelTasks, relabelCompleted, null).isComplete) {
+      return;
+    }
+
+    await this.createPackedPackages(requestId, user, document);
+  }
+
+  private async createPackedPackages(
+    requestId: string,
+    user: AuthUser,
+    document: Awaited<ReturnType<PickInstructionService['getRequestInstruction']>>,
+  ) {
+    const request = await this.prisma.clientRequest.findUnique({
+      where: { id: requestId },
+      include: { items: true, packages: true },
+    });
+    if (!request) {
+      throw new NotFoundException('Клиентская заявка не найдена.');
+    }
+    if (request.status === ClientRequestStatus.PACKED || request.status === ClientRequestStatus.DONE) {
+      return;
+    }
+
+    const shipmentRows = document.warehouseRows.filter((row) =>
+      row.sourceBox &&
+      row.quantity > 0 &&
+      !row.comment.toLowerCase().includes('переложить') &&
+      !row.note.toLowerCase().includes('остаток'),
+    );
+    const plannedQuantity = shipmentRows.reduce((sum, row) => sum + row.quantity, 0);
+    const requestQuantity = request.items.reduce((sum, item) => sum + item.quantity, 0);
+    if (plannedQuantity !== requestQuantity) {
+      throw new BadRequestException(`Контроль количества не пройден: заявка ${requestQuantity}, по коробам ${plannedQuantity}.`);
+    }
+
+    const remainingByItem = new Map(request.items.map((item) => [item.id, item.quantity]));
+    const packageRows = new Map<string, Array<{ itemId: string; skuId: string | null; barcode: string | null; quantity: number }>>();
+    for (const row of shipmentRows) {
+      let remaining = row.quantity;
+      while (remaining > 0) {
+        const item = this.findRequestItemForPackageRow(request.items, remainingByItem, row.barcodeOnBox);
+        if (!item) {
+          throw new BadRequestException(`Не удалось сопоставить товар ${row.barcodeOnBox} с заявкой.`);
+        }
+        const available = remainingByItem.get(item.id) ?? 0;
+        const quantity = Math.min(remaining, available);
+        remainingByItem.set(item.id, available - quantity);
+        const rows = packageRows.get(row.sourceBox) ?? [];
+        rows.push({ itemId: item.id, skuId: item.skuId, barcode: row.barcodeOnBox || item.barcode, quantity });
+        packageRows.set(row.sourceBox, rows);
+        remaining -= quantity;
+      }
+    }
+
+    const notPacked = [...remainingByItem.values()].reduce((sum, quantity) => sum + quantity, 0);
+    if (notPacked > 0) {
+      throw new BadRequestException(`Контроль количества не пройден: не распределено ${notPacked} ед.`);
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.clientRequestPackage.deleteMany({ where: { requestId } });
+      for (const [packageCode, rows] of packageRows.entries()) {
+        await tx.clientRequestPackage.create({
+          data: {
+            requestId,
+            clientId: request.clientId,
+            packageCode,
+            packageType: 'BOX',
+            comment: 'Упаковка сформирована ТСД после перемещений',
+            createdByUserId: user.id,
+            items: {
+              create: rows.map((row) => ({
+                requestItemId: row.itemId,
+                skuId: row.skuId,
+                barcode: row.barcode,
+                quantity: row.quantity,
+              })),
+            },
+          },
+        });
+      }
+      await tx.clientRequest.update({
+        where: { id: requestId },
+        data: {
+          status: ClientRequestStatus.PACKED,
+          assignedToUserId: user.id,
+        },
+      });
+    });
+  }
+
+  private findRequestItemForPackageRow(
+    items: Array<{ id: string; skuId: string | null; barcode: string | null; comment: string | null; quantity: number }>,
+    remainingByItem: Map<string, number>,
+    barcode: string,
+  ) {
+    const normalized = normalizeBoxCode(barcode);
+    return (
+      items.find((item) => (remainingByItem.get(item.id) ?? 0) > 0 && normalizeBoxCode(finalRequestBarcode(item)) === normalized) ??
+      items.find((item) => (remainingByItem.get(item.id) ?? 0) > 0 && normalizeBoxCode(item.barcode ?? '') === normalized) ??
+      items.find((item) => (remainingByItem.get(item.id) ?? 0) > 0)
+    );
+  }
+
   private async loadRequestWorkers(requestIds: string[]) {
     const keys = requestIds.map(requestWorkersKey);
     const settings = keys.length
@@ -687,6 +1032,35 @@ function relabelKey(requestId: string) {
   return `TSD_RELABEL:${requestId}`;
 }
 
+function movesKey(requestId: string) {
+  return `TSD_MOVES:${requestId}`;
+}
+
+function moveTaskId(sourceBox: string, barcode: string, article: string, size: string) {
+  return Buffer.from([sourceBox, barcode, article, size].join('\u0001')).toString('base64url');
+}
+
+function finalRequestBarcode(item: { barcode: string | null; comment: string | null }) {
+  return parseCommentRelabelTarget(item.comment) || item.barcode || '';
+}
+
+function parseCommentRelabelTarget(comment: string | null) {
+  if (!comment) {
+    return '';
+  }
+  for (const part of comment.split(';')) {
+    const [rawKey, ...rawValue] = part.split(':');
+    if (rawKey.trim().toLowerCase() !== 'перемаркировка в') {
+      continue;
+    }
+    const value = rawValue.join(':').trim();
+    if (value) {
+      return value;
+    }
+  }
+  return '';
+}
+
 type RelabelTask = {
   id: string;
   sourceBox: string;
@@ -695,6 +1069,21 @@ type RelabelTask = {
   sourceBarcode: string;
   targetBarcode: string;
   quantity: number;
+};
+
+type MoveTask = {
+  id: string;
+  sourceBox: string;
+  article: string;
+  size: string;
+  barcode: string;
+  suggestedTargetBox: string;
+  quantity: number;
+};
+
+type MoveState = {
+  currentTargetBox: string;
+  completed: Map<string, number>;
 };
 
 type RequestWorker = {

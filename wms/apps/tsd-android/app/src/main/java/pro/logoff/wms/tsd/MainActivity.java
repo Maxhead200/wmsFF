@@ -399,11 +399,16 @@ public class MainActivity extends Activity {
         runAsync(() -> {
             JSONObject boxState = api.boxSearch(token, request.id, deviceCode);
             JSONObject relabelState = api.relabelState(token, request.id, deviceCode);
-            main.post(() -> showPickRequestActions(request, boxState, relabelState));
+            JSONObject movesState = api.movesState(token, request.id, deviceCode);
+            main.post(() -> showPickRequestActions(request, boxState, relabelState, movesState));
         });
     }
 
     private void showPickRequestActions(PickRequest request, JSONObject boxState, JSONObject relabelState) {
+        showPickRequestActions(request, boxState, relabelState, null);
+    }
+
+    private void showPickRequestActions(PickRequest request, JSONObject boxState, JSONObject relabelState, JSONObject movesState) {
         setBackAction(() -> showPickRequests());
         LinearLayout root = page();
         root.setPadding(dp(14), dp(16), dp(14), dp(14));
@@ -426,7 +431,7 @@ public class MainActivity extends Activity {
         relabel.setOnClickListener(v -> loadRelabelState(request));
         root.addView(relabel);
 
-        Button moves = stageButton("3. " + tr("pick.moves"), false);
+        Button moves = stageButton("3. " + tr("pick.moves"), movesState != null && movesState.optBoolean("isComplete"));
         moves.setOnClickListener(v -> loadMovesStage(request));
         root.addView(moves);
 
@@ -469,8 +474,8 @@ public class MainActivity extends Activity {
                 main.post(() -> showRelabelBoxes(request, relabel));
                 return;
             }
-            JSONObject state = api.requestStage(token, request.id, deviceCode, "moves");
-            main.post(() -> showRequestStage(request, state, "moves"));
+            JSONObject state = api.movesState(token, request.id, deviceCode);
+            main.post(() -> showMoveBoxes(request, state));
         });
     }
 
@@ -700,6 +705,180 @@ public class MainActivity extends Activity {
                     showRelabelBox(request, state, boxCode);
                 }
             });
+        });
+    }
+
+    private void showMoveBoxes(PickRequest request, JSONObject state) {
+        setBackAction(() -> showPickRequestActions(request));
+        LinearLayout root = page();
+        root.setPadding(dp(14), dp(16), dp(14), dp(14));
+        addHeader(root);
+        addTitle(root, tr("moves.title"));
+        root.addView(note(tr("pick.request") + ": " + request.shortNumber()));
+        root.addView(note(tr("common.client") + ": " + request.clientName));
+        root.addView(note(tr("moves.progress") + ": " + state.optInt("completed") + " / " + state.optInt("total")));
+        String targetBox = state.optString("currentTargetBox", "");
+        root.addView(note(tr("moves.currentTarget") + ": " + (targetBox.isEmpty() ? "-" : targetBox)));
+
+        if (state.optBoolean("isComplete")) {
+            TextView done = note(tr("moves.complete"));
+            done.setTextColor(GREEN);
+            root.addView(done);
+        } else {
+            JSONArray boxes = state.optJSONArray("boxes");
+            if (boxes == null || boxes.length() == 0) {
+                root.addView(note(tr("moves.empty")));
+            } else {
+                root.addView(note(tr("moves.selectBox")));
+                for (int i = 0; i < boxes.length(); i++) {
+                    JSONObject box = boxes.optJSONObject(i);
+                    if (box == null) {
+                        continue;
+                    }
+                    String sourceBox = box.optString("boxCode");
+                    Button button = secondary(sourceBox + "\n" + tr("boxSearch.progressRemaining") + ": " + box.optInt("totalRemaining"));
+                    button.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
+                    button.setOnClickListener(v -> showMoveBox(request, state, sourceBox, FLASH_NONE, ""));
+                    root.addView(button);
+                }
+            }
+        }
+
+        Button finish = primary(tr("moves.finish"));
+        finish.setOnClickListener(v -> finishMoves(request));
+        root.addView(finish);
+        Button refresh = secondary(tr("common.refresh"));
+        refresh.setOnClickListener(v -> loadMovesStage(request));
+        root.addView(refresh);
+        addBackButton(root, tr("pick.backToRequests"), () -> showPickRequestActions(request));
+        setContentView(wrap(root));
+    }
+
+    private void showMoveBox(PickRequest request, JSONObject state, String sourceBox, int flashColor, String warning) {
+        JSONObject box = findMoveBox(state, sourceBox);
+        if (box == null) {
+            showMoveBoxes(request, state);
+            return;
+        }
+        setBackAction(() -> showMoveBoxes(request, state));
+        LinearLayout root = page();
+        if (flashColor != FLASH_NONE) {
+            root.setBackgroundColor(flashColor);
+        }
+        root.setPadding(dp(14), dp(16), dp(14), dp(14));
+        addHeader(root);
+        addTitle(root, tr("common.box") + " " + sourceBox);
+        if (warning != null && !warning.trim().isEmpty()) {
+            TextView error = note(warning);
+            error.setTextColor(Color.WHITE);
+            root.addView(error);
+        }
+        String targetBox = state.optString("currentTargetBox", "");
+        root.addView(note(tr("moves.currentTarget") + ": " + (targetBox.isEmpty() ? "-" : targetBox)));
+
+        EditText target = input(tr("moves.scanTargetBox"), false);
+        target.setSingleLine(true);
+        target.setImeOptions(EditorInfo.IME_ACTION_DONE);
+        target.setOnEditorActionListener((v, actionId, event) -> {
+            scanMoveTargetBox(request, sourceBox, text(target));
+            target.setText("");
+            return true;
+        });
+        Button setTarget = secondary(tr("moves.setTargetBox"));
+        setTarget.setOnClickListener(v -> {
+            scanMoveTargetBox(request, sourceBox, text(target));
+            target.setText("");
+        });
+        root.addView(target);
+        root.addView(setTarget);
+
+        EditText scan = input(tr("moves.scanItem"), false);
+        scan.setSingleLine(true);
+        scan.setImeOptions(EditorInfo.IME_ACTION_DONE);
+        scan.setOnEditorActionListener((v, actionId, event) -> {
+            scanMoveItem(request, sourceBox, state.optString("currentTargetBox", ""), text(scan));
+            scan.setText("");
+            return true;
+        });
+        root.addView(scan);
+
+        JSONArray rows = box.optJSONArray("rows");
+        if (rows != null) {
+            root.addView(note(tr("moves.products")));
+            for (int i = 0; i < rows.length(); i++) {
+                JSONObject row = rows.optJSONObject(i);
+                if (row == null) {
+                    continue;
+                }
+                root.addView(note(row.optString("article")
+                    + "\n" + tr("relabel.from") + ": " + row.optString("barcode")
+                    + "\n" + tr("boxSearch.progressRemaining") + ": " + row.optInt("remaining")
+                    + "\n" + tr("common.size") + ": " + firstNonEmpty(row.optString("size"), "-")));
+            }
+        }
+
+        Button next = secondary(tr("moves.nextBox"));
+        next.setOnClickListener(v -> showMoveBoxes(request, state));
+        root.addView(next);
+        Button finish = primary(tr("moves.finish"));
+        finish.setOnClickListener(v -> finishMoves(request));
+        root.addView(finish);
+        addBackButton(root, tr("moves.title"), () -> showMoveBoxes(request, state));
+        setContentView(wrap(root));
+        scan.requestFocus();
+    }
+
+    private JSONObject findMoveBox(JSONObject state, String sourceBox) {
+        JSONArray boxes = state.optJSONArray("boxes");
+        if (boxes == null) {
+            return null;
+        }
+        for (int i = 0; i < boxes.length(); i++) {
+            JSONObject box = boxes.optJSONObject(i);
+            if (box != null && sourceBox.equals(box.optString("boxCode"))) {
+                return box;
+            }
+        }
+        return null;
+    }
+
+    private void scanMoveTargetBox(PickRequest request, String sourceBox, String targetBoxCode) {
+        if (targetBoxCode.trim().isEmpty()) {
+            toast(tr("moves.scanTargetToast"));
+            return;
+        }
+        runAsync(() -> {
+            JSONObject state = api.openMoveTargetBox(token, request.id, targetBoxCode, deviceCode);
+            main.post(() -> showMoveBox(request, state, sourceBox, GREEN, tr("moves.targetOpened")));
+        });
+    }
+
+    private void scanMoveItem(PickRequest request, String sourceBox, String targetBoxCode, String barcode) {
+        if (barcode.trim().isEmpty()) {
+            toast(tr("moves.scanItemToast"));
+            return;
+        }
+        runAsync(() -> {
+            try {
+                JSONObject state = api.scanMoveItem(token, request.id, sourceBox, barcode, targetBoxCode, deviceCode);
+                main.post(() -> {
+                    if (findMoveBox(state, sourceBox) == null) {
+                        showMoveBoxes(request, state);
+                    } else {
+                        showMoveBox(request, state, sourceBox, GREEN, tr("moves.itemMoved"));
+                    }
+                });
+            } catch (Exception error) {
+                JSONObject state = api.movesState(token, request.id, deviceCode);
+                main.post(() -> showMoveBox(request, state, sourceBox, RED, error.getMessage()));
+            }
+        });
+    }
+
+    private void finishMoves(PickRequest request) {
+        runAsync(() -> {
+            JSONObject state = api.finishMoves(token, request.id, deviceCode);
+            main.post(() -> showMoveBoxes(request, state));
         });
     }
 
@@ -1617,6 +1796,7 @@ public class MainActivity extends Activity {
                 case "common.status": return "Holat";
                 case "common.rows": return "qatorlar";
                 case "common.box": return "Quti";
+                case "common.size": return "O'lcham";
                 case "common.queue": return "Navbat";
                 case "common.online": return "Onlayn";
                 case "common.offline": return "Oflayn";
@@ -1669,6 +1849,22 @@ public class MainActivity extends Activity {
                 case "pick.movesNext": return "Ko'chirishlar keyingi bosqichda ochiladi.";
                 case "pick.backToRequests": return "Buyurtmalarga qaytish";
                 case "pick.loaded": return "Buyurtmalar yuklandi";
+                case "moves.title": return "Ko'chirishlar";
+                case "moves.progress": return "Ko'chirishlar";
+                case "moves.currentTarget": return "Yangi quti";
+                case "moves.complete": return "Ko'chirishlar tugadi. Buyurtma qadoqlandi.";
+                case "moves.empty": return "Ko'chirish uchun vazifalar yo'q.";
+                case "moves.selectBox": return "Ko'chirish kerak bo'lgan qutini tanlang:";
+                case "moves.scanTargetBox": return "Yangi quti SHKini skanerlash";
+                case "moves.setTargetBox": return "Yangi qutini tanlash";
+                case "moves.scanItem": return "Ko'chiriladigan tovar SHKini skanerlash";
+                case "moves.products": return "Ko'chiriladigan tovarlar:";
+                case "moves.nextBox": return "Keyingi quti";
+                case "moves.finish": return "Ko'chirishlarni yakunlash";
+                case "moves.scanTargetToast": return "Yangi quti SHKini skanerlang.";
+                case "moves.scanItemToast": return "Tovar SHKini skanerlang.";
+                case "moves.targetOpened": return "Yangi quti ochildi.";
+                case "moves.itemMoved": return "Tovar ko'chirildi.";
                 case "stage.searchRequired": return "Avval barcha qutilarni topishni yakunlang.";
                 case "stage.supervisorBypass": return "Bosqich rahbar tomonidan qidirish tugashini kutmasdan ochildi. Faqat topilgan qutilar bilan ishlang.";
                 case "stage.noFoundBoxes": return "Hozircha topilgan qutilar yo'q.";
@@ -1764,6 +1960,7 @@ public class MainActivity extends Activity {
                 case "common.status": return "Status";
                 case "common.rows": return "rows";
                 case "common.box": return "Box";
+                case "common.size": return "Size";
                 case "common.queue": return "Queue";
                 case "common.online": return "Online";
                 case "common.offline": return "Offline";
@@ -1816,6 +2013,22 @@ public class MainActivity extends Activity {
                 case "pick.movesNext": return "Movements will open in the next step.";
                 case "pick.backToRequests": return "Back to requests";
                 case "pick.loaded": return "Requests loaded";
+                case "moves.title": return "Movements";
+                case "moves.progress": return "Moved";
+                case "moves.currentTarget": return "New box";
+                case "moves.complete": return "Movements complete. Request is packed.";
+                case "moves.empty": return "No movement tasks.";
+                case "moves.selectBox": return "Select a box for movement:";
+                case "moves.scanTargetBox": return "Scan new box barcode";
+                case "moves.setTargetBox": return "Use new box";
+                case "moves.scanItem": return "Scan product barcode to move";
+                case "moves.products": return "Products to move:";
+                case "moves.nextBox": return "Next box";
+                case "moves.finish": return "Finish movements";
+                case "moves.scanTargetToast": return "Scan new box barcode.";
+                case "moves.scanItemToast": return "Scan product barcode.";
+                case "moves.targetOpened": return "New box opened.";
+                case "moves.itemMoved": return "Product moved.";
                 case "stage.searchRequired": return "Finish finding all boxes first.";
                 case "stage.supervisorBypass": return "Stage opened by a supervisor before box search is complete. Work only with found boxes.";
                 case "stage.noFoundBoxes": return "No boxes have been found yet.";
@@ -1910,6 +2123,7 @@ public class MainActivity extends Activity {
             case "common.status": return "Статус";
             case "common.rows": return "строк";
             case "common.box": return "Короб";
+            case "common.size": return "Размер";
             case "common.queue": return "Очередь";
             case "common.online": return "Онлайн";
             case "common.offline": return "Офлайн";
@@ -1962,6 +2176,22 @@ public class MainActivity extends Activity {
             case "pick.movesNext": return "Перемещения будут открыты следующим шагом.";
             case "pick.backToRequests": return "Назад к заявкам";
             case "pick.loaded": return "Заявок загружено";
+            case "moves.title": return "Перемещения";
+            case "moves.progress": return "Перемещено";
+            case "moves.currentTarget": return "Новый короб";
+            case "moves.complete": return "Перемещения завершены. Заявка упакована.";
+            case "moves.empty": return "Заданий на перемещение нет.";
+            case "moves.selectBox": return "Выберите короб для перемещения:";
+            case "moves.scanTargetBox": return "Скан ШК нового короба";
+            case "moves.setTargetBox": return "Выбрать новый короб";
+            case "moves.scanItem": return "Скан ШК товара для перемещения";
+            case "moves.products": return "Товары для перемещения:";
+            case "moves.nextBox": return "Далее";
+            case "moves.finish": return "Закончить перемещения";
+            case "moves.scanTargetToast": return "Сканируйте ШК нового короба.";
+            case "moves.scanItemToast": return "Сканируйте ШК товара.";
+            case "moves.targetOpened": return "Новый короб открыт.";
+            case "moves.itemMoved": return "Товар перемещен.";
             case "stage.searchRequired": return "Сначала завершите поиск всех коробов.";
             case "stage.supervisorBypass": return "Этап открыт старшим сотрудником до завершения поиска. Работайте только с уже найденными коробами.";
             case "stage.noFoundBoxes": return "Пока нет найденных коробов.";

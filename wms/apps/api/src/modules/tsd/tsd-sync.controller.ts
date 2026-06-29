@@ -71,6 +71,34 @@ export class TsdSyncController {
     return this.sync.scanRelabelTarget(id, dto, user);
   }
 
+  @Get('requests/:id/moves')
+  getRequestMoves(@Param('id') id: string, @Query('deviceCode') deviceCode: string, @CurrentUser() user: AuthUser) {
+    return this.sync.getRequestMoves(id, user, deviceCode);
+  }
+
+  @Post('requests/:id/moves/target-box')
+  openMoveTargetBox(
+    @Param('id') id: string,
+    @Body() dto: { targetBoxCode?: string; deviceCode?: string },
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.sync.openMoveTargetBox(id, dto, user);
+  }
+
+  @Post('requests/:id/moves/scan-item')
+  scanMoveItem(
+    @Param('id') id: string,
+    @Body() dto: { sourceBox?: string; barcode?: string; targetBoxCode?: string; deviceCode?: string },
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.sync.scanMoveItem(id, dto, user);
+  }
+
+  @Post('requests/:id/moves/finish')
+  finishRequestMoves(@Param('id') id: string, @Body() dto: { deviceCode?: string }, @CurrentUser() user: AuthUser) {
+    return this.sync.finishRequestMoves(id, dto, user);
+  }
+
   @Get('sku-by-barcode')
   getSkuByBarcode(@Query('clientId') clientId: string, @Query('barcode') barcode: string, @CurrentUser() user: AuthUser) {
     return this.sync.getSkuByBarcode(clientId, barcode, user);

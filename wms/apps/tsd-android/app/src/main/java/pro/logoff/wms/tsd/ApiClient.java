@@ -51,6 +51,32 @@ final class ApiClient {
         return new JSONObject(request("GET", path, token, null));
     }
 
+    JSONObject movesState(String token, String requestId, String deviceCode) throws IOException, JSONException {
+        String path = "/tsd/requests/" + enc(requestId) + "/moves?deviceCode=" + enc(deviceCode);
+        return new JSONObject(request("GET", path, token, null));
+    }
+
+    JSONObject openMoveTargetBox(String token, String requestId, String targetBoxCode, String deviceCode) throws IOException, JSONException {
+        JSONObject body = new JSONObject()
+            .put("targetBoxCode", targetBoxCode)
+            .put("deviceCode", deviceCode);
+        return new JSONObject(request("POST", "/tsd/requests/" + enc(requestId) + "/moves/target-box", token, body.toString()));
+    }
+
+    JSONObject scanMoveItem(String token, String requestId, String sourceBox, String barcode, String targetBoxCode, String deviceCode) throws IOException, JSONException {
+        JSONObject body = new JSONObject()
+            .put("sourceBox", sourceBox)
+            .put("barcode", barcode)
+            .put("targetBoxCode", targetBoxCode)
+            .put("deviceCode", deviceCode);
+        return new JSONObject(request("POST", "/tsd/requests/" + enc(requestId) + "/moves/scan-item", token, body.toString()));
+    }
+
+    JSONObject finishMoves(String token, String requestId, String deviceCode) throws IOException, JSONException {
+        JSONObject body = new JSONObject().put("deviceCode", deviceCode);
+        return new JSONObject(request("POST", "/tsd/requests/" + enc(requestId) + "/moves/finish", token, body.toString()));
+    }
+
     JSONObject scanRelabelSource(String token, String requestId, String boxCode, String barcode, String deviceCode) throws IOException, JSONException {
         JSONObject body = new JSONObject()
             .put("boxCode", boxCode)

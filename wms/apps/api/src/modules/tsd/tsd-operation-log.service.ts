@@ -22,6 +22,15 @@ export class TsdOperationLogService {
 
     return this.prisma.tsdOperation.findMany({
       where: { status: TsdOperationStatus.NEEDS_REVIEW },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+          },
+        },
+      },
       orderBy: { createdAt: 'desc' },
       take: 200,
     });
@@ -29,6 +38,7 @@ export class TsdOperationLogService {
 
   async recordResult(
     operation: ScanOperationDto,
+    user: AuthUser,
     status: TsdOperationResult['status'],
     message?: string,
     reviewReason?: TsdReviewReason,
@@ -39,6 +49,7 @@ export class TsdOperationLogService {
     await this.prisma.tsdOperation.upsert({
       where: { operationKey: operation.operationKey },
       update: {
+        userId: user.id,
         status: persistedStatus,
         serverMessage: message,
         reviewReason,
@@ -46,6 +57,7 @@ export class TsdOperationLogService {
       },
       create: {
         deviceId: operation.deviceId,
+        userId: user.id,
         operationKey: operation.operationKey,
         operationType: operation.operationType,
         payload: operation.payload as Prisma.InputJsonValue,

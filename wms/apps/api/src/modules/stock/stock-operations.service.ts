@@ -27,6 +27,7 @@ export type ReceiveIntoBoxInput = {
   barcode?: string;
   boxCode: string;
   quantity: number;
+  kiz?: string;
   status?: StockStatus;
   idempotencyKey: string;
   sourceDocument?: string;
@@ -507,7 +508,7 @@ export class StockOperationsService {
         quantity: dto.quantity,
       });
 
-      await tx.stockMovement.create({
+      const movement = await tx.stockMovement.create({
         data: {
           clientId: dto.clientId,
           skuId: sku.id,
@@ -521,6 +522,20 @@ export class StockOperationsService {
           comment: dto.comment ?? `Приемка ТСД в короб ${box.code}`,
         },
       });
+
+      if (dto.kiz?.trim()) {
+        await tx.productMark.create({
+          data: {
+            clientId: dto.clientId,
+            skuId: sku.id,
+            boxId: box.id,
+            stockMovementId: movement.id,
+            value: dto.kiz.trim(),
+            sourceDocument: dto.sourceDocument,
+            status,
+          },
+        });
+      }
 
       return {
         idempotencyKey: dto.idempotencyKey,

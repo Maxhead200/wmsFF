@@ -1,0 +1,397 @@
+.tsd-shell,
+.tsd-app {
+  min-height: 100vh;
+  background: #111318;
+  color: #f8fafc;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.tsd-shell {
+  display: grid;
+  align-content: center;
+  gap: 18px;
+  padding: 18px;
+}
+
+.tsd-app {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 10px;
+}
+
+.tsd-logo {
+  display: grid;
+  width: 116px;
+  height: 116px;
+  place-items: center;
+  justify-self: center;
+  border-radius: 18px;
+  background: #d71920;
+  box-shadow: 0 18px 40px rgb(0 0 0 / 0.36);
+  color: #ffffff;
+  line-height: 0.9;
+}
+
+.tsd-logo span,
+.tsd-logo strong {
+  display: block;
+  font-size: 28px;
+  font-weight: 950;
+  letter-spacing: 0;
+}
+
+.tsd-logo--compact {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.tsd-logo--compact span,
+.tsd-logo--compact strong {
+  font-size: 12px;
+}
+
+.tsd-card {
+  display: grid;
+  gap: 12px;
+  border: 1px solid #2f3542;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #111827;
+  padding: 14px;
+}
+
+.tsd-card h1,
+.tsd-card h2 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.tsd-card label {
+  display: grid;
+  gap: 6px;
+}
+
+.tsd-card label span {
+  color: #334155;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.tsd-card input,
+.tsd-card select {
+  width: 100%;
+  min-height: 52px;
+  border: 2px solid #cbd5e1;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #111827;
+  padding: 0 12px;
+  font-size: 20px;
+  font-weight: 850;
+}
+
+.tsd-card input:focus,
+.tsd-card select:focus {
+  border-color: #d71920;
+  outline: 4px solid rgb(215 25 32 / 0.14);
+}
+
+.tsd-login {
+  width: min(420px, 100%);
+  justify-self: center;
+}
+
+.tsd-primary,
+.tsd-secondary,
+.tsd-big-action,
+.tsd-status-row button {
+  display: inline-flex;
+  min-height: 52px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 10px;
+  padding: 0 14px;
+  font-size: 16px;
+  font-weight: 950;
+}
+
+.tsd-primary,
+.tsd-big-action {
+  border: 1px solid #991b1b;
+  background: #d71920;
+  color: #ffffff;
+}
+
+.tsd-secondary,
+.tsd-status-row button {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #111827;
+}
+
+.tsd-topbar {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #111827;
+  padding: 8px;
+}
+
+.tsd-topbar strong,
+.tsd-topbar span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tsd-topbar strong {
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.tsd-topbar span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.tsd-net {
+  display: inline-flex !important;
+  min-height: 32px;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  padding: 0 9px;
+  font-size: 12px !important;
+}
+
+.tsd-net--online {
+  background: #dcfce7;
+  color: #15803d !important;
+}
+
+.tsd-net--offline {
+  background: #fee2e2;
+  color: #b91c1c !important;
+}
+
+.tsd-status-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.tsd-status-row > span {
+  border-radius: 10px;
+  background: #27272a;
+  padding: 12px;
+  font-weight: 950;
+}
+
+.tsd-status-row button {
+  min-height: 44px;
+  font-size: 13px;
+}
+
+.tsd-message {
+  border-radius: 10px;
+  background: #fff7ed;
+  color: #9a3412;
+  padding: 11px 12px;
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.tsd-message--error {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.tsd-menu {
+  gap: 16px;
+}
+
+.tsd-big-action {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  min-height: 92px;
+  justify-content: start;
+  text-align: left;
+}
+
+.tsd-big-action span {
+  color: #ffffff !important;
+  font-size: 24px !important;
+  text-transform: none !important;
+}
+
+.tsd-receipt {
+  display: grid;
+  gap: 10px;
+}
+
+.tsd-receipt-head {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.tsd-receipt-head span {
+  display: block;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.tsd-receipt-head strong {
+  display: block;
+  overflow: hidden;
+  margin-top: 4px;
+  font-size: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tsd-scan-form {
+  gap: 12px;
+}
+
+.tsd-current-barcode {
+  border-radius: 9px;
+  background: #f1f5f9;
+  color: #111827;
+  padding: 12px;
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.tsd-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.tsd-lines {
+  gap: 8px;
+}
+
+.tsd-lines > strong {
+  font-size: 16px;
+}
+
+.tsd-line {
+  display: grid;
+  gap: 3px;
+  border-left: 5px solid #64748b;
+  border-radius: 9px;
+  background: #f8fafc;
+  padding: 9px 10px;
+}
+
+.tsd-line span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.tsd-line strong {
+  font-size: 15px;
+}
+
+.tsd-line small {
+  overflow: hidden;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tsd-line em {
+  color: #64748b;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.tsd-line--synced {
+  border-left-color: #16a34a;
+}
+
+.tsd-line--review {
+  border-left-color: #d97706;
+}
+
+.tsd-line--error {
+  border-left-color: #b91c1c;
+}
+
+.tsd-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 0.72);
+  padding: 14px;
+}
+
+.tsd-sku-modal {
+  width: min(520px, 100%);
+  border: 3px solid #d71920;
+}
+
+.tsd-sku-modal h2 {
+  font-size: 26px;
+}
+
+.tsd-sku-facts {
+  display: grid;
+  gap: 8px;
+}
+
+.tsd-sku-facts div {
+  display: grid;
+  gap: 4px;
+  border-radius: 9px;
+  background: #f8fafc;
+  padding: 10px;
+}
+
+.tsd-sku-facts span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.tsd-sku-facts strong {
+  color: #111827;
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+@media (max-width: 560px) {
+  .tsd-status-row {
+    grid-template-columns: 1fr;
+  }
+
+  .tsd-status-row button {
+    width: 100%;
+  }
+
+  .tsd-receipt-head,
+  .tsd-actions-grid {
+    grid-template-columns: 1fr;
+  }
+}

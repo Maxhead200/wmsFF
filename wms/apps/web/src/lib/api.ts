@@ -1660,6 +1660,52 @@ export type CreatedTsdDevice = Omit<TsdDeviceSummary, 'lastLoginAt' | 'lastSeenA
   deviceSecret: string;
 };
 
+export type TsdSession = AuthSession & {
+  device: {
+    id: string;
+    code: string;
+    name: string;
+  };
+};
+
+export type TsdClientSummary = Pick<ClientSummary, 'id' | 'code' | 'name' | 'legalName'>;
+
+export type TsdSkuSummary = {
+  id: string;
+  internalSku: string;
+  clientSku: string | null;
+  article: string | null;
+  name: string;
+  color: string | null;
+  size: string | null;
+  brand: string | null;
+  category: string | null;
+  needsChestnyZnak: boolean;
+  barcodes: Array<{
+    value: string;
+    isPrimary: boolean;
+  }>;
+};
+
+export type TsdOperationStatus = 'ACCEPTED' | 'APPLIED' | 'ALREADY_APPLIED' | 'NEEDS_REVIEW' | 'REJECTED';
+
+export type TsdOperationResult = {
+  operationKey: string;
+  operationType: 'receipt_scan' | 'move_scan' | 'inventory_scan';
+  status: TsdOperationStatus;
+  message?: string;
+  reviewReason?: TsdReviewReason;
+  resolutionMessage?: string;
+  serverTime: string;
+};
+
+export type TsdScanOperation = {
+  deviceId: string;
+  operationKey: string;
+  operationType: 'receipt_scan' | 'move_scan' | 'inventory_scan';
+  payload: Record<string, unknown>;
+};
+
 export type TsdReviewReason =
   | 'INVENTORY_MISMATCH'
   | 'SKU_NOT_FOUND'
@@ -1682,6 +1728,11 @@ export type TsdReviewOperation = {
   resolutionMessage: string | null;
   reviewAction: 'APPLY_INVENTORY_ADJUSTMENT' | 'REJECT' | null;
   reviewComment: string | null;
+  user?: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
   reviewedByUserId: string | null;
   reviewedBy?: {
     id: string;
@@ -2960,6 +3011,36 @@ export async function createTsdDevice(accessToken: string, payload: CreateTsdDev
   return request<CreatedTsdDevice>('/tsd/devices', {
     method: 'POST',
     body: payload,
+    accessToken,
+  });
+}
+
+export async function loginTsdDevice(payload: { code: string; secret: string }) {
+  return request<TsdSession>('/tsd/login', {
+    method: 'POST',
+    body: payload,
+  });
+}
+
+export async function fetchTsdClients(accessToken: string) {
+  return request<TsdClientSummary[]>('/tsd/clients', {
+    accessToken,
+  });
+}
+
+export async function fetchTsdSkuByBarcode(accessToken: string, clientId: string, barcode: string) {
+  return request<TsdSkuSummary>(withQuery('/tsd/sku-by-barcode', { clientId, barcode }), {
+    accessToken,
+  });
+}
+
+export async function syncTsdOperations(accessToken: string, operations: TsdScanOperation[]) {
+  return request<TsdOperationResult[]>('/tsd/sync', {
+    method: 'POST',
+    body: {
+      operations,
+      deviceClock: new Date().toISOString(),
+    },
     accessToken,
   });
 }

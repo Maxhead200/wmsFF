@@ -13,6 +13,7 @@
   Send,
   Settings2,
   ShieldAlert,
+  Smartphone,
   Trash2,
 } from 'lucide-react';
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
@@ -30,6 +31,8 @@ import {
   fetchServiceOnlineSessions,
   fetchServiceOverview,
   createServiceClientIpRule,
+  createUser,
+  fetchUsers,
   sendServiceTelegramTest,
   purgeServiceClientStock,
   updateClientStatus,
@@ -50,6 +53,7 @@ import {
   type ServiceOnlineSession,
   type ServiceOverview,
   type ServiceTelegramSettings,
+  type UserSummary,
 } from '../../lib/api';
 import { billingUnitOptions } from '../billing/billingMeta';
 import './service-center.css';
@@ -60,7 +64,7 @@ type LoadState<T> = {
   error?: string;
 };
 
-type ServiceTab = 'maintenance' | 'sessions' | 'clients' | 'stock' | 'nomenclature' | 'services' | 'telegram';
+type ServiceTab = 'maintenance' | 'sessions' | 'clients' | 'stock' | 'nomenclature' | 'services' | 'telegram' | 'tsd';
 
 type ServiceCenterPanelProps = {
   session: AuthSession;
@@ -84,6 +88,7 @@ const tabs: Array<{ id: ServiceTab; label: string; icon: typeof Settings2 }> = [
   { id: 'nomenclature', label: 'Номенклатура', icon: Eraser },
   { id: 'services', label: 'Услуги', icon: Settings2 },
   { id: 'telegram', label: 'Telegram', icon: Bell },
+  { id: 'tsd', label: 'ТСД', icon: Smartphone },
 ];
 
 export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
@@ -106,6 +111,8 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
   const [telegram, setTelegram] = useState<LoadState<ServiceTelegramSettings | null>>({ status: 'idle', data: null });
   const [telegramForm, setTelegramForm] = useState({ enabled: false, botToken: '', fulfillmentChatIds: '', testChatId: '', testMessage: '' });
   const [serviceForm, setServiceForm] = useState({ code: '', name: '', unit: 'SERVICE' as BillingUnit, defaultPriceRub: '' });
+  const [tsdUsers, setTsdUsers] = useState<LoadState<UserSummary[]>>({ status: 'idle', data: [] });
+  const [tsdUserForm, setTsdUserForm] = useState({ name: '', email: '', password: '', clientId: '' });
 
   const selectedClient = useMemo(
     () => clients.data.find((client) => client.id === selectedClientId) ?? null,
@@ -154,6 +161,9 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
     }
     if (activeTab === 'telegram' && telegram.status === 'idle') {
       void loadTelegramSettings();
+    }
+    if (activeTab === 'tsd' && tsdUsers.status === 'idle') {
+      void loadTsdUsers();
     }
   }, [activeTab]);
 
@@ -380,6 +390,36 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
     }
   }
 
+  async function loadTsdUsers() {
+    setTsdUsers((current) => ({ ...current, status: 'loading', error: undefined }));
+    try {
+      const users = await fetchUsers(session.accessToken);
+      setTsdUsers({ status: 'ready', data: users.filter((user) => user.roles.some((item) => item.role.code === 'OPERATOR')) });
+    } catch (caught) {
+      setTsdUsers((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
+    }
+  }
+
+  async function createTsdUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    try {
+      const clientIds = tsdUserForm.clientId ? [tsdUserForm.clientId] : undefined;
+      const created = await createUser(session.accessToken, {
+        name: tsdUserForm.name,
+        email: tsdUserForm.email,
+        password: tsdUserForm.password,
+        roleCodes: ['OPERATOR'],
+        clientIds,
+        writableClientIds: clientIds,
+      });
+      setTsdUsers((current) => ({ ...current, status: 'ready', data: [created, ...current.data] }));
+      setTsdUserForm({ name: '', email: '', password: '', clientId: '' });
+      setActionMessage('Сборщица ТСД создана. Логин и пароль можно ввести на ТСД один раз.');
+    } catch (caught) {
+      setTsdUsers((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
+    }
+  }
+
   async function removeIpRule(rule: ServiceClientIpRule) {
     if (!window.confirm(`Удалить IP ${rule.ipAddress} для клиента ${rule.client.code}?`)) {
       return;
@@ -511,6 +551,17 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
           onRefresh={() => void loadTelegramSettings()}
           onSave={(event) => void saveTelegramSettings(event)}
           onTest={(event) => void sendTelegramTest(event)}
+        />
+      ) : null}
+
+      {activeTab === 'tsd' ? (
+        <TsdServicePanel
+          clients={clients.data}
+          form={tsdUserForm}
+          users={tsdUsers}
+          onChange={setTsdUserForm}
+          onCreate={(event) => void createTsdUser(event)}
+          onRefresh={() => void loadTsdUsers()}
         />
       ) : null}
 
@@ -802,6 +853,76 @@ function TelegramSettingsPanel({
           <Send size={16} /> Отправить тест
         </button>
       </form>
+    </div>
+  );
+}
+
+function TsdServicePanel({
+  clients,
+  form,
+  users,
+  onChange,
+  onCreate,
+  onRefresh,
+}: {
+  clients: ClientSummary[];
+  form: { name: string; email: string; password: string; clientId: string };
+  users: LoadState<UserSummary[]>;
+  onChange: (form: { name: string; email: string; password: string; clientId: string }) => void;
+  onCreate: (event: FormEvent<HTMLFormElement>) => void;
+  onRefresh: () => void;
+}) {
+  const appUrl = `${window.location.origin}/tsd-app`;
+  return (
+    <div className="service-card">
+      <div className="service-card__heading">
+        <strong>Приложение ТСД</strong>
+        <button className="secondary-button" type="button" onClick={() => window.open('/tsd-app', '_blank', 'noopener,noreferrer')}>
+          <Smartphone size={16} /> Открыть ТСД
+        </button>
+      </div>
+      <div className="service-warning">
+        <Smartphone size={18} />
+        Откройте ссылку на Android-ТСД, войдите логином сборщицы и добавьте страницу на главный экран. Ссылка: {appUrl}
+      </div>
+
+      <form className="service-inline-form" onSubmit={onCreate}>
+        <input required placeholder="Имя сборщицы" value={form.name} onChange={(event) => onChange({ ...form, name: event.target.value })} />
+        <input required placeholder="Логин / email" type="email" value={form.email} onChange={(event) => onChange({ ...form, email: event.target.value })} />
+        <input required minLength={10} placeholder="Пароль от 10 символов" type="text" value={form.password} onChange={(event) => onChange({ ...form, password: event.target.value })} />
+        <select value={form.clientId} onChange={(event) => onChange({ ...form, clientId: event.target.value })}>
+          <option value="">Все клиенты</option>
+          {clients.map((client) => (
+            <option key={client.id} value={client.id}>
+              {client.name}
+            </option>
+          ))}
+        </select>
+        <button className="primary-button" type="submit">Создать сборщицу</button>
+      </form>
+
+      <div className="service-card__heading service-card__heading--sub">
+        <strong>Сборщицы и операторы ТСД</strong>
+        <button className="secondary-button" type="button" onClick={onRefresh}>
+          <RefreshCw size={16} /> Обновить
+        </button>
+      </div>
+      {users.status === 'error' ? <div className="service-message service-message--error">{users.error}</div> : null}
+      <ServiceTable columns={['Имя', 'Логин', 'Статус', 'Клиенты']}>
+        {users.data.length === 0 ? (
+          <tr>
+            <td colSpan={4}>Операторы ТСД не созданы</td>
+          </tr>
+        ) : null}
+        {users.data.map((user) => (
+          <tr key={user.id}>
+            <td>{user.name}</td>
+            <td>{user.email}</td>
+            <td>{user.status}</td>
+            <td>{user.clientScopes.length ? user.clientScopes.map((scope) => scope.client.name).join(', ') : 'Все клиенты'}</td>
+          </tr>
+        ))}
+      </ServiceTable>
     </div>
   );
 }

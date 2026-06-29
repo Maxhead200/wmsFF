@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { StockStatus, TsdReviewReason } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
@@ -42,11 +42,73 @@ export class TsdSyncService {
     return this.operationLog.listReviewQueue(user);
   }
 
+  listClients(user: AuthUser) {
+    const clientFilter = this.clientScopes.resolveClientFilter(user);
+    return this.prisma.client.findMany({
+      where: {
+        id: clientFilter,
+        status: 'ACTIVE',
+      },
+      orderBy: [{ name: 'asc' }],
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        legalName: true,
+      },
+    });
+  }
+
+  async getSkuByBarcode(clientId: string, barcode: string, user: AuthUser) {
+    const normalizedClientId = clientId?.trim();
+    const normalizedBarcode = barcode?.trim();
+    if (!normalizedClientId || !normalizedBarcode) {
+      throw new BadRequestException('Нужно указать клиента и штрихкод.');
+    }
+
+    this.clientScopes.requireClientAccess(user, normalizedClientId, 'write');
+    const row = await this.prisma.barcode.findFirst({
+      where: {
+        value: normalizedBarcode,
+        sku: { clientId: normalizedClientId },
+      },
+      include: {
+        sku: {
+          select: {
+            id: true,
+            internalSku: true,
+            clientSku: true,
+            article: true,
+            name: true,
+            color: true,
+            size: true,
+            brand: true,
+            category: true,
+            needsChestnyZnak: true,
+            barcodes: {
+              select: {
+                value: true,
+                isPrimary: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!row) {
+      throw new NotFoundException('Товар с таким штрихкодом не найден у клиента.');
+    }
+
+    return row.sku;
+  }
+
   private async applyOperation(operation: ScanOperationDto, user: AuthUser): Promise<TsdOperationResult> {
     try {
       if (user.deviceCode && operation.deviceId !== user.deviceCode) {
         return await this.operationLog.recordResult(
           operation,
+          user,
           'REJECTED',
           'Операция пришла не от устройства из access token.',
           TsdReviewReason.DEVICE_MISMATCH,
@@ -70,6 +132,7 @@ export class TsdSyncService {
     } catch (caught) {
       return await this.operationLog.recordResult(
         operation,
+        user,
         'REJECTED',
         caught instanceof Error ? caught.message : 'Операция ТСД отклонена.',
         TsdReviewReason.VALIDATION_ERROR,
@@ -89,13 +152,14 @@ export class TsdSyncService {
         quantity: payload.quantity,
         status: payload.status,
         idempotencyKey: operation.operationKey,
-        comment: payload.comment ?? `ТСД ${operation.deviceId}`,
+        comment: payload.comment ?? `ТСД ${operation.deviceId}, сборщик ${user.name}`,
       },
       user,
     );
 
     return this.operationLog.recordResult(
       operation,
+      user,
       transfer.status === 'ALREADY_APPLIED' ? 'ALREADY_APPLIED' : 'APPLIED',
     );
   }
@@ -111,21 +175,24 @@ export class TsdSyncService {
           skuId: payload.skuId,
           boxCode: payload.boxCode,
           quantity: payload.quantity,
+          kiz: payload.kiz,
           status: payload.status,
           sourceDocument: payload.sourceDocument,
           idempotencyKey: operation.operationKey,
-          comment: payload.comment ?? `Приемка ТСД ${operation.deviceId}`,
+          comment: payload.comment ?? `Приемка ТСД ${operation.deviceId}, сборщик ${user.name}`,
         },
         user,
       );
 
       return this.operationLog.recordResult(
         operation,
+        user,
         receipt.status === 'ALREADY_APPLIED' ? 'ALREADY_APPLIED' : 'APPLIED',
       );
     } catch (caught) {
       return this.operationLog.recordResult(
         operation,
+        user,
         'NEEDS_REVIEW',
         caught instanceof Error ? caught.message : 'Приемка ТСД требует разбора.',
         TsdReviewReason.RECEIPT_FAILED,
@@ -141,6 +208,7 @@ export class TsdSyncService {
     if (!sku) {
       return this.operationLog.recordResult(
         operation,
+        user,
         'NEEDS_REVIEW',
         'SKU или штрихкод не найден у клиента.',
         TsdReviewReason.SKU_NOT_FOUND,
@@ -153,6 +221,7 @@ export class TsdSyncService {
     if (!box) {
       return this.operationLog.recordResult(
         operation,
+        user,
         'NEEDS_REVIEW',
         `Короб ${payload.boxCode} не найден.`,
         TsdReviewReason.BOX_NOT_FOUND,
@@ -173,13 +242,14 @@ export class TsdSyncService {
     if (currentQuantity !== payload.countedQuantity) {
       return this.operationLog.recordResult(
         operation,
+        user,
         'NEEDS_REVIEW',
         `Расхождение инвентаризации: в WMS ${currentQuantity}, на ТСД ${payload.countedQuantity}.`,
         TsdReviewReason.INVENTORY_MISMATCH,
       );
     }
 
-    return this.operationLog.recordResult(operation, 'ACCEPTED', 'Инвентаризация совпала с остатком WMS.');
+    return this.operationLog.recordResult(operation, user, 'ACCEPTED', 'Инвентаризация совпала с остатком WMS.');
   }
 
   private findSku(clientId: string, payload: { skuId?: string; barcode?: string }) {

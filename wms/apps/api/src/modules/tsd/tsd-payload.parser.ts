@@ -34,9 +34,14 @@ export class TsdPayloadParser {
     const quantity = this.numberValue(payload.quantity, 'quantity');
     const barcode = this.optionalStringValue(payload.barcode);
     const skuId = this.optionalStringValue(payload.skuId);
+    const kiz = this.optionalStringValue(payload.kiz);
 
     if (!barcode && !skuId) {
       throw new BadRequestException('Для receipt_scan нужен barcode или skuId.');
+    }
+
+    if (kiz && quantity !== 1) {
+      throw new BadRequestException('При приемке с КИЗ количество должно быть 1.');
     }
 
     return {
@@ -45,6 +50,7 @@ export class TsdPayloadParser {
       skuId,
       boxCode,
       quantity,
+      kiz,
       status: this.optionalStockStatus(payload.status),
       sourceDocument: this.optionalStringValue(payload.sourceDocument),
       comment: this.optionalStringValue(payload.comment),

@@ -13,6 +13,7 @@ import { LogisticsQuotePanel } from './components/logistics/LogisticsQuotePanel'
 import { OwnCompaniesPanel } from './components/own-companies/OwnCompaniesPanel';
 import { PrintPanel } from './components/print/PrintPanel';
 import { ServiceCenterPanel } from './components/service/ServiceCenterPanel';
+import { TsdApp } from './components/tsd/TsdApp';
 import { WarehouseOpsPanel } from './components/warehouse/WarehouseOpsPanel';
 import { fetchMe, type AuthSession, type AuthUser } from './lib/api';
 import { clearStoredSession, loadStoredSession, storeSession } from './lib/session';
@@ -37,6 +38,10 @@ type WorkspaceSection = (typeof workspaceSections)[number]['id'];
 const initialSession = loadStoredSession();
 
 export function App() {
+  if (window.location.pathname === '/tsd-app') {
+    return <TsdApp />;
+  }
+
   const [session, setSession] = useState<AuthSession | null>(() => initialSession);
   const [isRestoring, setRestoring] = useState(Boolean(session));
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<WorkspaceId>(() =>

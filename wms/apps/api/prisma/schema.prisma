@@ -239,6 +239,7 @@ model User {
   printerScopes                  UserPrinterGroup[]
   sessions                       UserSession[]
   tsdDevices                     TsdDevice[]
+  tsdOperations                  TsdOperation[]                 @relation("TsdOperationUser")
   createdClientRequests          ClientRequest[]                @relation("ClientRequestCreatedBy")
   assignedClientRequests         ClientRequest[]                @relation("ClientRequestAssignedTo")
   reviewedTsdOperations          TsdOperation[]                 @relation("TsdOperationReviewedBy")
@@ -1128,6 +1129,7 @@ model LogisticsDeliveryRequest {
 model TsdOperation {
   id                String             @id @default(uuid())
   deviceId          String
+  userId            String?
   operationKey      String             @unique
   operationType     String
   payload           Json
@@ -1138,6 +1140,7 @@ model TsdOperation {
   reviewAction      TsdReviewAction?
   reviewComment     String?
   reviewedByUserId  String?
+  user              User?              @relation("TsdOperationUser", fields: [userId], references: [id])
   reviewedBy        User?              @relation("TsdOperationReviewedBy", fields: [reviewedByUserId], references: [id])
   reviewedAt        DateTime?
   createdAt         DateTime           @default(now())
@@ -1145,6 +1148,7 @@ model TsdOperation {
 
   @@index([status, createdAt])
   @@index([deviceId])
+  @@index([userId])
   @@index([reviewReason])
   @@index([reviewedAt])
   @@index([reviewedByUserId])

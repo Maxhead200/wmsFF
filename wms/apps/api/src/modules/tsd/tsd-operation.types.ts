@@ -28,6 +28,7 @@ export type ReceiptScanPayload = {
   skuId?: string;
   boxCode: string;
   quantity: number;
+  kiz?: string;
   status?: StockStatus;
   sourceDocument?: string;
   comment?: string;

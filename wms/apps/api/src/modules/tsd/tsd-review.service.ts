@@ -109,6 +109,13 @@ export class TsdReviewService {
         },
       },
       include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+          },
+        },
         reviewedBy: {
           select: {
             id: true,

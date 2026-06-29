@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -21,6 +21,18 @@ export class TsdSyncController {
   @RequirePermissions('stock:write')
   listReviewQueue(@CurrentUser() user: AuthUser) {
     return this.sync.listReviewQueue(user);
+  }
+
+  @Get('clients')
+  @RequirePermissions('stock:write')
+  listClients(@CurrentUser() user: AuthUser) {
+    return this.sync.listClients(user);
+  }
+
+  @Get('sku-by-barcode')
+  @RequirePermissions('stock:write')
+  getSkuByBarcode(@Query('clientId') clientId: string, @Query('barcode') barcode: string, @CurrentUser() user: AuthUser) {
+    return this.sync.getSkuByBarcode(clientId, barcode, user);
   }
 
   @Get('review/history')

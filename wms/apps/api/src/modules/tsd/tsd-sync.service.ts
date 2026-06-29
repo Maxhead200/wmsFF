@@ -215,6 +215,9 @@ export class TsdSyncService {
     }
     completed.set(task.id, current + 1);
     await this.saveRelabelCompleted(requestId, completed, user.id);
+    const moveTasks = this.moveTasks(document);
+    const moveState = await this.loadMoveState(requestId);
+    await this.finalizeTsdPackingIfReady(requestId, user, document, moveTasks, moveState);
 
     return this.relabelState(requestId, tasks, completed, {
       type: 'target',
@@ -228,6 +231,7 @@ export class TsdSyncService {
     const document = await this.pickInstructions.getRequestInstruction(requestId, user);
     const tasks = this.moveTasks(document);
     const moveState = await this.loadMoveState(requestId);
+    await this.finalizeTsdPackingIfReady(requestId, user, document, tasks, moveState);
     return this.movesState(requestId, tasks, moveState, null);
   }
 

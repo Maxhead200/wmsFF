@@ -67,6 +67,7 @@ public class MainActivity extends Activity {
     private final HashSet<String> receiptKiz = new HashSet<>();
     private final HashSet<String> roleCodes = new HashSet<>();
     private final HashSet<String> permissionCodes = new HashSet<>();
+    private final ArrayList<JSONObject> relabelBatchQueue = new ArrayList<>();
 
     private SharedPreferences prefs;
     private OfflineQueue queue;
@@ -79,6 +80,10 @@ public class MainActivity extends Activity {
     private String apiUrl = DEFAULT_API_URL;
     private String selectedClientId = "";
     private String selectedClientName = "";
+    private String relabelBatchRequestId = "";
+    private String relabelBatchBoxCode = "";
+    private boolean relabelBatchSourceConfirmed = false;
+    private boolean relabelBatchTargetConfirmed = false;
     private String receiptId = newReceiptId();
     private String boxCode = "";
     private String pendingBarcode = "";
@@ -526,6 +531,7 @@ public class MainActivity extends Activity {
     }
 
     private void showRelabelBox(PickRequest request, JSONObject state, String boxCode, int flashColor, String warning) {
+        resetRelabelBatchIfNeeded(request.id, boxCode);
         JSONObject box = findRelabelBox(state, boxCode);
         if (box == null) {
             showRelabelBoxes(request, state);
@@ -548,8 +554,9 @@ public class MainActivity extends Activity {
             root.addView(error);
         }
         root.addView(note(tr("stage.relabelHint")));
+        root.addView(note(tr("relabel.queued") + ": " + relabelBatchQueue.size()));
 
-        EditText scan = input(tr("relabel.scanSource"), false);
+        EditText scan = input(tr("relabel.scanSourceBatch"), false);
         scan.setSingleLine(true);
         scan.setImeOptions(EditorInfo.IME_ACTION_DONE);
         scan.setOnEditorActionListener((v, actionId, event) -> {
@@ -570,10 +577,21 @@ public class MainActivity extends Activity {
                 if (row == null) {
                     continue;
                 }
-                root.addView(relabelRowView(row));
+                root.addView(relabelRowView(row, queuedRelabelCount(row.optString("id"))));
             }
         }
 
+        if (!relabelBatchQueue.isEmpty()) {
+            Button targets = primary(tr("relabel.scanTargets"));
+            targets.setOnClickListener(v -> showRelabelTargetBatchScan(request, boxCode, state, FLASH_NONE, ""));
+            root.addView(targets);
+            Button clear = secondary(tr("relabel.clearQueue"));
+            clear.setOnClickListener(v -> {
+                clearRelabelBatch();
+                showRelabelBox(request, state, boxCode);
+            });
+            root.addView(clear);
+        }
         Button refresh = secondary(tr("common.refresh"));
         refresh.setOnClickListener(v -> loadRelabelState(request));
         root.addView(refresh);
@@ -586,12 +604,17 @@ public class MainActivity extends Activity {
     }
 
     private TextView relabelRowView(JSONObject row) {
+        return relabelRowView(row, 0);
+    }
+
+    private TextView relabelRowView(JSONObject row, int queued) {
         TextView view = note(
             tr("receipt.article") + ": " + firstNonEmpty(row.optString("article"), "-")
                 + "\n" + tr("receipt.sizeColor") + ": " + firstNonEmpty(row.optString("size"), "-")
                 + "\n" + tr("relabel.from") + ": " + row.optString("sourceBarcode")
                 + "\n" + tr("relabel.to") + ": " + row.optString("targetBarcode")
                 + "\n" + tr("boxSearch.progressRemaining") + ": " + row.optInt("remaining")
+                + (queued > 0 ? "\n" + tr("relabel.queued") + ": " + queued : "")
         );
         view.setTextSize(scaledText(18));
         view.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
@@ -617,6 +640,46 @@ public class MainActivity extends Activity {
         return null;
     }
 
+    private void resetRelabelBatchIfNeeded(String requestId, String boxCode) {
+        if (requestId.equals(relabelBatchRequestId) && boxCode.equals(relabelBatchBoxCode)) {
+            return;
+        }
+        relabelBatchRequestId = requestId;
+        relabelBatchBoxCode = boxCode;
+        clearRelabelBatch();
+    }
+
+    private void clearRelabelBatch() {
+        relabelBatchQueue.clear();
+        relabelBatchSourceConfirmed = false;
+        relabelBatchTargetConfirmed = false;
+    }
+
+    private int queuedRelabelCount(String taskId) {
+        int count = 0;
+        for (JSONObject task : relabelBatchQueue) {
+            if (taskId.equals(task.optString("id"))) {
+                count += 1;
+            }
+        }
+        return count;
+    }
+
+    private int remainingForRelabelTask(JSONObject state, String boxCode, String taskId) {
+        JSONObject box = findRelabelBox(state, boxCode);
+        JSONArray rows = box == null ? null : box.optJSONArray("rows");
+        if (rows == null) {
+            return 0;
+        }
+        for (int i = 0; i < rows.length(); i++) {
+            JSONObject row = rows.optJSONObject(i);
+            if (row != null && taskId.equals(row.optString("id"))) {
+                return row.optInt("remaining", 0);
+            }
+        }
+        return 0;
+    }
+
     private void scanRelabelSource(PickRequest request, String boxCode, String barcode) {
         if (barcode.trim().isEmpty()) {
             toast(tr("receipt.scanBarcodeToast"));
@@ -633,7 +696,15 @@ public class MainActivity extends Activity {
                         showRelabelBox(request, state, boxCode, RED, tr("relabel.wrongSource"));
                         return;
                     }
-                    confirmRelabelSource(request, boxCode, state, task);
+                    if (queuedRelabelCount(task.optString("id")) >= remainingForRelabelTask(state, boxCode, task.optString("id"))) {
+                        showRelabelBox(request, state, boxCode, RED, tr("relabel.batchFull"));
+                        return;
+                    }
+                    if (!relabelBatchSourceConfirmed) {
+                        confirmRelabelSource(request, boxCode, state, task);
+                    } else {
+                        enqueueRelabelSource(request, boxCode, state, task);
+                    }
                 });
             } catch (Exception error) {
                 try {
@@ -658,9 +729,20 @@ public class MainActivity extends Activity {
         new AlertDialog.Builder(this)
             .setTitle(tr("relabel.confirmSource"))
             .setMessage(message)
-            .setPositiveButton(tr("receipt.confirmYes"), (dialog, which) -> showRelabelTargetScan(request, boxCode, task))
+            .setPositiveButton(tr("receipt.confirmYes"), (dialog, which) -> {
+                relabelBatchSourceConfirmed = true;
+                enqueueRelabelSource(request, boxCode, state, task);
+            })
             .setNegativeButton(tr("receipt.confirmNo"), (dialog, which) -> showRelabelBox(request, state, boxCode))
             .show();
+    }
+
+    private void enqueueRelabelSource(PickRequest request, String boxCode, JSONObject state, JSONObject task) {
+        if (relabelBatchQueue.isEmpty()) {
+            relabelBatchTargetConfirmed = false;
+        }
+        relabelBatchQueue.add(task);
+        showRelabelBox(request, state, boxCode, GREEN, tr("relabel.batchSourceAdded"));
     }
 
     private void showRelabelTargetScan(PickRequest request, String boxCode, JSONObject task) {
@@ -704,6 +786,120 @@ public class MainActivity extends Activity {
                 } else {
                     showRelabelBox(request, state, boxCode);
                 }
+            });
+        });
+    }
+
+    private void showRelabelTargetBatchScan(PickRequest request, String boxCode, JSONObject state, int flashColor, String warning) {
+        if (relabelBatchQueue.isEmpty()) {
+            showRelabelBox(request, state, boxCode);
+            return;
+        }
+        JSONObject task = relabelBatchQueue.get(0);
+        setBackAction(() -> showRelabelBox(request, state, boxCode));
+        LinearLayout root = page();
+        if (flashColor != FLASH_NONE) {
+            root.setBackgroundColor(flashColor);
+        }
+        root.setPadding(dp(14), dp(16), dp(14), dp(14));
+        addHeader(root);
+        addTitle(root, tr("relabel.scanTargetTitle"));
+        if (warning != null && !warning.trim().isEmpty()) {
+            TextView error = note(warning);
+            error.setTextColor(Color.WHITE);
+            error.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+            error.setTextSize(scaledText(22));
+            error.setPadding(dp(12), dp(10), dp(12), dp(10));
+            root.addView(error);
+        }
+        root.addView(note(tr("common.box") + ": " + boxCode));
+        root.addView(note(tr("relabel.queued") + ": " + relabelBatchQueue.size()));
+        root.addView(note(tr("relabel.from") + ": " + task.optString("sourceBarcode")));
+        root.addView(note(tr("relabel.to") + ": " + task.optString("targetBarcode")));
+
+        EditText scan = input(tr("relabel.scanTargetBatch"), false);
+        scan.setSingleLine(true);
+        scan.setImeOptions(EditorInfo.IME_ACTION_DONE);
+        scan.setOnEditorActionListener((v, actionId, event) -> {
+            String scanned = text(scan);
+            scan.setText("");
+            scanRelabelBatchTarget(request, boxCode, state, scanned);
+            return true;
+        });
+        root.addView(scan);
+        Button backToOld = secondary(tr("relabel.backToSources"));
+        backToOld.setOnClickListener(v -> showRelabelBox(request, state, boxCode));
+        root.addView(backToOld);
+        addBackButton(root, tr("common.back"), () -> showRelabelBox(request, state, boxCode));
+        setContentView(wrap(root));
+        if (flashColor != FLASH_NONE) {
+            main.postDelayed(() -> root.setBackgroundColor(BG), 700);
+        }
+        scan.requestFocus();
+    }
+
+    private void scanRelabelBatchTarget(PickRequest request, String boxCode, JSONObject state, String targetBarcode) {
+        if (targetBarcode.trim().isEmpty()) {
+            toast(tr("relabel.scanTargetToast"));
+            return;
+        }
+        if (relabelBatchQueue.isEmpty()) {
+            showRelabelBox(request, state, boxCode);
+            return;
+        }
+        JSONObject task = relabelBatchQueue.get(0);
+        if (!sameScan(task.optString("targetBarcode"), targetBarcode)) {
+            showRelabelTargetBatchScan(request, boxCode, state, RED, tr("relabel.wrongTarget"));
+            return;
+        }
+        if (!relabelBatchTargetConfirmed) {
+            confirmRelabelTarget(request, boxCode, state, task, targetBarcode);
+            return;
+        }
+        commitRelabelBatchTarget(request, boxCode, state, task, targetBarcode);
+    }
+
+    private void confirmRelabelTarget(PickRequest request, String boxCode, JSONObject state, JSONObject task, String targetBarcode) {
+        String message = tr("common.box") + ": " + boxCode
+            + "\n" + tr("receipt.article") + ": " + firstNonEmpty(task.optString("article"), "-")
+            + "\n" + tr("receipt.sizeColor") + ": " + firstNonEmpty(task.optString("size"), "-")
+            + "\n" + tr("relabel.from") + ": " + task.optString("sourceBarcode")
+            + "\n" + tr("relabel.to") + ": " + targetBarcode;
+        new AlertDialog.Builder(this)
+            .setTitle(tr("relabel.confirmTarget"))
+            .setMessage(message)
+            .setPositiveButton(tr("receipt.confirmYes"), (dialog, which) -> {
+                relabelBatchTargetConfirmed = true;
+                commitRelabelBatchTarget(request, boxCode, state, task, targetBarcode);
+            })
+            .setNegativeButton(tr("receipt.confirmNo"), (dialog, which) -> showRelabelTargetBatchScan(request, boxCode, state, FLASH_NONE, ""))
+            .show();
+    }
+
+    private void commitRelabelBatchTarget(PickRequest request, String boxCode, JSONObject previousState, JSONObject task, String targetBarcode) {
+        runAsync(() -> {
+            JSONObject state = api.scanRelabelTarget(token, request.id, task.optString("id"), targetBarcode, deviceCode);
+            main.post(() -> {
+                if (!relabelBatchQueue.isEmpty()) {
+                    relabelBatchQueue.remove(0);
+                }
+                toast(tr("relabel.itemDone"));
+                if (state.optBoolean("isComplete")) {
+                    clearRelabelBatch();
+                    showRelabelBoxes(request, state);
+                    return;
+                }
+                if (relabelBatchQueue.isEmpty()) {
+                    relabelBatchSourceConfirmed = false;
+                    relabelBatchTargetConfirmed = false;
+                    if (findRelabelBox(state, boxCode) == null) {
+                        showRelabelBoxes(request, state);
+                    } else {
+                        showRelabelBox(request, state, boxCode);
+                    }
+                    return;
+                }
+                showRelabelTargetBatchScan(request, boxCode, state, GREEN, tr("relabel.itemDone"));
             });
         });
     }
@@ -1889,6 +2085,16 @@ public class MainActivity extends Activity {
                 case "relabel.scanTarget": return "Yangi SHK";
                 case "relabel.scanTargetToast": return "Yangi SHKni skanerlang.";
                 case "relabel.itemDone": return "Qayta markalash belgilandi.";
+                case "relabel.queued": return "Navbatdagi eski SHK";
+                case "relabel.scanSourceBatch": return "Eski SHKlarni ketma-ket skanerlang";
+                case "relabel.scanTargetBatch": return "Yangi SHKlarni ketma-ket skanerlang";
+                case "relabel.scanTargets": return "Yangi SHKlarni skanerlash";
+                case "relabel.clearQueue": return "Navbatni tozalash";
+                case "relabel.batchSourceAdded": return "Eski SHK navbatga qo'shildi.";
+                case "relabel.batchFull": return "Bu tovar bo'yicha kerakli eski SHKlar allaqachon navbatda.";
+                case "relabel.confirmTarget": return "Yangi SHKni tasdiqlang";
+                case "relabel.wrongTarget": return "Yangi SHK topshiriqqa mos kelmaydi.";
+                case "relabel.backToSources": return "Eski SHKlarga qaytish";
                 case "boxSearch.title": return "Qutilarni qidirish";
                 case "boxSearch.scanBoxToast": return "Quti raqamini skanerlang.";
                 case "boxSearch.alreadyFound": return "Quti allaqachon topilgan va solishtirishda qatnashmaydi.";
@@ -2053,6 +2259,16 @@ public class MainActivity extends Activity {
                 case "relabel.scanTarget": return "New barcode";
                 case "relabel.scanTargetToast": return "Scan the new barcode.";
                 case "relabel.itemDone": return "Relabeling marked complete.";
+                case "relabel.queued": return "Old barcodes queued";
+                case "relabel.scanSourceBatch": return "Scan old barcodes one by one";
+                case "relabel.scanTargetBatch": return "Scan new barcodes one by one";
+                case "relabel.scanTargets": return "Scan new barcodes";
+                case "relabel.clearQueue": return "Clear queue";
+                case "relabel.batchSourceAdded": return "Old barcode added to queue.";
+                case "relabel.batchFull": return "All required old barcodes for this product are already queued.";
+                case "relabel.confirmTarget": return "Confirm new barcode";
+                case "relabel.wrongTarget": return "New barcode does not match the task.";
+                case "relabel.backToSources": return "Back to old barcodes";
                 case "boxSearch.title": return "Box search";
                 case "boxSearch.scanBoxToast": return "Scan box number.";
                 case "boxSearch.alreadyFound": return "Box is already found and no longer participates in matching.";
@@ -2216,6 +2432,16 @@ public class MainActivity extends Activity {
             case "relabel.scanTarget": return "Новый ШК";
             case "relabel.scanTargetToast": return "Сканируйте новый ШК.";
             case "relabel.itemDone": return "Перемаркировка отмечена.";
+            case "relabel.queued": return "Старых ШК в очереди";
+            case "relabel.scanSourceBatch": return "Пикайте старые ШК подряд";
+            case "relabel.scanTargetBatch": return "Пикайте новые ШК подряд";
+            case "relabel.scanTargets": return "Сканировать новые ШК";
+            case "relabel.clearQueue": return "Очистить очередь";
+            case "relabel.batchSourceAdded": return "Старый ШК добавлен в очередь.";
+            case "relabel.batchFull": return "По этому товару уже набрано нужное количество старых ШК.";
+            case "relabel.confirmTarget": return "Подтвердите новый ШК";
+            case "relabel.wrongTarget": return "Новый ШК не совпадает с заданием перемаркировки.";
+            case "relabel.backToSources": return "Назад к старым ШК";
             case "boxSearch.title": return "Поиск коробов";
             case "boxSearch.scanBoxToast": return "Сканируйте номер короба.";
             case "boxSearch.alreadyFound": return "Короб уже найден и больше не участвует в сравнении.";
@@ -2285,6 +2511,14 @@ public class MainActivity extends Activity {
     private String normalizeDevice(String value) {
         String normalized = value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
         return normalized.isEmpty() ? "TSD-01" : normalized;
+    }
+
+    private static boolean sameScan(String left, String right) {
+        return scanKey(left).equals(scanKey(right));
+    }
+
+    private static String scanKey(String value) {
+        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 
     private static String newReceiptId() {

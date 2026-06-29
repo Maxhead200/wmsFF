@@ -176,7 +176,7 @@ export class TsdSyncService {
     );
 
     if (!task) {
-      throw new BadRequestException('В этом коробе нет товара с таким ШК для перемаркировки.');
+      throw new BadRequestException('Неправильный товар: отсканированный ШК не совпадает с заданием перемаркировки.');
     }
 
     return this.relabelState(requestId, tasks, completed, {

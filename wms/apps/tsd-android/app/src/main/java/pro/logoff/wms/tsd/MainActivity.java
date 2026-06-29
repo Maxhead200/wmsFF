@@ -508,6 +508,10 @@ public class MainActivity extends Activity {
     }
 
     private void showRelabelBox(PickRequest request, JSONObject state, String boxCode) {
+        showRelabelBox(request, state, boxCode, FLASH_NONE, "");
+    }
+
+    private void showRelabelBox(PickRequest request, JSONObject state, String boxCode, int flashColor, String warning) {
         JSONObject box = findRelabelBox(state, boxCode);
         if (box == null) {
             showRelabelBoxes(request, state);
@@ -515,16 +519,29 @@ public class MainActivity extends Activity {
         }
         setBackAction(() -> showRelabelBoxes(request, state));
         LinearLayout root = page();
+        if (flashColor != FLASH_NONE) {
+            root.setBackgroundColor(flashColor);
+        }
         root.setPadding(dp(14), dp(16), dp(14), dp(14));
         addHeader(root);
         addTitle(root, tr("common.box") + " " + boxCode);
+        if (warning != null && !warning.trim().isEmpty()) {
+            TextView error = note(warning);
+            error.setTextColor(Color.WHITE);
+            error.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+            error.setTextSize(scaledText(22));
+            error.setPadding(dp(12), dp(10), dp(12), dp(10));
+            root.addView(error);
+        }
         root.addView(note(tr("stage.relabelHint")));
 
         EditText scan = input(tr("relabel.scanSource"), false);
         scan.setSingleLine(true);
         scan.setImeOptions(EditorInfo.IME_ACTION_DONE);
         scan.setOnEditorActionListener((v, actionId, event) -> {
-            scanRelabelSource(request, boxCode, text(scan));
+            String scanned = text(scan);
+            scan.setText("");
+            scanRelabelSource(request, boxCode, scanned);
             return true;
         });
         root.addView(scan);
@@ -548,6 +565,9 @@ public class MainActivity extends Activity {
         root.addView(refresh);
         addBackButton(root, tr("stage.relabelTitle"), () -> showRelabelBoxes(request, state));
         setContentView(wrap(root));
+        if (flashColor != FLASH_NONE) {
+            main.postDelayed(() -> root.setBackgroundColor(BG), 700);
+        }
         scan.requestFocus();
     }
 
@@ -588,18 +608,30 @@ public class MainActivity extends Activity {
             toast(tr("receipt.scanBarcodeToast"));
             return;
         }
-        runAsync(() -> {
-            JSONObject state = api.scanRelabelSource(token, request.id, boxCode, barcode, deviceCode);
-            JSONObject lastScan = state.optJSONObject("lastScan");
-            JSONObject task = lastScan == null ? null : lastScan.optJSONObject("task");
-            main.post(() -> {
-                if (task == null) {
-                    toast(tr("relabel.sourceNotFound"));
-                    showRelabelBox(request, state, boxCode);
-                    return;
+        io.execute(() -> {
+            try {
+                JSONObject state = api.scanRelabelSource(token, request.id, boxCode, barcode, deviceCode);
+                JSONObject lastScan = state.optJSONObject("lastScan");
+                JSONObject task = lastScan == null ? null : lastScan.optJSONObject("task");
+                main.post(() -> {
+                    if (task == null) {
+                        toast(tr("relabel.wrongSource"));
+                        showRelabelBox(request, state, boxCode, RED, tr("relabel.wrongSource"));
+                        return;
+                    }
+                    confirmRelabelSource(request, boxCode, state, task);
+                });
+            } catch (Exception error) {
+                try {
+                    JSONObject state = api.relabelState(token, request.id, deviceCode);
+                    main.post(() -> {
+                        toast(tr("relabel.wrongSource"));
+                        showRelabelBox(request, state, boxCode, RED, tr("relabel.wrongSource"));
+                    });
+                } catch (Exception fallback) {
+                    main.post(() -> toast(tr("relabel.wrongSource")));
                 }
-                confirmRelabelSource(request, boxCode, state, task);
-            });
+            }
         });
     }
 
@@ -1640,6 +1672,7 @@ public class MainActivity extends Activity {
                 case "relabel.from": return "Eski SHK";
                 case "relabel.to": return "Yangi SHK";
                 case "relabel.sourceNotFound": return "Bu qutida bunday SHK qayta markalash uchun yo'q.";
+                case "relabel.wrongSource": return "Noto'g'ri tovar olindi. Eski SHK qayta markalash topshirig'iga mos kelmaydi.";
                 case "relabel.confirmSource": return "Tovarni tasdiqlang";
                 case "relabel.scanTargetTitle": return "Yangi SHKni skanerlang";
                 case "relabel.scanTarget": return "Yangi SHK";
@@ -1786,6 +1819,7 @@ public class MainActivity extends Activity {
                 case "relabel.from": return "Old barcode";
                 case "relabel.to": return "New barcode";
                 case "relabel.sourceNotFound": return "This box has no such barcode for relabeling.";
+                case "relabel.wrongSource": return "Wrong product picked. The old barcode does not match the relabeling task.";
                 case "relabel.confirmSource": return "Confirm product";
                 case "relabel.scanTargetTitle": return "Scan new barcode";
                 case "relabel.scanTarget": return "New barcode";
@@ -1931,6 +1965,7 @@ public class MainActivity extends Activity {
             case "relabel.from": return "Старый ШК";
             case "relabel.to": return "Новый ШК";
             case "relabel.sourceNotFound": return "В этом коробе нет такого ШК для перемаркировки.";
+            case "relabel.wrongSource": return "Неправильный товар. Старый ШК не совпадает с заданием перемаркировки.";
             case "relabel.confirmSource": return "Подтвердите товар";
             case "relabel.scanTargetTitle": return "Скан нового ШК";
             case "relabel.scanTarget": return "Новый ШК";

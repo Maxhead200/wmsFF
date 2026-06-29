@@ -35,6 +35,18 @@ export class TsdSyncController {
     return this.sync.listActiveRequests(user);
   }
 
+  @Get('requests/:id/box-search')
+  @RequirePermissions('stock:write')
+  getRequestBoxSearch(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.sync.getRequestBoxSearch(id, user);
+  }
+
+  @Post('requests/:id/box-search/scan')
+  @RequirePermissions('stock:write')
+  scanRequestBox(@Param('id') id: string, @Body() dto: { boxCode?: string }, @CurrentUser() user: AuthUser) {
+    return this.sync.scanRequestBox(id, dto, user);
+  }
+
   @Get('sku-by-barcode')
   @RequirePermissions('stock:write')
   getSkuByBarcode(@Query('clientId') clientId: string, @Query('barcode') barcode: string, @CurrentUser() user: AuthUser) {

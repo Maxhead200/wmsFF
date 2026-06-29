@@ -3,6 +3,7 @@ import { ClientRequestStatus, ClientRequestType, StockStatus, TsdReviewReason } 
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
+import { PickInstructionService } from '../stock/pick-instruction.service';
 import { StockOperationsService } from '../stock/stock-operations.service';
 import { ScanOperationDto, SyncTsdOperationsDto } from './dto/scan-operation.dto';
 import { TsdDeviceService } from './tsd-device.service';
@@ -14,6 +15,7 @@ import { TsdPayloadParser } from './tsd-payload.parser';
 export class TsdSyncService {
   constructor(
     private readonly stockOperations: StockOperationsService,
+    private readonly pickInstructions: PickInstructionService,
     private readonly devices: TsdDeviceService,
     private readonly prisma: PrismaService,
     private readonly clientScopes: ClientScopeService,
@@ -96,6 +98,40 @@ export class TsdSyncService {
           },
         },
       },
+    });
+  }
+
+  async getRequestBoxSearch(requestId: string, user: AuthUser) {
+    const document = await this.pickInstructions.getRequestInstruction(requestId, user);
+    const requiredBoxes = this.requiredSearchBoxes(document);
+    const foundBoxes = await this.loadFoundSearchBoxes(requestId);
+
+    return this.boxSearchState(requestId, requiredBoxes, foundBoxes, null);
+  }
+
+  async scanRequestBox(requestId: string, dto: { boxCode?: string }, user: AuthUser) {
+    const scannedBox = dto.boxCode?.trim();
+    if (!scannedBox) {
+      throw new BadRequestException('Сканируйте номер короба.');
+    }
+
+    const document = await this.pickInstructions.getRequestInstruction(requestId, user);
+    const requiredBoxes = this.requiredSearchBoxes(document);
+    const requiredByNormalized = new Map(requiredBoxes.map((box) => [normalizeBoxCode(box), box]));
+    const matchedBox = requiredByNormalized.get(normalizeBoxCode(scannedBox));
+    const foundBoxes = await this.loadFoundSearchBoxes(requestId);
+    const wasAlreadyFound = matchedBox ? foundBoxes.has(matchedBox) : false;
+
+    if (matchedBox) {
+      foundBoxes.add(matchedBox);
+      await this.saveFoundSearchBoxes(requestId, foundBoxes, user.id);
+    }
+
+    return this.boxSearchState(requestId, requiredBoxes, foundBoxes, {
+      boxCode: scannedBox,
+      matched: Boolean(matchedBox),
+      alreadyFound: wasAlreadyFound,
+      matchedBox: matchedBox ?? null,
     });
   }
 
@@ -307,4 +343,82 @@ export class TsdSyncService {
       })
       .then((barcode) => barcode?.sku ?? null);
   }
+
+  private requiredSearchBoxes(document: {
+    warehouseRows: Array<{ sourceBox: string }>;
+    warehouseBalanceMoves: Array<{ sourceBox: string }>;
+    warehouseWholeBoxes: Array<{ box: string }>;
+  }) {
+    return [
+      ...new Set(
+        [
+          ...document.warehouseRows.map((row) => row.sourceBox),
+          ...document.warehouseBalanceMoves.map((row) => row.sourceBox),
+          ...document.warehouseWholeBoxes.map((row) => row.box),
+        ]
+          .map((value) => value.trim())
+          .filter(Boolean),
+      ),
+    ].sort((left, right) => left.localeCompare(right, 'ru', { numeric: true }));
+  }
+
+  private async loadFoundSearchBoxes(requestId: string) {
+    const setting = await this.prisma.systemSetting.findUnique({
+      where: { key: boxSearchKey(requestId) },
+    });
+    const value = setting?.value;
+    const payload = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+    const foundBoxes = Array.isArray(payload.foundBoxes) ? payload.foundBoxes : [];
+    return new Set(foundBoxes.filter((box): box is string => typeof box === 'string' && box.trim().length > 0));
+  }
+
+  private async saveFoundSearchBoxes(requestId: string, foundBoxes: Set<string>, userId: string) {
+    const boxes = [...foundBoxes].sort((left, right) => left.localeCompare(right, 'ru', { numeric: true }));
+    await this.prisma.systemSetting.upsert({
+      where: { key: boxSearchKey(requestId) },
+      update: {
+        value: { foundBoxes: boxes },
+        updatedByUserId: userId,
+      },
+      create: {
+        key: boxSearchKey(requestId),
+        value: { foundBoxes: boxes },
+        updatedByUserId: userId,
+      },
+    });
+  }
+
+  private boxSearchState(
+    requestId: string,
+    requiredBoxes: string[],
+    foundBoxes: Set<string>,
+    lastScan: null | { boxCode: string; matched: boolean; alreadyFound: boolean; matchedBox: string | null },
+  ) {
+    const foundNormalized = new Set([...foundBoxes].map(normalizeBoxCode));
+    const boxes = requiredBoxes.map((code) => ({
+      code,
+      found: foundNormalized.has(normalizeBoxCode(code)),
+    }));
+    const foundCount = boxes.filter((box) => box.found).length;
+    const missingBoxes = boxes.filter((box) => !box.found).map((box) => box.code);
+
+    return {
+      requestId,
+      total: boxes.length,
+      found: foundCount,
+      remaining: missingBoxes.length,
+      isComplete: missingBoxes.length === 0,
+      boxes,
+      missingBoxes,
+      lastScan,
+    };
+  }
+}
+
+function boxSearchKey(requestId: string) {
+  return `TSD_BOX_SEARCH:${requestId}`;
+}
+
+function normalizeBoxCode(value: string) {
+  return value.trim().toUpperCase();
 }

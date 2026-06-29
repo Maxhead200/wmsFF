@@ -266,7 +266,7 @@ public class MainActivity extends Activity {
         root.addView(note("Статус: " + request.status + " · строк: " + request.itemsCount));
 
         Button boxes = primary("1. Поиск коробов");
-        boxes.setOnClickListener(v -> toast("Поиск коробов будет открыт следующим шагом."));
+        boxes.setOnClickListener(v -> loadBoxSearch(request));
         root.addView(boxes);
 
         Button relabel = primary("2. Перемаркировка");
@@ -281,6 +281,139 @@ public class MainActivity extends Activity {
         back.setOnClickListener(v -> showPickRequests());
         root.addView(back);
         setContentView(wrap(root));
+    }
+
+    private void loadBoxSearch(PickRequest request) {
+        runAsync(() -> {
+            JSONObject state = api.boxSearch(token, request.id);
+            main.post(() -> showBoxSearch(request, state));
+        });
+    }
+
+    private void scanBoxForRequest(PickRequest request, String boxCode) {
+        String normalized = boxCode.trim();
+        if (normalized.isEmpty()) {
+            toast("Сканируйте номер короба.");
+            return;
+        }
+
+        runAsync(() -> {
+            JSONObject state = api.scanBoxSearch(token, request.id, normalized);
+            JSONObject lastScan = state.optJSONObject("lastScan");
+            main.post(() -> {
+                if (lastScan != null && lastScan.optBoolean("matched")) {
+                    toast(lastScan.optBoolean("alreadyFound") ? "Короб уже был найден." : "Нужный короб найден. Переместите его в зону сборки.");
+                } else {
+                    toast("Этот короб не участвует в сборке заявки.");
+                }
+                showBoxSearch(request, state);
+            });
+        });
+    }
+
+    private void showBoxSearch(PickRequest request, JSONObject state) {
+        LinearLayout root = page();
+        root.setPadding(dp(14), dp(16), dp(14), dp(14));
+        addHeader(root);
+        addTitle(root, "Поиск коробов");
+        root.addView(note("Заявка: " + request.shortNumber()));
+        root.addView(note("Клиент: " + request.clientName + " · город: " + firstNonEmpty(request.city, "-")));
+
+        int found = state.optInt("found");
+        int total = state.optInt("total");
+        int remaining = state.optInt("remaining");
+        boolean complete = state.optBoolean("isComplete");
+        root.addView(note("Найдено " + found + " из " + total + ". Осталось: " + remaining));
+        if (complete) {
+            TextView done = note("Поиск завершен. Можно приступать к следующему этапу: перемаркировка.");
+            done.setTextColor(Color.rgb(12, 128, 72));
+            root.addView(done);
+        }
+
+        EditText scan = input("Скан номера короба", false);
+        scan.setSingleLine(true);
+        scan.setImeOptions(EditorInfo.IME_ACTION_DONE);
+        scan.setOnEditorActionListener((v, actionId, event) -> {
+            scanBoxForRequest(request, text(scan));
+            return true;
+        });
+        Button scanButton = primary("Проверить короб");
+        scanButton.setOnClickListener(v -> scanBoxForRequest(request, text(scan)));
+        root.addView(scan);
+        root.addView(scanButton);
+
+        JSONArray boxes = state.optJSONArray("boxes");
+        if (boxes == null || boxes.length() == 0) {
+            root.addView(note("Коробов для поиска нет."));
+        } else {
+            root.addView(note("Короба для поиска:"));
+            for (int i = 0; i < boxes.length(); i++) {
+                JSONObject box = boxes.optJSONObject(i);
+                if (box == null) {
+                    continue;
+                }
+                TextView row = note(box.optString("code"));
+                row.setTextSize(20);
+                row.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+                row.setPadding(dp(12), dp(12), dp(12), dp(12));
+                LinearLayout.LayoutParams params = matchWrap();
+                params.setMargins(0, dp(4), 0, dp(4));
+                row.setLayoutParams(params);
+                if (box.optBoolean("found")) {
+                    row.setText("✓ " + box.optString("code"));
+                    row.setTextColor(Color.WHITE);
+                    row.setBackgroundColor(Color.rgb(12, 128, 72));
+                } else {
+                    row.setTextColor(Color.rgb(45, 38, 38));
+                    row.setBackgroundColor(Color.WHITE);
+                }
+                root.addView(row);
+            }
+        }
+
+        Button refresh = secondary("Обновить");
+        refresh.setOnClickListener(v -> loadBoxSearch(request));
+        root.addView(refresh);
+
+        Button collapse = secondary("Свернуть поиск");
+        collapse.setOnClickListener(v -> leaveBoxSearch(request, state));
+        root.addView(collapse);
+        setContentView(wrap(root));
+        scan.requestFocus();
+    }
+
+    private void leaveBoxSearch(PickRequest request, JSONObject state) {
+        int remaining = state.optInt("remaining");
+        if (remaining <= 0) {
+            showPickRequestActions(request);
+            return;
+        }
+
+        new AlertDialog.Builder(this)
+            .setTitle("Найдены не все короба")
+            .setMessage("Осталось найти: " + remaining + "\n\n" + missingBoxesText(state))
+            .setPositiveButton("Свернуть", (dialog, which) -> showPickRequestActions(request))
+            .setNegativeButton("Остаться", null)
+            .show();
+    }
+
+    private String missingBoxesText(JSONObject state) {
+        JSONArray missing = state.optJSONArray("missingBoxes");
+        if (missing == null || missing.length() == 0) {
+            return "Недостающих коробов нет.";
+        }
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < missing.length(); i++) {
+            if (i > 0) {
+                builder.append('\n');
+            }
+            builder.append("• ").append(missing.optString(i));
+            if (i >= 29 && missing.length() > 30) {
+                builder.append('\n').append("и еще ").append(missing.length() - 30);
+                break;
+            }
+        }
+        return builder.toString();
     }
 
     private void showInventoryMenu() {

@@ -36,6 +36,15 @@ final class ApiClient {
         return new JSONArray(request("GET", "/tsd/requests/active", token, null));
     }
 
+    JSONObject boxSearch(String token, String requestId) throws IOException, JSONException {
+        return new JSONObject(request("GET", "/tsd/requests/" + enc(requestId) + "/box-search", token, null));
+    }
+
+    JSONObject scanBoxSearch(String token, String requestId, String boxCode) throws IOException, JSONException {
+        JSONObject body = new JSONObject().put("boxCode", boxCode);
+        return new JSONObject(request("POST", "/tsd/requests/" + enc(requestId) + "/box-search/scan", token, body.toString()));
+    }
+
     JSONObject skuByBarcode(String token, String clientId, String barcode) throws IOException, JSONException {
         String path = "/tsd/sku-by-barcode?clientId=" + enc(clientId) + "&barcode=" + enc(barcode);
         return new JSONObject(request("GET", path, token, null));

@@ -545,6 +545,8 @@ export class TsdSyncService {
     warehouseBalanceMoves: Array<{ sourceBox: string }>;
     warehouseWholeBoxes: Array<{ box: string }>;
   }) {
+    // New balance boxes are created during movement and stay in warehouse stock.
+    // The search stage must find only boxes that already participate in the shipment plan.
     return [
       ...new Set(
         [
@@ -850,9 +852,11 @@ export class TsdSyncService {
       return;
     }
 
+    const balanceMoveRows = new Set(document.warehouseBalanceMoves.map((row) => balanceMoveRowKey(row)));
     const shipmentRows = document.warehouseRows.filter((row) =>
       row.sourceBox &&
       row.quantity > 0 &&
+      !balanceMoveRows.has(balanceMoveRowKey(row)) &&
       !row.comment.toLowerCase().includes('переложить') &&
       !row.note.toLowerCase().includes('остаток'),
     );
@@ -1038,6 +1042,22 @@ function movesKey(requestId: string) {
 
 function moveTaskId(sourceBox: string, barcode: string, article: string, size: string) {
   return Buffer.from([sourceBox, barcode, article, size].join('\u0001')).toString('base64url');
+}
+
+function balanceMoveRowKey(row: {
+  sourceBox: string;
+  artOnBox: string;
+  barcodeOnBox: string;
+  size: string;
+  quantity: number;
+}) {
+  return [
+    normalizeBoxCode(row.sourceBox),
+    normalizeBoxCode(row.barcodeOnBox),
+    (row.artOnBox || '').trim().toLowerCase(),
+    (row.size || '').trim().toLowerCase(),
+    row.quantity,
+  ].join('\u0001');
 }
 
 function finalRequestBarcode(item: { barcode: string | null; comment: string | null }) {

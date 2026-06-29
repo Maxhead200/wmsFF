@@ -93,7 +93,7 @@ export function ClientRequestsTable({
                     <span>Состав</span>
                   </button>
                 ) : null}
-                {request.type === 'OUTBOUND' && onDownloadMarketplaceProductsTemplate ? (
+                {canDownloadMarketplaceTemplates(request) && onDownloadMarketplaceProductsTemplate ? (
                   <button
                     className="document-open-button"
                     type="button"
@@ -104,7 +104,7 @@ export function ClientRequestsTable({
                     <span>Товары WB/Ozon</span>
                   </button>
                 ) : null}
-                {request.type === 'OUTBOUND' && onDownloadMarketplacePackagesTemplate ? (
+                {canDownloadMarketplaceTemplates(request) && onDownloadMarketplacePackagesTemplate ? (
                   <button
                     className="document-open-button"
                     type="button"
@@ -248,6 +248,10 @@ function canRunFulfillment(request: ClientRequestSummary) {
 
 function canShowWarehouseActions(request: ClientRequestSummary) {
   return request.type === 'OUTBOUND' || canRunFulfillment(request);
+}
+
+function canDownloadMarketplaceTemplates(request: ClientRequestSummary) {
+  return request.type === 'OUTBOUND' && ['PACKED', 'DONE'].includes(request.status) && request.packages.length > 0;
 }
 
 function canCancelRequest(request: ClientRequestSummary) {

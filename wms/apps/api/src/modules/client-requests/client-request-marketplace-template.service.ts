@@ -1,5 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ClientRequestStatus, ClientRequestType, Prisma } from '@prisma/client';
 import * as XLSX from 'xlsx';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
@@ -26,13 +26,8 @@ export class ClientRequestMarketplaceTemplateService {
 
   async getProductsTemplate(requestId: string, user: AuthUser): Promise<MarketplaceTemplateFile> {
     const request = await this.loadRequest(requestId, user);
-    const rows = request.items.map((item) => ({
-      barcode: requestItemBarcode(item),
-      quantity: item.quantity,
-      article: requestItemArticle(item),
-      name: item.name ?? item.sku?.name ?? '',
-      size: item.sku?.size ?? '',
-    }));
+    assertMarketplaceTemplatesReady(request);
+    const rows = aggregateProductRows(packageRows(request));
 
     const workbook = XLSX.utils.book_new();
     appendSheet(
@@ -49,7 +44,7 @@ export class ClientRequestMarketplaceTemplateService {
       'Ozon',
       [
         ['Артикул', 'Название товара', 'Штрихкод', 'Количество', 'Размер', 'Комментарий WMS'],
-        ...rows.map((row) => [row.article, row.name, row.barcode, row.quantity, row.size, 'Заготовка из WMS']),
+        ...rows.map((row) => [row.article, row.name, row.barcode, row.quantity, '', 'Заготовка из WMS']),
       ],
       [24, 42, 22, 14, 16, 28],
     );
@@ -68,6 +63,7 @@ export class ClientRequestMarketplaceTemplateService {
 
   async getPackagesTemplate(requestId: string, user: AuthUser): Promise<MarketplaceTemplateFile> {
     const request = await this.loadRequest(requestId, user);
+    assertMarketplaceTemplatesReady(request);
     const rows = packageRows(request);
 
     const workbook = XLSX.utils.book_new();
@@ -210,7 +206,7 @@ function packageRows(request: RequestForMarketplaceTemplate) {
         const sku = item.sku ?? item.requestItem.sku;
         return {
           packageCode: packagePlace.packageCode,
-          barcode: item.barcode ?? item.requestItem.barcode ?? skuPrimaryBarcode(sku) ?? '',
+          barcode: finalBarcodeForRequestItem(item.requestItem, item.barcode ?? skuPrimaryBarcode(sku)),
           quantity: item.quantity,
           article: skuArticle(sku),
           name: item.requestItem.name ?? sku?.name ?? '',
@@ -222,7 +218,7 @@ function packageRows(request: RequestForMarketplaceTemplate) {
 
   return request.items.map((item) => ({
     packageCode: '',
-    barcode: requestItemBarcode(item),
+    barcode: finalBarcodeForRequestItem(item, requestItemBarcode(item)),
     quantity: item.quantity,
     article: requestItemArticle(item),
     name: item.name ?? item.sku?.name ?? '',
@@ -230,8 +226,66 @@ function packageRows(request: RequestForMarketplaceTemplate) {
   }));
 }
 
+function aggregateProductRows(rows: ReturnType<typeof packageRows>) {
+  const result = new Map<string, (typeof rows)[number]>();
+  for (const row of rows) {
+    const existing = result.get(row.barcode);
+    if (existing) {
+      existing.quantity += row.quantity;
+      continue;
+    }
+
+    result.set(row.barcode, { ...row });
+  }
+  return [...result.values()];
+}
+
+function assertMarketplaceTemplatesReady(request: RequestForMarketplaceTemplate) {
+  if (request.type !== ClientRequestType.OUTBOUND) {
+    throw new BadRequestException('Шаблоны маркетплейсов доступны только для заявок на отгрузку.');
+  }
+
+  if (request.status !== ClientRequestStatus.PACKED && request.status !== ClientRequestStatus.DONE) {
+    throw new BadRequestException(
+      'Файл WB/Ozon можно сформировать только после выполнения перемещений, перемаркировки и упаковки заявки.',
+    );
+  }
+
+  if (request.packages.length === 0) {
+    throw new BadRequestException('В заявке нет упаковочных мест. Сначала выполните упаковку заявки.');
+  }
+}
+
 function requestItemBarcode(item: RequestForMarketplaceTemplate['items'][number]) {
   return item.barcode ?? skuPrimaryBarcode(item.sku) ?? '';
+}
+
+function finalBarcodeForRequestItem(
+  item: Pick<RequestForMarketplaceTemplate['items'][number], 'barcode' | 'comment'>,
+  fallback?: string | null,
+) {
+  return parseRelabelTargetBarcode(item.comment) ?? item.barcode ?? fallback ?? '';
+}
+
+function parseRelabelTargetBarcode(comment?: string | null) {
+  if (!comment) {
+    return null;
+  }
+
+  for (const part of comment.split(';')) {
+    const [rawKey, ...rawValue] = part.split(':');
+    const key = rawKey.trim().toLowerCase();
+    if (key !== 'перемаркировка в') {
+      continue;
+    }
+
+    const value = rawValue.join(':').trim();
+    if (value) {
+      return value;
+    }
+  }
+
+  return null;
 }
 
 function requestItemArticle(item: RequestForMarketplaceTemplate['items'][number]) {

@@ -106,13 +106,16 @@ export class TsdSyncService {
     }));
   }
 
-  async getRequestBoxSearch(requestId: string, user: AuthUser, deviceCode?: string) {
-    await this.touchRequestWorker(requestId, user, 'Поиск коробов', deviceCode);
+  async getRequestBoxSearch(requestId: string, user: AuthUser, deviceCode?: string, stage?: string) {
+    await this.touchRequestWorker(requestId, user, tsdStageLabel(stage), deviceCode);
     const document = await this.pickInstructions.getRequestInstruction(requestId, user);
     const requiredBoxes = this.requiredSearchBoxes(document);
     const foundBoxes = await this.loadFoundSearchBoxes(requestId);
 
-    return this.boxSearchState(requestId, requiredBoxes, foundBoxes, null);
+    return {
+      ...this.boxSearchState(requestId, requiredBoxes, foundBoxes, null),
+      stage: normalizeTsdStage(stage),
+    };
   }
 
   async scanRequestBox(requestId: string, dto: { boxCode?: string; deviceCode?: string }, user: AuthUser) {
@@ -528,4 +531,26 @@ function normalizeWorkerDeviceCode(user: AuthUser, deviceCode?: string) {
 
 function normalizeBoxCode(value: string) {
   return value.trim().toUpperCase();
+}
+
+function normalizeTsdStage(stage?: string) {
+  const normalized = stage?.trim().toLowerCase();
+  if (normalized === 'relabel') {
+    return 'relabel';
+  }
+  if (normalized === 'moves') {
+    return 'moves';
+  }
+  return 'box-search';
+}
+
+function tsdStageLabel(stage?: string) {
+  switch (normalizeTsdStage(stage)) {
+    case 'relabel':
+      return 'Перемаркировка';
+    case 'moves':
+      return 'Перемещения';
+    default:
+      return 'Поиск коробов';
+  }
 }

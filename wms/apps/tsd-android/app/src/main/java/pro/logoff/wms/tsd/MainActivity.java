@@ -65,6 +65,8 @@ public class MainActivity extends Activity {
     private final ArrayList<PickRequest> pickRequests = new ArrayList<>();
     private final HashSet<String> confirmedBarcodes = new HashSet<>();
     private final HashSet<String> receiptKiz = new HashSet<>();
+    private final HashSet<String> roleCodes = new HashSet<>();
+    private final HashSet<String> permissionCodes = new HashSet<>();
 
     private SharedPreferences prefs;
     private OfflineQueue queue;
@@ -186,6 +188,7 @@ public class MainActivity extends Activity {
             if (!canUseTsd(user)) {
                 throw new IllegalStateException(tr("login.noTsdAccess"));
             }
+            loadAccess(user);
             token = response.getString("accessToken");
             userId = user.getString("id");
             userName = user.optString("name", login.trim());
@@ -197,6 +200,8 @@ public class MainActivity extends Activity {
                 .putString("userId", userId)
                 .putString("userName", userName)
                 .putString("deviceCode", deviceCode)
+                .putString("roleCodes", joinCodes(roleCodes))
+                .putString("permissionCodes", joinCodes(permissionCodes))
                 .apply();
             main.post(() -> {
                 toast(tr("login.connected") + ": " + userName);
@@ -409,11 +414,11 @@ public class MainActivity extends Activity {
         root.addView(boxes);
 
         Button relabel = primary("2. " + tr("pick.relabel"));
-        relabel.setOnClickListener(v -> toast(tr("pick.relabelNext")));
+        relabel.setOnClickListener(v -> loadRequestStage(request, "relabel"));
         root.addView(relabel);
 
         Button moves = primary("3. " + tr("pick.moves"));
-        moves.setOnClickListener(v -> toast(tr("pick.movesNext")));
+        moves.setOnClickListener(v -> loadRequestStage(request, "moves"));
         root.addView(moves);
 
         addBackButton(root, tr("pick.backToRequests"), () -> showPickRequests());
@@ -425,6 +430,97 @@ public class MainActivity extends Activity {
             JSONObject state = api.boxSearch(token, request.id, deviceCode);
             main.post(() -> showBoxSearch(request, state));
         });
+    }
+
+    private void loadRequestStage(PickRequest request, String stage) {
+        runAsync(() -> {
+            JSONObject state = api.requestStage(token, request.id, deviceCode, stage);
+            main.post(() -> {
+                if (!hasStageControl() && !state.optBoolean("isComplete")) {
+                    toast(tr("stage.searchRequired"));
+                    showBoxSearch(request, state);
+                    return;
+                }
+                showRequestStage(request, state, stage);
+            });
+        });
+    }
+
+    private void showRequestStage(PickRequest request, JSONObject state, String stage) {
+        setBackAction(() -> showPickRequestActions(request));
+        LinearLayout root = page();
+        root.setPadding(dp(14), dp(16), dp(14), dp(14));
+        addHeader(root);
+        addTitle(root, stageTitle(stage));
+        root.addView(note(tr("pick.request") + ": " + request.shortNumber()));
+        root.addView(note(tr("common.client") + ": " + request.clientName + " · " + tr("common.city").toLowerCase(Locale.ROOT) + ": " + firstNonEmpty(request.city, "-")));
+
+        int found = state.optInt("found");
+        int total = state.optInt("total");
+        int remaining = state.optInt("remaining");
+        root.addView(note(tr("boxSearch.progressFound") + " " + found + " " + tr("boxSearch.progressOf") + " " + total + ". " + tr("boxSearch.progressRemaining") + ": " + remaining));
+
+        if (hasStageControl() && remaining > 0) {
+            TextView bypass = note(tr("stage.supervisorBypass"));
+            bypass.setTextColor(Color.rgb(120, 72, 0));
+            bypass.setBackgroundColor(Color.rgb(255, 231, 153));
+            bypass.setPadding(dp(12), dp(10), dp(12), dp(10));
+            root.addView(bypass);
+        }
+
+        root.addView(note(stageHint(stage)));
+        JSONArray boxes = state.optJSONArray("boxes");
+        int added = addFoundStageBoxes(root, boxes);
+        if (added == 0) {
+            root.addView(note(tr("stage.noFoundBoxes")));
+        }
+
+        Button refresh = secondary(tr("common.refresh"));
+        refresh.setOnClickListener(v -> loadRequestStage(request, stage));
+        root.addView(refresh);
+
+        addBackButton(root, tr("pick.backToRequests"), () -> showPickRequestActions(request));
+        setContentView(wrap(root));
+    }
+
+    private int addFoundStageBoxes(LinearLayout root, JSONArray boxes) {
+        if (boxes == null || boxes.length() == 0) {
+            return 0;
+        }
+        root.addView(note(tr("stage.foundBoxes")));
+        int added = 0;
+        for (int i = 0; i < boxes.length(); i++) {
+            JSONObject box = boxes.optJSONObject(i);
+            if (box == null || !box.optBoolean("found")) {
+                continue;
+            }
+            TextView row = note("✓ " + box.optString("code"));
+            row.setTextSize(scaledText(20));
+            row.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+            row.setTextColor(Color.WHITE);
+            row.setBackgroundColor(GREEN);
+            row.setPadding(dp(12), dp(12), dp(12), dp(12));
+            LinearLayout.LayoutParams params = matchWrap();
+            params.setMargins(0, dp(4), 0, dp(4));
+            row.setLayoutParams(params);
+            root.addView(row);
+            added++;
+        }
+        return added;
+    }
+
+    private String stageTitle(String stage) {
+        if ("moves".equals(stage)) {
+            return tr("stage.movesTitle");
+        }
+        return tr("stage.relabelTitle");
+    }
+
+    private String stageHint(String stage) {
+        if ("moves".equals(stage)) {
+            return tr("stage.movesHint");
+        }
+        return tr("stage.relabelHint");
     }
 
     private void scanBoxForRequest(PickRequest request, String boxCode) {
@@ -1310,6 +1406,14 @@ public class MainActivity extends Activity {
                 case "pick.movesNext": return "Ko'chirishlar keyingi bosqichda ochiladi.";
                 case "pick.backToRequests": return "Buyurtmalarga qaytish";
                 case "pick.loaded": return "Buyurtmalar yuklandi";
+                case "stage.searchRequired": return "Avval barcha qutilarni topishni yakunlang.";
+                case "stage.supervisorBypass": return "Bosqich rahbar tomonidan qidirish tugashini kutmasdan ochildi. Faqat topilgan qutilar bilan ishlang.";
+                case "stage.noFoundBoxes": return "Hozircha topilgan qutilar yo'q.";
+                case "stage.foundBoxes": return "Topilgan qutilar:";
+                case "stage.relabelTitle": return "Qayta markalash";
+                case "stage.movesTitle": return "Qutilar bo'yicha ko'chirishlar";
+                case "stage.relabelHint": return "Qayta markalashni topilgan qutilar bo'yicha bajaring. Agar quti hali topilmagan bo'lsa, uni avval qidirishda skanerlang.";
+                case "stage.movesHint": return "Ko'chirishlarni faqat topilgan qutilar bo'yicha bajaring. Yangi qutiga ko'chirish skani keyingi ekranda yoziladi.";
                 case "boxSearch.title": return "Qutilarni qidirish";
                 case "boxSearch.scanBoxToast": return "Quti raqamini skanerlang.";
                 case "boxSearch.alreadyFound": return "Quti allaqachon topilgan va solishtirishda qatnashmaydi.";
@@ -1433,6 +1537,14 @@ public class MainActivity extends Activity {
                 case "pick.movesNext": return "Movements will open in the next step.";
                 case "pick.backToRequests": return "Back to requests";
                 case "pick.loaded": return "Requests loaded";
+                case "stage.searchRequired": return "Finish finding all boxes first.";
+                case "stage.supervisorBypass": return "Stage opened by a supervisor before box search is complete. Work only with found boxes.";
+                case "stage.noFoundBoxes": return "No boxes have been found yet.";
+                case "stage.foundBoxes": return "Found boxes:";
+                case "stage.relabelTitle": return "Relabeling";
+                case "stage.movesTitle": return "Box movements";
+                case "stage.relabelHint": return "Perform relabeling using the found boxes. If a box is not found yet, scan it in box search first.";
+                case "stage.movesHint": return "Perform movements only from found boxes. Movement scan into a new box will be recorded on the next screen.";
                 case "boxSearch.title": return "Box search";
                 case "boxSearch.scanBoxToast": return "Scan box number.";
                 case "boxSearch.alreadyFound": return "Box is already found and no longer participates in matching.";
@@ -1555,6 +1667,14 @@ public class MainActivity extends Activity {
             case "pick.movesNext": return "Перемещения будут открыты следующим шагом.";
             case "pick.backToRequests": return "Назад к заявкам";
             case "pick.loaded": return "Заявок загружено";
+            case "stage.searchRequired": return "Сначала завершите поиск всех коробов.";
+            case "stage.supervisorBypass": return "Этап открыт старшим сотрудником до завершения поиска. Работайте только с уже найденными коробами.";
+            case "stage.noFoundBoxes": return "Пока нет найденных коробов.";
+            case "stage.foundBoxes": return "Найденные короба:";
+            case "stage.relabelTitle": return "Перемаркировка";
+            case "stage.movesTitle": return "Перемещения по коробам";
+            case "stage.relabelHint": return "Выполняйте перемаркировку по найденным коробам. Если короб еще не найден, сначала просканируйте его в поиске.";
+            case "stage.movesHint": return "Выполняйте перемещения только из найденных коробов. Скан перемещения в новый короб будет записываться на следующем экране.";
             case "boxSearch.title": return "Поиск коробов";
             case "boxSearch.scanBoxToast": return "Сканируйте номер короба.";
             case "boxSearch.alreadyFound": return "Короб уже найден и больше не участвует в сравнении.";
@@ -1617,6 +1737,8 @@ public class MainActivity extends Activity {
         deviceCode = prefs.getString("deviceCode", "TSD-01");
         interfaceMode = prefs.getString("interfaceMode", "recommended");
         language = prefs.getString("language", "ru");
+        loadCodes(roleCodes, prefs.getString("roleCodes", ""));
+        loadCodes(permissionCodes, prefs.getString("permissionCodes", ""));
     }
 
     private String normalizeDevice(String value) {
@@ -1658,6 +1780,54 @@ public class MainActivity extends Activity {
             }
         }
         return false;
+    }
+
+    private void loadAccess(JSONObject user) {
+        roleCodes.clear();
+        permissionCodes.clear();
+        addCodes(roleCodes, user.optJSONArray("roleCodes"));
+        addCodes(permissionCodes, user.optJSONArray("permissionCodes"));
+    }
+
+    private static void addCodes(HashSet<String> target, JSONArray values) {
+        if (values == null) {
+            return;
+        }
+        for (int i = 0; i < values.length(); i++) {
+            String code = values.optString(i).trim().toUpperCase(Locale.ROOT);
+            if (!code.isEmpty()) {
+                target.add(code);
+            }
+        }
+    }
+
+    private static void loadCodes(HashSet<String> target, String value) {
+        target.clear();
+        String[] parts = (value == null ? "" : value).split(",");
+        for (String part : parts) {
+            String code = part.trim().toUpperCase(Locale.ROOT);
+            if (!code.isEmpty()) {
+                target.add(code);
+            }
+        }
+    }
+
+    private static String joinCodes(HashSet<String> values) {
+        StringBuilder builder = new StringBuilder();
+        for (String value : values) {
+            if (builder.length() > 0) {
+                builder.append(',');
+            }
+            builder.append(value);
+        }
+        return builder.toString();
+    }
+
+    private boolean hasStageControl() {
+        return permissionCodes.contains("SYSTEM:ADMIN")
+            || roleCodes.contains("OWNER")
+            || roleCodes.contains("ADMIN")
+            || roleCodes.contains("MANAGER");
     }
 
     private String activeWorkersLabel(JSONArray workers) {

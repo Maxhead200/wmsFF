@@ -41,6 +41,11 @@ final class ApiClient {
         return new JSONObject(request("GET", path, token, null));
     }
 
+    JSONObject requestStage(String token, String requestId, String deviceCode, String stage) throws IOException, JSONException {
+        String path = "/tsd/requests/" + enc(requestId) + "/box-search?deviceCode=" + enc(deviceCode) + "&stage=" + enc(stage);
+        return new JSONObject(request("GET", path, token, null));
+    }
+
     JSONObject scanBoxSearch(String token, String requestId, String boxCode, String deviceCode) throws IOException, JSONException {
         JSONObject body = new JSONObject()
             .put("boxCode", boxCode)
@@ -67,7 +72,7 @@ final class ApiClient {
         connection.setReadTimeout(20000);
         connection.setRequestProperty("Accept", "application/json");
         connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-        connection.setRequestProperty("User-Agent", "LOGOff-TSD-Android/0.1.7");
+        connection.setRequestProperty("User-Agent", "LOGOff-TSD-Android/0.1.8");
         if (token != null && !token.isEmpty()) {
             connection.setRequestProperty("Authorization", "Bearer " + token);
         }

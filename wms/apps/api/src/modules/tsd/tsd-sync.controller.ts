@@ -34,8 +34,13 @@ export class TsdSyncController {
   }
 
   @Get('requests/:id/box-search')
-  getRequestBoxSearch(@Param('id') id: string, @Query('deviceCode') deviceCode: string, @CurrentUser() user: AuthUser) {
-    return this.sync.getRequestBoxSearch(id, user, deviceCode);
+  getRequestBoxSearch(
+    @Param('id') id: string,
+    @Query('deviceCode') deviceCode: string,
+    @Query('stage') stage: string | undefined,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.sync.getRequestBoxSearch(id, user, deviceCode, stage);
   }
 
   @Post('requests/:id/box-search/scan')

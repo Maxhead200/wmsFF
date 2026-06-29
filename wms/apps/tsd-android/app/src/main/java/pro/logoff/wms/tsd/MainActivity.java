@@ -54,7 +54,10 @@ public class MainActivity extends Activity {
     private static final String DEFAULT_API_URL = "https://wms.logoff.pro/api/v1";
     private static final String UPDATE_MANIFEST_URL = "https://wms.logoff.pro/downloads/logoff-tsd.json";
     private static final int RED = Color.rgb(180, 0, 18);
+    private static final int GREEN = Color.rgb(12, 128, 72);
+    private static final int BLUE = Color.rgb(0, 88, 180);
     private static final int BG = Color.rgb(247, 244, 241);
+    private static final int FLASH_NONE = -1;
 
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -121,7 +124,7 @@ public class MainActivity extends Activity {
             return;
         }
         lastRootBackAtMs = now;
-        toast("Нажмите назад еще раз, чтобы закрыть приложение.");
+        toast(tr("common.backAgainExit"));
     }
 
     private void showSplash() {
@@ -174,14 +177,14 @@ public class MainActivity extends Activity {
 
     private void login(String login, String password, String device) {
         if (login.trim().isEmpty() || password.trim().isEmpty()) {
-            toast("Введите логин и пароль.");
+            toast(tr("login.enterCredentials"));
             return;
         }
         runAsync(() -> {
             JSONObject response = api.login(login.trim(), password);
             JSONObject user = response.getJSONObject("user");
             if (!canUseTsd(user)) {
-                throw new IllegalStateException("Нет доступа к ТСД. Попросите администратора включить галочку Работа с ТСД в профиле.");
+                throw new IllegalStateException(tr("login.noTsdAccess"));
             }
             token = response.getString("accessToken");
             userId = user.getString("id");
@@ -196,7 +199,7 @@ public class MainActivity extends Activity {
                 .putString("deviceCode", deviceCode)
                 .apply();
             main.post(() -> {
-                toast("Сотрудник " + userName + " подключен.");
+                toast(tr("login.connected") + ": " + userName);
                 showMenu();
                 loadClients();
                 syncQueue();
@@ -245,7 +248,7 @@ public class MainActivity extends Activity {
         Button exit = secondary(tr("menu.exit"));
         exit.setOnClickListener(v -> {
             if (queue.size() > 0) {
-                toast("Сначала синхронизируйте очередь: " + queue.size());
+                toast(tr("menu.syncFirst") + ": " + queue.size());
                 return;
             }
             prefs.edit().remove("token").remove("userId").remove("userName").apply();
@@ -324,21 +327,21 @@ public class MainActivity extends Activity {
         LinearLayout root = page();
         root.setPadding(dp(14), dp(16), dp(14), dp(14));
         addHeader(root);
-        addTitle(root, "Приемка товара");
+        addTitle(root, tr("menu.receipt"));
 
         Spinner spinner = new Spinner(this);
         ArrayAdapter<Client> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, clients);
         spinner.setAdapter(adapter);
         root.addView(spinner, matchWrap());
 
-        Button refresh = secondary("Обновить клиентов");
+        Button refresh = secondary(tr("receipt.refreshClients"));
         refresh.setOnClickListener(v -> loadClients());
         root.addView(refresh);
 
-        Button start = primary("Новый короб");
+        Button start = primary(tr("receipt.newBox"));
         start.setOnClickListener(v -> {
             if (clients.isEmpty()) {
-                toast("Нет доступных клиентов.");
+                toast(tr("receipt.noClients"));
                 return;
             }
             Client selected = (Client) spinner.getSelectedItem();
@@ -348,7 +351,7 @@ public class MainActivity extends Activity {
         });
         root.addView(start);
 
-        addBackButton(root, "Назад", () -> showMenu());
+        addBackButton(root, tr("common.back"), () -> showMenu());
         setContentView(wrap(root));
     }
 
@@ -357,19 +360,19 @@ public class MainActivity extends Activity {
         LinearLayout root = page();
         root.setPadding(dp(14), dp(16), dp(14), dp(14));
         addHeader(root);
-        addTitle(root, "Сборка заявки");
-        root.addView(note("Выберите активную заявку. Желтым подсвечены заявки, где уже кто-то работает с ТСД."));
+        addTitle(root, tr("menu.pick"));
+        root.addView(note(tr("pick.hint")));
 
-        Button refresh = secondary("Обновить заявки");
+        Button refresh = secondary(tr("pick.refresh"));
         refresh.setOnClickListener(v -> loadPickRequests(true));
         root.addView(refresh);
 
         if (pickRequests.isEmpty()) {
-            root.addView(note("Активных заявок пока нет. Нажмите обновить."));
+            root.addView(note(tr("pick.empty")));
         }
 
         for (PickRequest request : pickRequests) {
-            Button item = secondary(request.label());
+            Button item = secondary(request.label(tr("common.cityMissing"), tr("pick.inWork")));
             item.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
             if (request.hasActiveWorkers()) {
                 item.setTextColor(Color.rgb(76, 48, 0));
@@ -379,7 +382,7 @@ public class MainActivity extends Activity {
             root.addView(item);
         }
 
-        addBackButton(root, "Назад", () -> showMenu());
+        addBackButton(root, tr("common.back"), () -> showMenu());
         setContentView(wrap(root));
         if (pickRequests.isEmpty()) {
             loadPickRequests(false);
@@ -391,29 +394,29 @@ public class MainActivity extends Activity {
         LinearLayout root = page();
         root.setPadding(dp(14), dp(16), dp(14), dp(14));
         addHeader(root);
-        addTitle(root, "Заявка " + request.shortNumber());
-        root.addView(note("Клиент: " + request.clientName));
-        root.addView(note("Город: " + firstNonEmpty(request.city, "-")));
-        root.addView(note("Статус: " + request.status + " · строк: " + request.itemsCount));
+        addTitle(root, tr("pick.request") + " " + request.shortNumber());
+        root.addView(note(tr("common.client") + ": " + request.clientName));
+        root.addView(note(tr("common.city") + ": " + firstNonEmpty(request.city, "-")));
+        root.addView(note(tr("common.status") + ": " + request.status + " · " + tr("common.rows") + ": " + request.itemsCount));
         if (request.hasActiveWorkers()) {
-            TextView working = note("Уже в работе: " + request.activeWorkersText);
+            TextView working = note(tr("pick.inWork") + ": " + request.activeWorkersText);
             working.setTextColor(Color.rgb(120, 72, 0));
             root.addView(working);
         }
 
-        Button boxes = primary("1. Поиск коробов");
+        Button boxes = primary("1. " + tr("boxSearch.title"));
         boxes.setOnClickListener(v -> loadBoxSearch(request));
         root.addView(boxes);
 
-        Button relabel = primary("2. Перемаркировка");
-        relabel.setOnClickListener(v -> toast("Перемаркировка будет открыта следующим шагом."));
+        Button relabel = primary("2. " + tr("pick.relabel"));
+        relabel.setOnClickListener(v -> toast(tr("pick.relabelNext")));
         root.addView(relabel);
 
-        Button moves = primary("3. Перемещения");
-        moves.setOnClickListener(v -> toast("Перемещения будут открыты следующим шагом."));
+        Button moves = primary("3. " + tr("pick.moves"));
+        moves.setOnClickListener(v -> toast(tr("pick.movesNext")));
         root.addView(moves);
 
-        addBackButton(root, "Назад к заявкам", () -> showPickRequests());
+        addBackButton(root, tr("pick.backToRequests"), () -> showPickRequests());
         setContentView(wrap(root));
     }
 
@@ -427,7 +430,7 @@ public class MainActivity extends Activity {
     private void scanBoxForRequest(PickRequest request, String boxCode) {
         String normalized = boxCode.trim();
         if (normalized.isEmpty()) {
-            toast("Сканируйте номер короба.");
+            toast(tr("boxSearch.scanBoxToast"));
             return;
         }
         long now = System.currentTimeMillis();
@@ -447,14 +450,17 @@ public class MainActivity extends Activity {
                 JSONObject lastScan = state.optJSONObject("lastScan");
                 main.post(() -> {
                     boolean foundNow = lastScan != null && lastScan.optBoolean("matched");
+                    int flashColor = RED;
                     if (lastScan != null && lastScan.optBoolean("alreadyFound")) {
-                        toast("Короб уже найден и больше не участвует в сравнении.");
+                        flashColor = BLUE;
+                        toast(tr("boxSearch.alreadyFound"));
                     } else if (foundNow) {
-                        toast("Нужный короб найден. Переместите его в зону сборки.");
+                        flashColor = GREEN;
+                        toast(tr("boxSearch.found"));
                     } else {
-                        toast("Этот короб не участвует в сборке заявки.");
+                        toast(tr("boxSearch.notNeeded"));
                     }
-                    showBoxSearch(request, state, foundNow);
+                    showBoxSearch(request, state, flashColor);
                 });
             } finally {
                 main.post(() -> boxSearchScanBusy = false);
@@ -463,33 +469,33 @@ public class MainActivity extends Activity {
     }
 
     private void showBoxSearch(PickRequest request, JSONObject state) {
-        showBoxSearch(request, state, false);
+        showBoxSearch(request, state, FLASH_NONE);
     }
 
-    private void showBoxSearch(PickRequest request, JSONObject state, boolean flashGreen) {
+    private void showBoxSearch(PickRequest request, JSONObject state, int flashColor) {
         setBackAction(() -> leaveBoxSearch(request, state));
         LinearLayout root = page();
-        if (flashGreen) {
-            root.setBackgroundColor(Color.rgb(12, 128, 72));
+        if (flashColor != FLASH_NONE) {
+            root.setBackgroundColor(flashColor);
         }
         root.setPadding(dp(14), dp(16), dp(14), dp(14));
         addHeader(root);
-        addTitle(root, "Поиск коробов");
-        root.addView(note("Заявка: " + request.shortNumber()));
-        root.addView(note("Клиент: " + request.clientName + " · город: " + firstNonEmpty(request.city, "-")));
+        addTitle(root, tr("boxSearch.title"));
+        root.addView(note(tr("pick.request") + ": " + request.shortNumber()));
+        root.addView(note(tr("common.client") + ": " + request.clientName + " · " + tr("common.city").toLowerCase(Locale.ROOT) + ": " + firstNonEmpty(request.city, "-")));
 
         int found = state.optInt("found");
         int total = state.optInt("total");
         int remaining = state.optInt("remaining");
         boolean complete = state.optBoolean("isComplete");
-        root.addView(note("Найдено " + found + " из " + total + ". Осталось: " + remaining));
+        root.addView(note(tr("boxSearch.progressFound") + " " + found + " " + tr("boxSearch.progressOf") + " " + total + ". " + tr("boxSearch.progressRemaining") + ": " + remaining));
         if (complete) {
-            TextView done = note("Поиск завершен. Можно приступать к следующему этапу: перемаркировка.");
-            done.setTextColor(Color.rgb(12, 128, 72));
+            TextView done = note(tr("boxSearch.complete"));
+            done.setTextColor(GREEN);
             root.addView(done);
         }
 
-        EditText scan = input("Скан номера короба", false);
+        EditText scan = input(tr("boxSearch.scanInput"), false);
         scan.setSingleLine(true);
         scan.setImeOptions(EditorInfo.IME_ACTION_DONE);
         scan.setOnEditorActionListener((v, actionId, event) -> {
@@ -501,43 +507,48 @@ public class MainActivity extends Activity {
 
         JSONArray boxes = state.optJSONArray("boxes");
         if (boxes == null || boxes.length() == 0) {
-            root.addView(note("Коробов для поиска нет."));
+            root.addView(note(tr("boxSearch.empty")));
         } else {
-            root.addView(note("Короба для поиска:"));
-            for (int i = 0; i < boxes.length(); i++) {
-                JSONObject box = boxes.optJSONObject(i);
-                if (box == null) {
-                    continue;
-                }
-                TextView row = note(box.optString("code"));
-                row.setTextSize(20);
-                row.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-                row.setPadding(dp(12), dp(12), dp(12), dp(12));
-                LinearLayout.LayoutParams params = matchWrap();
-                params.setMargins(0, dp(4), 0, dp(4));
-                row.setLayoutParams(params);
-                if (box.optBoolean("found")) {
-                    row.setText("✓ " + box.optString("code"));
-                    row.setTextColor(Color.WHITE);
-                    row.setBackgroundColor(Color.rgb(12, 128, 72));
-                } else {
-                    row.setTextColor(Color.rgb(45, 38, 38));
-                    row.setBackgroundColor(Color.WHITE);
-                }
-                root.addView(row);
-            }
+            root.addView(note(tr("boxSearch.listTitle")));
+            addBoxSearchRows(root, boxes, true);
+            addBoxSearchRows(root, boxes, false);
         }
 
-        Button refresh = secondary("Обновить");
+        Button refresh = secondary(tr("common.refresh"));
         refresh.setOnClickListener(v -> loadBoxSearch(request));
         root.addView(refresh);
 
-        addBackButton(root, "Свернуть поиск", () -> leaveBoxSearch(request, state));
+        addBackButton(root, tr("boxSearch.collapse"), () -> leaveBoxSearch(request, state));
         setContentView(wrap(root));
-        if (flashGreen) {
+        if (flashColor != FLASH_NONE) {
             main.postDelayed(() -> root.setBackgroundColor(BG), 450);
         }
         scan.requestFocus();
+    }
+
+    private void addBoxSearchRows(LinearLayout root, JSONArray boxes, boolean foundRows) {
+        for (int i = 0; i < boxes.length(); i++) {
+            JSONObject box = boxes.optJSONObject(i);
+            if (box == null || box.optBoolean("found") != foundRows) {
+                continue;
+            }
+            TextView row = note(box.optString("code"));
+            row.setTextSize(scaledText(20));
+            row.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+            row.setPadding(dp(12), dp(12), dp(12), dp(12));
+            LinearLayout.LayoutParams params = matchWrap();
+            params.setMargins(0, dp(4), 0, dp(4));
+            row.setLayoutParams(params);
+            if (foundRows) {
+                row.setText("✓ " + box.optString("code"));
+                row.setTextColor(Color.WHITE);
+                row.setBackgroundColor(GREEN);
+            } else {
+                row.setTextColor(Color.rgb(45, 38, 38));
+                row.setBackgroundColor(Color.WHITE);
+            }
+            root.addView(row);
+        }
     }
 
     private void attachAutoScan(EditText scan, PickRequest request) {
@@ -574,17 +585,17 @@ public class MainActivity extends Activity {
         }
 
         new AlertDialog.Builder(this)
-            .setTitle("Найдены не все короба")
-            .setMessage("Осталось найти: " + remaining + "\n\n" + missingBoxesText(state))
-            .setPositiveButton("Свернуть", (dialog, which) -> showPickRequestActions(request))
-            .setNegativeButton("Остаться", null)
+            .setTitle(tr("boxSearch.notAllFoundTitle"))
+            .setMessage(tr("boxSearch.remainingToFind") + ": " + remaining + "\n\n" + missingBoxesText(state))
+            .setPositiveButton(tr("boxSearch.collapseShort"), (dialog, which) -> showPickRequestActions(request))
+            .setNegativeButton(tr("boxSearch.stay"), null)
             .show();
     }
 
     private String missingBoxesText(JSONObject state) {
         JSONArray missing = state.optJSONArray("missingBoxes");
         if (missing == null || missing.length() == 0) {
-            return "Недостающих коробов нет.";
+            return tr("boxSearch.noMissing");
         }
         StringBuilder builder = new StringBuilder();
         for (int i = 0; i < missing.length(); i++) {
@@ -593,7 +604,7 @@ public class MainActivity extends Activity {
             }
             builder.append("• ").append(missing.optString(i));
             if (i >= 29 && missing.length() > 30) {
-                builder.append('\n').append("и еще ").append(missing.length() - 30);
+                builder.append('\n').append(tr("boxSearch.andMore")).append(" ").append(missing.length() - 30);
                 break;
             }
         }
@@ -605,9 +616,9 @@ public class MainActivity extends Activity {
         LinearLayout root = page();
         root.setPadding(dp(14), dp(16), dp(14), dp(14));
         addHeader(root);
-        addTitle(root, "Инвентаризация");
-        root.addView(note("Раздел готов как основное меню. Следующим шагом добавим скан короба, товара и сверку с WMS."));
-        addBackButton(root, "Назад", () -> showMenu());
+        addTitle(root, tr("menu.inventory"));
+        root.addView(note(tr("inventory.placeholder")));
+        addBackButton(root, tr("common.back"), () -> showMenu());
         setContentView(wrap(root));
     }
 
@@ -615,24 +626,24 @@ public class MainActivity extends Activity {
         setBackAction(() -> showReceiptStart());
         boxCode = "";
         pendingBarcode = "";
-        LinearLayout root = receiptPage("Новый короб");
-        EditText box = input("Скан номера короба", false);
+        LinearLayout root = receiptPage(tr("receipt.newBox"));
+        EditText box = input(tr("receipt.scanBox"), false);
         box.setSingleLine(true);
         box.setImeOptions(EditorInfo.IME_ACTION_DONE);
         box.setOnEditorActionListener((v, actionId, event) -> {
             openBox(text(box));
             return true;
         });
-        Button open = primary("Открыть короб");
+        Button open = primary(tr("receipt.openBox"));
         open.setOnClickListener(v -> openBox(text(box)));
         root.addView(box);
         root.addView(open);
         if (queue.size() > 0 || !receiptKiz.isEmpty()) {
-            Button finish = secondary("Закончить приемку");
+            Button finish = secondary(tr("receipt.finish"));
             finish.setOnClickListener(v -> finishReceipt());
             root.addView(finish);
         }
-        addBackButton(root, "Назад", () -> showReceiptStart());
+        addBackButton(root, tr("common.back"), () -> showReceiptStart());
         setContentView(wrap(root));
         box.requestFocus();
     }
@@ -640,34 +651,34 @@ public class MainActivity extends Activity {
     private void openBox(String value) {
         String normalized = value.trim();
         if (normalized.isEmpty()) {
-            toast("Сканируйте номер короба.");
+            toast(tr("boxSearch.scanBoxToast"));
             return;
         }
         boxCode = normalized;
-        toast("Короб " + boxCode + " открыт.");
+        toast(tr("common.box") + " " + boxCode + " " + tr("receipt.opened"));
         showBarcodeScan();
     }
 
     private void showBarcodeScan() {
         setBackAction(() -> showReceiptStart());
-        LinearLayout root = receiptPage("Скан товара");
-        TextView box = note("Короб: " + boxCode);
+        LinearLayout root = receiptPage(tr("receipt.scanProduct"));
+        TextView box = note(tr("common.box") + ": " + boxCode);
         root.addView(box);
-        EditText barcode = input("Штрихкод товара", false);
+        EditText barcode = input(tr("receipt.productBarcode"), false);
         barcode.setSingleLine(true);
         barcode.setImeOptions(EditorInfo.IME_ACTION_DONE);
         barcode.setOnEditorActionListener((v, actionId, event) -> {
             scanBarcode(text(barcode));
             return true;
         });
-        Button accept = primary("Принять ШК товара");
+        Button accept = primary(tr("receipt.acceptBarcode"));
         accept.setOnClickListener(v -> scanBarcode(text(barcode)));
         root.addView(barcode);
         root.addView(accept);
-        Button close = secondary("Закрыть короб");
+        Button close = secondary(tr("receipt.closeBox"));
         close.setOnClickListener(v -> showBoxClosed());
         root.addView(close);
-        addBackButton(root, "Назад", () -> showReceiptStart());
+        addBackButton(root, tr("common.back"), () -> showReceiptStart());
         setContentView(wrap(root));
         barcode.requestFocus();
     }
@@ -675,7 +686,7 @@ public class MainActivity extends Activity {
     private void scanBarcode(String value) {
         String barcode = value.trim();
         if (barcode.isEmpty()) {
-            toast("Сканируйте штрихкод товара.");
+            toast(tr("receipt.scanBarcodeToast"));
             return;
         }
         if (confirmedBarcodes.contains(barcode)) {
@@ -690,20 +701,20 @@ public class MainActivity extends Activity {
     }
 
     private void showSkuConfirm(String barcode, JSONObject sku) {
-        String text = "ШК: " + barcode
-            + "\nНаименование: " + sku.optString("name", "-")
-            + "\nАртикул: " + firstNonEmpty(sku.optString("article"), sku.optString("clientSku"), sku.optString("internalSku"), "-")
-            + "\nРазмер / цвет: " + compact(sku.optString("size"), sku.optString("color"))
-            + "\nБренд: " + firstNonEmpty(sku.optString("brand"), "-");
+        String text = tr("receipt.barcodeShort") + ": " + barcode
+            + "\n" + tr("receipt.name") + ": " + sku.optString("name", "-")
+            + "\n" + tr("receipt.article") + ": " + firstNonEmpty(sku.optString("article"), sku.optString("clientSku"), sku.optString("internalSku"), "-")
+            + "\n" + tr("receipt.sizeColor") + ": " + compact(sku.optString("size"), sku.optString("color"))
+            + "\n" + tr("receipt.brand") + ": " + firstNonEmpty(sku.optString("brand"), "-");
         new AlertDialog.Builder(this)
-            .setTitle("Проверьте товар")
+            .setTitle(tr("receipt.confirmProduct"))
             .setMessage(text)
-            .setPositiveButton("Да, это этот товар", (dialog, which) -> {
+            .setPositiveButton(tr("receipt.confirmYes"), (dialog, which) -> {
                 confirmedBarcodes.add(barcode);
                 pendingBarcode = barcode;
                 showKizScan();
             })
-            .setNegativeButton("Нет, отменить", (dialog, which) -> showBarcodeScan())
+            .setNegativeButton(tr("receipt.confirmNo"), (dialog, which) -> showBarcodeScan())
             .show();
     }
 
@@ -712,27 +723,27 @@ public class MainActivity extends Activity {
             pendingBarcode = "";
             showBarcodeScan();
         });
-        LinearLayout root = receiptPage("Скан КИЗ");
-        root.addView(note("Короб: " + boxCode));
-        root.addView(note("ШК товара: " + pendingBarcode));
-        EditText kiz = input("КИЗ товара", false);
+        LinearLayout root = receiptPage(tr("receipt.scanKiz"));
+        root.addView(note(tr("common.box") + ": " + boxCode));
+        root.addView(note(tr("receipt.productBarcode") + ": " + pendingBarcode));
+        EditText kiz = input(tr("receipt.kiz"), false);
         kiz.setSingleLine(true);
         kiz.setImeOptions(EditorInfo.IME_ACTION_DONE);
         kiz.setOnEditorActionListener((v, actionId, event) -> {
             saveKiz(text(kiz));
             return true;
         });
-        Button save = primary("Записать товар");
+        Button save = primary(tr("receipt.saveProduct"));
         save.setOnClickListener(v -> saveKiz(text(kiz)));
         root.addView(kiz);
         root.addView(save);
-        Button cancel = secondary("Отменить ШК");
+        Button cancel = secondary(tr("receipt.cancelBarcode"));
         cancel.setOnClickListener(v -> {
             pendingBarcode = "";
             showBarcodeScan();
         });
         root.addView(cancel);
-        addBackButton(root, "Назад", () -> {
+        addBackButton(root, tr("common.back"), () -> {
             pendingBarcode = "";
             showBarcodeScan();
         });
@@ -743,23 +754,23 @@ public class MainActivity extends Activity {
     private void saveKiz(String value) {
         String kiz = value.trim();
         if (kiz.isEmpty()) {
-            toast("Сканируйте КИЗ.");
+            toast(tr("receipt.scanKizToast"));
             return;
         }
         if (receiptKiz.contains(kiz)) {
-            toast("Этот КИЗ уже есть в текущей приемке.");
+            toast(tr("receipt.kizDuplicate"));
             return;
         }
         try {
             JSONObject operation = receiptOperation(kiz);
             queue.add(operation, userId);
             receiptKiz.add(kiz);
-            toast("Товар добавлен. В очереди: " + queue.size());
+            toast(tr("receipt.productAdded") + " " + tr("common.queue").toLowerCase(Locale.ROOT) + ": " + queue.size());
             pendingBarcode = "";
             syncQueue();
             showBarcodeScan();
         } catch (JSONException error) {
-            toast("Не удалось создать операцию: " + error.getMessage());
+            toast(tr("common.operationCreateFailed") + ": " + error.getMessage());
         }
     }
 
@@ -784,15 +795,15 @@ public class MainActivity extends Activity {
 
     private void showBoxClosed() {
         setBackAction(() -> showReceiptStart());
-        LinearLayout root = receiptPage("Короб закрыт");
-        root.addView(note("Закрыт короб: " + boxCode));
-        Button next = primary("Новый короб");
+        LinearLayout root = receiptPage(tr("receipt.boxClosed"));
+        root.addView(note(tr("receipt.closedBox") + ": " + boxCode));
+        Button next = primary(tr("receipt.newBox"));
         next.setOnClickListener(v -> showBoxScan());
-        Button finish = secondary("Закончить приемку");
+        Button finish = secondary(tr("receipt.finish"));
         finish.setOnClickListener(v -> finishReceipt());
         root.addView(next);
         root.addView(finish);
-        addBackButton(root, "Назад", () -> showReceiptStart());
+        addBackButton(root, tr("common.back"), () -> showReceiptStart());
         setContentView(wrap(root));
     }
 
@@ -803,7 +814,7 @@ public class MainActivity extends Activity {
         boxCode = "";
         pendingBarcode = "";
         syncQueue();
-        toast("Приемка завершена.");
+        toast(tr("receipt.finished"));
         showMenu();
     }
 
@@ -852,7 +863,7 @@ public class MainActivity extends Activity {
                 pickRequests.clear();
                 pickRequests.addAll(next);
                 if (showResultToast) {
-                    toast("Заявок загружено: " + pickRequests.size());
+                    toast(tr("pick.loaded") + ": " + pickRequests.size());
                 }
                 showPickRequests();
             });
@@ -865,26 +876,26 @@ public class MainActivity extends Activity {
         }
         String owner = queue.ownerUserId();
         if (!owner.isEmpty() && !owner.equals(userId)) {
-            toast("Очередь создана другим сотрудником. Войдите под ним для синхронизации.");
+            toast(tr("sync.otherOwner"));
             return;
         }
         runAsync(() -> {
             JSONArray results = api.sync(token, queue.all());
             queue.removeKeys(results);
-            main.post(() -> toast("Синхронизация завершена. В очереди: " + queue.size()));
+            main.post(() -> toast(tr("sync.done") + ". " + tr("common.queue") + ": " + queue.size()));
         });
     }
 
     private void checkForUpdate(boolean manual) {
         if (updateCheckRunning) {
             if (manual) {
-                toast("Проверка обновления уже идет.");
+                toast(tr("update.alreadyChecking"));
             }
             return;
         }
         if (!isOnline()) {
             if (manual) {
-                toast("Нет интернета. Проверить обновление сейчас нельзя.");
+                toast(tr("update.noInternet"));
             }
             return;
         }
@@ -899,12 +910,12 @@ public class MainActivity extends Activity {
                     if (latestCode > currentCode) {
                         showUpdateDialog(update);
                     } else if (manual) {
-                        toast("Установлена последняя версия: " + currentVersionName());
+                        toast(tr("update.latest") + ": " + currentVersionName());
                     }
                 });
             } catch (Exception error) {
                 if (manual) {
-                    main.post(() -> toast(error.getMessage() == null ? "Не удалось проверить обновление." : error.getMessage()));
+                    main.post(() -> toast(error.getMessage() == null ? tr("update.checkFailed") : error.getMessage()));
                 }
             } finally {
                 main.post(() -> updateCheckRunning = false);
@@ -915,24 +926,24 @@ public class MainActivity extends Activity {
     private void showUpdateDialog(JSONObject update) {
         String versionName = update.optString("versionName", "");
         String notes = update.optString("releaseNotes", "");
-        String message = "Доступна новая версия"
+        String message = tr("update.available")
             + (versionName.isEmpty() ? "." : ": " + versionName + ".")
-            + "\n\n" + (notes.isEmpty() ? "Нажмите обновить, чтобы скачать и установить APK." : notes);
+            + "\n\n" + (notes.isEmpty() ? tr("update.defaultNotes") : notes);
         new AlertDialog.Builder(this)
-            .setTitle("Обновление LOGOff TSD")
+            .setTitle(tr("update.title"))
             .setMessage(message)
-            .setPositiveButton("Обновить", (dialog, which) -> downloadAndInstallUpdate(update.optString("apkUrl", "")))
-            .setNegativeButton("Позже", null)
+            .setPositiveButton(tr("common.refresh"), (dialog, which) -> downloadAndInstallUpdate(update.optString("apkUrl", "")))
+            .setNegativeButton(tr("update.later"), null)
             .show();
     }
 
     private void downloadAndInstallUpdate(String apkUrl) {
         if (apkUrl == null || apkUrl.trim().isEmpty()) {
-            toast("В манифесте обновления не указан APK.");
+            toast(tr("update.noApk"));
             return;
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !getPackageManager().canRequestPackageInstalls()) {
-            toast("Разрешите установку из этого приложения и нажмите обновить еще раз.");
+            toast(tr("update.allowInstall"));
             Intent intent = new Intent(
                 Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
                 Uri.parse("package:" + getPackageName())
@@ -941,7 +952,7 @@ public class MainActivity extends Activity {
             return;
         }
 
-        toast("Скачиваю обновление...");
+        toast(tr("update.downloading"));
         runAsync(() -> {
             File apk = downloadApk(apkUrl);
             main.post(() -> installApk(apk));
@@ -951,7 +962,7 @@ public class MainActivity extends Activity {
     private File downloadApk(String apkUrl) throws Exception {
         File dir = new File(getExternalFilesDir(null), "updates");
         if (!dir.exists() && !dir.mkdirs()) {
-            throw new IllegalStateException("Не удалось создать папку обновлений.");
+            throw new IllegalStateException(tr("update.createDirFailed"));
         }
         File target = new File(dir, "logoff-tsd-update.apk");
         HttpURLConnection connection = (HttpURLConnection) new URL(apkUrl).openConnection();
@@ -960,7 +971,7 @@ public class MainActivity extends Activity {
         connection.setRequestProperty("User-Agent", "LOGOff-TSD-Android/" + currentVersionName());
         int code = connection.getResponseCode();
         if (code >= 400) {
-            throw new IllegalStateException("Не удалось скачать обновление: HTTP " + code);
+            throw new IllegalStateException(tr("update.downloadFailed") + ": HTTP " + code);
         }
         try (InputStream input = new BufferedInputStream(connection.getInputStream());
              FileOutputStream output = new FileOutputStream(target, false)) {
@@ -996,7 +1007,7 @@ public class MainActivity extends Activity {
         String response = readAll(code >= 400 ? connection.getErrorStream() : connection.getInputStream());
         connection.disconnect();
         if (code >= 400) {
-            throw new IllegalStateException("Не удалось проверить обновление: HTTP " + code);
+            throw new IllegalStateException(tr("update.checkFailed") + ": HTTP " + code);
         }
         return new JSONObject(response);
     }
@@ -1041,7 +1052,7 @@ public class MainActivity extends Activity {
             try {
                 job.run();
             } catch (Exception error) {
-                main.post(() -> toast(error.getMessage() == null ? "Ошибка операции." : error.getMessage()));
+                main.post(() -> toast(error.getMessage() == null ? tr("common.operationError") : error.getMessage()));
             }
         });
     }
@@ -1051,8 +1062,8 @@ public class MainActivity extends Activity {
         root.setPadding(dp(14), dp(16), dp(14), dp(14));
         addHeader(root);
         addTitle(root, title);
-        root.addView(note("Клиент: " + selectedClientName));
-        root.addView(note(isOnline() ? "Онлайн" : "Офлайн, данные сохраняются на ТСД"));
+        root.addView(note(tr("common.client") + ": " + selectedClientName));
+        root.addView(note(isOnline() ? tr("common.online") : tr("common.offlineSaved")));
         return root;
     }
 
@@ -1094,7 +1105,7 @@ public class MainActivity extends Activity {
     }
 
     private void addStatus(LinearLayout root) {
-        root.addView(note((isOnline() ? "Онлайн" : "Офлайн") + " · очередь: " + queue.size()));
+        root.addView(note((isOnline() ? tr("common.online") : tr("common.offline")) + " · " + tr("common.queue").toLowerCase(Locale.ROOT) + ": " + queue.size()));
     }
 
     private void addBackButton(LinearLayout root, String text, Runnable action) {
@@ -1239,6 +1250,101 @@ public class MainActivity extends Activity {
                 case "settings.language": return "Til";
                 case "settings.save": return "Sozlamalarni saqlash";
                 case "settings.saved": return "Sozlamalar saqlandi";
+                case "common.backAgainExit": return "Chiqish uchun Orqaga tugmasini yana bir marta bosing.";
+                case "common.refresh": return "Yangilash";
+                case "common.client": return "Mijoz";
+                case "common.city": return "Shahar";
+                case "common.cityMissing": return "shahar ko'rsatilmagan";
+                case "common.status": return "Holat";
+                case "common.rows": return "qatorlar";
+                case "common.box": return "Quti";
+                case "common.queue": return "Navbat";
+                case "common.online": return "Onlayn";
+                case "common.offline": return "Oflayn";
+                case "common.offlineSaved": return "Oflayn, ma'lumotlar TSDda saqlanadi";
+                case "common.employee": return "xodim";
+                case "common.operationError": return "Operatsiya xatosi";
+                case "common.operationCreateFailed": return "Operatsiyani yaratib bo'lmadi";
+                case "login.enterCredentials": return "Login va parolni kiriting.";
+                case "login.noTsdAccess": return "TSDga kirish yo'q. Administratordan profilda TSD bilan ishlash huquqini yoqishni so'rang.";
+                case "login.connected": return "Xodim ulandi";
+                case "menu.syncFirst": return "Avval navbatni sinxronlang";
+                case "receipt.refreshClients": return "Mijozlarni yangilash";
+                case "receipt.newBox": return "Yangi quti";
+                case "receipt.noClients": return "Mavjud mijozlar yo'q.";
+                case "receipt.scanBox": return "Quti raqamini skanerlash";
+                case "receipt.openBox": return "Qutini ochish";
+                case "receipt.finish": return "Qabulni tugatish";
+                case "receipt.opened": return "ochildi.";
+                case "receipt.scanProduct": return "Tovarni skanerlash";
+                case "receipt.productBarcode": return "Tovar shtrixkodi";
+                case "receipt.acceptBarcode": return "Tovar SHKini qabul qilish";
+                case "receipt.closeBox": return "Qutini yopish";
+                case "receipt.scanBarcodeToast": return "Tovar shtrixkodini skanerlang.";
+                case "receipt.barcodeShort": return "SHK";
+                case "receipt.name": return "Nomi";
+                case "receipt.article": return "Artikul";
+                case "receipt.sizeColor": return "O'lcham / rang";
+                case "receipt.brand": return "Brend";
+                case "receipt.confirmProduct": return "Tovarni tekshiring";
+                case "receipt.confirmYes": return "Ha, shu tovar";
+                case "receipt.confirmNo": return "Yo'q, bekor qilish";
+                case "receipt.scanKiz": return "KIZ skanerlash";
+                case "receipt.kiz": return "Tovar KIZ";
+                case "receipt.saveProduct": return "Tovarni yozish";
+                case "receipt.cancelBarcode": return "SHKni bekor qilish";
+                case "receipt.scanKizToast": return "KIZni skanerlang.";
+                case "receipt.kizDuplicate": return "Bu KIZ joriy qabulda allaqachon bor.";
+                case "receipt.productAdded": return "Tovar qo'shildi.";
+                case "receipt.boxClosed": return "Quti yopildi";
+                case "receipt.closedBox": return "Yopilgan quti";
+                case "receipt.finished": return "Qabul yakunlandi.";
+                case "pick.hint": return "Faol buyurtmani tanlang. Kimdir TSD bilan ishlayotgan buyurtmalar sariq rangda.";
+                case "pick.refresh": return "Buyurtmalarni yangilash";
+                case "pick.empty": return "Faol buyurtmalar yo'q. Yangilashni bosing.";
+                case "pick.request": return "Buyurtma";
+                case "pick.inWork": return "Ishda";
+                case "pick.relabel": return "Qayta markalash";
+                case "pick.moves": return "Ko'chirishlar";
+                case "pick.relabelNext": return "Qayta markalash keyingi bosqichda ochiladi.";
+                case "pick.movesNext": return "Ko'chirishlar keyingi bosqichda ochiladi.";
+                case "pick.backToRequests": return "Buyurtmalarga qaytish";
+                case "pick.loaded": return "Buyurtmalar yuklandi";
+                case "boxSearch.title": return "Qutilarni qidirish";
+                case "boxSearch.scanBoxToast": return "Quti raqamini skanerlang.";
+                case "boxSearch.alreadyFound": return "Quti allaqachon topilgan va solishtirishda qatnashmaydi.";
+                case "boxSearch.found": return "Kerakli quti topildi. Uni yig'ish zonasiga olib boring.";
+                case "boxSearch.notNeeded": return "Bu quti buyurtma yig'ishda qatnashmaydi.";
+                case "boxSearch.progressFound": return "Topildi";
+                case "boxSearch.progressOf": return "/";
+                case "boxSearch.progressRemaining": return "Qoldi";
+                case "boxSearch.complete": return "Qidirish yakunlandi. Keyingi bosqichga o'tish mumkin: qayta markalash.";
+                case "boxSearch.scanInput": return "Quti raqamini skanerlash";
+                case "boxSearch.empty": return "Qidirish uchun qutilar yo'q.";
+                case "boxSearch.listTitle": return "Qidiriladigan qutilar:";
+                case "boxSearch.collapse": return "Qidirishni yig'ish";
+                case "boxSearch.notAllFoundTitle": return "Hamma qutilar topilmadi";
+                case "boxSearch.remainingToFind": return "Topish kerak";
+                case "boxSearch.collapseShort": return "Yig'ish";
+                case "boxSearch.stay": return "Qolish";
+                case "boxSearch.noMissing": return "Yetishmayotgan qutilar yo'q.";
+                case "boxSearch.andMore": return "yana";
+                case "inventory.placeholder": return "Bo'lim asosiy menyu sifatida tayyor. Keyingi bosqichda quti, tovar skani va WMS bilan solishtirish qo'shiladi.";
+                case "sync.otherOwner": return "Navbat boshqa xodim tomonidan yaratilgan. Sinxronlash uchun uning loginida kiring.";
+                case "sync.done": return "Sinxronlash yakunlandi";
+                case "update.alreadyChecking": return "Yangilanish tekshiruvi allaqachon ketmoqda.";
+                case "update.noInternet": return "Internet yo'q. Yangilanishni hozir tekshirib bo'lmaydi.";
+                case "update.latest": return "So'nggi versiya o'rnatilgan";
+                case "update.checkFailed": return "Yangilanishni tekshirib bo'lmadi";
+                case "update.available": return "Yangi versiya mavjud";
+                case "update.defaultNotes": return "APKni yuklab olish va o'rnatish uchun yangilashni bosing.";
+                case "update.title": return "LOGOff TSD yangilanishi";
+                case "update.later": return "Keyinroq";
+                case "update.noApk": return "Yangilanish manifestida APK ko'rsatilmagan.";
+                case "update.allowInstall": return "Ushbu ilovadan o'rnatishga ruxsat bering va yangilashni yana bosing.";
+                case "update.downloading": return "Yangilanish yuklanmoqda...";
+                case "update.createDirFailed": return "Yangilanishlar papkasini yaratib bo'lmadi.";
+                case "update.downloadFailed": return "Yangilanishni yuklab bo'lmadi";
                 default: return key;
             }
         }
@@ -1267,6 +1373,101 @@ public class MainActivity extends Activity {
                 case "settings.language": return "Language";
                 case "settings.save": return "Save settings";
                 case "settings.saved": return "Settings saved";
+                case "common.backAgainExit": return "Press Back again to close the app.";
+                case "common.refresh": return "Refresh";
+                case "common.client": return "Client";
+                case "common.city": return "City";
+                case "common.cityMissing": return "city not specified";
+                case "common.status": return "Status";
+                case "common.rows": return "rows";
+                case "common.box": return "Box";
+                case "common.queue": return "Queue";
+                case "common.online": return "Online";
+                case "common.offline": return "Offline";
+                case "common.offlineSaved": return "Offline, data is saved on TSD";
+                case "common.employee": return "employee";
+                case "common.operationError": return "Operation error";
+                case "common.operationCreateFailed": return "Could not create operation";
+                case "login.enterCredentials": return "Enter login and password.";
+                case "login.noTsdAccess": return "No TSD access. Ask an administrator to enable TSD work in the profile.";
+                case "login.connected": return "Employee connected";
+                case "menu.syncFirst": return "Sync the queue first";
+                case "receipt.refreshClients": return "Refresh clients";
+                case "receipt.newBox": return "New box";
+                case "receipt.noClients": return "No available clients.";
+                case "receipt.scanBox": return "Scan box number";
+                case "receipt.openBox": return "Open box";
+                case "receipt.finish": return "Finish receiving";
+                case "receipt.opened": return "opened.";
+                case "receipt.scanProduct": return "Scan product";
+                case "receipt.productBarcode": return "Product barcode";
+                case "receipt.acceptBarcode": return "Accept product barcode";
+                case "receipt.closeBox": return "Close box";
+                case "receipt.scanBarcodeToast": return "Scan product barcode.";
+                case "receipt.barcodeShort": return "Barcode";
+                case "receipt.name": return "Name";
+                case "receipt.article": return "Article";
+                case "receipt.sizeColor": return "Size / color";
+                case "receipt.brand": return "Brand";
+                case "receipt.confirmProduct": return "Check product";
+                case "receipt.confirmYes": return "Yes, this is the product";
+                case "receipt.confirmNo": return "No, cancel";
+                case "receipt.scanKiz": return "Scan KIZ";
+                case "receipt.kiz": return "Product KIZ";
+                case "receipt.saveProduct": return "Save product";
+                case "receipt.cancelBarcode": return "Cancel barcode";
+                case "receipt.scanKizToast": return "Scan KIZ.";
+                case "receipt.kizDuplicate": return "This KIZ is already in the current receiving.";
+                case "receipt.productAdded": return "Product added.";
+                case "receipt.boxClosed": return "Box closed";
+                case "receipt.closedBox": return "Closed box";
+                case "receipt.finished": return "Receiving finished.";
+                case "pick.hint": return "Select an active request. Requests already handled on TSD are highlighted yellow.";
+                case "pick.refresh": return "Refresh requests";
+                case "pick.empty": return "No active requests yet. Press refresh.";
+                case "pick.request": return "Request";
+                case "pick.inWork": return "In work";
+                case "pick.relabel": return "Relabeling";
+                case "pick.moves": return "Movements";
+                case "pick.relabelNext": return "Relabeling will open in the next step.";
+                case "pick.movesNext": return "Movements will open in the next step.";
+                case "pick.backToRequests": return "Back to requests";
+                case "pick.loaded": return "Requests loaded";
+                case "boxSearch.title": return "Box search";
+                case "boxSearch.scanBoxToast": return "Scan box number.";
+                case "boxSearch.alreadyFound": return "Box is already found and no longer participates in matching.";
+                case "boxSearch.found": return "Required box found. Move it to the picking area.";
+                case "boxSearch.notNeeded": return "This box is not part of the request.";
+                case "boxSearch.progressFound": return "Found";
+                case "boxSearch.progressOf": return "of";
+                case "boxSearch.progressRemaining": return "Remaining";
+                case "boxSearch.complete": return "Search complete. You can proceed to the next step: relabeling.";
+                case "boxSearch.scanInput": return "Scan box number";
+                case "boxSearch.empty": return "No boxes to search.";
+                case "boxSearch.listTitle": return "Boxes to search:";
+                case "boxSearch.collapse": return "Collapse search";
+                case "boxSearch.notAllFoundTitle": return "Not all boxes found";
+                case "boxSearch.remainingToFind": return "Remaining to find";
+                case "boxSearch.collapseShort": return "Collapse";
+                case "boxSearch.stay": return "Stay";
+                case "boxSearch.noMissing": return "No missing boxes.";
+                case "boxSearch.andMore": return "and more";
+                case "inventory.placeholder": return "This section is ready as a main menu. Next we will add box scan, product scan, and WMS reconciliation.";
+                case "sync.otherOwner": return "The queue was created by another employee. Log in as that employee to sync.";
+                case "sync.done": return "Sync finished";
+                case "update.alreadyChecking": return "Update check is already running.";
+                case "update.noInternet": return "No internet. Cannot check for updates now.";
+                case "update.latest": return "Latest version installed";
+                case "update.checkFailed": return "Could not check update";
+                case "update.available": return "New version available";
+                case "update.defaultNotes": return "Press refresh to download and install the APK.";
+                case "update.title": return "LOGOff TSD update";
+                case "update.later": return "Later";
+                case "update.noApk": return "APK is not specified in the update manifest.";
+                case "update.allowInstall": return "Allow installs from this app and press refresh again.";
+                case "update.downloading": return "Downloading update...";
+                case "update.createDirFailed": return "Could not create updates folder.";
+                case "update.downloadFailed": return "Could not download update";
                 default: return key;
             }
         }
@@ -1294,6 +1495,101 @@ public class MainActivity extends Activity {
             case "settings.language": return "Язык";
             case "settings.save": return "Сохранить настройки";
             case "settings.saved": return "Настройки сохранены";
+            case "common.backAgainExit": return "Нажмите назад еще раз, чтобы закрыть приложение.";
+            case "common.refresh": return "Обновить";
+            case "common.client": return "Клиент";
+            case "common.city": return "Город";
+            case "common.cityMissing": return "город не указан";
+            case "common.status": return "Статус";
+            case "common.rows": return "строк";
+            case "common.box": return "Короб";
+            case "common.queue": return "Очередь";
+            case "common.online": return "Онлайн";
+            case "common.offline": return "Офлайн";
+            case "common.offlineSaved": return "Офлайн, данные сохраняются на ТСД";
+            case "common.employee": return "сотрудник";
+            case "common.operationError": return "Ошибка операции";
+            case "common.operationCreateFailed": return "Не удалось создать операцию";
+            case "login.enterCredentials": return "Введите логин и пароль.";
+            case "login.noTsdAccess": return "Нет доступа к ТСД. Попросите администратора включить галочку Работа с ТСД в профиле.";
+            case "login.connected": return "Сотрудник подключен";
+            case "menu.syncFirst": return "Сначала синхронизируйте очередь";
+            case "receipt.refreshClients": return "Обновить клиентов";
+            case "receipt.newBox": return "Новый короб";
+            case "receipt.noClients": return "Нет доступных клиентов.";
+            case "receipt.scanBox": return "Скан номера короба";
+            case "receipt.openBox": return "Открыть короб";
+            case "receipt.finish": return "Закончить приемку";
+            case "receipt.opened": return "открыт.";
+            case "receipt.scanProduct": return "Скан товара";
+            case "receipt.productBarcode": return "Штрихкод товара";
+            case "receipt.acceptBarcode": return "Принять ШК товара";
+            case "receipt.closeBox": return "Закрыть короб";
+            case "receipt.scanBarcodeToast": return "Сканируйте штрихкод товара.";
+            case "receipt.barcodeShort": return "ШК";
+            case "receipt.name": return "Наименование";
+            case "receipt.article": return "Артикул";
+            case "receipt.sizeColor": return "Размер / цвет";
+            case "receipt.brand": return "Бренд";
+            case "receipt.confirmProduct": return "Проверьте товар";
+            case "receipt.confirmYes": return "Да, это этот товар";
+            case "receipt.confirmNo": return "Нет, отменить";
+            case "receipt.scanKiz": return "Скан КИЗ";
+            case "receipt.kiz": return "КИЗ товара";
+            case "receipt.saveProduct": return "Записать товар";
+            case "receipt.cancelBarcode": return "Отменить ШК";
+            case "receipt.scanKizToast": return "Сканируйте КИЗ.";
+            case "receipt.kizDuplicate": return "Этот КИЗ уже есть в текущей приемке.";
+            case "receipt.productAdded": return "Товар добавлен.";
+            case "receipt.boxClosed": return "Короб закрыт";
+            case "receipt.closedBox": return "Закрыт короб";
+            case "receipt.finished": return "Приемка завершена.";
+            case "pick.hint": return "Выберите активную заявку. Желтым подсвечены заявки, где уже кто-то работает с ТСД.";
+            case "pick.refresh": return "Обновить заявки";
+            case "pick.empty": return "Активных заявок пока нет. Нажмите обновить.";
+            case "pick.request": return "Заявка";
+            case "pick.inWork": return "Уже в работе";
+            case "pick.relabel": return "Перемаркировка";
+            case "pick.moves": return "Перемещения";
+            case "pick.relabelNext": return "Перемаркировка будет открыта следующим шагом.";
+            case "pick.movesNext": return "Перемещения будут открыты следующим шагом.";
+            case "pick.backToRequests": return "Назад к заявкам";
+            case "pick.loaded": return "Заявок загружено";
+            case "boxSearch.title": return "Поиск коробов";
+            case "boxSearch.scanBoxToast": return "Сканируйте номер короба.";
+            case "boxSearch.alreadyFound": return "Короб уже найден и больше не участвует в сравнении.";
+            case "boxSearch.found": return "Нужный короб найден. Переместите его в зону сборки.";
+            case "boxSearch.notNeeded": return "Этот короб не участвует в сборке заявки.";
+            case "boxSearch.progressFound": return "Найдено";
+            case "boxSearch.progressOf": return "из";
+            case "boxSearch.progressRemaining": return "Осталось";
+            case "boxSearch.complete": return "Поиск завершен. Можно приступать к следующему этапу: перемаркировка.";
+            case "boxSearch.scanInput": return "Скан номера короба";
+            case "boxSearch.empty": return "Коробов для поиска нет.";
+            case "boxSearch.listTitle": return "Короба для поиска:";
+            case "boxSearch.collapse": return "Свернуть поиск";
+            case "boxSearch.notAllFoundTitle": return "Найдены не все короба";
+            case "boxSearch.remainingToFind": return "Осталось найти";
+            case "boxSearch.collapseShort": return "Свернуть";
+            case "boxSearch.stay": return "Остаться";
+            case "boxSearch.noMissing": return "Недостающих коробов нет.";
+            case "boxSearch.andMore": return "и еще";
+            case "inventory.placeholder": return "Раздел готов как основное меню. Следующим шагом добавим скан короба, товара и сверку с WMS.";
+            case "sync.otherOwner": return "Очередь создана другим сотрудником. Войдите под ним для синхронизации.";
+            case "sync.done": return "Синхронизация завершена";
+            case "update.alreadyChecking": return "Проверка обновления уже идет.";
+            case "update.noInternet": return "Нет интернета. Проверить обновление сейчас нельзя.";
+            case "update.latest": return "Установлена последняя версия";
+            case "update.checkFailed": return "Не удалось проверить обновление";
+            case "update.available": return "Доступна новая версия";
+            case "update.defaultNotes": return "Нажмите обновить, чтобы скачать и установить APK.";
+            case "update.title": return "Обновление LOGOff TSD";
+            case "update.later": return "Позже";
+            case "update.noApk": return "В манифесте обновления не указан APK.";
+            case "update.allowInstall": return "Разрешите установку из этого приложения и нажмите обновить еще раз.";
+            case "update.downloading": return "Скачиваю обновление...";
+            case "update.createDirFailed": return "Не удалось создать папку обновлений.";
+            case "update.downloadFailed": return "Не удалось скачать обновление";
             default: return key;
         }
     }
@@ -1364,7 +1660,7 @@ public class MainActivity extends Activity {
         return false;
     }
 
-    private static String activeWorkersLabel(JSONArray workers) {
+    private String activeWorkersLabel(JSONArray workers) {
         if (workers == null || workers.length() == 0) {
             return "";
         }
@@ -1374,9 +1670,9 @@ public class MainActivity extends Activity {
             if (worker == null) {
                 continue;
             }
-            String name = firstNonEmpty(worker.optString("userName"), "сотрудник");
+            String name = firstNonEmpty(worker.optString("userName"), tr("common.employee"));
             String device = firstNonEmpty(worker.optString("deviceCode"), "ТСД");
-            String stage = firstNonEmpty(worker.optString("stage"), "в работе");
+            String stage = firstNonEmpty(worker.optString("stage"), tr("pick.inWork").toLowerCase(Locale.ROOT));
             labels.add(name + " / " + device + " / " + stage);
         }
         StringBuilder builder = new StringBuilder();
@@ -1460,12 +1756,12 @@ public class MainActivity extends Activity {
             return id.length() > 8 ? id.substring(0, 8) : id;
         }
 
-        String label() {
-            String base = shortNumber() + "\n" + clientName + " · " + firstNonEmpty(city, "город не указан");
+        String label(String cityMissing, String inWorkLabel) {
+            String base = shortNumber() + "\n" + clientName + " · " + firstNonEmpty(city, cityMissing);
             if (!hasActiveWorkers()) {
                 return base;
             }
-            return base + "\nВ работе: " + activeWorkersText;
+            return base + "\n" + inWorkLabel + ": " + activeWorkersText;
         }
 
         boolean hasActiveWorkers() {

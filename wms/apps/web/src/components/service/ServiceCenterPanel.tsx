@@ -15,6 +15,7 @@
   ShieldAlert,
   Smartphone,
   Trash2,
+  UserCog,
 } from 'lucide-react';
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import {
@@ -57,6 +58,7 @@ import {
   type UserSummary,
 } from '../../lib/api';
 import { billingUnitOptions } from '../billing/billingMeta';
+import { AccessAdminPanel } from '../access/AccessAdminPanel';
 import './service-center.css';
 
 type LoadState<T> = {
@@ -65,7 +67,7 @@ type LoadState<T> = {
   error?: string;
 };
 
-type ServiceTab = 'maintenance' | 'sessions' | 'clients' | 'stock' | 'nomenclature' | 'services' | 'telegram' | 'tsd';
+type ServiceTab = 'maintenance' | 'sessions' | 'users' | 'clients' | 'stock' | 'nomenclature' | 'services' | 'telegram' | 'tsd';
 
 type ServiceCenterPanelProps = {
   session: AuthSession;
@@ -84,6 +86,7 @@ const emptySummary: ServiceClientStockSummary = {
 const tabs: Array<{ id: ServiceTab; label: string; icon: typeof Settings2 }> = [
   { id: 'maintenance', label: 'Режим', icon: Power },
   { id: 'sessions', label: 'Сессии', icon: Monitor },
+  { id: 'users', label: 'Пользователи', icon: UserCog },
   { id: 'clients', label: 'Клиенты', icon: ShieldAlert },
   { id: 'stock', label: 'Остатки', icon: Database },
   { id: 'nomenclature', label: 'Номенклатура', icon: Eraser },
@@ -558,6 +561,8 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
           onDeleteIpRule={(rule) => void removeIpRule(rule)}
         />
       ) : null}
+
+      {activeTab === 'users' ? <AccessAdminPanel session={session} /> : null}
 
       {activeTab === 'telegram' ? (
         <TelegramSettingsPanel

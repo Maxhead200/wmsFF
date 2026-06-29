@@ -1,0 +1,9 @@
+<resources>
+    <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">@color/logoff_red</item>
+        <item name="android:navigationBarColor">#1F1F1F</item>
+        <item name="android:colorAccent">@color/logoff_red</item>
+    </style>
+</resources>

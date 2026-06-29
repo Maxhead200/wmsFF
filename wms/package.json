@@ -8,6 +8,7 @@
     "dev:api": "pnpm --filter @logoff/wms-api dev",
     "dev:web": "pnpm --filter @logoff/wms-web dev",
     "build": "pnpm -r build",
+    "build:tsd-apk": "gradle -p apps/tsd-android assembleDebug",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
     "prisma:generate": "pnpm --filter @logoff/wms-api prisma:generate"

@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { StockStatus, TsdReviewReason } from '@prisma/client';
+import { ClientRequestStatus, ClientRequestType, StockStatus, TsdReviewReason } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
@@ -55,6 +55,46 @@ export class TsdSyncService {
         code: true,
         name: true,
         legalName: true,
+      },
+    });
+  }
+
+  listActiveRequests(user: AuthUser) {
+    const clientFilter = this.clientScopes.resolveClientFilter(user);
+    return this.prisma.clientRequest.findMany({
+      where: {
+        clientId: clientFilter,
+        type: ClientRequestType.OUTBOUND,
+        status: {
+          in: [
+            ClientRequestStatus.SUBMITTED,
+            ClientRequestStatus.IN_REVIEW,
+            ClientRequestStatus.APPROVED,
+            ClientRequestStatus.IN_WORK,
+            ClientRequestStatus.PACKED,
+          ],
+        },
+      },
+      orderBy: [{ updatedAt: 'desc' }],
+      take: 100,
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        destinationCity: true,
+        createdAt: true,
+        updatedAt: true,
+        client: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        _count: {
+          select: {
+            items: true,
+          },
+        },
       },
     });
   }

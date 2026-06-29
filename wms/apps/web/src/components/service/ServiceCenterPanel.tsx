@@ -877,18 +877,18 @@ function TsdServicePanel({
     <div className="service-card">
       <div className="service-card__heading">
         <strong>Приложение ТСД</strong>
-        <button className="secondary-button" type="button" onClick={() => window.open('/tsd-app', '_blank', 'noopener,noreferrer')}>
-          <Smartphone size={16} /> Открыть ТСД
+        <button className="secondary-button" type="button" onClick={() => window.open('/downloads/logoff-tsd.apk', '_blank', 'noopener,noreferrer')}>
+          <Smartphone size={16} /> Скачать APK
         </button>
       </div>
       <div className="service-warning">
         <Smartphone size={18} />
-        Откройте ссылку на Android-ТСД, войдите логином сборщицы и добавьте страницу на главный экран. Ссылка: {appUrl}
+        Установите APK на Android-ТСД, войдите логином сборщицы и проверьте код устройства. Резервная веб-версия: {appUrl}
       </div>
 
       <form className="service-inline-form" onSubmit={onCreate}>
         <input required placeholder="Имя сборщицы" value={form.name} onChange={(event) => onChange({ ...form, name: event.target.value })} />
-        <input required placeholder="Логин / email" type="email" value={form.email} onChange={(event) => onChange({ ...form, email: event.target.value })} />
+        <input required placeholder="Логин сборщицы" autoComplete="username" value={form.email} onChange={(event) => onChange({ ...form, email: event.target.value })} />
         <input required minLength={10} placeholder="Пароль от 10 символов" type="text" value={form.password} onChange={(event) => onChange({ ...form, password: event.target.value })} />
         <select value={form.clientId} onChange={(event) => onChange({ ...form, clientId: event.target.value })}>
           <option value="">Все клиенты</option>

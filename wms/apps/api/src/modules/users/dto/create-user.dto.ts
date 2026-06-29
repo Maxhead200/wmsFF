@@ -1,7 +1,8 @@
-import { ArrayNotEmpty, IsArray, IsEmail, IsOptional, IsString, Length } from 'class-validator';
+import { ArrayNotEmpty, IsArray, IsOptional, IsString, Length } from 'class-validator';
 
 export class CreateUserDto {
-  @IsEmail()
+  @IsString()
+  @Length(1, 200)
   email!: string;
 
   @IsString()

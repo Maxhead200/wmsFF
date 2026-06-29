@@ -29,6 +29,12 @@ export class TsdSyncController {
     return this.sync.listClients(user);
   }
 
+  @Get('requests/active')
+  @RequirePermissions('stock:write')
+  listActiveRequests(@CurrentUser() user: AuthUser) {
+    return this.sync.listActiveRequests(user);
+  }
+
   @Get('sku-by-barcode')
   @RequirePermissions('stock:write')
   getSkuByBarcode(@Query('clientId') clientId: string, @Query('barcode') barcode: string, @CurrentUser() user: AuthUser) {

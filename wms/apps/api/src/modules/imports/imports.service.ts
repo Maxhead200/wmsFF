@@ -6,6 +6,12 @@ import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
 import { LogisticsService } from '../logistics/logistics.service';
 import { StockBalancesService } from '../stock/stock-balances.service';
+import { StockOperationsService } from '../stock/stock-operations.service';
+import {
+  boxTransferSummary,
+  parseBoxTransferSheet,
+  type BoxTransferImportItem,
+} from './parsers/box-transfer-xlsx.parser';
 import { parseLogisticsTariffSheet } from './parsers/logistics-xlsx.parser';
 import { parseReceiptSheet, type ReceiptImportItem } from './parsers/receipt-xlsx.parser';
 import { parseStockSheet, type SheetMatrix, type StockImportIssue, type StockImportItem } from './parsers/stock-xlsx.parser';
@@ -36,6 +42,21 @@ type StockImportSuggestion = {
   applied: boolean;
 };
 
+type BoxTransferImportSample = {
+  sourceRow: number;
+  fromBoxCode: string;
+  barcode: string;
+  toBoxCode: string;
+  quantity: number;
+  legalName?: string;
+  skuName: string | null;
+  internalSku: string | null;
+  sourceQuantityBeforeFile: number;
+  sourceQuantityBeforeRow: number;
+  targetBoxExists: boolean;
+  targetBoxWillBeCreated: boolean;
+};
+
 const STOCK_IMPORT_TRANSACTION_OPTIONS = {
   maxWait: 10_000,
   timeout: 180_000,
@@ -48,6 +69,7 @@ export class ImportsService {
     private readonly balances: StockBalancesService,
     private readonly clientScopes: ClientScopeService,
     private readonly logistics: LogisticsService,
+    private readonly stockOperations: StockOperationsService,
   ) {}
 
   async previewStockWorkbook(buffer: Buffer, clientId: string, user: AuthUser) {
@@ -91,6 +113,20 @@ export class ImportsService {
     };
   }
 
+  async previewBoxTransferWorkbook(buffer: Buffer, clientId: string, user: AuthUser) {
+    this.clientScopes.requireClientAccess(user, clientId, 'write');
+
+    const parsed = parseBoxTransferSheet(this.readFirstSheetWithBlankRows(buffer), { clientId });
+    const validation = await this.validateBoxTransfers(clientId, parsed.items);
+
+    return {
+      clientId,
+      summary: parsed.summary,
+      issues: [...parsed.issues, ...validation.issues],
+      sample: validation.sample.slice(0, 20),
+    };
+  }
+
   async commitLogisticsWorkbook(buffer: Buffer, options: CommitLogisticsOptions) {
     const rows = this.readFirstSheet(buffer);
     const parsed = parseLogisticsTariffSheet(rows);
@@ -102,6 +138,76 @@ export class ImportsService {
       sourceFile: tariffSet.sourceFile,
       directionsCount: tariffSet.directions.length,
       tiersCount: tariffSet.directions.reduce((sum, direction) => sum + direction.tiers.length, 0),
+    };
+  }
+
+  async commitBoxTransferWorkbook(buffer: Buffer, options: CommitStockOptions) {
+    this.clientScopes.requireClientAccess(options.user, options.clientId, 'write');
+
+    const parsed = parseBoxTransferSheet(this.readFirstSheetWithBlankRows(buffer), { clientId: options.clientId });
+    const validation = await this.validateBoxTransfers(options.clientId, parsed.items);
+    const errors = [...parsed.issues, ...validation.issues].filter((issue) => issue.severity === 'error');
+
+    if (errors.length > 0) {
+      throw new BadRequestException({
+        message: 'Файл перемещений содержит ошибки, запись в WMS остановлена.',
+        errors,
+        summary: parsed.summary,
+      });
+    }
+
+    const result = await this.prisma.$transaction(
+      async (tx) => {
+        const counters = {
+          rowsApplied: 0,
+          movementsCreated: 0,
+          targetBoxesCreated: 0,
+          totalQuantity: 0,
+        };
+
+        const existingTargetBoxes = new Set(
+          (
+            await tx.box.findMany({
+              where: {
+                clientId: options.clientId,
+                code: { in: [...new Set(parsed.items.map((item) => item.toBoxCode))] },
+              },
+              select: { code: true },
+            })
+          ).map((box) => box.code),
+        );
+
+        for (const item of parsed.items) {
+          const targetExistedBefore = existingTargetBoxes.has(item.toBoxCode);
+          const transfer = await this.stockOperations.applyBoxTransfer(tx, {
+            clientId: options.clientId,
+            barcode: item.barcode,
+            fromBoxCode: item.fromBoxCode,
+            toBoxCode: item.toBoxCode,
+            quantity: item.quantity,
+            status: StockStatus.AVAILABLE,
+            sourceDocument: options.sourceDocument,
+            idempotencyKey: ['box-transfer-import', options.sourceDocument, item.sourceRow, item.fromBoxCode, item.toBoxCode, item.barcode].join(':'),
+            comment: `Перемещение из XLSX ${options.sourceDocument}`,
+          });
+
+          existingTargetBoxes.add(item.toBoxCode);
+          counters.rowsApplied += 1;
+          counters.movementsCreated += transfer.status === 'APPLIED' ? 2 : 0;
+          counters.targetBoxesCreated += targetExistedBefore ? 0 : 1;
+          counters.totalQuantity += item.quantity;
+        }
+
+        return counters;
+      },
+      STOCK_IMPORT_TRANSACTION_OPTIONS,
+    );
+
+    return {
+      sourceDocument: options.sourceDocument,
+      summary: boxTransferSummary(parsed.items),
+      warnings: [...parsed.issues, ...validation.issues].filter((issue) => issue.severity === 'warning'),
+      result,
     };
   }
 
@@ -248,6 +354,17 @@ export class ImportsService {
     });
   }
 
+  private readFirstSheetWithBlankRows(buffer: Buffer): SheetMatrix {
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    const firstSheet = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[firstSheet];
+    return XLSX.utils.sheet_to_json<SheetMatrix[number]>(worksheet, {
+      header: 1,
+      raw: false,
+      blankrows: true,
+    });
+  }
+
   private readReceiptSheet(buffer: Buffer): SheetMatrix {
     const workbook = XLSX.read(buffer, { type: 'buffer' });
     const sheetName =
@@ -270,6 +387,97 @@ export class ImportsService {
       raw: false,
       blankrows: false,
     });
+  }
+
+  private async validateBoxTransfers(clientId: string, items: BoxTransferImportItem[]) {
+    const issues: StockImportIssue[] = [];
+    const sample: BoxTransferImportSample[] = [];
+    const remainingByBalanceId = new Map<string, number>();
+    const client = await this.prisma.client.findUnique({
+      where: { id: clientId },
+      select: { name: true, legalName: true },
+    });
+
+    if (!client) {
+      issues.push({ row: 1, message: 'Выбранный клиент не найден.', severity: 'error' });
+      return { issues, sample };
+    }
+
+    for (const item of items) {
+      if (item.legalName && !legalNameMatchesClient(item.legalName, client)) {
+        issues.push({
+          row: item.sourceRow,
+          message: `Юр. лицо в файле "${item.legalName}" отличается от выбранного клиента. Перемещение будет записано по выбранному клиенту.`,
+          severity: 'warning',
+        });
+      }
+
+      const [fromBox, toBox, barcode] = await Promise.all([
+        this.prisma.box.findUnique({ where: { clientId_code: { clientId, code: item.fromBoxCode } } }),
+        this.prisma.box.findUnique({ where: { clientId_code: { clientId, code: item.toBoxCode } } }),
+        this.prisma.barcode.findFirst({
+          where: { value: item.barcode, sku: { clientId } },
+          include: { sku: true },
+        }),
+      ]);
+
+      if (!fromBox) {
+        issues.push({ row: item.sourceRow, message: `Исходный короб ${item.fromBoxCode} не найден у выбранного клиента.`, severity: 'error' });
+      }
+
+      if (!barcode) {
+        issues.push({ row: item.sourceRow, message: `Баркод ${item.barcode} не найден у выбранного клиента.`, severity: 'error' });
+      }
+
+      let balance = null;
+      let available = 0;
+      if (fromBox && barcode) {
+        balance = await this.prisma.stockBalance.findFirst({
+          where: {
+            clientId,
+            skuId: barcode.skuId,
+            boxId: fromBox.id,
+            status: StockStatus.AVAILABLE,
+          },
+        });
+
+        if (!balance) {
+          issues.push({
+            row: item.sourceRow,
+            message: `В коробе ${item.fromBoxCode} нет доступного остатка по баркоду ${item.barcode}.`,
+            severity: 'error',
+          });
+        } else {
+          available = remainingByBalanceId.has(balance.id) ? remainingByBalanceId.get(balance.id)! : balance.quantity;
+          if (available < item.quantity) {
+            issues.push({
+              row: item.sourceRow,
+              message: `Недостаточно товара в коробе ${item.fromBoxCode}: доступно ${available}, нужно ${item.quantity}.`,
+              severity: 'error',
+            });
+          } else {
+            remainingByBalanceId.set(balance.id, available - item.quantity);
+          }
+        }
+      }
+
+      sample.push({
+        sourceRow: item.sourceRow,
+        fromBoxCode: item.fromBoxCode,
+        barcode: item.barcode,
+        toBoxCode: item.toBoxCode,
+        quantity: item.quantity,
+        legalName: item.legalName,
+        skuName: barcode?.sku.name ?? null,
+        internalSku: barcode?.sku.internalSku ?? null,
+        sourceQuantityBeforeFile: balance?.quantity ?? 0,
+        sourceQuantityBeforeRow: available,
+        targetBoxExists: Boolean(toBox),
+        targetBoxWillBeCreated: !toBox,
+      });
+    }
+
+    return { issues, sample };
   }
 
   private ensureBox(tx: Prisma.TransactionClient, item: StockImportItem) {
@@ -587,6 +795,11 @@ function stockCatalogPropertiesMatch(
 function stockOptionalMatch(left?: string | null, right?: string | null) {
   const normalizedRight = stockCatalogKey(right);
   return !normalizedRight || stockCatalogKey(left) === normalizedRight;
+}
+
+function legalNameMatchesClient(legalName: string, client: { name: string; legalName: string | null }) {
+  const normalized = stockCatalogKey(legalName);
+  return normalized === stockCatalogKey(client.legalName) || normalized === stockCatalogKey(client.name);
 }
 
 function uniqueCatalogRows<T extends { internalSku: string }>(rows: T[]) {

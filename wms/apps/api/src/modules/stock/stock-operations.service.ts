@@ -89,85 +89,89 @@ export class StockOperationsService {
   transferBetweenBoxes(dto: TransferBetweenBoxesDto, user: AuthUser) {
     this.clientScopes.requireClientAccess(user, dto.clientId, 'write');
 
-    return this.prisma.$transaction(async (tx) => {
-      const existingMovement = await tx.stockMovement.findUnique({
-        where: { idempotencyKey: `${dto.idempotencyKey}:out` },
-      });
+    return this.prisma.$transaction((tx) => this.applyBoxTransfer(tx, dto));
+  }
 
-      if (existingMovement) {
-        // Русский комментарий: повтор операции с ТСД возвращаем как уже принятую, чтобы offline retry был безопасным.
-        return {
-          idempotencyKey: dto.idempotencyKey,
-          status: 'ALREADY_APPLIED',
-        };
-      }
+  async applyBoxTransfer(tx: Prisma.TransactionClient, dto: TransferBetweenBoxesDto) {
+    const existingMovement = await tx.stockMovement.findUnique({
+      where: { idempotencyKey: `${dto.idempotencyKey}:out` },
+    });
 
-      const sku = await this.resolveSku(tx, dto);
-      const fromBox = await this.resolveBox(tx, dto.clientId, dto.fromBoxCode);
-      const toBox = await this.ensureTargetBox(tx, dto.clientId, dto.toBoxCode);
-      const status = dto.status ?? StockStatus.AVAILABLE;
+    if (existingMovement) {
+      // Русский комментарий: повтор операции с ТСД возвращаем как уже принятую, чтобы offline retry был безопасным.
+      return {
+        idempotencyKey: dto.idempotencyKey,
+        status: 'ALREADY_APPLIED',
+      };
+    }
 
-      const sourceBalance = await tx.stockBalance.findFirst({
-        where: {
-          clientId: dto.clientId,
-          skuId: sku.id,
-          boxId: fromBox.id,
-          status,
-        },
-      });
+    const sku = await this.resolveSku(tx, dto);
+    const fromBox = await this.resolveBox(tx, dto.clientId, dto.fromBoxCode);
+    const toBox = await this.ensureTargetBox(tx, dto.clientId, dto.toBoxCode);
+    const status = dto.status ?? StockStatus.AVAILABLE;
 
-      if (!sourceBalance || sourceBalance.quantity < dto.quantity) {
-        throw new BadRequestException('Недостаточно остатка в исходном коробе.');
-      }
+    const sourceBalance = await tx.stockBalance.findFirst({
+      where: {
+        clientId: dto.clientId,
+        skuId: sku.id,
+        boxId: fromBox.id,
+        status,
+      },
+    });
 
-      await this.decrementSourceBalance(tx, sourceBalance, dto.quantity);
-      const targetBalance = await this.incrementTargetBalance(tx, {
+    if (!sourceBalance || sourceBalance.quantity < dto.quantity) {
+      throw new BadRequestException('Недостаточно остатка в исходном коробе.');
+    }
+
+    await this.decrementSourceBalance(tx, sourceBalance, dto.quantity);
+    const targetBalance = await this.incrementTargetBalance(tx, {
+      clientId: dto.clientId,
+      skuId: sku.id,
+      boxId: toBox.id,
+      palletId: toBox.palletId,
+      status,
+      quantity: dto.quantity,
+    });
+
+    await tx.stockMovement.create({
+      data: {
+        clientId: dto.clientId,
+        skuId: sku.id,
+        boxId: fromBox.id,
+        palletId: fromBox.palletId,
+        type: 'MOVE',
+        status,
+        quantity: -dto.quantity,
+        sourceDocument: dto.sourceDocument,
+        idempotencyKey: `${dto.idempotencyKey}:out`,
+        comment: dto.comment ?? `Перенос в короб ${toBox.code}`,
+      },
+    });
+
+    await tx.stockMovement.create({
+      data: {
         clientId: dto.clientId,
         skuId: sku.id,
         boxId: toBox.id,
         palletId: toBox.palletId,
+        type: 'MOVE',
         status,
         quantity: dto.quantity,
-      });
-
-      await tx.stockMovement.create({
-        data: {
-          clientId: dto.clientId,
-          skuId: sku.id,
-          boxId: fromBox.id,
-          palletId: fromBox.palletId,
-          type: 'MOVE',
-          status,
-          quantity: -dto.quantity,
-          idempotencyKey: `${dto.idempotencyKey}:out`,
-          comment: dto.comment ?? `Перенос в короб ${toBox.code}`,
-        },
-      });
-
-      await tx.stockMovement.create({
-        data: {
-          clientId: dto.clientId,
-          skuId: sku.id,
-          boxId: toBox.id,
-          palletId: toBox.palletId,
-          type: 'MOVE',
-          status,
-          quantity: dto.quantity,
-          idempotencyKey: `${dto.idempotencyKey}:in`,
-          comment: dto.comment ?? `Перенос из короба ${fromBox.code}`,
-        },
-      });
-
-      return {
-        idempotencyKey: dto.idempotencyKey,
-        status: 'APPLIED',
-        skuId: sku.id,
-        fromBox: fromBox.code,
-        toBox: toBox.code,
-        quantity: dto.quantity,
-        targetBalance,
-      };
+        sourceDocument: dto.sourceDocument,
+        idempotencyKey: `${dto.idempotencyKey}:in`,
+        comment: dto.comment ?? `Перенос из короба ${fromBox.code}`,
+      },
     });
+
+    return {
+      idempotencyKey: dto.idempotencyKey,
+      status: 'APPLIED',
+      skuId: sku.id,
+      fromBox: fromBox.code,
+      toBox: toBox.code,
+      quantity: dto.quantity,
+      targetBalance,
+    };
   }
 
   async pickClientRequest(dto: PickClientRequestDto, user: AuthUser) {

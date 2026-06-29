@@ -20,6 +20,14 @@
   gap: 14px;
 }
 
+.box-transfer-import {
+  display: grid;
+  gap: 14px;
+  margin-top: 22px;
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+}
+
 .warehouse-fields {
   display: grid;
   grid-template-columns: minmax(170px, 1fr) minmax(260px, 1.5fr) minmax(170px, 1fr) minmax(120px, 0.7fr);
@@ -51,6 +59,37 @@
   background: #fbfdff;
   color: var(--ink);
   padding: 0 11px;
+}
+
+.warehouse-fields--transfer-import {
+  grid-template-columns: minmax(220px, 1fr) minmax(180px, 0.9fr) minmax(260px, 1.2fr);
+}
+
+.warehouse-file-field {
+  position: relative;
+  display: flex !important;
+  min-height: 40px;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  background: #fbfdff;
+  color: var(--muted);
+  padding: 0 11px;
+}
+
+.warehouse-file-field input {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.warehouse-file-field span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .warehouse-fields input:focus,
@@ -140,6 +179,96 @@
 .transfer-result span {
   margin-top: 2px;
   font-size: 13px;
+}
+
+.transfer-import-result {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdff;
+  padding: 12px;
+}
+
+.transfer-import-result--success {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.transfer-import-result h3,
+.transfer-import-result span {
+  display: block;
+}
+
+.transfer-import-result span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.transfer-import-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.transfer-import-metrics > div {
+  min-height: 66px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.transfer-import-metrics span,
+.transfer-import-metrics strong {
+  display: block;
+}
+
+.transfer-import-metrics span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.transfer-import-metrics strong {
+  margin-top: 4px;
+}
+
+.transfer-import-issues {
+  display: grid;
+  gap: 7px;
+}
+
+.transfer-import-table-wrap {
+  overflow-x: auto;
+}
+
+.transfer-import-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 820px;
+}
+
+.transfer-import-table th,
+.transfer-import-table td {
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  padding: 8px;
+}
+
+.transfer-import-table th {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.transfer-import-table td span,
+.transfer-import-table td strong {
+  display: block;
+}
+
+.transfer-import-table td span {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .pick-wave-panel {
@@ -330,6 +459,8 @@
 @media (max-width: 980px) {
   .warehouse-fields,
   .transfer-preview,
+  .warehouse-fields--transfer-import,
+  .transfer-import-metrics,
   .pick-wave-layout,
   .storage-controls,
   .storage-summary {
@@ -344,6 +475,8 @@
 
   .warehouse-fields,
   .transfer-preview,
+  .warehouse-fields--transfer-import,
+  .transfer-import-metrics,
   .pick-wave-layout,
   .storage-controls,
   .storage-summary {

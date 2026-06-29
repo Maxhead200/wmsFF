@@ -1966,6 +1966,36 @@ export type ReceiptImportPreview = {
   sample: ReceiptImportSampleItem[];
 };
 
+export type BoxTransferImportSummary = {
+  rows: number;
+  sourceBoxes: number;
+  targetBoxes: number;
+  barcodes: number;
+  totalQuantity: number;
+};
+
+export type BoxTransferImportSampleItem = {
+  sourceRow: number;
+  fromBoxCode: string;
+  barcode: string;
+  toBoxCode: string;
+  quantity: number;
+  legalName?: string;
+  skuName: string | null;
+  internalSku: string | null;
+  sourceQuantityBeforeFile: number;
+  sourceQuantityBeforeRow: number;
+  targetBoxExists: boolean;
+  targetBoxWillBeCreated: boolean;
+};
+
+export type BoxTransferImportPreview = {
+  clientId: string;
+  summary: BoxTransferImportSummary;
+  issues: StockImportIssue[];
+  sample: BoxTransferImportSampleItem[];
+};
+
 export type StockImportCommitResult = {
   sourceDocument: string;
   summary: StockImportSummary;
@@ -1989,6 +2019,18 @@ export type ReceiptImportCommitResult = {
     movementsCreated: number;
     balancesTouched: number;
     kizCreated: number;
+  };
+};
+
+export type BoxTransferImportCommitResult = {
+  sourceDocument: string;
+  summary: BoxTransferImportSummary;
+  warnings: StockImportIssue[];
+  result: {
+    rowsApplied: number;
+    movementsCreated: number;
+    targetBoxesCreated: number;
+    totalQuantity: number;
   };
 };
 
@@ -3233,6 +3275,28 @@ export async function commitReceiptImport(
   }
 
   return requestMultipart<ReceiptImportCommitResult>('/imports/receipts/commit', form, accessToken);
+}
+
+export async function previewBoxTransferImport(accessToken: string, payload: { file: File; clientId: string }) {
+  const form = new FormData();
+  form.append('file', payload.file);
+  form.append('clientId', payload.clientId);
+
+  return requestMultipart<BoxTransferImportPreview>('/imports/box-transfers/preview', form, accessToken);
+}
+
+export async function commitBoxTransferImport(
+  accessToken: string,
+  payload: { file: File; clientId: string; sourceDocument?: string },
+) {
+  const form = new FormData();
+  form.append('file', payload.file);
+  form.append('clientId', payload.clientId);
+  if (payload.sourceDocument) {
+    form.append('sourceDocument', payload.sourceDocument);
+  }
+
+  return requestMultipart<BoxTransferImportCommitResult>('/imports/box-transfers/commit', form, accessToken);
 }
 
 export async function previewLogisticsImport(accessToken: string, payload: { file: File }) {

@@ -33,4 +33,8 @@ export class TransferBetweenBoxesDto {
   @IsOptional()
   @IsString()
   comment?: string;
+
+  @IsOptional()
+  @IsString()
+  sourceDocument?: string;
 }

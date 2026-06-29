@@ -70,6 +70,37 @@ export class ImportsController {
     });
   }
 
+  @Post('box-transfers/preview')
+  @RequirePermissions('stock:write')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({ description: 'XLSX-файл перемещений по коробам и clientId' })
+  @UseInterceptors(FileInterceptor('file'))
+  previewBoxTransferFile(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('clientId') clientId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.importsService.previewBoxTransferWorkbook(file.buffer, clientId, user);
+  }
+
+  @Post('box-transfers/commit')
+  @RequirePermissions('stock:write')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({ description: 'XLSX-файл перемещений по коробам, clientId и sourceDocument' })
+  @UseInterceptors(FileInterceptor('file'))
+  commitBoxTransferFile(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('clientId') clientId: string,
+    @CurrentUser() user: AuthUser,
+    @Body('sourceDocument') sourceDocument?: string,
+  ) {
+    return this.importsService.commitBoxTransferWorkbook(file.buffer, {
+      clientId,
+      sourceDocument: sourceDocument || file.originalname,
+      user,
+    });
+  }
+
   @Post('logistics/preview')
   @RequirePermissions('logistics:write')
   @ApiConsumes('multipart/form-data')

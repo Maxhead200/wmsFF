@@ -63,6 +63,8 @@ public class MainActivity extends Activity {
     private boolean boxSearchScanBusy = false;
     private String lastBoxSearchScanCode = "";
     private long lastBoxSearchScanAtMs = 0L;
+    private Runnable backAction = null;
+    private long lastRootBackAtMs = 0L;
 
     @Override
     protected void onCreate(Bundle bundle) {
@@ -82,7 +84,26 @@ public class MainActivity extends Activity {
         }, 700);
     }
 
+    @Override
+    public void onBackPressed() {
+        if (backAction != null) {
+            Runnable action = backAction;
+            backAction = null;
+            action.run();
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        if (now - lastRootBackAtMs < 1800) {
+            finish();
+            return;
+        }
+        lastRootBackAtMs = now;
+        toast("Нажмите назад еще раз, чтобы закрыть приложение.");
+    }
+
     private void showSplash() {
+        setBackAction(null);
         LinearLayout root = page();
         root.setGravity(Gravity.CENTER);
         TextView logo = new TextView(this);
@@ -97,6 +118,7 @@ public class MainActivity extends Activity {
     }
 
     private void showLogin() {
+        setBackAction(null);
         LinearLayout root = page();
         root.setPadding(dp(18), dp(24), dp(18), dp(18));
         addLogo(root, false);
@@ -155,6 +177,7 @@ public class MainActivity extends Activity {
     }
 
     private void showMenu() {
+        setBackAction(null);
         LinearLayout root = page();
         root.setPadding(dp(14), dp(16), dp(14), dp(14));
         addHeader(root);
@@ -197,6 +220,7 @@ public class MainActivity extends Activity {
     }
 
     private void showReceiptStart() {
+        setBackAction(() -> showMenu());
         LinearLayout root = page();
         root.setPadding(dp(14), dp(16), dp(14), dp(14));
         addHeader(root);
@@ -224,13 +248,12 @@ public class MainActivity extends Activity {
         });
         root.addView(start);
 
-        Button back = secondary("Назад");
-        back.setOnClickListener(v -> showMenu());
-        root.addView(back);
+        addBackButton(root, "Назад", () -> showMenu());
         setContentView(wrap(root));
     }
 
     private void showPickRequests() {
+        setBackAction(() -> showMenu());
         LinearLayout root = page();
         root.setPadding(dp(14), dp(16), dp(14), dp(14));
         addHeader(root);
@@ -252,9 +275,7 @@ public class MainActivity extends Activity {
             root.addView(item);
         }
 
-        Button back = secondary("Назад");
-        back.setOnClickListener(v -> showMenu());
-        root.addView(back);
+        addBackButton(root, "Назад", () -> showMenu());
         setContentView(wrap(root));
         if (pickRequests.isEmpty()) {
             loadPickRequests(false);
@@ -262,6 +283,7 @@ public class MainActivity extends Activity {
     }
 
     private void showPickRequestActions(PickRequest request) {
+        setBackAction(() -> showPickRequests());
         LinearLayout root = page();
         root.setPadding(dp(14), dp(16), dp(14), dp(14));
         addHeader(root);
@@ -282,9 +304,7 @@ public class MainActivity extends Activity {
         moves.setOnClickListener(v -> toast("Перемещения будут открыты следующим шагом."));
         root.addView(moves);
 
-        Button back = secondary("Назад к заявкам");
-        back.setOnClickListener(v -> showPickRequests());
-        root.addView(back);
+        addBackButton(root, "Назад к заявкам", () -> showPickRequests());
         setContentView(wrap(root));
     }
 
@@ -338,6 +358,7 @@ public class MainActivity extends Activity {
     }
 
     private void showBoxSearch(PickRequest request, JSONObject state, boolean flashGreen) {
+        setBackAction(() -> leaveBoxSearch(request, state));
         LinearLayout root = page();
         if (flashGreen) {
             root.setBackgroundColor(Color.rgb(12, 128, 72));
@@ -402,9 +423,7 @@ public class MainActivity extends Activity {
         refresh.setOnClickListener(v -> loadBoxSearch(request));
         root.addView(refresh);
 
-        Button collapse = secondary("Свернуть поиск");
-        collapse.setOnClickListener(v -> leaveBoxSearch(request, state));
-        root.addView(collapse);
+        addBackButton(root, "Свернуть поиск", () -> leaveBoxSearch(request, state));
         setContentView(wrap(root));
         if (flashGreen) {
             main.postDelayed(() -> root.setBackgroundColor(BG), 450);
@@ -473,18 +492,18 @@ public class MainActivity extends Activity {
     }
 
     private void showInventoryMenu() {
+        setBackAction(() -> showMenu());
         LinearLayout root = page();
         root.setPadding(dp(14), dp(16), dp(14), dp(14));
         addHeader(root);
         addTitle(root, "Инвентаризация");
         root.addView(note("Раздел готов как основное меню. Следующим шагом добавим скан короба, товара и сверку с WMS."));
-        Button back = secondary("Назад");
-        back.setOnClickListener(v -> showMenu());
-        root.addView(back);
+        addBackButton(root, "Назад", () -> showMenu());
         setContentView(wrap(root));
     }
 
     private void showBoxScan() {
+        setBackAction(() -> showReceiptStart());
         boxCode = "";
         pendingBarcode = "";
         LinearLayout root = receiptPage("Новый короб");
@@ -504,6 +523,7 @@ public class MainActivity extends Activity {
             finish.setOnClickListener(v -> finishReceipt());
             root.addView(finish);
         }
+        addBackButton(root, "Назад", () -> showReceiptStart());
         setContentView(wrap(root));
         box.requestFocus();
     }
@@ -520,6 +540,7 @@ public class MainActivity extends Activity {
     }
 
     private void showBarcodeScan() {
+        setBackAction(() -> showReceiptStart());
         LinearLayout root = receiptPage("Скан товара");
         TextView box = note("Короб: " + boxCode);
         root.addView(box);
@@ -537,6 +558,7 @@ public class MainActivity extends Activity {
         Button close = secondary("Закрыть короб");
         close.setOnClickListener(v -> showBoxClosed());
         root.addView(close);
+        addBackButton(root, "Назад", () -> showReceiptStart());
         setContentView(wrap(root));
         barcode.requestFocus();
     }
@@ -577,6 +599,10 @@ public class MainActivity extends Activity {
     }
 
     private void showKizScan() {
+        setBackAction(() -> {
+            pendingBarcode = "";
+            showBarcodeScan();
+        });
         LinearLayout root = receiptPage("Скан КИЗ");
         root.addView(note("Короб: " + boxCode));
         root.addView(note("ШК товара: " + pendingBarcode));
@@ -597,6 +623,10 @@ public class MainActivity extends Activity {
             showBarcodeScan();
         });
         root.addView(cancel);
+        addBackButton(root, "Назад", () -> {
+            pendingBarcode = "";
+            showBarcodeScan();
+        });
         setContentView(wrap(root));
         kiz.requestFocus();
     }
@@ -644,6 +674,7 @@ public class MainActivity extends Activity {
     }
 
     private void showBoxClosed() {
+        setBackAction(() -> showReceiptStart());
         LinearLayout root = receiptPage("Короб закрыт");
         root.addView(note("Закрыт короб: " + boxCode));
         Button next = primary("Новый короб");
@@ -652,6 +683,7 @@ public class MainActivity extends Activity {
         finish.setOnClickListener(v -> finishReceipt());
         root.addView(next);
         root.addView(finish);
+        addBackButton(root, "Назад", () -> showReceiptStart());
         setContentView(wrap(root));
     }
 
@@ -790,6 +822,22 @@ public class MainActivity extends Activity {
 
     private void addStatus(LinearLayout root) {
         root.addView(note((isOnline() ? "Онлайн" : "Офлайн") + " · очередь: " + queue.size()));
+    }
+
+    private void addBackButton(LinearLayout root, String text, Runnable action) {
+        Button back = secondary(text);
+        back.setOnClickListener(v -> {
+            setBackAction(null);
+            action.run();
+        });
+        root.addView(back);
+    }
+
+    private void setBackAction(Runnable action) {
+        backAction = action;
+        if (action == null) {
+            lastRootBackAtMs = 0L;
+        }
     }
 
     private EditText input(String hint, boolean password) {

@@ -651,7 +651,7 @@ export class ClientRequestXlsxService {
       items.push({
         ...base,
         quantity: normalQuantity,
-        comment: this.buildLineComment({ ...line, relabelTargetBarcode: undefined, relabelQuantity: undefined }),
+        comment: this.buildLineComment({ ...line, relabelTargetBarcode: undefined, relabelQuantity: undefined, needsRelabel: false }),
       });
     }
 

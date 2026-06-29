@@ -124,6 +124,56 @@ describe('ClientRequestXlsxService', () => {
     expect(clientRequests.create.mock.calls[0][0].comment).toContain('Создано из Excel: Тест заявки.xlsx.');
   });
 
+  it('splits a relabel line into shipment remainder and relabel quantity', async () => {
+    const clientRequests = {
+      create: vi.fn().mockResolvedValue({ id: 'request-1', clientId: 'client-1', title: 'Excel сборка' }),
+      previewAvailability: vi.fn().mockResolvedValue({
+        lines: [availabilityLine({ index: 0, skuId: 'sku-1', requestedQuantity: 40, stockQuantity: 40, availableQuantity: 40 })],
+      }),
+    };
+    const prisma = {
+      barcode: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            skuId: 'sku-1',
+            value: '2049156013678',
+            sku: { id: 'sku-1', internalSku: 'BAR-001', name: 'Товар 1' },
+          },
+        ]),
+      },
+    };
+    const service = new ClientRequestXlsxService(prisma as never, new ClientScopeService(), clientRequests as never);
+
+    await service.createOutboundRequest(
+      fileFixture([
+        ['barcode', 'qty', 'relabel', 'qty'],
+        ['2049156013678', 40, '2051369340472', 15],
+      ]),
+      { clientId: 'client-1', title: 'Excel сборка', destinationCity: 'Казань' },
+      user({ writableClientIds: ['client-1'], clientIds: ['client-1'] }),
+    );
+
+    const items = clientRequests.create.mock.calls[0][0].items;
+    expect(items).toHaveLength(2);
+    expect(items[0]).toEqual(
+      expect.objectContaining({
+        skuId: 'sku-1',
+        barcode: '2049156013678',
+        quantity: 25,
+      }),
+    );
+    expect(items[0].comment).not.toContain('2051369340472');
+    expect(items[1]).toEqual(
+      expect.objectContaining({
+        skuId: 'sku-1',
+        barcode: '2049156013678',
+        quantity: 15,
+      }),
+    );
+    expect(items[1].comment).toContain('2051369340472');
+    expect(items[1].comment).toContain('15');
+  });
+
   it('распознает SKU по наименованию товара без баркода', async () => {
     const prisma = {
       barcode: {

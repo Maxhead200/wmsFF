@@ -24,11 +24,11 @@ describe('PickInstructionService', () => {
       stockBalance: {
         findMany: vi.fn().mockResolvedValue([
           balanceFixture({ id: 'balance-1', boxId: 'box-1', boxCode: 'BOX-1', quantity: 2 }),
-          balanceFixture({ id: 'balance-2', boxId: 'box-2', boxCode: 'BOX-2', quantity: 5 }),
+          balanceFixture({ id: 'balance-2', boxId: 'box-2', boxCode: 'BOX-2', quantity: 2 }),
         ]),
         groupBy: vi.fn().mockResolvedValue([
           { boxId: 'box-1', _sum: { quantity: 2 } },
-          { boxId: 'box-2', _sum: { quantity: 5 } },
+          { boxId: 'box-2', _sum: { quantity: 2 } },
         ]),
       },
       box: {
@@ -53,10 +53,49 @@ describe('PickInstructionService', () => {
     });
     expect(document.boxes).toEqual([
       expect.objectContaining({ boxCode: 'BOX-1', allocatedQuantity: 2, availableQuantity: 2, isFullBox: true }),
-      expect.objectContaining({ boxCode: 'BOX-2', allocatedQuantity: 2, availableQuantity: 5, isFullBox: false }),
+      expect.objectContaining({ boxCode: 'BOX-2', allocatedQuantity: 2, availableQuantity: 2, isFullBox: true }),
     ]);
     expect(document.warehouseBalanceMoves).toEqual([]);
     expect(document.html).toContain('Инструкция сборки');
+  });
+
+  it('не применяет погрешность при выборе целого короба', async () => {
+    const prisma = {
+      clientRequest: {
+        findUnique: vi.fn().mockResolvedValue(requestFixture({ quantity: 4 })),
+      },
+      barcode: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      clientArticleMapping: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      sku: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      stockBalance: {
+        findMany: vi.fn().mockResolvedValue([
+          balanceFixture({ id: 'balance-1', boxId: 'box-1', boxCode: 'BOX-1', quantity: 5 }),
+        ]),
+        groupBy: vi.fn().mockResolvedValue([{ boxId: 'box-1', _sum: { quantity: 5 } }]),
+      },
+      box: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+    };
+    const service = new PickInstructionService(prisma as never, new ClientScopeService());
+
+    const document = await service.getRequestInstruction('request-1', user({ clientIds: ['client-1'] }));
+
+    expect(document.warehouseRows).toContainEqual(
+      expect.objectContaining({ sourceBox: 'BOX-1', quantity: 4, comment: 'ПОСТАВКА; КОРОБ УЕЗЖАЕТ' }),
+    );
+    expect(document.warehouseRows).toContainEqual(
+      expect.objectContaining({ sourceBox: 'BOX-1', quantity: 1, comment: 'ПЕРЕЛОЖИТЬ ОСТАТОК' }),
+    );
+    expect(document.warehouseBalanceMoves).toEqual([
+      expect.objectContaining({ sourceBox: 'BOX-1', quantity: 1 }),
+    ]);
   });
 
   it('показывает дефицит, если доступного остатка не хватает', async () => {
@@ -113,11 +152,11 @@ describe('PickInstructionService', () => {
       stockBalance: {
         findMany: vi.fn().mockResolvedValue([
           balanceFixture({ id: 'balance-1', boxId: 'box-1', boxCode: 'BOX-1', quantity: 2 }),
-          balanceFixture({ id: 'balance-2', boxId: 'box-2', boxCode: 'BOX-2', quantity: 5 }),
+          balanceFixture({ id: 'balance-2', boxId: 'box-2', boxCode: 'BOX-2', quantity: 2 }),
         ]),
         groupBy: vi.fn().mockResolvedValue([
           { boxId: 'box-1', _sum: { quantity: 2 } },
-          { boxId: 'box-2', _sum: { quantity: 5 } },
+          { boxId: 'box-2', _sum: { quantity: 2 } },
         ]),
       },
       box: {
@@ -139,7 +178,7 @@ describe('PickInstructionService', () => {
 
     expect(searchBoxRows).toEqual([{ Короб: 'BOX-1' }, { Короб: 'BOX-2' }]);
     expect(instructionRows[0]).toMatchObject({ 'Исходный короб': 'BOX-1', Количество: 2, Комментарий: 'ЦЕЛЫЙ' });
-    expect(instructionRows[1]).toMatchObject({ 'Исходный короб': 'BOX-2', Количество: 5 });
+    expect(instructionRows[1]).toMatchObject({ 'Исходный короб': 'BOX-2', Количество: 2 });
     expect(Object.values(markRows[0])).toContain('Переклейки нет.');
     expect(moveRows[0]).toMatchObject({ Примечание: 'Перемещений остатков в новые короба нет.' });
   });

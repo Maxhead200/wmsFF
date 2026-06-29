@@ -1132,7 +1132,7 @@ function warehouseActionComment(
 }
 
 function needsWarehouseRelabel(item: WarehouseInventoryItem, demand: WarehouseDemand) {
-  if (demand.needsRelabel) {
+  if (demand.relabelSourceBarcode || demand.relabelTargetBarcode) {
     return true;
   }
   if (item.skuId === demand.skuId || isExactBarcodeMatch(item, demand) || isExactNameMatch(item, demand)) {

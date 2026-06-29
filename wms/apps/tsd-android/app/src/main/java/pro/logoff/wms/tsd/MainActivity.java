@@ -395,6 +395,15 @@ public class MainActivity extends Activity {
     }
 
     private void showPickRequestActions(PickRequest request) {
+        showPickRequestActions(request, null, null);
+        runAsync(() -> {
+            JSONObject boxState = api.boxSearch(token, request.id, deviceCode);
+            JSONObject relabelState = api.relabelState(token, request.id, deviceCode);
+            main.post(() -> showPickRequestActions(request, boxState, relabelState));
+        });
+    }
+
+    private void showPickRequestActions(PickRequest request, JSONObject boxState, JSONObject relabelState) {
         setBackAction(() -> showPickRequests());
         LinearLayout root = page();
         root.setPadding(dp(14), dp(16), dp(14), dp(14));
@@ -409,15 +418,15 @@ public class MainActivity extends Activity {
             root.addView(working);
         }
 
-        Button boxes = primary("1. " + tr("boxSearch.title"));
+        Button boxes = stageButton("1. " + tr("boxSearch.title"), boxState != null && boxState.optBoolean("isComplete"));
         boxes.setOnClickListener(v -> loadBoxSearch(request));
         root.addView(boxes);
 
-        Button relabel = primary("2. " + tr("pick.relabel"));
+        Button relabel = stageButton("2. " + tr("pick.relabel"), relabelState != null && relabelState.optBoolean("isComplete"));
         relabel.setOnClickListener(v -> loadRelabelState(request));
         root.addView(relabel);
 
-        Button moves = primary("3. " + tr("pick.moves"));
+        Button moves = stageButton("3. " + tr("pick.moves"), false);
         moves.setOnClickListener(v -> loadMovesStage(request));
         root.addView(moves);
 
@@ -1499,6 +1508,12 @@ public class MainActivity extends Activity {
         button.setBackgroundColor(RED);
         button.setMinHeight(dp(scaledSize(58)));
         button.setLayoutParams(buttonParams());
+        return button;
+    }
+
+    private Button stageButton(String text, boolean complete) {
+        Button button = primary(text);
+        button.setBackgroundColor(complete ? GREEN : RED);
         return button;
     }
 

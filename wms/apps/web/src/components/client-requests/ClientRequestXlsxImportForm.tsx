@@ -648,7 +648,7 @@ function requestItemsFromLine(line: EditableXlsxLine) {
     items.push({
       ...base,
       quantity: normalQuantity,
-      comment: xlsxLineComment({ ...line, relabelTargetBarcode: undefined, relabelQuantity: undefined }),
+      comment: xlsxLineComment({ ...line, relabelTargetBarcode: undefined, relabelQuantity: undefined, needsRelabel: false }),
     });
   }
 

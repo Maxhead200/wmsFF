@@ -1,4 +1,4 @@
-import { IsBoolean, IsNumber, IsOptional, IsString, Length, Min } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsInt, IsNumber, IsOptional, IsString, Length, Min } from 'class-validator';
 
 export class CreateSkuDto {
   @IsString()
@@ -25,12 +25,31 @@ export class CreateSkuDto {
   barcode?: string;
 
   @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(12)
+  @IsString({ each: true })
+  photoUrls?: string[];
+
+  @IsOptional()
+  @IsString()
+  brand?: string;
+
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @IsOptional()
   @IsString()
   color?: string;
 
   @IsOptional()
   @IsString()
   size?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  weightGrams?: number;
 
   @IsOptional()
   @IsNumber()
@@ -50,4 +69,16 @@ export class CreateSkuDto {
   @IsOptional()
   @IsBoolean()
   needsChestnyZnak?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isUnmarked?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  needsLabel?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  needsRelabel?: boolean;
 }

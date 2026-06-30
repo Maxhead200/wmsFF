@@ -1360,12 +1360,19 @@ export type CreateSkuPayload = {
   article?: string;
   name: string;
   barcode?: string;
+  photoUrls?: string[];
+  brand?: string;
+  category?: string;
   color?: string;
   size?: string;
+  weightGrams?: number;
   lengthCm?: number;
   widthCm?: number;
   heightCm?: number;
   needsChestnyZnak?: boolean;
+  isUnmarked?: boolean;
+  needsLabel?: boolean;
+  needsRelabel?: boolean;
 };
 
 export type UpdateSkuPayload = Partial<CreateSkuPayload> & {

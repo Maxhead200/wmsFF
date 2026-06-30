@@ -20,6 +20,7 @@ export type StockImportIssue = {
 
 export type StockParseOptions = {
   clientId: string;
+  allowMissingBox?: boolean;
 };
 
 type StockColumnMap = {
@@ -78,7 +79,7 @@ export function parseStockSheet(rows: SheetMatrix, options: StockParseOptions) {
       return;
     }
 
-    if (!effectiveBox) {
+    if (!effectiveBox && !options.allowMissingBox) {
       issues.push({ row: sourceRow, message: 'Не найден короб для строки остатка.', severity: 'error' });
       return;
     }
@@ -106,7 +107,7 @@ export function parseStockSheet(rows: SheetMatrix, options: StockParseOptions) {
     });
   });
 
-  const uniqueBoxes = new Set(items.map((item) => item.boxCode));
+  const uniqueBoxes = new Set(items.map((item) => item.boxCode).filter(Boolean));
   const uniqueBarcodes = new Set(items.map((item) => item.barcode).filter(Boolean));
   const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
 

@@ -41,6 +41,7 @@ const emptyClientForm = {
   bankBik: '',
   bankAccount: '',
   correspondentAccount: '',
+  storesWithoutBoxes: false,
   fulfillmentManagerUserId: '',
 };
 
@@ -265,6 +266,14 @@ export function ClientCreateForm({ session }: ClientCreateFormProps) {
             <span>Telegram chat_id</span>
             <input value={form.telegramChatId} onChange={(event) => setForm({ ...form, telegramChatId: event.target.value })} />
           </label>
+          <label className="directory-checkbox-field">
+            <input
+              checked={form.storesWithoutBoxes}
+              type="checkbox"
+              onChange={(event) => setForm({ ...form, storesWithoutBoxes: event.target.checked })}
+            />
+            <span>Хранение без коробов: считать по литражу карточек товара</span>
+          </label>
           <label>
             <span>Менеджер фулфилмента</span>
             <select
@@ -473,6 +482,7 @@ function compactPayload(form: typeof emptyClientForm): CreateClientPayload {
     ...optionalString('bankBik', form.bankBik),
     ...optionalString('bankAccount', form.bankAccount),
     ...optionalString('correspondentAccount', form.correspondentAccount),
+    storesWithoutBoxes: form.storesWithoutBoxes,
     ...optionalString('fulfillmentManagerUserId', form.fulfillmentManagerUserId),
   };
 }

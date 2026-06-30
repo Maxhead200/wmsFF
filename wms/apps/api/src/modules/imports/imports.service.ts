@@ -235,14 +235,14 @@ export class ImportsService {
         };
 
         for (const item of parsed.items) {
-          const box = await this.ensureBox(tx, item);
+          const box = await this.ensureOptionalBox(tx, item);
           const sku = await this.ensureSku(tx, item);
 
           await this.ensureBarcode(tx, sku.id, item.barcode);
-          const movementCreated = await this.createInitialMovement(tx, item, sku.id, box.id, options.sourceDocument);
-          await this.addToBalance(tx, item, sku.id, box.id, 'AVAILABLE');
+          const movementCreated = await this.createInitialMovement(tx, item, sku.id, box?.id ?? null, options.sourceDocument);
+          await this.addToBalance(tx, item, sku.id, box?.id ?? null, 'AVAILABLE');
 
-          counters.boxesTouched += 1;
+          counters.boxesTouched += box ? 1 : 0;
           counters.skusTouched += 1;
           counters.movementsCreated += movementCreated ? 1 : 0;
           counters.balancesTouched += 1;
@@ -264,7 +264,11 @@ export class ImportsService {
 
   private async parseStockWorkbookWithCatalog(buffer: Buffer, clientId: string) {
     const rows = this.readFirstSheet(buffer);
-    const parsed = parseStockSheet(rows, { clientId });
+    const client = await this.prisma.client.findUnique({
+      where: { id: clientId },
+      select: { storesWithoutBoxes: true },
+    });
+    const parsed = parseStockSheet(rows, { clientId, allowMissingBox: client?.storesWithoutBoxes === true });
     const enriched = await this.enrichStockItemsFromCatalog(parsed.items);
 
     return {
@@ -496,6 +500,10 @@ export class ImportsService {
     });
   }
 
+  private ensureOptionalBox(tx: Prisma.TransactionClient, item: StockImportItem) {
+    return item.boxCode ? this.ensureBox(tx, item) : Promise.resolve(null);
+  }
+
   private async ensureSku(tx: Prisma.TransactionClient, item: StockImportItem) {
     const existingBarcode = await tx.barcode.findFirst({
       where: {
@@ -542,7 +550,7 @@ export class ImportsService {
     tx: Prisma.TransactionClient,
     item: StockImportItem,
     skuId: string,
-    boxId: string,
+    boxId: string | null,
     sourceDocument: string,
   ) {
     const idempotencyKey = ['stock-import', sourceDocument, item.sourceRow, item.boxCode, item.barcode].join(':');
@@ -595,7 +603,7 @@ export class ImportsService {
     tx: Prisma.TransactionClient,
     item: StockImportItem,
     skuId: string,
-    boxId: string,
+    boxId: string | null,
     status: StockStatus,
   ) {
     const balanceKey = this.balances.balanceKey({
@@ -769,7 +777,7 @@ export class ImportsService {
 }
 
 function stockImportSummary(items: StockImportItem[]) {
-  const uniqueBoxes = new Set(items.map((item) => item.boxCode));
+  const uniqueBoxes = new Set(items.map((item) => item.boxCode).filter(Boolean));
   const uniqueBarcodes = new Set(items.map((item) => item.barcode).filter(Boolean));
   const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
 

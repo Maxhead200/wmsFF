@@ -35,6 +35,7 @@ export type ClientSummary = {
   bankAccount: string | null;
   correspondentAccount: string | null;
   storagePriceRubPerLiterDay: string | number | null;
+  storesWithoutBoxes: boolean;
   fulfillmentManagerUserId: string | null;
   fulfillmentManager: {
     id: string;
@@ -1020,6 +1021,7 @@ export type CreateClientPayload = {
   bankBik?: string;
   bankAccount?: string;
   correspondentAccount?: string;
+  storesWithoutBoxes?: boolean;
   fulfillmentManagerUserId?: string;
 };
 
@@ -1396,6 +1398,7 @@ export type StorageOverviewRow = {
 export type StorageOverview = {
   client: Pick<ClientSummary, 'id' | 'code' | 'name'> & {
     storagePriceRubPerLiterDay: string | number | null;
+    storesWithoutBoxes: boolean;
   };
   periodFrom: string;
   periodTo: string;

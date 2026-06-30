@@ -106,6 +106,7 @@ type ClientManagementForm = {
   bankBik: string;
   bankAccount: string;
   correspondentAccount: string;
+  storesWithoutBoxes: boolean;
 };
 
 const clientKindOptions: Array<{ value: ClientKind; label: string }> = [
@@ -1029,6 +1030,14 @@ function ClientCabinetClientEditor({
           <span>Telegram chat_id</span>
           <input value={form.telegramChatId} onChange={(event) => onChange({ telegramChatId: event.target.value })} />
         </label>
+        <label className="client-cabinet-checkbox-field">
+          <input
+            checked={form.storesWithoutBoxes}
+            type="checkbox"
+            onChange={(event) => onChange({ storesWithoutBoxes: event.target.checked })}
+          />
+          <span>Хранение без коробов: считать по литражу карточек товара</span>
+        </label>
         <label>
           <span>Юр. адрес</span>
           <input value={form.legalAddress} onChange={(event) => onChange({ legalAddress: event.target.value })} />
@@ -1114,6 +1123,7 @@ function formFromClient(client: ClientSummary): ClientManagementForm {
     bankBik: client.bankBik ?? '',
     bankAccount: client.bankAccount ?? '',
     correspondentAccount: client.correspondentAccount ?? '',
+    storesWithoutBoxes: client.storesWithoutBoxes,
   };
 }
 
@@ -1134,6 +1144,7 @@ function compactClientPayload(form: ClientManagementForm): UpdateClientPayload {
     bankBik: form.bankBik.trim(),
     bankAccount: form.bankAccount.trim(),
     correspondentAccount: form.correspondentAccount.trim(),
+    storesWithoutBoxes: form.storesWithoutBoxes,
   };
 }
 

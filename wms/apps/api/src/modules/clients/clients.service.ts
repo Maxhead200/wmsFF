@@ -165,6 +165,7 @@ export class ClientsService {
           ...(dto.fulfillmentManagerUserId === undefined
             ? {}
             : { fulfillmentManagerUserId: normalizeNullableString(dto.fulfillmentManagerUserId) }),
+          ...(dto.storesWithoutBoxes === undefined ? {} : { storesWithoutBoxes: dto.storesWithoutBoxes }),
           ...nullableUpdateClientData(dto),
         },
         select: this.clientSummarySelect(),
@@ -288,6 +289,7 @@ export class ClientsService {
             name: dto.name.trim(),
             legalName: dto.legalName.trim(),
             inn: dto.inn.trim(),
+            storesWithoutBoxes: dto.storesWithoutBoxes === true,
             ...optionalCreateClientData(dto),
             fulfillmentManagerUserId: normalizeNullableString(dto.fulfillmentManagerUserId),
           },
@@ -389,6 +391,7 @@ export class ClientsService {
       bankAccount: true,
       correspondentAccount: true,
       storagePriceRubPerLiterDay: true,
+      storesWithoutBoxes: true,
       fulfillmentManagerUserId: true,
       fulfillmentManager: {
         select: {

@@ -348,6 +348,7 @@ model Client {
   bankAccount              String?
   correspondentAccount     String?
   storagePriceRubPerLiterDay Decimal?                       @db.Decimal(12, 4)
+  storesWithoutBoxes       Boolean                        @default(false)
   fulfillmentManagerUserId String?
   status                   ClientStatus                   @default(ACTIVE)
   fulfillmentManager       User?                          @relation("ClientFulfillmentManager", fields: [fulfillmentManagerUserId], references: [id])

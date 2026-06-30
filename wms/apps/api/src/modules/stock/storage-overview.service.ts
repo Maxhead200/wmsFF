@@ -24,6 +24,7 @@ export class StorageOverviewService {
         code: true,
         name: true,
         storagePriceRubPerLiterDay: true,
+        storesWithoutBoxes: true,
       },
     });
 
@@ -128,6 +129,7 @@ export class StorageOverviewService {
         code: true,
         name: true,
         storagePriceRubPerLiterDay: true,
+        storesWithoutBoxes: true,
       },
     });
   }

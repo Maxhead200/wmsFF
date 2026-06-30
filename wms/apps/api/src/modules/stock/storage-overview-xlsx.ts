@@ -35,6 +35,7 @@ function summaryRows(overview: StorageOverviewPayload): CellValue[][] {
     ['Клиент', `${overview.client.code} · ${overview.client.name}`],
     ['Период с', formatDate(overview.periodFrom)],
     ['Период по', formatDate(overview.periodTo)],
+    ['Режим хранения', overview.client.storesWithoutBoxes ? 'Без коробов: по литражу карточек товара' : 'По коробам и литражу товара'],
     ['Тариф, ₽ / литр в сутки', overview.tariffRubPerLiterDay],
     ['SKU в отчете', overview.totals.skuCount],
     ['Единиц сейчас', overview.totals.quantity],

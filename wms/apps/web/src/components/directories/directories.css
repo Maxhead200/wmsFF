@@ -285,6 +285,22 @@
   gap: 6px;
 }
 
+.directory-checkbox-field {
+  display: flex !important;
+  min-height: 40px;
+  align-items: center;
+  gap: 8px !important;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfdff;
+  padding: 0 11px;
+}
+
+.directory-checkbox-field input {
+  width: 16px !important;
+  min-height: auto !important;
+}
+
 .directory-fields label > span:first-child,
 .directory-checkbox span {
   color: var(--muted);

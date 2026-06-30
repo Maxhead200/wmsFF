@@ -2,7 +2,7 @@ import { ClientRequestPriority, ClientRequestStatus } from '@prisma/client';
 
 export type PickInstructionAllocation = {
   balanceId: string;
-  boxId: string;
+  boxId: string | null;
   boxCode: string;
   palletId: string | null;
   palletCode: string | null;

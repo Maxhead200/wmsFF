@@ -1,5 +1,5 @@
 import { ClientKind } from '@prisma/client';
-import { IsEmail, IsEnum, IsOptional, IsString, Length, ValidateIf } from 'class-validator';
+import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString, Length, ValidateIf } from 'class-validator';
 
 export class CreateClientDto {
   @IsEnum(ClientKind)
@@ -61,6 +61,10 @@ export class CreateClientDto {
   @IsOptional()
   @IsString()
   correspondentAccount?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  storesWithoutBoxes?: boolean;
 
   @IsOptional()
   @IsString()

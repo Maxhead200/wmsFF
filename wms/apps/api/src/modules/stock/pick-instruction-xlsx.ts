@@ -25,6 +25,7 @@ function searchBoxRows(document: PickInstructionDocument): CellValue[][] {
         ...document.warehouseWholeBoxes.map((row) => row.box),
       ]
         .map((value) => value.trim())
+        .filter((value) => value !== 'БЕЗ КОРОБА')
         .filter(Boolean),
     ),
   ].sort((left, right) => left.localeCompare(right, 'ru', { numeric: true }));

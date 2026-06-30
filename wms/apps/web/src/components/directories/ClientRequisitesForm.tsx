@@ -35,6 +35,7 @@ type ClientRequisitesFormState = {
   bankBik: string;
   bankAccount: string;
   correspondentAccount: string;
+  storesWithoutBoxes: boolean;
   fulfillmentManagerUserId: string;
 };
 
@@ -54,6 +55,7 @@ const emptyForm: ClientRequisitesFormState = {
   bankBik: '',
   bankAccount: '',
   correspondentAccount: '',
+  storesWithoutBoxes: false,
   fulfillmentManagerUserId: '',
 };
 
@@ -371,6 +373,14 @@ export function ClientRequisitesForm({ session }: ClientRequisitesFormProps) {
           <span>Telegram chat_id</span>
           <input value={form.telegramChatId} onChange={(event) => setForm({ ...form, telegramChatId: event.target.value })} />
         </label>
+        <label className="directory-checkbox-field">
+          <input
+            checked={form.storesWithoutBoxes}
+            type="checkbox"
+            onChange={(event) => setForm({ ...form, storesWithoutBoxes: event.target.checked })}
+          />
+          <span>Хранение без коробов: считать по литражу карточек товара</span>
+        </label>
         <label>
           <span>Юр. адрес</span>
           <input value={form.legalAddress} onChange={(event) => setForm({ ...form, legalAddress: event.target.value })} />
@@ -441,6 +451,7 @@ function formFromClient(client: ClientSummary): ClientRequisitesFormState {
     bankBik: client.bankBik ?? '',
     bankAccount: client.bankAccount ?? '',
     correspondentAccount: client.correspondentAccount ?? '',
+    storesWithoutBoxes: client.storesWithoutBoxes,
     fulfillmentManagerUserId: client.fulfillmentManagerUserId ?? '',
   };
 }
@@ -462,6 +473,7 @@ function compactPayload(form: ClientRequisitesFormState): UpdateClientPayload {
     bankBik: form.bankBik,
     bankAccount: form.bankAccount,
     correspondentAccount: form.correspondentAccount,
+    storesWithoutBoxes: form.storesWithoutBoxes,
     fulfillmentManagerUserId: form.fulfillmentManagerUserId,
   };
 }

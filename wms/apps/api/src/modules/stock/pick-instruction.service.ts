@@ -31,6 +31,8 @@ type SkuForInstruction = NonNullable<RequestItemForInstruction['sku']>;
 type SkuCatalogForInstruction = Prisma.SkuGetPayload<typeof skuCatalogArgs>;
 type BalanceForInstruction = Prisma.StockBalanceGetPayload<typeof stockBalanceArgs>;
 
+const NO_BOX_SOURCE_CODE = 'БЕЗ КОРОБА';
+
 @Injectable()
 export class PickInstructionService {
   constructor(
@@ -57,7 +59,12 @@ export class PickInstructionService {
     const skuByBarcode = await this.resolveMissingSkusByBarcode(request);
     const rows = this.prepareRows(request, skuByBarcode);
     const auxiliary = await this.loadWarehouseAuxiliaryData(request.clientId, request.files);
-    const balances = await this.loadAvailableBalances(request.clientId, rows, auxiliary.mapping.size > 0);
+    const balances = await this.loadAvailableBalances(
+      request.clientId,
+      rows,
+      auxiliary.mapping.size > 0,
+      request.client.storesWithoutBoxes,
+    );
     const { instructionRows, boxAllocations } = this.allocateRows(rows, balances);
     const boxes = await this.buildBoxSummaries(request.clientId, boxAllocations);
     const warehousePlan = await this.buildWarehousePlan(request, rows, balances, auxiliary);
@@ -177,7 +184,12 @@ export class PickInstructionService {
     });
   }
 
-  private async loadAvailableBalances(clientId: string, rows: Array<{ skuId: string | null }>, includeAllClientBalances = false) {
+  private async loadAvailableBalances(
+    clientId: string,
+    rows: Array<{ skuId: string | null }>,
+    includeAllClientBalances = false,
+    includeBalancesWithoutBoxes = false,
+  ) {
     const skuIds = [...new Set(rows.map((row) => row.skuId).filter((skuId): skuId is string => Boolean(skuId)))];
     if (!includeAllClientBalances && skuIds.length === 0) {
       return [];
@@ -189,7 +201,7 @@ export class PickInstructionService {
         skuId: includeAllClientBalances ? undefined : { in: skuIds },
         status: StockStatus.AVAILABLE,
         quantity: { gt: 0 },
-        boxId: { not: null },
+        boxId: includeBalancesWithoutBoxes ? undefined : { not: null },
       },
       ...stockBalanceArgs,
       orderBy: [{ updatedAt: 'asc' }],
@@ -268,29 +280,36 @@ export class PickInstructionService {
           }
 
           const available = remainingByBalance.get(balance.id) ?? 0;
-          if (available <= 0 || !balance.boxId || !balance.box) {
+          if (available <= 0) {
             continue;
           }
 
+          const isWithoutBoxBalance = !balance.boxId || !balance.box;
+          const boxId = isWithoutBoxBalance ? null : balance.boxId!;
+          const boxCode = isWithoutBoxBalance ? NO_BOX_SOURCE_CODE : balance.box!.code;
           const quantity = Math.min(available, remaining);
           remainingByBalance.set(balance.id, available - quantity);
           remaining -= quantity;
           allocations.push({
             balanceId: balance.id,
-            boxId: balance.boxId,
-            boxCode: balance.box.code,
+            boxId,
+            boxCode,
             palletId: balance.palletId,
             palletCode: balance.pallet?.code ?? null,
             quantity,
           });
-          const boxAllocation = boxAllocations.get(balance.boxId) ?? {
+          if (isWithoutBoxBalance) {
+            continue;
+          }
+          const realBoxId = boxId!;
+          const boxAllocation = boxAllocations.get(realBoxId) ?? {
             box: balance,
             allocatedQuantity: 0,
             lineIds: new Set<string>(),
           };
           boxAllocation.allocatedQuantity += quantity;
           boxAllocation.lineIds.add(row.item.id);
-          boxAllocations.set(balance.boxId, boxAllocation);
+          boxAllocations.set(realBoxId, boxAllocation);
         }
       }
 
@@ -345,15 +364,16 @@ export class PickInstructionService {
     const inventoryByBox = new Map<string, WarehouseInventoryItem[]>();
 
     balances.forEach((balance, index) => {
-      if (!balance.box?.code || balance.quantity <= 0) {
+      if (balance.quantity <= 0) {
         return;
       }
       const sku = balance.sku ?? fallbackBalanceSku(balance.skuId);
+      const sourceBox = balance.box?.code ?? NO_BOX_SOURCE_CODE;
 
       const item: WarehouseInventoryItem = {
         id: balance.id || String(index),
-        box: balance.box.code,
-        pallet: balance.pallet?.code ?? auxiliary.boxToPallet.get(balance.box.code) ?? '',
+        box: sourceBox,
+        pallet: balance.pallet?.code ?? auxiliary.boxToPallet.get(sourceBox) ?? '',
         skuId: balance.skuId,
         barcode: primaryBarcodeValue(sku),
         artWarehouse: sku.internalSku || sku.article || sku.clientSku || sku.name,
@@ -386,6 +406,9 @@ export class PickInstructionService {
     };
 
     for (const [box, items] of inventoryByBox.entries()) {
+      if (box === NO_BOX_SOURCE_CODE) {
+        continue;
+      }
       const totalItems = items.reduce((sum, item) => sum + item.originalQuantity, 0);
       if (totalItems === 0) {
         continue;
@@ -456,14 +479,19 @@ export class PickInstructionService {
               decreaseRemaining(orderId, take);
               item.quantity -= take;
               const rebrandNote = relabelNote(item, demand);
-              actions.push(actionFromAssignment(item, demand, take, rebrandNote ? 'МАРК ПОСТАВКА' : 'ПОСТАВКА', rebrandNote, ''));
+              const targetBox = item.box === NO_BOX_SOURCE_CODE ? 'СОБРАТЬ В НОВЫЙ КОРОБ' : rebrandNote ? 'МАРК ПОСТАВКА' : 'ПОСТАВКА';
+              actions.push(actionFromAssignment(item, demand, take, targetBox, rebrandNote, ''));
             }
           }
         }
       }
     }
 
-    const usedBoxes = new Set(actions.filter((action) => action.sourceBox && action.targetBox !== 'БАЛАНС').map((action) => action.sourceBox));
+    const usedBoxes = new Set(
+      actions
+        .filter((action) => action.sourceBox && action.sourceBox !== NO_BOX_SOURCE_CODE && action.targetBox !== 'БАЛАНС')
+        .map((action) => action.sourceBox),
+    );
     for (const [box, items] of inventoryByBox.entries()) {
       if (!usedBoxes.has(box)) {
         continue;
@@ -495,12 +523,16 @@ export class PickInstructionService {
     }
 
     const generatedAt = new Date();
-    const usedShipmentBoxes = new Set(actions.filter((action) => action.sourceBox && action.targetBox !== 'БАЛАНС').map((action) => action.sourceBox));
+    const usedShipmentBoxes = new Set(
+      actions
+        .filter((action) => action.sourceBox && action.sourceBox !== NO_BOX_SOURCE_CODE && action.targetBox !== 'БАЛАНС')
+        .map((action) => action.sourceBox),
+    );
     const existingBalanceBoxCodes = await this.loadExistingBalanceBoxCodes(generatedAt);
     const balanceBoxBySourceBox = assignBalanceBoxCodes(actions, existingBalanceBoxCodes, generatedAt);
     const wholeBoxCities = new Map<string, Set<string>>();
     actions.forEach((action) => {
-      if (['ЦЕЛЫЙ', 'МАРК ЦЕЛЫЙ'].includes(action.targetBox)) {
+      if (action.sourceBox !== NO_BOX_SOURCE_CODE && ['ЦЕЛЫЙ', 'МАРК ЦЕЛЫЙ'].includes(action.targetBox)) {
         wholeBoxCities.set(action.sourceBox, new Set([...(wholeBoxCities.get(action.sourceBox) ?? []), action.city]));
       }
     });
@@ -613,9 +645,10 @@ const pickInstructionRequestArgs = {
     client: {
       select: {
         id: true,
-        code: true,
-        name: true,
-      },
+      code: true,
+      name: true,
+      storesWithoutBoxes: true,
+    },
     },
     items: {
       include: {
@@ -1004,6 +1037,9 @@ function buildWholeBoxes(
   const boxCities = new Map<string, Set<string>>();
   const boxHasMark = new Map<string, boolean>();
   actions.forEach((action) => {
+    if (action.sourceBox === NO_BOX_SOURCE_CODE) {
+      return;
+    }
     if (!['ЦЕЛЫЙ', 'МАРК ЦЕЛЫЙ'].includes(action.targetBox) && !balanceBoxBySourceBox.has(action.sourceBox)) {
       return;
     }
@@ -1040,7 +1076,12 @@ function buildBalanceMoves(
   boxToPallet: Map<string, string>,
 ): WarehouseBalanceMoveRow[] {
   return actions
-    .filter((action) => action.targetBox === 'БАЛАНС' && balanceBoxBySourceBox.has(action.sourceBox))
+    .filter(
+      (action) =>
+        action.sourceBox !== NO_BOX_SOURCE_CODE &&
+        action.targetBox === 'БАЛАНС' &&
+        balanceBoxBySourceBox.has(action.sourceBox),
+    )
     .map((action) => ({
       sourceBox: action.sourceBox,
       newBox: balanceBoxBySourceBox.get(action.sourceBox)!,
@@ -1075,6 +1116,7 @@ function assignBalanceBoxCodes(actions: WarehouseAction[], existingCodes: Set<st
     ...new Set(
       actions
         .filter((action) => action.targetBox === 'БАЛАНС' && action.sourceBox)
+        .filter((action) => action.sourceBox !== NO_BOX_SOURCE_CODE)
         .map((action) => action.sourceBox)
         .sort((left, right) => left.localeCompare(right, 'ru')),
     ),

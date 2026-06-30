@@ -212,6 +212,10 @@ export function StoragePanel({ session }: StoragePanelProps) {
       {overview ? (
         <>
           <div className="storage-summary">
+            <Metric
+              label="Режим"
+              value={overview.client.storesWithoutBoxes ? 'без коробов' : 'по коробам'}
+            />
             <Metric label="SKU" value={formatNumber(overview.totals.skuCount)} />
             <Metric label="Единиц" value={formatNumber(overview.totals.quantity)} />
             <Metric label="Литров сейчас" value={formatNumber(overview.totals.totalLiters)} />

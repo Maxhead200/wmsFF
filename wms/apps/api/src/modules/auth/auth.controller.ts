@@ -25,6 +25,12 @@ export class AuthController {
     return this.auth.login(dto, requestMeta(request));
   }
 
+  @Public()
+  @Get('demo-mode')
+  demoMode() {
+    return this.auth.getPublicDemoMode();
+  }
+
   @Get('me')
   @ApiBearerAuth()
   me(@CurrentUser() user: AuthUser) {

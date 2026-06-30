@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UserStatus } from '@prisma/client';
+import { DEMO_CLIENT_CODE, DEMO_MODE_SETTING_KEY, DEMO_USER_LOGIN, DEMO_USER_PASSWORD } from '../../common/demo/demo-mode';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AccessModelService } from './access-model.service';
 import { AccessTokenService } from './access-token.service';
@@ -15,6 +16,7 @@ type UserWithAccess = {
   name: string;
   passwordHash: string;
   status: UserStatus;
+  isDemo: boolean;
   clientScopes: Array<{ clientId: string; canRead: boolean; canWrite: boolean }>;
   printerScopes: Array<{ groupCode: string; canPrint: boolean; canManage: boolean }>;
   roles: Array<{
@@ -78,6 +80,10 @@ export class AuthService {
 
     if (user.status !== UserStatus.ACTIVE) {
       throw new UnauthorizedException('Пользователь заблокирован.');
+    }
+
+    if (user.isDemo && !(await this.isDemoModeEnabled())) {
+      throw new UnauthorizedException('Демо-режим сейчас выключен.');
     }
 
     const maintenance = await this.getMaintenanceMode();
@@ -175,6 +181,41 @@ export class AuthService {
       enabled: payload.enabled === true,
       message: typeof payload.message === 'string' ? payload.message : null,
     };
+  }
+
+  async getPublicDemoMode() {
+    const enabled = await this.isDemoModeEnabled();
+    if (!enabled) {
+      return { enabled: false };
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { email: DEMO_USER_LOGIN },
+      select: { id: true, status: true, isDemo: true },
+    });
+    const client = await this.prisma.client.findUnique({
+      where: { code: DEMO_CLIENT_CODE },
+      select: { id: true, name: true, isDemo: true, status: true },
+    });
+
+    if (!user?.isDemo || user.status !== UserStatus.ACTIVE || !client?.isDemo) {
+      return { enabled: false };
+    }
+
+    return {
+      enabled: true,
+      login: DEMO_USER_LOGIN,
+      password: DEMO_USER_PASSWORD,
+      clientName: client.name,
+    };
+  }
+
+  private async isDemoModeEnabled() {
+    const setting = await this.prisma.systemSetting.findUnique({
+      where: { key: DEMO_MODE_SETTING_KEY },
+    });
+    const value = setting?.value;
+    return Boolean(value && typeof value === 'object' && !Array.isArray(value) && (value as Record<string, unknown>).enabled === true);
   }
 
   private isSystemAdmin(user: UserWithAccess) {

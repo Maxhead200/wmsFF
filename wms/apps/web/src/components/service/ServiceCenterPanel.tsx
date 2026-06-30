@@ -14,6 +14,7 @@
   Send,
   Settings2,
   ShieldAlert,
+  Sparkles,
   Smartphone,
   Trash2,
   UserCog,
@@ -29,11 +30,16 @@ import {
   fetchServiceBillingServices,
   fetchServiceClientRequestCleanupPreview,
   fetchServiceClientStockCleanupPreview,
+  fetchServiceDemoMode,
   fetchServiceClientIpRules,
   fetchServiceTelegramSettings,
   fetchServiceNomenclature,
   fetchServiceOnlineSessions,
   fetchServiceOverview,
+  deleteServiceDemoMode,
+  disableServiceDemoMode,
+  enableServiceDemoMode,
+  recreateServiceDemoMode,
   createServiceClientIpRule,
   createUser,
   fetchUsers,
@@ -58,6 +64,7 @@ import {
   type ServiceClientStockCleanupPreview,
   type ServiceClientStockCleanupResult,
   type ServiceClientStockSummary,
+  type ServiceDemoMode,
   type ServiceOnlineSession,
   type ServiceOverview,
   type ServiceTelegramSettings,
@@ -73,7 +80,18 @@ type LoadState<T> = {
   error?: string;
 };
 
-type ServiceTab = 'maintenance' | 'sessions' | 'users' | 'clients' | 'stock' | 'requests' | 'nomenclature' | 'services' | 'telegram' | 'tsd';
+type ServiceTab =
+  | 'maintenance'
+  | 'demo'
+  | 'sessions'
+  | 'users'
+  | 'clients'
+  | 'stock'
+  | 'requests'
+  | 'nomenclature'
+  | 'services'
+  | 'telegram'
+  | 'tsd';
 
 type ServiceCenterPanelProps = {
   session: AuthSession;
@@ -107,6 +125,7 @@ const emptyRequestSummary: ServiceClientRequestCleanupSummary = {
 
 const tabs: Array<{ id: ServiceTab; label: string; icon: typeof Settings2 }> = [
   { id: 'maintenance', label: 'Режим', icon: Power },
+  { id: 'demo', label: 'Демо', icon: Sparkles },
   { id: 'sessions', label: 'Сессии', icon: Monitor },
   { id: 'users', label: 'Пользователи', icon: UserCog },
   { id: 'clients', label: 'Клиенты', icon: ShieldAlert },
@@ -141,6 +160,8 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
   const [ipForm, setIpForm] = useState({ ipAddress: '', comment: '' });
   const [telegram, setTelegram] = useState<LoadState<ServiceTelegramSettings | null>>({ status: 'idle', data: null });
   const [telegramForm, setTelegramForm] = useState({ enabled: false, botToken: '', fulfillmentChatIds: '', testChatId: '', testMessage: '' });
+  const [demo, setDemo] = useState<LoadState<ServiceDemoMode | null>>({ status: 'idle', data: null });
+  const [isDemoAction, setDemoAction] = useState(false);
   const [serviceForm, setServiceForm] = useState({ code: '', name: '', unit: 'SERVICE' as BillingUnit, defaultPriceRub: '' });
   const [tsdUsers, setTsdUsers] = useState<LoadState<UserSummary[]>>({ status: 'idle', data: [] });
   const [tsdUserForm, setTsdUserForm] = useState({ name: '', email: '', password: '', clientId: '' });
@@ -204,6 +225,9 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
     }
     if (activeTab === 'telegram' && telegram.status === 'idle') {
       void loadTelegramSettings();
+    }
+    if (activeTab === 'demo' && demo.status === 'idle') {
+      void loadDemoMode();
     }
     if (activeTab === 'tsd' && tsdUsers.status === 'idle') {
       void loadTsdUsers();
@@ -483,6 +507,52 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
     }
   }
 
+  async function loadDemoMode() {
+    setDemo((current) => ({ ...current, status: 'loading', error: undefined }));
+    try {
+      setDemo({ status: 'ready', data: await fetchServiceDemoMode(session.accessToken) });
+    } catch (caught) {
+      setDemo((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
+    }
+  }
+
+  async function runDemoAction(action: 'enable' | 'disable' | 'recreate' | 'delete') {
+    if (action === 'delete' && !window.confirm('Удалить демо-компанию, демо-пользователя и все демо-данные?')) {
+      return;
+    }
+    if (action === 'recreate' && !window.confirm('Пересоздать демо-данные с нуля? Текущие демо-остатки, заявки и счета будут удалены.')) {
+      return;
+    }
+
+    setDemoAction(true);
+    setActionMessage('');
+    try {
+      const next =
+        action === 'enable'
+          ? await enableServiceDemoMode(session.accessToken)
+          : action === 'disable'
+            ? await disableServiceDemoMode(session.accessToken)
+            : action === 'recreate'
+              ? await recreateServiceDemoMode(session.accessToken)
+              : await deleteServiceDemoMode(session.accessToken);
+      setDemo({ status: 'ready', data: next });
+      setActionMessage(
+        action === 'enable'
+          ? 'Демо-режим включен.'
+          : action === 'disable'
+            ? 'Демо-режим выключен.'
+            : action === 'recreate'
+              ? 'Демо-данные пересозданы.'
+              : 'Демо-данные удалены.',
+      );
+      void loadOverview();
+    } catch (caught) {
+      setDemo((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
+    } finally {
+      setDemoAction(false);
+    }
+  }
+
   async function loadTsdUsers() {
     setTsdUsers((current) => ({ ...current, status: 'loading', error: undefined }));
     try {
@@ -630,6 +700,15 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
             </button>
           </div>
         </div>
+      ) : null}
+
+      {activeTab === 'demo' ? (
+        <DemoModePanel
+          demo={demo}
+          isBusy={isDemoAction}
+          onAction={(action) => void runDemoAction(action)}
+          onRefresh={() => void loadDemoMode()}
+        />
       ) : null}
 
       {activeTab === 'sessions' ? (
@@ -795,6 +874,78 @@ function renderOverview(overview: ServiceOverview | null) {
       <Metric icon={<Database size={17} />} label="SKU" value={overview.counters.skus} />
       <Metric icon={<Database size={17} />} label="Услуги" value={overview.counters.services} />
       <Metric icon={<Database size={17} />} label="Остаток, шт" value={overview.counters.stockQuantity} />
+    </div>
+  );
+}
+
+function DemoModePanel({
+  demo,
+  isBusy,
+  onAction,
+  onRefresh,
+}: {
+  demo: LoadState<ServiceDemoMode | null>;
+  isBusy: boolean;
+  onAction: (action: 'enable' | 'disable' | 'recreate' | 'delete') => void;
+  onRefresh: () => void;
+}) {
+  const data = demo.data;
+  const summary = data?.summary;
+
+  return (
+    <div className="service-card demo-service">
+      <div className="service-card__heading">
+        <div>
+          <strong>Демо-режим клиентского кабинета</strong>
+          <span className="service-inline-note">Изолированная демо-компания не попадает в реальные счетчики и обычные списки клиентов.</span>
+        </div>
+        <button className="secondary-button" type="button" onClick={onRefresh}>
+          <RefreshCw size={16} /> Обновить
+        </button>
+      </div>
+
+      {demo.status === 'error' ? <div className="service-message service-message--error">{demo.error}</div> : null}
+
+      <div className={data?.enabled ? 'demo-service__hero demo-service__hero--active' : 'demo-service__hero'}>
+        <div className="demo-service__mark">
+          <Sparkles size={22} />
+        </div>
+        <div>
+          <p className="eyebrow">Демо-вход</p>
+          <h3>{data?.client?.name ?? 'Демо компания LOGOff'}</h3>
+          <span>{data?.enabled ? 'Включен и доступен на странице входа' : 'Выключен или еще не создан'}</span>
+        </div>
+        <div className="demo-service__credentials">
+          <span>Логин</span>
+          <strong>{data?.login ?? 'demo'}</strong>
+          <span>Пароль</span>
+          <strong>{data?.password ?? 'demo'}</strong>
+        </div>
+      </div>
+
+      <div className="service-metrics">
+        <Metric icon={<Database size={17} />} label="SKU" value={summary?.skus ?? 0} />
+        <Metric icon={<Database size={17} />} label="Остаток, шт" value={summary?.stockQuantity ?? 0} />
+        <Metric icon={<Database size={17} />} label="Коробов" value={summary?.boxes ?? 0} />
+        <Metric icon={<FileText size={17} />} label="Заявок" value={summary?.requests ?? 0} />
+        <Metric icon={<FileText size={17} />} label="Счетов" value={summary?.invoices ?? 0} />
+        <Metric icon={<Bell size={17} />} label="Уведомлений" value={summary?.notifications ?? 0} />
+      </div>
+
+      <div className="service-actions">
+        <button className="primary-button" type="button" disabled={isBusy} onClick={() => onAction('enable')}>
+          <CheckCircle2 size={16} /> Включить
+        </button>
+        <button className="secondary-button" type="button" disabled={isBusy || !data?.exists} onClick={() => onAction('disable')}>
+          <Ban size={16} /> Выключить
+        </button>
+        <button className="secondary-button" type="button" disabled={isBusy} onClick={() => onAction('recreate')}>
+          <RefreshCw size={16} /> Пересоздать
+        </button>
+        <button className="danger-button" type="button" disabled={isBusy || !data?.exists} onClick={() => onAction('delete')}>
+          <Trash2 size={16} /> Удалить демо
+        </button>
+      </div>
     </div>
   );
 }

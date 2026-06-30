@@ -1,6 +1,6 @@
-import { KeyRound, LogIn, ShieldPlus, Smartphone } from 'lucide-react';
-import { FormEvent, useState } from 'react';
-import { bootstrapAdmin, login, type AuthSession } from '../lib/api';
+import { KeyRound, LogIn, ShieldPlus, Smartphone, Sparkles } from 'lucide-react';
+import { FormEvent, useEffect, useState } from 'react';
+import { bootstrapAdmin, fetchPublicDemoMode, login, type AuthSession, type PublicDemoMode } from '../lib/api';
 
 type AuthPanelProps = {
   onSession: (session: AuthSession) => void;
@@ -16,6 +16,26 @@ export function AuthPanel({ onSession }: AuthPanelProps) {
   const [bootstrapSecret, setBootstrapSecret] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setSubmitting] = useState(false);
+  const [demoMode, setDemoMode] = useState<PublicDemoMode | null>(null);
+  const [isDemoSubmitting, setDemoSubmitting] = useState(false);
+
+  useEffect(() => {
+    let ignore = false;
+    fetchPublicDemoMode()
+      .then((mode) => {
+        if (!ignore) {
+          setDemoMode(mode);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setDemoMode({ enabled: false });
+        }
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -38,6 +58,23 @@ export function AuthPanel({ onSession }: AuthPanelProps) {
       setError(caught instanceof Error ? caught.message : 'Не удалось выполнить вход.');
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function loginDemo() {
+    if (!demoMode?.enabled || !demoMode.login || !demoMode.password) {
+      return;
+    }
+
+    setError('');
+    setDemoSubmitting(true);
+    try {
+      const session = await login({ email: demoMode.login, password: demoMode.password });
+      onSession(session);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Не удалось открыть демо-кабинет.');
+    } finally {
+      setDemoSubmitting(false);
     }
   }
 
@@ -127,6 +164,23 @@ export function AuthPanel({ onSession }: AuthPanelProps) {
             Веб-версия ТСД
           </a>
         </div>
+
+        {demoMode?.enabled ? (
+          <div className="auth-demo">
+            <div className="auth-demo__icon" aria-hidden="true">
+              <Sparkles size={18} />
+            </div>
+            <div>
+              <strong>Демо клиентского кабинета</strong>
+              <span>{demoMode.clientName ?? 'Демо компания LOGOff'}</span>
+              <small>Логин: {demoMode.login} · пароль: {demoMode.password}</small>
+            </div>
+            <button className="primary-button" type="button" disabled={isDemoSubmitting} onClick={() => void loginDemo()}>
+              <LogIn size={16} aria-hidden="true" />
+              <span>{isDemoSubmitting ? 'Открываем' : 'Войти в демо'}</span>
+            </button>
+          </div>
+        ) : null}
       </section>
     </main>
   );

@@ -71,6 +71,31 @@ export class ServiceCenterController {
     return this.serviceCenter.sendTelegramTest(dto);
   }
 
+  @Get('demo-mode')
+  getDemoMode() {
+    return this.serviceCenter.getDemoMode();
+  }
+
+  @Post('demo-mode/enable')
+  enableDemoMode(@CurrentUser() user: AuthUser) {
+    return this.serviceCenter.enableDemoMode(user);
+  }
+
+  @Post('demo-mode/disable')
+  disableDemoMode(@CurrentUser() user: AuthUser) {
+    return this.serviceCenter.disableDemoMode(user);
+  }
+
+  @Post('demo-mode/recreate')
+  recreateDemoMode(@CurrentUser() user: AuthUser) {
+    return this.serviceCenter.recreateDemoMode(user);
+  }
+
+  @Delete('demo-mode')
+  deleteDemoMode(@CurrentUser() user: AuthUser) {
+    return this.serviceCenter.deleteDemoMode(user);
+  }
+
   @Get('clients/:clientId/stock-cleanup')
   getClientStockCleanupPreview(@Param('clientId') clientId: string) {
     return this.serviceCenter.getClientStockCleanupPreview(clientId);

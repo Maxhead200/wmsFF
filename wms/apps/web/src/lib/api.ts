@@ -20,6 +20,7 @@ export type ClientSummary = {
   id: string;
   code: string;
   name: string;
+  isDemo: boolean;
   clientKind: ClientKind;
   legalName: string | null;
   inn: string | null;
@@ -1314,6 +1315,41 @@ export type ServiceMaintenanceMode = {
   updatedByUserId: string | null;
 };
 
+export type PublicDemoMode = {
+  enabled: boolean;
+  login?: string;
+  password?: string;
+  clientName?: string;
+};
+
+export type ServiceDemoMode = {
+  enabled: boolean;
+  exists: boolean;
+  login: string;
+  password: string;
+  client: (Pick<ClientSummary, 'id' | 'code' | 'name' | 'status' | 'isDemo'> & { createdAt: string }) | null;
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    status: string;
+    isDemo: boolean;
+    createdAt: string;
+  } | null;
+  summary: {
+    skus: number;
+    stockRows: number;
+    stockQuantity: number;
+    boxes: number;
+    requests: number;
+    invoices: number;
+    invoiceTotalRub: string | number;
+    notifications: number;
+  } | null;
+  updatedAt: string | null;
+  updatedByUserId: string | null;
+};
+
 export type ServiceOverview = {
   maintenance: ServiceMaintenanceMode;
   counters: {
@@ -2335,6 +2371,10 @@ export async function login(payload: LoginPayload) {
   });
 }
 
+export async function fetchPublicDemoMode() {
+  return request<PublicDemoMode>('/auth/demo-mode');
+}
+
 export async function bootstrapAdmin(payload: BootstrapPayload) {
   return request<AuthSession>('/auth/bootstrap', {
     method: 'POST',
@@ -2902,6 +2942,40 @@ export async function updateServiceMaintenance(
 
 export async function fetchServiceTelegramSettings(accessToken: string) {
   return request<ServiceTelegramSettings>('/service/telegram', {
+    accessToken,
+  });
+}
+
+export async function fetchServiceDemoMode(accessToken: string) {
+  return request<ServiceDemoMode>('/service/demo-mode', {
+    accessToken,
+  });
+}
+
+export async function enableServiceDemoMode(accessToken: string) {
+  return request<ServiceDemoMode>('/service/demo-mode/enable', {
+    method: 'POST',
+    accessToken,
+  });
+}
+
+export async function disableServiceDemoMode(accessToken: string) {
+  return request<ServiceDemoMode>('/service/demo-mode/disable', {
+    method: 'POST',
+    accessToken,
+  });
+}
+
+export async function recreateServiceDemoMode(accessToken: string) {
+  return request<ServiceDemoMode>('/service/demo-mode/recreate', {
+    method: 'POST',
+    accessToken,
+  });
+}
+
+export async function deleteServiceDemoMode(accessToken: string) {
+  return request<ServiceDemoMode>('/service/demo-mode', {
+    method: 'DELETE',
     accessToken,
   });
 }

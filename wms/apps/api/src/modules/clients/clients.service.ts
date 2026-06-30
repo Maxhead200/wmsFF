@@ -31,9 +31,11 @@ export class ClientsService {
   ) {}
 
   list(user: AuthUser) {
+    const clientFilter = this.clientScopes.resolveClientFilter(user);
     return this.prisma.client.findMany({
       where: {
-        id: this.clientScopes.resolveClientFilter(user),
+        id: clientFilter,
+        ...(clientFilter ? {} : { isDemo: false }),
       },
       orderBy: { name: 'asc' },
       select: this.clientSummarySelect(),
@@ -392,6 +394,7 @@ export class ClientsService {
       correspondentAccount: true,
       storagePriceRubPerLiterDay: true,
       storesWithoutBoxes: true,
+      isDemo: true,
       fulfillmentManagerUserId: true,
       fulfillmentManager: {
         select: {

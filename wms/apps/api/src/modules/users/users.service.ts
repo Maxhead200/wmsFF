@@ -20,6 +20,7 @@ export class UsersService {
 
   list() {
     return this.prisma.user.findMany({
+      where: { isDemo: false },
       orderBy: { createdAt: 'desc' },
       select: this.userSummarySelect(),
     });

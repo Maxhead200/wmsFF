@@ -234,6 +234,7 @@ model User {
   passwordHash                   String
   name                           String
   status                         UserStatus                     @default(ACTIVE)
+  isDemo                         Boolean                        @default(false)
   roles                          UserRole[]
   clientScopes                   UserClient[]
   printerScopes                  UserPrinterGroup[]
@@ -333,6 +334,7 @@ model Client {
   id                       String                         @id @default(uuid())
   code                     String                         @unique
   name                     String
+  isDemo                   Boolean                        @default(false)
   clientKind               ClientKind                     @default(LEGAL_ENTITY)
   legalName                String?
   inn                      String?

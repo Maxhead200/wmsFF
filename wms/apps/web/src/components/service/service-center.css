@@ -24,12 +24,70 @@
 
 .service-tabs {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
   gap: 4px;
   padding: 4px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #eef2f7;
+}
+
+.demo-service__hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(150px, auto);
+  gap: 14px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 14px;
+}
+
+.demo-service__hero--active {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.demo-service__mark {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--red-dark);
+  color: #ffffff;
+}
+
+.demo-service__hero h3 {
+  margin: 2px 0 0;
+  font-size: 20px;
+}
+
+.demo-service__hero span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.demo-service__credentials {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 4px 10px;
+  align-items: center;
+  border-left: 1px solid var(--line);
+  padding-left: 14px;
+}
+
+.demo-service__credentials span {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.demo-service__credentials strong {
+  font-size: 14px;
 }
 
 .service-tabs button {

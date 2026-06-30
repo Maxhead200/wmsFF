@@ -12,8 +12,8 @@ android {
         applicationId = "pro.logoff.wms.tsd"
         minSdk = 26
         targetSdk = 35
-        versionCode = 16
-        versionName = "0.1.15"
+        versionCode = 17
+        versionName = "0.1.16"
     }
 
     compileOptions {
@@ -32,5 +32,6 @@ dependencies {
     implementation("androidx.room:room-ktx:2.7.1")
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-moshi:2.11.0")
+    implementation("com.squareup.moshi:moshi-kotlin:1.15.2")
     ksp("androidx.room:room-compiler:2.7.1")
 }

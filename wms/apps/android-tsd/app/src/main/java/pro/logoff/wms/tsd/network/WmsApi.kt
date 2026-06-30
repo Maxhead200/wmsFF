@@ -1,5 +1,7 @@
 package pro.logoff.wms.tsd.network
 
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
@@ -111,7 +113,7 @@ object WmsApiFactory {
     fun create(baseUrl: String): WmsApi =
         Retrofit.Builder()
             .baseUrl(normalizeBaseUrl(baseUrl))
-            .addConverterFactory(MoshiConverterFactory.create())
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()
             .create(WmsApi::class.java)
 
@@ -123,4 +125,7 @@ object WmsApiFactory {
         }
 
     private const val DEFAULT_BASE_URL = "https://wms.logoff.pro/"
+    private val moshi = Moshi.Builder()
+        .add(KotlinJsonAdapterFactory())
+        .build()
 }

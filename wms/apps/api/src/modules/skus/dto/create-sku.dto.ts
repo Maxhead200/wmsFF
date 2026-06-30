@@ -1,4 +1,4 @@
-import { ArrayMaxSize, IsArray, IsBoolean, IsInt, IsNumber, IsOptional, IsString, Length, Min } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsInt, IsNumber, IsOptional, IsString, Length, Min } from 'class-validator';
 
 export class CreateSkuDto {
   @IsString()
@@ -65,6 +65,10 @@ export class CreateSkuDto {
   @IsNumber()
   @Min(0.01)
   heightCm?: number;
+
+  @IsOptional()
+  @IsDateString()
+  shelfLifeUntil?: string | null;
 
   @IsOptional()
   @IsBoolean()

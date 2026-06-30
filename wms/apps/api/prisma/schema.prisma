@@ -225,6 +225,7 @@ enum ClientNotificationEvent {
   BILLING_INVOICE_STATUS_CHANGED
   BILLING_PAYMENT_RECORDED
   LOGISTICS_DELIVERY_STATUS_CHANGED
+  SKU_EXPIRATION
   MANUAL
 }
 
@@ -482,6 +483,7 @@ model Sku {
   heightCm           Decimal?                   @db.Decimal(10, 2)
   volumeLiters       Decimal?                   @db.Decimal(12, 3)
   volumeSource       VolumeSource               @default(CALCULATED)
+  shelfLifeUntil     DateTime?
   needsChestnyZnak   Boolean                    @default(false)
   isUnmarked         Boolean                    @default(false)
   needsLabel         Boolean                    @default(false)
@@ -502,6 +504,7 @@ model Sku {
   updatedAt          DateTime                   @updatedAt
 
   @@unique([clientId, internalSku])
+  @@index([clientId, shelfLifeUntil])
   @@index([clientId, marketplace, marketplaceProductId])
   @@index([clientId, marketplace, marketplaceOfferId])
 }

@@ -39,6 +39,10 @@ const preferenceLabels: Record<ClientNotificationEvent, { title: string; caption
     title: 'Доставка',
     caption: 'Статусы доставок и рейсов',
   },
+  SKU_EXPIRATION: {
+    title: 'Сроки годности',
+    caption: 'Товары, у которых срок годности истек или скоро закончится',
+  },
   MANUAL: {
     title: 'Сообщения',
     caption: 'Сообщения от менеджера',
@@ -52,6 +56,7 @@ const preferenceOrder: ClientNotificationEvent[] = [
   'BILLING_INVOICE_STATUS_CHANGED',
   'BILLING_PAYMENT_RECORDED',
   'LOGISTICS_DELIVERY_STATUS_CHANGED',
+  'SKU_EXPIRATION',
   'MANUAL',
 ];
 

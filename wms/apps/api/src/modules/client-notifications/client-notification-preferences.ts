@@ -7,6 +7,7 @@ export const clientNotificationEvents = [
   ClientNotificationEvent.BILLING_INVOICE_STATUS_CHANGED,
   ClientNotificationEvent.BILLING_PAYMENT_RECORDED,
   ClientNotificationEvent.LOGISTICS_DELIVERY_STATUS_CHANGED,
+  ClientNotificationEvent.SKU_EXPIRATION,
   ClientNotificationEvent.MANUAL,
 ] as const;
 

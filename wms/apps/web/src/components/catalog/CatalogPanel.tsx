@@ -7,6 +7,7 @@ import {
   fetchMarketplaceConnections,
   fetchSku,
   fetchSkus,
+  notifySkuExpirationAlerts,
   syncMarketplaceProducts,
   updateSku,
   type AuthSession,
@@ -42,6 +43,7 @@ type SkuForm = {
   lengthCm: string;
   widthCm: string;
   heightCm: string;
+  shelfLifeUntil: string;
   needsChestnyZnak: boolean;
   isUnmarked: boolean;
   needsLabel: boolean;
@@ -75,6 +77,7 @@ const emptySkuForm: SkuForm = {
   lengthCm: '',
   widthCm: '',
   heightCm: '',
+  shelfLifeUntil: '',
   needsChestnyZnak: false,
   isUnmarked: false,
   needsLabel: false,
@@ -102,6 +105,7 @@ export function CatalogPanel({ session }: CatalogPanelProps) {
   const [manualForm, setManualForm] = useState<ManualSkuForm>(emptyManualSkuForm);
   const [isManualFormOpen, setManualFormOpen] = useState(false);
   const [isCreatingSku, setCreatingSku] = useState(false);
+  const [isNotifyingExpiration, setNotifyingExpiration] = useState(false);
   const [isEditing, setEditing] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [syncingIds, setSyncingIds] = useState<string[]>([]);
@@ -295,6 +299,25 @@ export function CatalogPanel({ session }: CatalogPanelProps) {
     }
   }
 
+  async function notifyExpiration() {
+    setNotifyingExpiration(true);
+    setError('');
+    setMessage('');
+    try {
+      const result = await notifySkuExpirationAlerts(session.accessToken, {
+        clientId: selectedClientId || undefined,
+        days: 14,
+      });
+      setMessage(
+        `Проверено товаров: ${result.checked}. Клиентов: ${result.clients}. Создано уведомлений: ${result.notificationsCreated}.`,
+      );
+    } catch (caught) {
+      setError(errorMessage(caught, 'Не удалось отправить уведомления по срокам годности.'));
+    } finally {
+      setNotifyingExpiration(false);
+    }
+  }
+
   return (
     <section className="catalog-panel" aria-label="Каталог товаров">
       <div className="section-heading catalog-panel__heading">
@@ -302,6 +325,12 @@ export function CatalogPanel({ session }: CatalogPanelProps) {
           <p className="eyebrow">Каталог</p>
           <h2>Общая база товаров</h2>
         </div>
+        {canWrite ? (
+          <button className="icon-text-button" type="button" onClick={() => void notifyExpiration()} disabled={isNotifyingExpiration}>
+            <RefreshCw size={16} aria-hidden="true" />
+            <span>{isNotifyingExpiration ? 'Проверяю сроки' : 'Оповестить по срокам'}</span>
+          </button>
+        ) : null}
         <button className="icon-button" type="button" onClick={() => setReloadKey((current) => current + 1)} title="Обновить каталог">
           <RefreshCw size={18} aria-hidden="true" />
         </button>
@@ -416,6 +445,7 @@ export function CatalogPanel({ session }: CatalogPanelProps) {
                 <TextField disabled={false} label="Длина, см" value={manualForm.lengthCm} onChange={(value) => setManualForm({ ...manualForm, lengthCm: value })} />
                 <TextField disabled={false} label="Ширина, см" value={manualForm.widthCm} onChange={(value) => setManualForm({ ...manualForm, widthCm: value })} />
                 <TextField disabled={false} label="Высота, см" value={manualForm.heightCm} onChange={(value) => setManualForm({ ...manualForm, heightCm: value })} />
+                <DateField disabled={false} label="Срок годности" value={manualForm.shelfLifeUntil} onChange={(value) => setManualForm({ ...manualForm, shelfLifeUntil: value })} />
               </div>
               <TextAreaField disabled={false} label="Фото URL" value={manualForm.photoUrls} onChange={(value) => setManualForm({ ...manualForm, photoUrls: value })} placeholder="Одна ссылка на фото в строке" />
               <div className="catalog-card-form__checks">
@@ -446,6 +476,7 @@ export function CatalogPanel({ session }: CatalogPanelProps) {
               <th>Штрихкод</th>
               <th>Габариты</th>
               <th>Литраж</th>
+              <th>Срок</th>
               <th>Признаки</th>
             </tr>
           </thead>
@@ -467,12 +498,13 @@ export function CatalogPanel({ session }: CatalogPanelProps) {
                 <td>{primaryBarcode(sku) || '-'}</td>
                 <td>{formatDimensions(sku)}</td>
                 <td>{formatNumber(sku.volumeLiters, 'л')}</td>
+                <td><ExpirationBadge sku={sku} /></td>
                 <td>{skuFlags(sku).join(', ') || '-'}</td>
               </tr>
             ))}
             {skus.length === 0 ? (
               <tr>
-                <td colSpan={8}>{skuState === 'loading' ? 'Загрузка каталога...' : 'Товары не найдены'}</td>
+                <td colSpan={9}>{skuState === 'loading' ? 'Загрузка каталога...' : 'Товары не найдены'}</td>
               </tr>
             ) : null}
           </tbody>
@@ -559,6 +591,7 @@ function SkuModal({
           </aside>
 
           <form className="catalog-card-form" onSubmit={onSave}>
+            <ExpirationNotice sku={sku} />
             <div className="catalog-card-form__grid">
               <TextField disabled={!isEditing} label="Название" value={form.name} onChange={(value) => onChange({ ...form, name: value })} />
               <TextField disabled={!isEditing} label="Внутренний SKU" value={form.internalSku} onChange={(value) => onChange({ ...form, internalSku: value })} />
@@ -573,6 +606,7 @@ function SkuModal({
               <TextField disabled={!isEditing} label="Длина, см" value={form.lengthCm} onChange={(value) => onChange({ ...form, lengthCm: value })} />
               <TextField disabled={!isEditing} label="Ширина, см" value={form.widthCm} onChange={(value) => onChange({ ...form, widthCm: value })} />
               <TextField disabled={!isEditing} label="Высота, см" value={form.heightCm} onChange={(value) => onChange({ ...form, heightCm: value })} />
+              <DateField disabled={!isEditing} label="Срок годности" value={form.shelfLifeUntil} onChange={(value) => onChange({ ...form, shelfLifeUntil: value })} />
             </div>
             <TextAreaField disabled={!isEditing} label="Фото URL" value={form.photoUrls} onChange={(value) => onChange({ ...form, photoUrls: value })} placeholder="Одна ссылка на фото в строке" />
 
@@ -615,6 +649,25 @@ function TextField({
     <label>
       <span>{label}</span>
       <input disabled={disabled} required={required} value={value} onChange={(event) => onChange(event.target.value)} />
+    </label>
+  );
+}
+
+function DateField({
+  disabled,
+  label,
+  onChange,
+  value,
+}: {
+  disabled: boolean;
+  label: string;
+  onChange: (value: string) => void;
+  value: string;
+}) {
+  return (
+    <label>
+      <span>{label}</span>
+      <input disabled={disabled} type="date" value={value} onChange={(event) => onChange(event.target.value)} />
     </label>
   );
 }
@@ -672,6 +725,34 @@ function SkuPhoto({ large = false, sku }: { large?: boolean; sku: SkuSummary }) 
   return <img className={large ? 'catalog-photo catalog-photo--large' : 'catalog-photo'} alt={sku.name} src={photo} loading={large ? 'eager' : 'lazy'} />;
 }
 
+function ExpirationBadge({ sku }: { sku: SkuSummary }) {
+  const status = sku.shelfLifeStatus?.status ?? 'NONE';
+  return (
+    <span className={`catalog-expiration catalog-expiration--${status.toLowerCase().replace('_', '-')}`}>
+      {sku.shelfLifeStatus?.label ?? 'Срок не указан'}
+    </span>
+  );
+}
+
+function ExpirationNotice({ sku }: { sku: SkuSummary }) {
+  const status = sku.shelfLifeStatus?.status ?? 'NONE';
+  if (status === 'NONE') {
+    return (
+      <div className="catalog-expiration-notice catalog-expiration-notice--none">
+        <strong>Срок годности не указан</strong>
+        <span>Заполните дату, если товар имеет ограниченный срок реализации.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`catalog-expiration-notice catalog-expiration-notice--${status.toLowerCase().replace('_', '-')}`}>
+      <strong>{sku.shelfLifeStatus.label}</strong>
+      <span>{status === 'OK' ? 'Контроль срока включен.' : 'Товар помечен для контроля и уведомлений.'}</span>
+    </div>
+  );
+}
+
 function formFromSku(sku: SkuDetail): SkuForm {
   return {
     internalSku: sku.internalSku,
@@ -688,6 +769,7 @@ function formFromSku(sku: SkuDetail): SkuForm {
     lengthCm: valueToText(sku.lengthCm),
     widthCm: valueToText(sku.widthCm),
     heightCm: valueToText(sku.heightCm),
+    shelfLifeUntil: dateInputValue(sku.shelfLifeUntil),
     needsChestnyZnak: sku.needsChestnyZnak,
     isUnmarked: sku.isUnmarked,
     needsLabel: sku.needsLabel,
@@ -711,6 +793,7 @@ function payloadFromForm(form: SkuForm): UpdateSkuPayload {
     lengthCm: parseOptionalNumber(form.lengthCm),
     widthCm: parseOptionalNumber(form.widthCm),
     heightCm: parseOptionalNumber(form.heightCm),
+    shelfLifeUntil: form.shelfLifeUntil || null,
     needsChestnyZnak: form.needsChestnyZnak,
     isUnmarked: form.isUnmarked,
     needsLabel: form.needsLabel,
@@ -735,6 +818,7 @@ function payloadFromManualForm(form: ManualSkuForm): CreateSkuPayload {
     lengthCm: parseOptionalNumber(form.lengthCm),
     widthCm: parseOptionalNumber(form.widthCm),
     heightCm: parseOptionalNumber(form.heightCm),
+    shelfLifeUntil: form.shelfLifeUntil || undefined,
     needsChestnyZnak: form.needsChestnyZnak,
     isUnmarked: form.isUnmarked,
     needsLabel: form.needsLabel,
@@ -780,6 +864,10 @@ function skuFlags(sku: SkuSummary) {
 
 function valueToText(value: string | number | null) {
   return value === null || value === undefined ? '' : String(value);
+}
+
+function dateInputValue(value: string | null) {
+  return value ? value.slice(0, 10) : '';
 }
 
 function parseOptionalNumber(value: string) {

@@ -33,6 +33,7 @@ export function ProductCardModal({ sku, onClose }: ProductCardModalProps) {
           </aside>
 
           <div className="catalog-readonly-card">
+            <ExpirationNotice sku={sku} />
             <dl className="catalog-readonly-facts">
               <Fact label="Внутренний SKU" value={sku.internalSku} />
               <Fact label="SKU клиента" value={sku.clientSku} />
@@ -45,6 +46,7 @@ export function ProductCardModal({ sku, onClose }: ProductCardModalProps) {
               <Fact label="Габариты" value={formatDimensions(sku)} />
               <Fact label="Вес" value={formatNumber(sku.weightGrams, 'г')} />
               <Fact label="Литраж" value={formatNumber(sku.volumeLiters, 'л')} />
+              <Fact label="Срок годности" value={sku.shelfLifeUntil ? formatDate(sku.shelfLifeUntil) : null} />
               <Fact label="Маркетплейс" value={sku.marketplace ?? 'WMS'} />
             </dl>
 
@@ -110,6 +112,25 @@ function Fact({ label, value }: { label: string; value: unknown }) {
   );
 }
 
+function ExpirationNotice({ sku }: { sku: SkuSummary }) {
+  const status = sku.shelfLifeStatus?.status ?? 'NONE';
+  if (status === 'NONE') {
+    return (
+      <div className="catalog-expiration-notice catalog-expiration-notice--none">
+        <strong>Срок годности не указан</strong>
+        <span>Заполните дату в каталоге, если товар имеет ограниченный срок реализации.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`catalog-expiration-notice catalog-expiration-notice--${status.toLowerCase().replace('_', '-')}`}>
+      <strong>{sku.shelfLifeStatus.label}</strong>
+      <span>{status === 'OK' ? 'Контроль срока включен.' : 'Товар помечен для контроля и уведомлений.'}</span>
+    </div>
+  );
+}
+
 function primaryBarcode(sku: SkuSummary) {
   return sku.barcodes.find((barcode) => barcode.isPrimary)?.value ?? sku.barcodes[0]?.value ?? '';
 }
@@ -128,6 +149,11 @@ function formatNumber(value: string | number | null, suffix: string) {
   }
 
   return `${value} ${suffix}`;
+}
+
+function formatDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('ru-RU');
 }
 
 function skuFlags(sku: SkuSummary) {

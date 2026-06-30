@@ -82,6 +82,7 @@ export type ClientNotificationEvent =
   | 'BILLING_INVOICE_STATUS_CHANGED'
   | 'BILLING_PAYMENT_RECORDED'
   | 'LOGISTICS_DELIVERY_STATUS_CHANGED'
+  | 'SKU_EXPIRATION'
   | 'MANUAL';
 
 export type BillingUnit = 'SERVICE' | 'PIECE' | 'BOX' | 'PALLET' | 'LITER' | 'LITER_DAY' | 'DAY' | 'HOUR';
@@ -1528,6 +1529,13 @@ export type SkuSummary = {
   heightCm: string | number | null;
   volumeLiters: string | number | null;
   volumeSource: string;
+  shelfLifeUntil: string | null;
+  shelfLifeStatus: {
+    status: 'NONE' | 'OK' | 'ENDING_SOON' | 'EXPIRED';
+    date: string | null;
+    daysLeft: number | null;
+    label: string;
+  };
   needsChestnyZnak: boolean;
   isUnmarked: boolean;
   needsLabel: boolean;
@@ -1581,6 +1589,7 @@ export type CreateSkuPayload = {
   lengthCm?: number;
   widthCm?: number;
   heightCm?: number;
+  shelfLifeUntil?: string | null;
   needsChestnyZnak?: boolean;
   isUnmarked?: boolean;
   needsLabel?: boolean;
@@ -2917,6 +2926,16 @@ export async function updateSku(accessToken: string, skuId: string, payload: Upd
 export async function deleteSku(accessToken: string, skuId: string) {
   return request<{ id: string; internalSku: string; name: string; deleted: true }>(`/skus/${skuId}`, {
     method: 'DELETE',
+    accessToken,
+  });
+}
+
+export async function notifySkuExpirationAlerts(accessToken: string, filter: { clientId?: string; days?: number } = {}) {
+  return request<{ checked: number; clients: number; notificationsCreated: number }>(withQuery('/skus/expiration-alerts/notify', {
+    clientId: filter.clientId,
+    days: filter.days === undefined ? undefined : String(filter.days),
+  }), {
+    method: 'POST',
     accessToken,
   });
 }

@@ -65,6 +65,16 @@ export class SkusController {
     return this.skus.importArticleMappingsWorkbook(clientId, file, user);
   }
 
+  @Post('expiration-alerts/notify')
+  @RequirePermissions('skus:write')
+  notifyExpirationAlerts(
+    @CurrentUser() user: AuthUser,
+    @Query('clientId') clientId?: string,
+    @Query('days') days?: string,
+  ) {
+    return this.skus.notifyExpirationAlerts({ clientId, days: days ? Number(days) : undefined }, user);
+  }
+
   @Get(':id')
   get(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.skus.get(id, user);

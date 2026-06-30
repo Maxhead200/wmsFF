@@ -1,9 +1,11 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { BadRequestException, Injectable, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { ClientNotificationEvent, ClientNotificationSeverity, Prisma } from '@prisma/client';
 import * as XLSX from 'xlsx';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { TelegramNotificationsService } from '../../common/telegram/telegram-notifications.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
+import { isClientNotificationEnabled } from '../client-notifications/client-notification-preferences';
 import { VolumeService } from '../stock/volume.service';
 import { CreateArticleMappingDto } from './dto/create-article-mapping.dto';
 import { CreateNomenclatureItemDto } from './dto/create-nomenclature-item.dto';
@@ -15,13 +17,31 @@ import {
   type SheetMatrix,
 } from './nomenclature-xlsx.parser';
 
+const EXPIRATION_WARNING_DAYS = 14;
+
 @Injectable()
-export class SkusService {
+export class SkusService implements OnModuleInit, OnModuleDestroy {
+  private expirationTimer: ReturnType<typeof setInterval> | null = null;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly clientScopes: ClientScopeService,
     private readonly volumes: VolumeService,
+    private readonly telegram: TelegramNotificationsService,
   ) {}
+
+  onModuleInit() {
+    this.expirationTimer = setInterval(() => {
+      void this.notifyExpirationAlertsInternal(undefined, EXPIRATION_WARNING_DAYS).catch(() => undefined);
+    }, 24 * 60 * 60 * 1000);
+  }
+
+  onModuleDestroy() {
+    if (this.expirationTimer) {
+      clearInterval(this.expirationTimer);
+      this.expirationTimer = null;
+    }
+  }
 
   async list(filter: { clientId?: string; search?: string }, user: AuthUser) {
     const where: Prisma.SkuWhereInput = {
@@ -97,6 +117,7 @@ export class SkusService {
             lengthCm: dto.lengthCm,
             widthCm: dto.widthCm,
             heightCm: dto.heightCm,
+            shelfLifeUntil: parseShelfLifeUntil(dto.shelfLifeUntil),
             volumeLiters: volume?.liters,
             volumeSource: volume ? 'CALCULATED' : 'MANUAL',
             needsChestnyZnak: dto.needsChestnyZnak ?? false,
@@ -545,6 +566,7 @@ export class SkusService {
       lengthCm: Prisma.Decimal | null;
       widthCm: Prisma.Decimal | null;
       heightCm: Prisma.Decimal | null;
+      shelfLifeUntil: Date | null;
       needsChestnyZnak: boolean;
       isUnmarked: boolean;
       needsLabel: boolean;
@@ -577,6 +599,7 @@ export class SkusService {
       ...(dto.lengthCm === undefined ? {} : { lengthCm: dto.lengthCm ?? null }),
       ...(dto.widthCm === undefined ? {} : { widthCm: dto.widthCm ?? null }),
       ...(dto.heightCm === undefined ? {} : { heightCm: dto.heightCm ?? null }),
+      ...(dto.shelfLifeUntil === undefined ? {} : { shelfLifeUntil: parseShelfLifeUntil(dto.shelfLifeUntil) }),
       ...(volume ? { volumeLiters: volume.liters, volumeSource: 'CALCULATED' } : {}),
       ...(dto.needsChestnyZnak === undefined ? {} : { needsChestnyZnak: dto.needsChestnyZnak }),
       ...(dto.isUnmarked === undefined ? {} : { isUnmarked: dto.isUnmarked }),
@@ -596,6 +619,108 @@ export class SkusService {
       widthCm: dto.widthCm,
       heightCm: dto.heightCm,
     });
+  }
+
+  async notifyExpirationAlerts(filter: { clientId?: string; days?: number }, user: AuthUser) {
+    const days = clampExpirationDays(filter.days);
+    const whereClientId = this.clientScopes.resolveClientFilter(user, filter.clientId);
+
+    return this.notifyExpirationAlertsInternal(whereClientId, days, user.id);
+  }
+
+  private async notifyExpirationAlertsInternal(
+    whereClientId: string | { in: string[] } | undefined,
+    days = EXPIRATION_WARNING_DAYS,
+    createdByUserId?: string | null,
+  ) {
+    const now = new Date();
+    const threshold = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+    const skus = await this.prisma.sku.findMany({
+      where: {
+        clientId: whereClientId,
+        shelfLifeUntil: {
+          lte: threshold,
+        },
+      },
+      include: {
+        client: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        balances: {
+          select: {
+            quantity: true,
+          },
+        },
+        barcodes: true,
+      },
+      orderBy: [{ client: { name: 'asc' } }, { shelfLifeUntil: 'asc' }],
+    });
+
+    const activeSkus = skus.filter((sku) => sku.shelfLifeUntil && sku.balances.reduce((sum, balance) => sum + balance.quantity, 0) > 0);
+    const byClient = new Map<string, typeof activeSkus>();
+    for (const sku of activeSkus) {
+      const rows = byClient.get(sku.clientId) ?? [];
+      rows.push(sku);
+      byClient.set(sku.clientId, rows);
+    }
+
+    const created: string[] = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    for (const [clientId, rows] of byClient.entries()) {
+      if (!(await isClientNotificationEnabled(this.prisma, clientId, ClientNotificationEvent.SKU_EXPIRATION))) {
+        continue;
+      }
+
+      const expired = rows.filter((sku) => expirationInfo(sku.shelfLifeUntil).status === 'EXPIRED');
+      const ending = rows.filter((sku) => expirationInfo(sku.shelfLifeUntil).status === 'ENDING_SOON');
+      const title = expired.length > 0 ? 'Есть товары с истекшим сроком годности' : 'Подходит срок годности товаров';
+      const body = [
+        `Клиент: ${rows[0]?.client.name ?? '-'}`,
+        `Истек срок: ${expired.length}`,
+        `Заканчивается за ${days} дней: ${ending.length}`,
+        ...rows.slice(0, 12).map((sku) => {
+          const info = expirationInfo(sku.shelfLifeUntil);
+          const quantity = sku.balances.reduce((sum, balance) => sum + balance.quantity, 0);
+          return `${sku.name} (${primaryBarcodeValue(sku.barcodes) || sku.internalSku}) - ${formatDate(info.date)}; остаток ${quantity} шт.`;
+        }),
+        rows.length > 12 ? `Еще позиций: ${rows.length - 12}` : '',
+      ].filter(Boolean).join('\n');
+
+      const alreadySent = await this.prisma.clientNotification.findFirst({
+        where: {
+          clientId,
+          title,
+          createdAt: { gte: today },
+        },
+        select: { id: true },
+      });
+      if (alreadySent) {
+        continue;
+      }
+
+      const notification = await this.prisma.clientNotification.create({
+        data: {
+          clientId,
+          title,
+          body,
+          severity: expired.length > 0 ? ClientNotificationSeverity.ERROR : ClientNotificationSeverity.WARNING,
+          createdByUserId: createdByUserId ?? undefined,
+        },
+      });
+      created.push(notification.id);
+      void this.telegram.notifyClientNotification(notification.id);
+    }
+
+    return {
+      checked: activeSkus.length,
+      clients: byClient.size,
+      notificationsCreated: created.length,
+    };
   }
 }
 
@@ -628,11 +753,72 @@ function mergeManualPhotos(payload: Prisma.JsonValue | null, photoUrls?: string[
   return { ...base, manualPhotos };
 }
 
-function enrichSkuMarketplaceData<T extends { marketplacePayload: Prisma.JsonValue | null }>(sku: T) {
+function enrichSkuMarketplaceData<T extends { marketplacePayload: Prisma.JsonValue | null; shelfLifeUntil?: Date | null }>(sku: T) {
   return {
     ...sku,
+    shelfLifeStatus: expirationInfo(sku.shelfLifeUntil),
     marketplacePhotos: extractMarketplacePhotos(sku.marketplacePayload),
     marketplaceCharacteristics: extractMarketplaceCharacteristics(sku.marketplacePayload),
+  };
+}
+
+function parseShelfLifeUntil(value?: string | null) {
+  if (value === null) {
+    return null;
+  }
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const dateOnly = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnly) {
+    return new Date(Date.UTC(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]), 23, 59, 59, 999));
+  }
+  const date = new Date(trimmed);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function expirationInfo(value?: Date | string | null) {
+  if (!value) {
+    return {
+      status: 'NONE',
+      date: null,
+      daysLeft: null,
+      label: 'Срок годности не указан',
+    };
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return {
+      status: 'NONE',
+      date: null,
+      daysLeft: null,
+      label: 'Срок годности не указан',
+    };
+  }
+  const now = new Date();
+  const daysLeft = Math.ceil((endOfDay(date).getTime() - startOfDay(now).getTime()) / (24 * 60 * 60 * 1000));
+  if (daysLeft < 0) {
+    return {
+      status: 'EXPIRED',
+      date: date.toISOString(),
+      daysLeft,
+      label: 'Срок годности истек',
+    };
+  }
+  if (daysLeft <= EXPIRATION_WARNING_DAYS) {
+    return {
+      status: 'ENDING_SOON',
+      date: date.toISOString(),
+      daysLeft,
+      label: `Срок заканчивается через ${daysLeft} дн.`,
+    };
+  }
+  return {
+    status: 'OK',
+    date: date.toISOString(),
+    daysLeft,
+    label: `Срок годности до ${formatDate(date)}`,
   };
 }
 
@@ -775,6 +961,40 @@ function looksLikeImageUrl(value: string) {
 
 function uniqueValues(values: string[]) {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+}
+
+function primaryBarcodeValue(barcodes: Array<{ value: string; isPrimary: boolean }>) {
+  return barcodes.find((barcode) => barcode.isPrimary)?.value ?? barcodes[0]?.value ?? '';
+}
+
+function clampExpirationDays(value?: number) {
+  if (!Number.isFinite(value)) {
+    return EXPIRATION_WARNING_DAYS;
+  }
+  return Math.max(1, Math.min(180, Math.round(Number(value))));
+}
+
+function startOfDay(value: Date) {
+  const date = new Date(value);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function endOfDay(value: Date) {
+  const date = new Date(value);
+  date.setHours(23, 59, 59, 999);
+  return date;
+}
+
+function formatDate(value: Date | string | null) {
+  if (!value) {
+    return '-';
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '-';
+  }
+  return date.toLocaleDateString('ru-RU');
 }
 
 function decimalToNumber(value: Prisma.Decimal | null) {

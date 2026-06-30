@@ -7,6 +7,7 @@ type BillingInvoicesTableProps = {
   canWrite: boolean;
   onOpenDocument?: (invoice: BillingInvoiceSummary, kind: 'invoice' | 'act') => void;
   onDownloadPdf?: (invoice: BillingInvoiceSummary, kind: 'invoice' | 'act') => void;
+  onOpenStorageDetails?: (invoice: BillingInvoiceSummary) => void;
   onStatusChange: (invoiceId: string, status: BillingInvoiceStatus) => void;
 };
 
@@ -26,6 +27,7 @@ export function BillingInvoicesTable({
   canWrite,
   onOpenDocument,
   onDownloadPdf,
+  onOpenStorageDetails,
   onStatusChange,
 }: BillingInvoicesTableProps) {
   return (
@@ -47,6 +49,9 @@ export function BillingInvoicesTable({
         <tbody>
           {invoices.map((invoice) => {
             const remaining = Math.max(0, Number(invoice.totalRub) - Number(invoice.paidRub));
+            const hasStorage = invoice.items.some(
+              (item) => item.unit === 'LITER_DAY' || item.description.toLowerCase().includes('хран'),
+            );
 
             return (
               <tr key={invoice.id}>
@@ -79,6 +84,11 @@ export function BillingInvoicesTable({
                 <td>
                   <strong>{invoice.items.length} поз.</strong>
                   <span>{invoice.payments.length} оплат</span>
+                  {hasStorage && onOpenStorageDetails ? (
+                    <button className="document-open-button billing-storage-link" type="button" onClick={() => onOpenStorageDetails(invoice)}>
+                      <span>Хранение</span>
+                    </button>
+                  ) : null}
                 </td>
                 {onOpenDocument || onDownloadPdf ? (
                   <td>

@@ -1,11 +1,13 @@
 import { Calculator, ReceiptText, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  deleteBillingInvoiceStorageDetail,
   downloadBillingInvoiceActPdf,
   downloadBillingInvoicePdf,
   fetchBillingCharges,
   fetchBillingInvoiceActDocument,
   fetchBillingInvoiceDocument,
+  fetchBillingInvoiceStorageDetails,
   fetchBillingInvoices,
   fetchBillingReconciliation,
   fetchBillingServices,
@@ -22,6 +24,8 @@ import {
   type BillingInvoiceSummary,
   type BillingReconciliation,
   type BillingServiceSummary,
+  type BillingStorageDetails,
+  type BillingStorageDetailRow,
   type ClientRequestSummary,
   type ClientSummary,
 } from '../../lib/api';
@@ -36,6 +40,7 @@ import { BillingPeriodSummary } from './BillingPeriodSummary';
 import { BillingReconciliationPanel } from './BillingReconciliationPanel';
 import { BillingServiceForm } from './BillingServiceForm';
 import { BillingStorageChargeForm } from './BillingStorageChargeForm';
+import { BillingStorageDetailsModal } from './BillingStorageDetailsModal';
 
 type LoadState<T> = {
   status: 'idle' | 'loading' | 'ready' | 'error';
@@ -73,6 +78,8 @@ export function BillingPanel({ session }: BillingPanelProps) {
   const [reconciliation, setReconciliation] = useState<BillingReportState>({ status: 'idle', data: null });
   const [error, setError] = useState<string | null>(null);
   const [documentPreview, setDocumentPreview] = useState<BillingInvoiceDocument | null>(null);
+  const [storageDetails, setStorageDetails] = useState<BillingStorageDetails | null>(null);
+  const [isDeletingStorageRow, setDeletingStorageRow] = useState(false);
   const [activeTab, setActiveTab] = useState<BillingTab>('overview');
 
   const activeServices = useMemo(() => services.data.filter((service) => service.isActive), [services.data]);
@@ -194,6 +201,33 @@ export function BillingPanel({ session }: BillingPanelProps) {
     }
   }
 
+  async function openStorageDetails(invoice: BillingInvoiceSummary) {
+    setError(null);
+
+    try {
+      setStorageDetails(await fetchBillingInvoiceStorageDetails(session.accessToken, invoice.id));
+    } catch (caught) {
+      setError(errorMessage(caught));
+    }
+  }
+
+  async function deleteStorageDetailRow(row: BillingStorageDetailRow) {
+    if (!storageDetails) {
+      return;
+    }
+
+    setError(null);
+    setDeletingStorageRow(true);
+    try {
+      setStorageDetails(await deleteBillingInvoiceStorageDetail(session.accessToken, storageDetails.invoice.id, row.chargeId, row.date));
+      await loadData();
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setDeletingStorageRow(false);
+    }
+  }
+
   async function downloadInvoicePdf(invoice: BillingInvoiceSummary, kind: 'invoice' | 'act') {
     setError(null);
 
@@ -285,6 +319,7 @@ export function BillingPanel({ session }: BillingPanelProps) {
               canWrite,
               (invoice, kind) => void openInvoiceDocument(invoice, kind),
               (invoice, kind) => void downloadInvoicePdf(invoice, kind),
+              (invoice) => void openStorageDetails(invoice),
               changeInvoiceStatus,
             )}
           </div>
@@ -324,6 +359,19 @@ export function BillingPanel({ session }: BillingPanelProps) {
       {documentPreview ? (
         <BillingInvoiceDocumentPreview document={documentPreview} onClose={() => setDocumentPreview(null)} />
       ) : null}
+      {storageDetails ? (
+        <BillingStorageDetailsModal
+          details={storageDetails}
+          canDeleteRows={
+            session.user.permissionCodes.includes('system:admin') ||
+            session.user.roleCodes.includes('ADMIN') ||
+            session.user.roleCodes.includes('OWNER')
+          }
+          isDeleting={isDeletingStorageRow}
+          onClose={() => setStorageDetails(null)}
+          onDeleteRow={(row) => void deleteStorageDetailRow(row)}
+        />
+      ) : null}
     </section>
   );
 }
@@ -333,6 +381,7 @@ function renderInvoices(
   canWrite: boolean,
   onOpenDocument: (invoice: BillingInvoiceSummary, kind: 'invoice' | 'act') => void,
   onDownloadPdf: (invoice: BillingInvoiceSummary, kind: 'invoice' | 'act') => void,
+  onOpenStorageDetails: (invoice: BillingInvoiceSummary) => void,
   onStatusChange: (invoiceId: string, status: BillingInvoiceStatus) => void,
 ) {
   if (state.status === 'idle' || (state.status === 'loading' && state.data.length === 0)) {
@@ -360,6 +409,7 @@ function renderInvoices(
         canWrite={canWrite}
         onOpenDocument={onOpenDocument}
         onDownloadPdf={onDownloadPdf}
+        onOpenStorageDetails={onOpenStorageDetails}
         onStatusChange={onStatusChange}
       />
     </>

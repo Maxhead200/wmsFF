@@ -52,6 +52,35 @@ export function ProductCardModal({ sku, onClose }: ProductCardModalProps) {
               <h4>Признаки</h4>
               <p className="catalog-muted">{skuFlags(sku).join(', ') || 'Без специальных признаков'}</p>
             </section>
+
+            {sku.marketplaceCharacteristics.length > 0 ? (
+              <section className="catalog-detail-section">
+                <h4>Характеристики</h4>
+                <dl className="catalog-characteristics">
+                  {sku.marketplaceCharacteristics.map((item, index) => (
+                    <div key={`${item.name}-${index}`}>
+                      <dt>{item.name}</dt>
+                      <dd>{item.value || '-'}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+            ) : null}
+
+            {sku.balances?.length ? (
+              <section className="catalog-detail-section">
+                <h4>Остатки</h4>
+                <div className="catalog-stock-list">
+                  {sku.balances.map((balance) => (
+                    <div key={balance.id}>
+                      <strong>{balance.quantity} шт</strong>
+                      <span>{balance.box?.code ?? 'Без короба'}</span>
+                      <small>{balance.status}</small>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
           </div>
         </div>
       </section>

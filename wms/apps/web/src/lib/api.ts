@@ -285,6 +285,47 @@ export type BillingInvoiceSummary = {
   } | null;
 };
 
+export type BillingStorageDetailRow = {
+  chargeId: string;
+  date: string;
+  totalLiters: number;
+  literDays: number;
+  positions: number;
+  unitPriceRub: number;
+  totalRub: number;
+};
+
+export type BillingStorageDetailCharge = {
+  chargeId: string;
+  invoiceItemId: string;
+  description: string;
+  status: BillingChargeStatus;
+  periodFrom: string | null;
+  periodTo: string | null;
+  calculationMode: string | null;
+  quantity: number;
+  unitPriceRub: number;
+  totalRub: number;
+  daily: BillingStorageDetailRow[];
+};
+
+export type BillingStorageDetails = {
+  invoice: {
+    id: string;
+    number: string;
+    client: Pick<ClientSummary, 'id' | 'code' | 'name'>;
+    periodFrom: string;
+    periodTo: string;
+    totalRub: string | number;
+  };
+  totals: {
+    days: number;
+    literDays: number;
+    totalRub: number;
+  };
+  charges: BillingStorageDetailCharge[];
+};
+
 export type BillingInvoiceDocument = {
   invoiceId: string;
   number: string;
@@ -2660,6 +2701,27 @@ export async function fetchBillingInvoiceDocument(accessToken: string, invoiceId
   return request<BillingInvoiceDocument>(`/billing/invoices/${invoiceId}/document`, {
     accessToken,
   });
+}
+
+export async function fetchBillingInvoiceStorageDetails(accessToken: string, invoiceId: string) {
+  return request<BillingStorageDetails>(`/billing/invoices/${invoiceId}/storage-details`, {
+    accessToken,
+  });
+}
+
+export async function deleteBillingInvoiceStorageDetail(
+  accessToken: string,
+  invoiceId: string,
+  chargeId: string,
+  date: string,
+) {
+  return request<BillingStorageDetails>(
+    `/billing/invoices/${invoiceId}/storage-details/${chargeId}/${date}/delete`,
+    {
+      method: 'POST',
+      accessToken,
+    },
+  );
 }
 
 export async function downloadBillingInvoicePdf(accessToken: string, invoiceId: string) {

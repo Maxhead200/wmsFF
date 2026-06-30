@@ -104,6 +104,22 @@ export class BillingController {
     return this.documents.getInvoiceDocument(id, user);
   }
 
+  @Get('invoices/:id/storage-details')
+  getInvoiceStorageDetails(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.billing.getInvoiceStorageDetails(id, user);
+  }
+
+  @Post('invoices/:id/storage-details/:chargeId/:date/delete')
+  @RequirePermissions('billing:write')
+  deleteInvoiceStorageDetail(
+    @Param('id') id: string,
+    @Param('chargeId') chargeId: string,
+    @Param('date') date: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.billing.deleteInvoiceStorageDetail(id, chargeId, date, user);
+  }
+
   @Get('invoices/:id/document.pdf')
   async getInvoiceDocumentPdf(
     @Param('id') id: string,

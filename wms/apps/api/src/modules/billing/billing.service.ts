@@ -419,6 +419,163 @@ export class BillingService {
     });
   }
 
+  async getInvoiceStorageDetails(invoiceId: string, user: AuthUser) {
+    const invoice = await this.prisma.billingInvoice.findUnique({
+      where: { id: invoiceId },
+      include: {
+        client: { select: { id: true, code: true, name: true } },
+        items: {
+          include: {
+            charge: true,
+          },
+          orderBy: [{ serviceDate: 'asc' }, { id: 'asc' }],
+        },
+      },
+    });
+
+    if (!invoice) {
+      throw new NotFoundException('Счет не найден.');
+    }
+
+    this.clientScopes.requireClientAccess(user, invoice.clientId, 'read');
+
+    const charges = invoice.items
+      .filter((item) => item.charge?.source === BillingChargeSource.STORAGE)
+      .map((item) => {
+        const charge = item.charge!;
+        const unitPriceRub = decimalToNumber(charge.unitPriceRub) ?? 0;
+        const daily = storageDailyRows(charge.metadata).map((row) => ({
+          chargeId: charge.id,
+          date: row.date,
+          totalLiters: row.totalLiters,
+          literDays: row.literDays,
+          positions: row.positions,
+          unitPriceRub,
+          totalRub: roundMoney(row.literDays * unitPriceRub),
+        }));
+
+        return {
+          chargeId: charge.id,
+          invoiceItemId: item.id,
+          description: charge.description,
+          status: charge.status,
+          periodFrom: storageMetadataString(charge.metadata, 'periodFrom'),
+          periodTo: storageMetadataString(charge.metadata, 'periodTo'),
+          calculationMode: storageMetadataString(charge.metadata, 'calculationMode'),
+          quantity: decimalToNumber(charge.quantity) ?? 0,
+          unitPriceRub,
+          totalRub: decimalToNumber(charge.totalRub) ?? 0,
+          daily,
+        };
+      });
+
+    const totals = charges.reduce(
+      (sum, charge) => ({
+        days: sum.days + charge.daily.length,
+        literDays: roundQuantity(sum.literDays + charge.daily.reduce((dailySum, row) => dailySum + row.literDays, 0)),
+        totalRub: roundMoney(sum.totalRub + charge.daily.reduce((dailySum, row) => dailySum + row.totalRub, 0)),
+      }),
+      { days: 0, literDays: 0, totalRub: 0 },
+    );
+
+    return {
+      invoice: {
+        id: invoice.id,
+        number: invoice.number,
+        client: invoice.client,
+        periodFrom: invoice.periodFrom,
+        periodTo: invoice.periodTo,
+        totalRub: invoice.totalRub,
+      },
+      totals,
+      charges,
+    };
+  }
+
+  async deleteInvoiceStorageDetail(invoiceId: string, chargeId: string, date: string, user: AuthUser) {
+    this.clientScopes.requireGlobalClientAccess(user);
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      throw new BadRequestException('Некорректная дата строки хранения.');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const invoice = await tx.billingInvoice.findUnique({
+        where: { id: invoiceId },
+        include: {
+          items: {
+            include: {
+              charge: true,
+            },
+          },
+        },
+      });
+
+      if (!invoice) {
+        throw new NotFoundException('Счет не найден.');
+      }
+
+      const item = invoice.items.find((row) => row.chargeId === chargeId && row.charge?.source === BillingChargeSource.STORAGE);
+      if (!item?.charge) {
+        throw new NotFoundException('Строка хранения в счете не найдена.');
+      }
+
+      const daily = storageDailyRows(item.charge.metadata);
+      const nextDaily = daily.filter((row) => row.date !== date);
+      if (nextDaily.length === daily.length) {
+        throw new NotFoundException('День хранения в расшифровке не найден.');
+      }
+
+      if (nextDaily.length === 0) {
+        await tx.billingInvoiceItem.delete({ where: { id: item.id } });
+        await tx.billingCharge.update({
+          where: { id: chargeId },
+          data: {
+            quantity: 0,
+            totalRub: 0,
+            status: BillingChargeStatus.CANCELLED,
+            metadata: updateStorageMetadata(item.charge.metadata, nextDaily),
+            comment: [item.charge.comment, `Удалены все строки хранения из счета ${invoice.number}`].filter(Boolean).join('\n'),
+          },
+        });
+      } else {
+        const unitPriceRub = decimalToNumber(item.charge.unitPriceRub) ?? 0;
+        const literDays = roundQuantity(nextDaily.reduce((sum, row) => sum + row.literDays, 0));
+        const totalRub = roundMoney(literDays * unitPriceRub);
+        const metadata = updateStorageMetadata(item.charge.metadata, nextDaily);
+
+        await tx.billingCharge.update({
+          where: { id: chargeId },
+          data: {
+            quantity: literDays,
+            totalRub,
+            metadata,
+          },
+        });
+        await tx.billingInvoiceItem.update({
+          where: { id: item.id },
+          data: {
+            quantity: literDays,
+            totalRub,
+          },
+        });
+      }
+
+      const invoiceItems = await tx.billingInvoiceItem.findMany({
+        where: { invoiceId },
+        select: { totalRub: true },
+      });
+      const totalRub = roundMoney(invoiceItems.reduce((sum, row) => sum + (decimalToNumber(row.totalRub) ?? 0), 0));
+
+      await tx.billingInvoice.update({
+        where: { id: invoiceId },
+        data: { totalRub },
+      });
+    });
+
+    return this.getInvoiceStorageDetails(invoiceId, user);
+  }
+
   async createInvoice(dto: CreateBillingInvoiceDto, user: AuthUser) {
     this.clientScopes.requireClientAccess(user, dto.clientId, 'write');
 
@@ -1465,6 +1622,61 @@ function listPeriodDays(periodFrom: Date, periodTo: Date) {
   }
 
   return days;
+}
+
+function storageDailyRows(metadata: Prisma.JsonValue | null) {
+  const rawDaily = metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? metadata.daily : null;
+  if (!Array.isArray(rawDaily)) {
+    return [];
+  }
+
+  return rawDaily
+    .map((row) => {
+      if (!row || typeof row !== 'object' || Array.isArray(row)) {
+        return null;
+      }
+
+      const date = typeof row.date === 'string' ? row.date : '';
+      const totalLiters = Number(row.totalLiters ?? 0);
+      const literDays = Number(row.literDays ?? totalLiters);
+      const positions = Number(row.positions ?? 0);
+
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(literDays)) {
+        return null;
+      }
+
+      return {
+        date,
+        totalLiters: roundQuantity(Number.isFinite(totalLiters) ? totalLiters : literDays),
+        literDays: roundQuantity(literDays),
+        positions: Number.isFinite(positions) ? positions : 0,
+      };
+    })
+    .filter((row): row is { date: string; totalLiters: number; literDays: number; positions: number } => Boolean(row));
+}
+
+function updateStorageMetadata(metadata: Prisma.JsonValue | null, daily: ReturnType<typeof storageDailyRows>) {
+  const source = metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? metadata : {};
+  const days = daily.length;
+  const literDays = roundQuantity(daily.reduce((sum, row) => sum + row.literDays, 0));
+  const totalLiters = roundQuantity(days > 0 ? literDays / days : 0);
+
+  return {
+    ...source,
+    days,
+    totalLiters,
+    literDays,
+    daily,
+  } satisfies Prisma.InputJsonObject;
+}
+
+function storageMetadataString(metadata: Prisma.JsonValue | null, key: string) {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    return null;
+  }
+
+  const value = metadata[key];
+  return typeof value === 'string' ? value : null;
 }
 
 function storageSourceKey(clientId: string, periodFrom: Date, periodTo: Date) {

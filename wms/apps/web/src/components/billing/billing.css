@@ -254,6 +254,100 @@
   min-width: 230px;
 }
 
+.billing-storage-link {
+  margin-top: 6px;
+}
+
+.billing-danger-button {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: var(--danger);
+}
+
+.billing-storage-modal-backdrop {
+  position: fixed;
+  z-index: 110;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(15 23 42 / 0.38);
+  padding: 22px;
+}
+
+.billing-storage-modal {
+  display: grid;
+  width: min(980px, calc(100vw - 44px));
+  max-height: calc(100vh - 44px);
+  grid-template-rows: auto auto minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 24px 80px rgb(15 23 42 / 0.24);
+}
+
+.billing-storage-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--line);
+  padding: 12px 14px;
+}
+
+.billing-storage-modal__header div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.billing-storage-modal__header span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.billing-storage-modal__header h3 {
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.billing-storage-modal__summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
+  padding: 12px;
+}
+
+.billing-storage-modal__summary div {
+  display: grid;
+  gap: 3px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.billing-storage-modal__summary span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.billing-storage-modal__summary strong {
+  font-size: 18px;
+}
+
+.billing-storage-modal__table-wrap {
+  min-height: 0;
+  overflow: auto;
+  padding: 0 12px 12px;
+}
+
+.billing-storage-modal__table {
+  min-width: 760px;
+}
+
 .billing-reconciliation {
   display: grid;
   gap: 12px;

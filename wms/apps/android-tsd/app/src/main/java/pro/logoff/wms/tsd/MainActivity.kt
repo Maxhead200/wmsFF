@@ -21,6 +21,8 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
 import pro.logoff.wms.tsd.auth.TsdSessionStore
 import pro.logoff.wms.tsd.data.OperationOutbox
 import pro.logoff.wms.tsd.data.PendingOperation
@@ -30,6 +32,7 @@ import pro.logoff.wms.tsd.network.TsdLoginRequest
 import pro.logoff.wms.tsd.network.TsdSkuSummary
 import pro.logoff.wms.tsd.network.WmsApiFactory
 import pro.logoff.wms.tsd.sync.TsdSyncRunner
+import retrofit2.HttpException
 import java.net.URL
 import java.util.UUID
 
@@ -158,6 +161,14 @@ class MainActivity : ComponentActivity() {
                 updateStatus("Укажите код и секрет ТСД")
                 return@primaryButton
             }
+            if (code.length < 2) {
+                updateStatus("Код ТСД должен быть не короче 2 символов.")
+                return@primaryButton
+            }
+            if (secret.length < 8) {
+                updateStatus("Секрет ТСД должен быть не короче 8 символов. Проверьте данные из сервисного меню WMS.")
+                return@primaryButton
+            }
             lifecycleScope.launch {
                 val result = runCatching {
                     WmsApiFactory.create(baseUrlInput.textValue()).login(TsdLoginRequest(code = code, secret = secret))
@@ -169,7 +180,7 @@ class MainActivity : ComponentActivity() {
                     screen = TsdScreen.MENU
                     render()
                 }.onFailure {
-                    updateStatus(it.message ?: "Не удалось войти")
+                    updateStatus(readableNetworkError(it))
                 }
             }
         })
@@ -610,6 +621,35 @@ class MainActivity : ComponentActivity() {
     private fun updateStatus(message: String) {
         statusText = message
         render()
+    }
+
+    private fun readableNetworkError(error: Throwable): String {
+        if (error is HttpException) {
+            val body = error.response()?.errorBody()?.string()
+            val serverMessage = body?.let { parseServerMessage(it) }.orEmpty()
+            if (serverMessage.isNotBlank()) {
+                return serverMessage
+            }
+            return when (error.code()) {
+                400 -> "Сервер не принял данные. Проверьте код ТСД и секрет."
+                401 -> "Неверный код или секрет ТСД, либо ТСД заблокирован."
+                403 -> "Нет доступа к этому действию."
+                404 -> "Сервер не нашел нужный адрес API."
+                else -> "Ошибка сервера: HTTP ${error.code()}"
+            }
+        }
+        return error.message ?: "Не удалось выполнить запрос"
+    }
+
+    private fun parseServerMessage(body: String): String {
+        return runCatching {
+            val json = JSONObject(body)
+            when (val message = json.opt("message")) {
+                is JSONArray -> (0 until message.length()).joinToString("; ") { index -> message.optString(index) }
+                is String -> message
+                else -> json.optString("error")
+            }
+        }.getOrDefault("")
     }
 
     private fun receiptSummaryText(): String =

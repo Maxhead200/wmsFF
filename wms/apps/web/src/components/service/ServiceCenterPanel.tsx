@@ -11,6 +11,7 @@
   Monitor,
   Power,
   RefreshCw,
+  Search,
   Send,
   Settings2,
   ShieldAlert,
@@ -31,6 +32,7 @@ import {
   fetchServiceClientRequestCleanupPreview,
   fetchServiceClientStockCleanupPreview,
   fetchServiceDemoMode,
+  fetchServiceProductMarks,
   fetchServiceClientIpRules,
   fetchServiceTelegramSettings,
   fetchServiceNomenclature,
@@ -67,6 +69,7 @@ import {
   type ServiceDemoMode,
   type ServiceOnlineSession,
   type ServiceOverview,
+  type ServiceProductMark,
   type ServiceTelegramSettings,
   type UserSummary,
 } from '../../lib/api';
@@ -88,6 +91,7 @@ type ServiceTab =
   | 'clients'
   | 'stock'
   | 'requests'
+  | 'kiz'
   | 'nomenclature'
   | 'services'
   | 'telegram'
@@ -131,6 +135,7 @@ const tabs: Array<{ id: ServiceTab; label: string; icon: typeof Settings2 }> = [
   { id: 'clients', label: 'Клиенты', icon: ShieldAlert },
   { id: 'stock', label: 'Остатки', icon: Database },
   { id: 'requests', label: 'Заявки', icon: FileText },
+  { id: 'kiz', label: 'КИЗ', icon: Search },
   { id: 'nomenclature', label: 'Номенклатура', icon: Eraser },
   { id: 'services', label: 'Услуги', icon: Settings2 },
   { id: 'telegram', label: 'Telegram', icon: Bell },
@@ -158,6 +163,8 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
   const [sessions, setSessions] = useState<LoadState<ServiceOnlineSession[]>>({ status: 'idle', data: [] });
   const [ipRules, setIpRules] = useState<LoadState<ServiceClientIpRule[]>>({ status: 'idle', data: [] });
   const [ipForm, setIpForm] = useState({ ipAddress: '', comment: '' });
+  const [kizSearch, setKizSearch] = useState('');
+  const [productMarks, setProductMarks] = useState<LoadState<ServiceProductMark[]>>({ status: 'idle', data: [] });
   const [telegram, setTelegram] = useState<LoadState<ServiceTelegramSettings | null>>({ status: 'idle', data: null });
   const [telegramForm, setTelegramForm] = useState({ enabled: false, botToken: '', fulfillmentChatIds: '', testChatId: '', testMessage: '' });
   const [demo, setDemo] = useState<LoadState<ServiceDemoMode | null>>({ status: 'idle', data: null });
@@ -237,6 +244,9 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
     }
     if (activeTab === 'requests' && selectedClientId && requestPreview.status === 'idle') {
       void loadRequestPreview(selectedClientId);
+    }
+    if (activeTab === 'kiz' && productMarks.status === 'idle') {
+      void loadProductMarks();
     }
   }, [activeTab]);
 
@@ -440,6 +450,21 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
       setIpRules({ status: 'ready', data: await fetchServiceClientIpRules(session.accessToken, { clientId: clientId || undefined }) });
     } catch (caught) {
       setIpRules((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
+    }
+  }
+
+  async function loadProductMarks() {
+    setProductMarks((current) => ({ ...current, status: 'loading', error: undefined }));
+    try {
+      setProductMarks({
+        status: 'ready',
+        data: await fetchServiceProductMarks(session.accessToken, {
+          clientId: selectedClientId || undefined,
+          search: kizSearch || undefined,
+        }),
+      });
+    } catch (caught) {
+      setProductMarks((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
     }
   }
 
@@ -798,6 +823,18 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
           onRefresh={() => loadRequestPreview()}
           onConfirmation={setRequestConfirmation}
           onPurge={() => void purgeRequests()}
+        />
+      ) : null}
+
+      {activeTab === 'kiz' ? (
+        <KizSearchPanel
+          clients={clients.data}
+          marks={productMarks}
+          search={kizSearch}
+          selectedClientId={selectedClientId}
+          onSearch={setKizSearch}
+          onSelectClient={setSelectedClientId}
+          onSubmit={() => void loadProductMarks()}
         />
       ) : null}
 
@@ -1386,6 +1423,96 @@ function RequestCleanup(props: {
           Заявки клиента удалены. Отвязано начислений: {props.result.deleted.billingChargesUnlinked}, логистики: {props.result.deleted.deliveryRequestsUnlinked}, уведомлений: {props.result.deleted.notificationsUnlinked}.
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function KizSearchPanel({
+  clients,
+  marks,
+  onSearch,
+  onSelectClient,
+  onSubmit,
+  search,
+  selectedClientId,
+}: {
+  clients: ClientSummary[];
+  marks: LoadState<ServiceProductMark[]>;
+  onSearch: (value: string) => void;
+  onSelectClient: (clientId: string) => void;
+  onSubmit: () => void;
+  search: string;
+  selectedClientId: string;
+}) {
+  return (
+    <div className="service-card">
+      <div className="service-card__heading">
+        <strong>Поиск КИЗ</strong>
+        <span className="service-inline-note">Можно искать по полному КИЗ или по его части.</span>
+      </div>
+      <form className="service-inline-form" onSubmit={(event) => { event.preventDefault(); onSubmit(); }}>
+        <select value={selectedClientId} onChange={(event) => onSelectClient(event.target.value)}>
+          <option value="">Все клиенты</option>
+          {clients.map((client) => (
+            <option key={client.id} value={client.id}>
+              {client.name}
+            </option>
+          ))}
+        </select>
+        <input
+          placeholder="КИЗ или часть КИЗа"
+          value={search}
+          onChange={(event) => onSearch(event.target.value)}
+        />
+        <button className="primary-button" type="submit">
+          <Search size={16} /> Найти
+        </button>
+      </form>
+      {marks.status === 'error' ? <div className="service-message service-message--error">{marks.error}</div> : null}
+      <ServiceTable columns={['КИЗ', 'Клиент', 'Товар', 'Короб', 'Принят', 'Сотрудник', 'Выезд']}>
+        {marks.data.length === 0 ? (
+          <tr>
+            <td colSpan={7}>{marks.status === 'loading' ? 'Идет поиск...' : 'КИЗы не найдены'}</td>
+          </tr>
+        ) : null}
+        {marks.data.map((mark) => (
+          <tr key={mark.id}>
+            <td className="service-kiz-cell">{mark.value}</td>
+            <td>{mark.client.name}</td>
+            <td>
+              <strong>{mark.sku.name}</strong>
+              <span>{mark.sku.barcode || mark.sku.article || mark.sku.internalSku}</span>
+              <span>{[mark.sku.color, mark.sku.size].filter(Boolean).join(' / ') || '-'}</span>
+            </td>
+            <td>{mark.box?.code || '-'}</td>
+            <td>
+              <strong>{formatDateTime(mark.acceptedAt)}</strong>
+              <span>{mark.sourceDocument || mark.receiptMovement?.sourceDocument || 'ТСД приемка'}</span>
+            </td>
+            <td>
+              {mark.acceptedBy ? (
+                <>
+                  <strong>{mark.acceptedBy.name}</strong>
+                  <span>{mark.tsd?.deviceId || mark.acceptedBy.email}</span>
+                </>
+              ) : (
+                'Не найдено'
+              )}
+            </td>
+            <td>
+              {mark.outbound?.request ? (
+                <>
+                  <strong>{mark.outbound.request.title}</strong>
+                  <span>{mark.outbound.request.destinationCity || '-'}</span>
+                  <span>{mark.outbound.type} · {formatDateTime(mark.outbound.createdAt)}</span>
+                </>
+              ) : (
+                <span>На складе / выезд не найден</span>
+              )}
+            </td>
+          </tr>
+        ))}
+      </ServiceTable>
     </div>
   );
 }

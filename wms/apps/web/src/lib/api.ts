@@ -1444,6 +1444,42 @@ export type ServiceClientIpRule = {
   client: Pick<ClientSummary, 'id' | 'code' | 'name'>;
 };
 
+export type ServiceProductMark = {
+  id: string;
+  value: string;
+  status: string;
+  sourceDocument: string | null;
+  acceptedAt: string;
+  client: Pick<ClientSummary, 'id' | 'code' | 'name'>;
+  sku: {
+    id: string;
+    internalSku: string;
+    clientSku: string | null;
+    article: string | null;
+    name: string;
+    color: string | null;
+    size: string | null;
+    barcode: string | null;
+  };
+  box: { id: string; code: string } | null;
+  receiptMovement: { id: string; sourceDocument: string | null; comment: string | null; createdAt: string } | null;
+  acceptedBy: { id: string; name: string; email: string } | null;
+  tsd: { deviceId: string; operationKey: string; createdAt: string } | null;
+  outbound: {
+    movementId: string;
+    type: string;
+    sourceDocument: string | null;
+    createdAt: string;
+    request: {
+      id: string;
+      title: string;
+      status: string;
+      destinationCity: string | null;
+      createdAt: string;
+    } | null;
+  } | null;
+};
+
 export type ServiceTelegramSettings = {
   enabled: boolean;
   fulfillmentChatIds: string;
@@ -3030,6 +3066,12 @@ export async function fetchServiceOnlineSessions(accessToken: string) {
 
 export async function fetchServiceClientIpRules(accessToken: string, filter: { clientId?: string } = {}) {
   return request<ServiceClientIpRule[]>(withQuery('/service/client-ip-rules', filter), {
+    accessToken,
+  });
+}
+
+export async function fetchServiceProductMarks(accessToken: string, filter: { search?: string; clientId?: string } = {}) {
+  return request<ServiceProductMark[]>(withQuery('/service/kiz', filter), {
     accessToken,
   });
 }

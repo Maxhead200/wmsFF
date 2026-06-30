@@ -473,6 +473,7 @@ export class TsdSyncService {
             brand: true,
             category: true,
             needsChestnyZnak: true,
+            marketplacePayload: true,
             barcodes: {
               select: {
                 value: true,
@@ -488,7 +489,11 @@ export class TsdSyncService {
       throw new NotFoundException('Товар с таким штрихкодом не найден у клиента.');
     }
 
-    return row.sku;
+    return {
+      ...row.sku,
+      marketplacePhotos: extractMarketplacePhotos(row.sku.marketplacePayload),
+      marketplaceCharacteristics: extractMarketplaceCharacteristics(row.sku.marketplacePayload),
+    };
   }
 
   private async applyOperation(operation: ScanOperationDto, user: AuthUser): Promise<TsdOperationResult> {
@@ -1517,6 +1522,64 @@ function normalizeWorkerDeviceCode(user: AuthUser, deviceCode?: string) {
 
 function normalizeBoxCode(value: string) {
   return value.trim().toUpperCase();
+}
+
+function extractMarketplacePhotos(payload: unknown) {
+  const photos: string[] = [];
+  visitPayload(payload, (value, key) => {
+    const normalizedKey = key.toLowerCase();
+    if (typeof value === 'string' && looksLikeImageUrl(value)) {
+      photos.push(value);
+      return;
+    }
+    if (!['photo', 'photos', 'image', 'images', 'picture', 'pictures', 'media'].some((name) => normalizedKey.includes(name))) {
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (typeof item === 'string' && looksLikeImageUrl(item)) {
+          photos.push(item);
+        }
+      }
+    }
+  });
+
+  return [...new Set(photos)].slice(0, 8);
+}
+
+function extractMarketplaceCharacteristics(payload: unknown) {
+  const characteristics: Array<{ name: string; value: string }> = [];
+  visitPayload(payload, (value, key) => {
+    if (characteristics.length >= 30 || !key) {
+      return;
+    }
+    if (['string', 'number', 'boolean'].includes(typeof value)) {
+      const name = key.trim();
+      const text = String(value).trim();
+      if (name && text && !looksLikeImageUrl(text) && !['id', 'nmID', 'imtID'].includes(name)) {
+        characteristics.push({ name, value: text });
+      }
+    }
+  });
+  return characteristics;
+}
+
+function visitPayload(value: unknown, visitor: (value: unknown, key: string) => void, key = '') {
+  visitor(value, key);
+  if (!value || typeof value !== 'object') {
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => visitPayload(item, visitor, key || String(index)));
+    return;
+  }
+  for (const [childKey, childValue] of Object.entries(value)) {
+    visitPayload(childValue, visitor, childKey);
+  }
+}
+
+function looksLikeImageUrl(value: string) {
+  return /^https?:\/\/.+\.(png|jpe?g|webp|gif)(\?.*)?$/i.test(value.trim());
 }
 
 function parseRelabelNote(value: string) {

@@ -136,6 +136,82 @@ export class ServiceCenterService {
     });
   }
 
+  async listProductMarks(filter: { search?: string; clientId?: string }) {
+    const search = filter.search?.trim();
+    const marks = await this.prisma.productMark.findMany({
+      where: {
+        clientId: filter.clientId?.trim() || undefined,
+        value: search ? { contains: search, mode: 'insensitive' } : undefined,
+      },
+      include: {
+        client: { select: { id: true, code: true, name: true } },
+        sku: {
+          select: {
+            id: true,
+            internalSku: true,
+            clientSku: true,
+            article: true,
+            name: true,
+            color: true,
+            size: true,
+            barcodes: { select: { value: true, isPrimary: true } },
+          },
+        },
+        box: { select: { id: true, code: true } },
+        stockMovement: { select: { id: true, sourceDocument: true, comment: true, createdAt: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: search ? 100 : 50,
+    });
+
+    const enriched = [];
+    for (const mark of marks) {
+      const [tsdOperation, outboundMovement] = await Promise.all([
+        this.findTsdReceiptOperation(mark.value),
+        this.findOutboundMovementForMark(mark),
+      ]);
+      enriched.push({
+        id: mark.id,
+        value: mark.value,
+        status: mark.status,
+        sourceDocument: mark.sourceDocument,
+        acceptedAt: mark.createdAt,
+        client: mark.client,
+        sku: {
+          ...mark.sku,
+          barcode: mark.sku.barcodes.find((barcode) => barcode.isPrimary)?.value ?? mark.sku.barcodes[0]?.value ?? null,
+        },
+        box: mark.box,
+        receiptMovement: mark.stockMovement,
+        acceptedBy: tsdOperation?.user
+          ? {
+              id: tsdOperation.user.id,
+              name: tsdOperation.user.name,
+              email: tsdOperation.user.email,
+            }
+          : null,
+        tsd: tsdOperation
+          ? {
+              deviceId: tsdOperation.deviceId,
+              operationKey: tsdOperation.operationKey,
+              createdAt: tsdOperation.createdAt,
+            }
+          : null,
+        outbound: outboundMovement
+          ? {
+              movementId: outboundMovement.id,
+              type: outboundMovement.type,
+              sourceDocument: outboundMovement.sourceDocument,
+              createdAt: outboundMovement.createdAt,
+              request: outboundMovement.sourceDocument ? outboundMovement.request : null,
+            }
+          : null,
+      });
+    }
+
+    return enriched;
+  }
+
   async createClientIpRule(clientId: string, dto: { ipAddress?: string; comment?: string }, user: AuthUser) {
     await this.findClient(clientId);
     const ipAddress = normalizeIp(dto.ipAddress);
@@ -1131,6 +1207,62 @@ export class ServiceCenterService {
       byStatus: Object.fromEntries(byStatus.map((item) => [item.status, item._count._all])),
       byType: Object.fromEntries(byType.map((item) => [item.type, item._count._all])),
     };
+  }
+
+  private findTsdReceiptOperation(kiz: string) {
+    return this.prisma.tsdOperation.findFirst({
+      where: {
+        operationType: 'receipt_scan',
+        payload: {
+          path: ['kiz'],
+          equals: kiz,
+        },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  private async findOutboundMovementForMark(mark: {
+    clientId: string;
+    skuId: string;
+    boxId: string | null;
+    createdAt: Date;
+  }) {
+    const movement = await this.prisma.stockMovement.findFirst({
+      where: {
+        clientId: mark.clientId,
+        skuId: mark.skuId,
+        boxId: mark.boxId,
+        type: { in: [MovementType.PICK, MovementType.PACK, MovementType.SHIP] },
+        quantity: { lt: 0 },
+        createdAt: { gte: mark.createdAt },
+        sourceDocument: { not: null },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    const request = movement?.sourceDocument
+      ? await this.prisma.clientRequest.findUnique({
+          where: { id: movement.sourceDocument },
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            destinationCity: true,
+            createdAt: true,
+          },
+        })
+      : null;
+
+    return movement ? { ...movement, request } : null;
   }
 }
 

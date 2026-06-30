@@ -414,7 +414,14 @@
 
 .service-table tbody tr:hover,
 .service-table tbody tr.is-selected {
-  background: #fff7f7;
+  background: #eff6ff;
+}
+
+.service-kiz-cell {
+  max-width: 320px;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
 }
 
 .secondary-link,

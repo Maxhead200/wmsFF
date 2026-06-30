@@ -21,6 +21,11 @@ export class ServiceCenterController {
     return this.serviceCenter.listOnlineSessions();
   }
 
+  @Get('kiz')
+  listProductMarks(@Query('search') search?: string, @Query('clientId') clientId?: string) {
+    return this.serviceCenter.listProductMarks({ search, clientId });
+  }
+
   @Get('client-ip-rules')
   listClientIpRules(@Query('clientId') clientId?: string) {
     return this.serviceCenter.listClientIpRules(clientId);

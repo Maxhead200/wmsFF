@@ -80,40 +80,57 @@ export class SkusService {
     const volume = this.tryCalculateVolume(dto);
 
     // Русский комментарий: карточка SKU и основной штрихкод создаются одной транзакцией, чтобы не ловить "висячие" barcode.
-    return this.prisma.$transaction(async (tx) => {
-      const sku = await tx.sku.create({
-        data: {
-          clientId: dto.clientId,
-          internalSku: dto.internalSku.trim(),
-          clientSku: dto.clientSku?.trim(),
-          article: dto.article?.trim(),
-          name: dto.name.trim(),
-          color: dto.color?.trim(),
-          size: dto.size?.trim(),
-          lengthCm: dto.lengthCm,
-          widthCm: dto.widthCm,
-          heightCm: dto.heightCm,
-          volumeLiters: volume?.liters,
-          volumeSource: volume ? 'CALCULATED' : 'MANUAL',
-          needsChestnyZnak: dto.needsChestnyZnak ?? false,
-        },
-      });
-
-      if (dto.barcode) {
-        await tx.barcode.create({
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const sku = await tx.sku.create({
           data: {
-            skuId: sku.id,
-            value: dto.barcode.trim(),
-            isPrimary: true,
+            clientId: dto.clientId,
+            internalSku: dto.internalSku.trim(),
+            clientSku: cleanOptional(dto.clientSku),
+            article: cleanOptional(dto.article),
+            name: dto.name.trim(),
+            brand: cleanOptional(dto.brand),
+            category: cleanOptional(dto.category),
+            color: cleanOptional(dto.color),
+            size: cleanOptional(dto.size),
+            weightGrams: dto.weightGrams ?? null,
+            lengthCm: dto.lengthCm,
+            widthCm: dto.widthCm,
+            heightCm: dto.heightCm,
+            volumeLiters: volume?.liters,
+            volumeSource: volume ? 'CALCULATED' : 'MANUAL',
+            needsChestnyZnak: dto.needsChestnyZnak ?? false,
+            isUnmarked: dto.isUnmarked ?? false,
+            needsLabel: dto.needsLabel ?? false,
+            needsRelabel: dto.needsRelabel ?? false,
+            marketplacePayload: manualMarketplacePayload(dto.photoUrls),
           },
         });
+
+        if (dto.barcode) {
+          await tx.barcode.create({
+            data: {
+              skuId: sku.id,
+              value: dto.barcode.trim(),
+              isPrimary: true,
+            },
+          });
+        }
+
+        const saved = await tx.sku.findUniqueOrThrow({
+          where: { id: sku.id },
+          include: { barcodes: true },
+        });
+
+        return enrichSkuMarketplaceData(saved);
+      });
+    } catch (caught) {
+      if (isUniqueConstraintError(caught)) {
+        throw new BadRequestException('Такой SKU или штрихкод уже есть у клиента.');
       }
 
-      return tx.sku.findUniqueOrThrow({
-        where: { id: sku.id },
-        include: { barcodes: true },
-      });
-    });
+      throw caught;
+    }
   }
 
   async update(id: string, dto: UpdateSkuDto, user: AuthUser) {
@@ -532,6 +549,7 @@ export class SkusService {
       isUnmarked: boolean;
       needsLabel: boolean;
       needsRelabel: boolean;
+      marketplacePayload: Prisma.JsonValue | null;
     },
   ): Prisma.SkuUncheckedUpdateInput {
     const nextLength = dto.lengthCm ?? decimalToNumber(existing.lengthCm);
@@ -564,6 +582,7 @@ export class SkusService {
       ...(dto.isUnmarked === undefined ? {} : { isUnmarked: dto.isUnmarked }),
       ...(dto.needsLabel === undefined ? {} : { needsLabel: dto.needsLabel }),
       ...(dto.needsRelabel === undefined ? {} : { needsRelabel: dto.needsRelabel }),
+      ...(dto.photoUrls === undefined ? {} : { marketplacePayload: mergeManualPhotos(existing.marketplacePayload, dto.photoUrls) }),
     };
   }
 
@@ -583,6 +602,30 @@ export class SkusService {
 function cleanOptional(value?: string) {
   const trimmed = value?.trim();
   return trimmed || undefined;
+}
+
+function cleanPhotoUrls(photoUrls?: string[]) {
+  return uniqueValues(
+    (photoUrls ?? [])
+      .map((photo) => photo.trim())
+      .filter((photo) => photo && looksLikeImageUrl(photo)),
+  ).slice(0, 12);
+}
+
+function manualMarketplacePayload(photoUrls?: string[]): Prisma.InputJsonValue | undefined {
+  const manualPhotos = cleanPhotoUrls(photoUrls);
+  return manualPhotos.length > 0 ? { manualPhotos } : undefined;
+}
+
+function mergeManualPhotos(payload: Prisma.JsonValue | null, photoUrls?: string[]): Prisma.InputJsonValue | typeof Prisma.JsonNull {
+  const manualPhotos = cleanPhotoUrls(photoUrls);
+  const base = payload && typeof payload === 'object' && !Array.isArray(payload) ? { ...(payload as Record<string, Prisma.JsonValue>) } : {};
+  if (manualPhotos.length === 0) {
+    delete base.manualPhotos;
+    return Object.keys(base).length > 0 ? (base as Prisma.InputJsonObject) : Prisma.JsonNull;
+  }
+
+  return { ...base, manualPhotos };
 }
 
 function enrichSkuMarketplaceData<T extends { marketplacePayload: Prisma.JsonValue | null }>(sku: T) {

@@ -1,6 +1,7 @@
-import { ImageOff, Pencil, RefreshCw, Save, Search, Trash2, X } from 'lucide-react';
+import { ImageOff, Pencil, PlusCircle, RefreshCw, Save, Search, Trash2, X } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
+  createSku,
   deleteSku,
   fetchClients,
   fetchMarketplaceConnections,
@@ -11,6 +12,7 @@ import {
   type AuthSession,
   type AuthUser,
   type ClientSummary,
+  type CreateSkuPayload,
   type MarketplaceConnectionSummary,
   type MarketplaceType,
   type SkuDetail,
@@ -30,6 +32,7 @@ type SkuForm = {
   clientSku: string;
   article: string;
   barcode: string;
+  photoUrls: string;
   name: string;
   brand: string;
   category: string;
@@ -45,12 +48,42 @@ type SkuForm = {
   needsRelabel: boolean;
 };
 
+type ManualSkuForm = SkuForm & {
+  clientId: string;
+};
+
 const marketplaceLabels: Record<MarketplaceType, string> = {
   WILDBERRIES: 'Wildberries',
   OZON: 'Ozon',
   YANDEX_MARKET: 'Яндекс Маркет',
   SBER_MARKET: 'СберМегаМаркет',
   OTHER: 'Другое',
+};
+
+const emptySkuForm: SkuForm = {
+  internalSku: '',
+  clientSku: '',
+  article: '',
+  barcode: '',
+  photoUrls: '',
+  name: '',
+  brand: '',
+  category: '',
+  color: '',
+  size: '',
+  weightGrams: '',
+  lengthCm: '',
+  widthCm: '',
+  heightCm: '',
+  needsChestnyZnak: false,
+  isUnmarked: false,
+  needsLabel: false,
+  needsRelabel: false,
+};
+
+const emptyManualSkuForm: ManualSkuForm = {
+  ...emptySkuForm,
+  clientId: '',
 };
 
 export function CatalogPanel({ session }: CatalogPanelProps) {
@@ -66,6 +99,9 @@ export function CatalogPanel({ session }: CatalogPanelProps) {
   const [connections, setConnections] = useState<MarketplaceConnectionSummary[]>([]);
   const [selectedSku, setSelectedSku] = useState<SkuDetail | null>(null);
   const [form, setForm] = useState<SkuForm | null>(null);
+  const [manualForm, setManualForm] = useState<ManualSkuForm>(emptyManualSkuForm);
+  const [isManualFormOpen, setManualFormOpen] = useState(false);
+  const [isCreatingSku, setCreatingSku] = useState(false);
   const [isEditing, setEditing] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [syncingIds, setSyncingIds] = useState<string[]>([]);
@@ -92,6 +128,10 @@ export function CatalogPanel({ session }: CatalogPanelProps) {
           return;
         }
         setClients(list);
+        setManualForm((current) => ({
+          ...current,
+          clientId: current.clientId || selectedClientId || list[0]?.id || '',
+        }));
         setClientState('ready');
       } catch (caught) {
         if (isActive) {
@@ -106,6 +146,12 @@ export function CatalogPanel({ session }: CatalogPanelProps) {
       isActive = false;
     };
   }, [canRead, session.accessToken]);
+
+  useEffect(() => {
+    if (selectedClientId) {
+      setManualForm((current) => ({ ...current, clientId: selectedClientId }));
+    }
+  }, [selectedClientId]);
 
   useEffect(() => {
     if (!canRead) {
@@ -197,6 +243,32 @@ export function CatalogPanel({ session }: CatalogPanelProps) {
       setMessage('Карточка товара сохранена.');
     } catch (caught) {
       setError(errorMessage(caught, 'Не удалось сохранить карточку товара.'));
+    }
+  }
+
+  async function createManualSku(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canWrite) {
+      return;
+    }
+
+    setCreatingSku(true);
+    setError('');
+    setMessage('');
+    try {
+      const created = await createSku(session.accessToken, payloadFromManualForm(manualForm));
+      const detail = await fetchSku(session.accessToken, created.id);
+      setSelectedSku(detail);
+      setForm(formFromSku(detail));
+      setEditing(false);
+      setManualForm({ ...emptyManualSkuForm, clientId: manualForm.clientId });
+      setManualFormOpen(false);
+      setReloadKey((current) => current + 1);
+      setMessage('Товар и карточка созданы вручную.');
+    } catch (caught) {
+      setError(errorMessage(caught, 'Не удалось создать товар вручную.'));
+    } finally {
+      setCreatingSku(false);
     }
   }
 
@@ -299,6 +371,69 @@ export function CatalogPanel({ session }: CatalogPanelProps) {
 
       {error ? <p className="form-error">{error}</p> : null}
       {message ? <p className="form-success">{message}</p> : null}
+
+      {canWrite ? (
+        <section className="catalog-manual-card" aria-label="Ручное добавление товара">
+          <div className="catalog-manual-card__heading">
+            <div>
+              <strong>Новый товар вручную</strong>
+              <span>Создает SKU клиента и карточку товара с фото, габаритами и свойствами</span>
+            </div>
+            <button className="icon-text-button" type="button" onClick={() => setManualFormOpen((current) => !current)}>
+              <PlusCircle size={16} aria-hidden="true" />
+              <span>{isManualFormOpen ? 'Свернуть' : 'Добавить товар'}</span>
+            </button>
+          </div>
+
+          {isManualFormOpen ? (
+            <form className="catalog-manual-form" onSubmit={(event) => void createManualSku(event)}>
+              <div className="catalog-card-form__grid">
+                <label>
+                  <span>Клиент</span>
+                  <select
+                    value={manualForm.clientId}
+                    onChange={(event) => setManualForm({ ...manualForm, clientId: event.target.value })}
+                    required
+                  >
+                    <option value="">Выберите клиента</option>
+                    {clients.map((client) => (
+                      <option key={client.id} value={client.id}>
+                        {client.code} · {client.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <TextField disabled={false} label="Внутренний SKU" value={manualForm.internalSku} onChange={(value) => setManualForm({ ...manualForm, internalSku: value })} required />
+                <TextField disabled={false} label="Название" value={manualForm.name} onChange={(value) => setManualForm({ ...manualForm, name: value })} required />
+                <TextField disabled={false} label="Артикул ВБ / продавца" value={manualForm.article} onChange={(value) => setManualForm({ ...manualForm, article: value })} />
+                <TextField disabled={false} label="SKU клиента" value={manualForm.clientSku} onChange={(value) => setManualForm({ ...manualForm, clientSku: value })} />
+                <TextField disabled={false} label="Штрихкод" value={manualForm.barcode} onChange={(value) => setManualForm({ ...manualForm, barcode: value })} />
+                <TextField disabled={false} label="Бренд" value={manualForm.brand} onChange={(value) => setManualForm({ ...manualForm, brand: value })} />
+                <TextField disabled={false} label="Категория" value={manualForm.category} onChange={(value) => setManualForm({ ...manualForm, category: value })} />
+                <TextField disabled={false} label="Цвет" value={manualForm.color} onChange={(value) => setManualForm({ ...manualForm, color: value })} />
+                <TextField disabled={false} label="Размер" value={manualForm.size} onChange={(value) => setManualForm({ ...manualForm, size: value })} />
+                <TextField disabled={false} label="Вес, г" value={manualForm.weightGrams} onChange={(value) => setManualForm({ ...manualForm, weightGrams: value })} />
+                <TextField disabled={false} label="Длина, см" value={manualForm.lengthCm} onChange={(value) => setManualForm({ ...manualForm, lengthCm: value })} />
+                <TextField disabled={false} label="Ширина, см" value={manualForm.widthCm} onChange={(value) => setManualForm({ ...manualForm, widthCm: value })} />
+                <TextField disabled={false} label="Высота, см" value={manualForm.heightCm} onChange={(value) => setManualForm({ ...manualForm, heightCm: value })} />
+              </div>
+              <TextAreaField disabled={false} label="Фото URL" value={manualForm.photoUrls} onChange={(value) => setManualForm({ ...manualForm, photoUrls: value })} placeholder="Одна ссылка на фото в строке" />
+              <div className="catalog-card-form__checks">
+                <CheckboxField disabled={false} label="Честный ЗНАК" checked={manualForm.needsChestnyZnak} onChange={(value) => setManualForm({ ...manualForm, needsChestnyZnak: value })} />
+                <CheckboxField disabled={false} label="Без маркировки" checked={manualForm.isUnmarked} onChange={(value) => setManualForm({ ...manualForm, isUnmarked: value })} />
+                <CheckboxField disabled={false} label="Нужна этикетка" checked={manualForm.needsLabel} onChange={(value) => setManualForm({ ...manualForm, needsLabel: value })} />
+                <CheckboxField disabled={false} label="Нужна перемаркировка" checked={manualForm.needsRelabel} onChange={(value) => setManualForm({ ...manualForm, needsRelabel: value })} />
+              </div>
+              <div className="catalog-card-form__actions">
+                <button className="primary-button" type="submit" disabled={isCreatingSku}>
+                  <Save size={16} aria-hidden="true" />
+                  <span>{isCreatingSku ? 'Создаю' : 'Создать товар'}</span>
+                </button>
+              </div>
+            </form>
+          ) : null}
+        </section>
+      ) : null}
 
       <div className="catalog-table-wrap">
         <table className="catalog-table">
@@ -439,6 +574,7 @@ function SkuModal({
               <TextField disabled={!isEditing} label="Ширина, см" value={form.widthCm} onChange={(value) => onChange({ ...form, widthCm: value })} />
               <TextField disabled={!isEditing} label="Высота, см" value={form.heightCm} onChange={(value) => onChange({ ...form, heightCm: value })} />
             </div>
+            <TextAreaField disabled={!isEditing} label="Фото URL" value={form.photoUrls} onChange={(value) => onChange({ ...form, photoUrls: value })} placeholder="Одна ссылка на фото в строке" />
 
             <div className="catalog-card-form__checks">
               <CheckboxField disabled={!isEditing} label="Честный ЗНАК" checked={form.needsChestnyZnak} onChange={(value) => onChange({ ...form, needsChestnyZnak: value })} />
@@ -466,17 +602,40 @@ function TextField({
   disabled,
   label,
   onChange,
+  required = false,
   value,
 }: {
   disabled: boolean;
   label: string;
   onChange: (value: string) => void;
+  required?: boolean;
   value: string;
 }) {
   return (
     <label>
       <span>{label}</span>
-      <input disabled={disabled} value={value} onChange={(event) => onChange(event.target.value)} />
+      <input disabled={disabled} required={required} value={value} onChange={(event) => onChange(event.target.value)} />
+    </label>
+  );
+}
+
+function TextAreaField({
+  disabled,
+  label,
+  onChange,
+  placeholder,
+  value,
+}: {
+  disabled: boolean;
+  label: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  value: string;
+}) {
+  return (
+    <label>
+      <span>{label}</span>
+      <textarea disabled={disabled} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
     </label>
   );
 }
@@ -519,6 +678,7 @@ function formFromSku(sku: SkuDetail): SkuForm {
     clientSku: sku.clientSku ?? '',
     article: sku.article ?? '',
     barcode: primaryBarcode(sku),
+    photoUrls: sku.marketplacePhotos.join('\n'),
     name: sku.name,
     brand: sku.brand ?? '',
     category: sku.category ?? '',
@@ -541,6 +701,7 @@ function payloadFromForm(form: SkuForm): UpdateSkuPayload {
     clientSku: form.clientSku.trim(),
     article: form.article.trim(),
     barcode: form.barcode.trim(),
+    photoUrls: parsePhotoUrls(form.photoUrls),
     name: form.name.trim(),
     brand: form.brand.trim(),
     category: form.category.trim(),
@@ -555,6 +716,37 @@ function payloadFromForm(form: SkuForm): UpdateSkuPayload {
     needsLabel: form.needsLabel,
     needsRelabel: form.needsRelabel,
   };
+}
+
+function payloadFromManualForm(form: ManualSkuForm): CreateSkuPayload {
+  return {
+    clientId: form.clientId,
+    internalSku: form.internalSku.trim(),
+    clientSku: form.clientSku.trim() || undefined,
+    article: form.article.trim() || undefined,
+    barcode: form.barcode.trim() || undefined,
+    photoUrls: parsePhotoUrls(form.photoUrls),
+    name: form.name.trim(),
+    brand: form.brand.trim() || undefined,
+    category: form.category.trim() || undefined,
+    color: form.color.trim() || undefined,
+    size: form.size.trim() || undefined,
+    weightGrams: parseOptionalNumber(form.weightGrams),
+    lengthCm: parseOptionalNumber(form.lengthCm),
+    widthCm: parseOptionalNumber(form.widthCm),
+    heightCm: parseOptionalNumber(form.heightCm),
+    needsChestnyZnak: form.needsChestnyZnak,
+    isUnmarked: form.isUnmarked,
+    needsLabel: form.needsLabel,
+    needsRelabel: form.needsRelabel,
+  };
+}
+
+function parsePhotoUrls(value: string) {
+  return value
+    .split(/\r?\n|,/)
+    .map((photo) => photo.trim())
+    .filter(Boolean);
 }
 
 function primaryBarcode(sku: SkuSummary) {

@@ -37,6 +37,7 @@ private const val BLUE = "#0B79D0"
 private const val LIGHT_BLUE = "#E8F3FF"
 private const val DARK = "#1D2733"
 private const val DANGER = "#C62828"
+private const val LOGO_RED = "#B40012"
 
 class MainActivity : ComponentActivity() {
     private lateinit var outbox: OperationOutbox
@@ -47,7 +48,7 @@ class MainActivity : ComponentActivity() {
     private var clients: List<TsdClientSummary> = emptyList()
     private var selectedClientId = ""
     private var screen = TsdScreen.MENU
-    private var legacyMode = TsdOperationMode.MOVE
+    private var legacyMode = TsdOperationMode.INVENTORY
 
     private var receiptId = createReceiptId()
     private var receiptStage = ReceiptStage.NOT_STARTED
@@ -111,10 +112,10 @@ class MainActivity : ComponentActivity() {
         }
         row.addView(TextView(this).apply {
             text = "LW"
-            textSize = 22f
+            textSize = 20f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
-            setBackgroundColor(Color.parseColor(BLUE))
+            setBackgroundColor(Color.parseColor(LOGO_RED))
             layoutParams = LinearLayout.LayoutParams(72, 72)
         })
         row.addView(TextView(this).apply {
@@ -185,11 +186,6 @@ class MainActivity : ComponentActivity() {
         })
         root.addView(secondaryButton("Сборка заявки") {
             updateStatus("Сборка заявок доступна в отдельном меню ТСД.")
-        })
-        root.addView(secondaryButton("Перемещения") {
-            legacyMode = TsdOperationMode.MOVE
-            screen = TsdScreen.LEGACY
-            render()
         })
         root.addView(secondaryButton("Инвентаризация") {
             legacyMode = TsdOperationMode.INVENTORY

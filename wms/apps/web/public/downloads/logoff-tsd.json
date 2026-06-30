@@ -1,6 +1,6 @@
 {
-  "versionCode": 17,
-  "versionName": "0.1.16",
+  "versionCode": 18,
+  "versionName": "0.1.17",
   "apkUrl": "https://wms.logoff.pro/downloads/logoff-tsd.apk",
-  "releaseNotes": "Исправлен вход ТСД: добавлен Kotlin JSON-конвертер для отправки логина, приемка товара остается в новом пошаговом режиме."
+  "releaseNotes": "Исправлен вход ТСД, главное меню приведено к логике: Приемка товара, Сборка заявки, Инвентаризация; возвращен логотип LW."
 }

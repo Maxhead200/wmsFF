@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { ClientNotificationEvent, ClientRequestEventType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { TelegramNotificationsService } from '../../common/telegram/telegram-notifications.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
 import { isClientNotificationEnabled } from '../client-notifications/client-notification-preferences';
@@ -11,6 +12,7 @@ export class ClientRequestHistoryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly clientScopes: ClientScopeService,
+    private readonly telegram: TelegramNotificationsService,
   ) {}
 
   async getTimeline(requestId: string, user: AuthUser) {
@@ -56,7 +58,8 @@ export class ClientRequestHistoryService {
     }
 
     // Русский комментарий: комментарий, событие и уведомление пишем одной транзакцией, чтобы история заявки не расходилась с кабинетом клиента.
-    return this.prisma.$transaction(async (tx) => {
+    let notificationId: string | null = null;
+    const comment = await this.prisma.$transaction(async (tx) => {
       const comment = await tx.clientRequestComment.create({
         data: {
           requestId,
@@ -84,7 +87,7 @@ export class ClientRequestHistoryService {
         shouldNotifyClient(user) &&
         (await isClientNotificationEnabled(tx, request.clientId, ClientNotificationEvent.REQUEST_COMMENT))
       ) {
-        await tx.clientNotification.create({
+        const notification = await tx.clientNotification.create({
           data: {
             clientId: request.clientId,
             requestId,
@@ -94,10 +97,17 @@ export class ClientRequestHistoryService {
             createdByUserId: user.id,
           },
         });
+        notificationId = notification.id;
       }
 
       return comment;
     });
+
+    if (notificationId) {
+      void this.telegram.notifyClientNotification(notificationId);
+    }
+
+    return comment;
   }
 
   private async getRequestForAccess(requestId: string) {

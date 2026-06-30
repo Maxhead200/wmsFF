@@ -11,10 +11,13 @@ import {
   fetchPickInstruction,
   packageClientRequest,
   pickClientRequest,
+  previewClientRequestAvailability,
   shipClientRequest,
+  updateClientRequestItems,
   updateClientRequestStatus,
   type AuthSession,
   type AuthUser,
+  type ClientRequestAvailabilityPreview,
   type ClientRequestDocument,
   type ClientRequestStatus,
   type ClientRequestSummary,
@@ -23,7 +26,9 @@ import {
 } from '../../lib/api';
 import { ClientRequestCreateForm } from './ClientRequestCreateForm';
 import { ClientRequestDocumentPreview } from './ClientRequestDocumentPreview';
+import { ClientRequestItemsEditor } from './ClientRequestItemsEditor';
 import { ClientRequestXlsxImportForm } from './ClientRequestXlsxImportForm';
+import { emptyClientRequestItem, normalizeClientRequestItems, type ClientRequestDraftItem } from './clientRequestItems';
 import './client-requests.css';
 import { ClientRequestsTable } from './ClientRequestsTable';
 import { HtmlDocumentPreview } from '../documents/HtmlDocumentPreview';
@@ -48,6 +53,12 @@ export function ClientRequestsPanel({ session }: ClientRequestsPanelProps) {
   const [error, setError] = useState<string | null>(null);
   const [documentPreview, setDocumentPreview] = useState<ClientRequestDocument | null>(null);
   const [pickInstructionPreview, setPickInstructionPreview] = useState<PickInstructionDocument | null>(null);
+  const [editingRequest, setEditingRequest] = useState<ClientRequestSummary | null>(null);
+  const [editItems, setEditItems] = useState<ClientRequestDraftItem[]>([emptyClientRequestItem()]);
+  const [editAvailability, setEditAvailability] = useState<ClientRequestAvailabilityPreview | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [isSavingEdit, setSavingEdit] = useState(false);
+  const [isCheckingEditAvailability, setCheckingEditAvailability] = useState(false);
 
   const visibleClients = useMemo(() => clients.data, [clients.data]);
 
@@ -228,6 +239,73 @@ export function ClientRequestsPanel({ session }: ClientRequestsPanelProps) {
     }));
   }
 
+  function openEditRequest(request: ClientRequestSummary) {
+    setEditingRequest(request);
+    setEditItems(draftItemsFromRequest(request));
+    setEditAvailability(null);
+    setEditError(null);
+  }
+
+  async function checkEditAvailability(nextItems = editItems) {
+    if (!editingRequest) {
+      return null;
+    }
+
+    const requestItems = normalizeClientRequestItems(nextItems);
+    if (requestItems.length === 0) {
+      setEditAvailability(null);
+      return null;
+    }
+
+    setCheckingEditAvailability(true);
+    try {
+      const nextAvailability = await previewClientRequestAvailability(session.accessToken, {
+        clientId: editingRequest.clientId,
+        type: editingRequest.type,
+        excludeRequestId: editingRequest.id,
+        items: requestItems,
+      });
+      setEditAvailability(nextAvailability);
+      return nextAvailability;
+    } finally {
+      setCheckingEditAvailability(false);
+    }
+  }
+
+  async function saveEditRequest() {
+    if (!editingRequest) {
+      return;
+    }
+
+    setSavingEdit(true);
+    setEditError(null);
+
+    try {
+      const requestItems = normalizeClientRequestItems(editItems);
+      const nextAvailability = await checkEditAvailability(editItems);
+
+      if (nextAvailability && !nextAvailability.canCommit) {
+        setEditError('Исправьте красные позиции: удалите строку крестиком или уменьшите количество до доступного остатка.');
+        return;
+      }
+
+      const updated = await updateClientRequestItems(session.accessToken, editingRequest.id, {
+        items: requestItems.length > 0 ? requestItems : undefined,
+      });
+      setRequests((current) => ({
+        ...current,
+        data: current.data.map((request) => (request.id === updated.id ? updated : request)),
+      }));
+      setEditingRequest(null);
+      setEditItems([emptyClientRequestItem()]);
+      setEditAvailability(null);
+    } catch (caught) {
+      setEditError(errorMessage(caught));
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
   return (
     <section className="client-requests-panel" aria-label="Клиентские заявки">
       <div className="section-heading client-requests-panel__heading">
@@ -263,6 +341,7 @@ export function ClientRequestsPanel({ session }: ClientRequestsPanelProps) {
           canWrite,
           (requestId, status) => void changeStatus(requestId, status),
           (request) => void cancelRequest(request),
+          (request) => openEditRequest(request),
           (request) => void openRequestDocument(request),
           (request) => void downloadMarketplaceProductsTemplate(request),
           (request) => void downloadMarketplacePackagesTemplate(request),
@@ -286,6 +365,41 @@ export function ClientRequestsPanel({ session }: ClientRequestsPanelProps) {
           onClose={() => setPickInstructionPreview(null)}
         />
       ) : null}
+
+      {editingRequest ? (
+        <div className="client-request-edit-modal" role="dialog" aria-modal="true" aria-label="Изменение состава заявки">
+          <div className="client-request-edit-card">
+            <div className="client-request-edit-card__header">
+              <div>
+                <h3>Изменить состав</h3>
+                <span>{editingRequest.title}</span>
+              </div>
+              <button className="secondary-action client-request-small-button" type="button" onClick={() => setEditingRequest(null)}>
+                Закрыть
+              </button>
+            </div>
+            <ClientRequestItemsEditor
+              items={editItems}
+              accessToken={session.accessToken}
+              clientId={editingRequest.clientId}
+              availability={editAvailability}
+              onChange={setEditItems}
+              onAvailabilityCheck={(items) => void checkEditAvailability(items)}
+              onError={setEditError}
+            />
+            {isCheckingEditAvailability ? <p className="inline-status">Проверяю остатки.</p> : null}
+            {editError ? <p className="form-error">{editError}</p> : null}
+            <div className="client-request-edit-actions">
+              <button className="secondary-action" type="button" onClick={() => setEditingRequest(null)}>
+                Отмена
+              </button>
+              <button className="primary-button" disabled={isSavingEdit} type="button" onClick={() => void saveEditRequest()}>
+                {isSavingEdit ? 'Сохраняю' : 'Применить изменения'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -297,6 +411,7 @@ function renderRequests(
   canCancelRequests: boolean,
   onStatusChange: (requestId: string, status: ClientRequestStatus) => void,
   onCancelRequest: (request: ClientRequestSummary) => void,
+  onEditRequest: (request: ClientRequestSummary) => void,
   onOpenDocument: (request: ClientRequestSummary) => void,
   onDownloadMarketplaceProductsTemplate: (request: ClientRequestSummary) => void,
   onDownloadMarketplacePackagesTemplate: (request: ClientRequestSummary) => void,
@@ -331,13 +446,15 @@ function renderRequests(
         canChangeStatus={canChangeStatus}
         canPickOutbound={canPickOutbound}
         canCancelRequests={canCancelRequests}
+        canEditRequests={canCancelRequests}
         onStatusChange={onStatusChange}
         onCancelRequest={onCancelRequest}
+        onEditRequest={onEditRequest}
         onOpenDocument={onOpenDocument}
-        onDownloadMarketplaceProductsTemplate={onDownloadMarketplaceProductsTemplate}
-        onDownloadMarketplacePackagesTemplate={onDownloadMarketplacePackagesTemplate}
-        onOpenPickInstruction={onOpenPickInstruction}
-        onDownloadPickInstruction={onDownloadPickInstruction}
+        onDownloadMarketplaceProductsTemplate={canPickOutbound ? onDownloadMarketplaceProductsTemplate : undefined}
+        onDownloadMarketplacePackagesTemplate={canPickOutbound ? onDownloadMarketplacePackagesTemplate : undefined}
+        onOpenPickInstruction={canPickOutbound ? onOpenPickInstruction : undefined}
+        onDownloadPickInstruction={canPickOutbound ? onDownloadPickInstruction : undefined}
         onPickOutbound={onPickOutbound}
         onPackageOutbound={onPackageOutbound}
         onShipOutbound={onShipOutbound}
@@ -363,6 +480,18 @@ function downloadBlob(blob: Blob, fileName: string) {
 
 function safeDownloadName(value: string) {
   return value.replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^_+|_+$/g, '') || 'request';
+}
+
+function draftItemsFromRequest(request: ClientRequestSummary): ClientRequestDraftItem[] {
+  const items = request.items.map((item) => ({
+    skuId: item.skuId ?? '',
+    barcode: item.barcode ?? '',
+    name: item.name ?? item.sku?.name ?? '',
+    quantity: String(item.quantity),
+    comment: item.comment ?? '',
+  }));
+
+  return items.length > 0 ? items : [emptyClientRequestItem()];
 }
 
 function errorMessage(caught: unknown) {

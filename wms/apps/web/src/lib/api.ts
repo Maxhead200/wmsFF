@@ -986,7 +986,10 @@ export type CreateClientRequestPayload = {
   }>;
 };
 
-export type PreviewClientRequestAvailabilityPayload = Pick<CreateClientRequestPayload, 'clientId' | 'type' | 'items'>;
+export type PreviewClientRequestAvailabilityPayload = Pick<CreateClientRequestPayload, 'clientId' | 'type' | 'items'> & {
+  excludeRequestId?: string;
+};
+export type UpdateClientRequestItemsPayload = Pick<CreateClientRequestPayload, 'items'>;
 
 export type OutboundRequestXlsxPayload = {
   file: File;
@@ -1186,6 +1189,16 @@ export type StockBalance = {
   palletId: string | null;
   status: string;
   quantity: number;
+  reservedQuantity?: number;
+  availableQuantity?: number;
+  inWorkRequests?: Array<{
+    id: string;
+    title: string;
+    status: ClientRequestStatus;
+    destinationCity: string | null;
+    createdAt: string;
+    quantity: number;
+  }>;
   updatedAt: string;
   sku: {
     id: string;
@@ -2627,6 +2640,18 @@ export async function previewClientRequestAvailability(
 ) {
   return request<ClientRequestAvailabilityPreview>('/client-requests/availability-preview', {
     method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function updateClientRequestItems(
+  accessToken: string,
+  requestId: string,
+  payload: UpdateClientRequestItemsPayload,
+) {
+  return request<ClientRequestSummary>(`/client-requests/${requestId}/items`, {
+    method: 'PATCH',
     body: payload,
     accessToken,
   });

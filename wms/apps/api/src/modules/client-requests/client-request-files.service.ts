@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ClientNotificationEvent, ClientRequestEventType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { TelegramNotificationsService } from '../../common/telegram/telegram-notifications.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
 import { isClientNotificationEnabled } from '../client-notifications/client-notification-preferences';
@@ -12,6 +13,7 @@ export class ClientRequestFilesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly clientScopes: ClientScopeService,
+    private readonly telegram: TelegramNotificationsService,
   ) {}
 
   async listForRequest(requestId: string, user: AuthUser) {
@@ -38,7 +40,8 @@ export class ClientRequestFilesService {
     this.clientScopes.requireClientAccess(user, request.clientId, 'write');
 
     // Русский комментарий: файл хранится рядом с заявкой, чтобы клиент видел вложения без внешнего файлового сервиса.
-    return this.prisma.$transaction(async (tx) => {
+    let notificationId: string | null = null;
+    const savedFile = await this.prisma.$transaction(async (tx) => {
       const savedFile = await tx.clientRequestFile.create({
         data: {
           requestId,
@@ -53,7 +56,7 @@ export class ClientRequestFilesService {
       });
 
       if (await isClientNotificationEnabled(tx, request.clientId, ClientNotificationEvent.REQUEST_FILE_UPLOADED)) {
-        await tx.clientNotification.create({
+        const notification = await tx.clientNotification.create({
           data: {
             clientId: request.clientId,
             requestId,
@@ -63,6 +66,7 @@ export class ClientRequestFilesService {
             createdByUserId: user.id,
           },
         });
+        notificationId = notification.id;
       }
 
       await tx.clientRequestEvent.create({
@@ -78,6 +82,12 @@ export class ClientRequestFilesService {
 
       return savedFile;
     });
+
+    if (notificationId) {
+      void this.telegram.notifyClientNotification(notificationId);
+    }
+
+    return savedFile;
   }
 
   async getFileContent(requestId: string, fileId: string, user: AuthUser) {

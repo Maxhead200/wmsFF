@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ClientNotificationEvent, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { TelegramNotificationsService } from '../../common/telegram/telegram-notifications.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
 import {
@@ -17,6 +18,7 @@ export class ClientNotificationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly clientScopes: ClientScopeService,
+    private readonly telegram: TelegramNotificationsService,
   ) {}
 
   list(query: ListClientNotificationsDto, user: AuthUser) {
@@ -39,7 +41,7 @@ export class ClientNotificationsService {
     await this.ensureNotificationEventEnabled(dto.clientId, ClientNotificationEvent.MANUAL);
 
     // Русский комментарий: уведомление видно клиенту сразу в кабинете, а статус read хранится отдельно от заявки.
-    return this.prisma.clientNotification.create({
+    const notification = await this.prisma.clientNotification.create({
       data: {
         clientId: dto.clientId,
         requestId: normalizeText(dto.requestId),
@@ -50,6 +52,9 @@ export class ClientNotificationsService {
       },
       include: clientNotificationInclude,
     });
+
+    void this.telegram.notifyClientNotification(notification.id);
+    return notification;
   }
 
   async markRead(id: string, user: AuthUser) {

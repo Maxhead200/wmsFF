@@ -239,14 +239,15 @@ function buildStockSuggestions(balances: StockBalance[]) {
   const bySku = new Map<string, StockSuggestion>();
 
   for (const balance of balances) {
-    if (balance.status !== 'AVAILABLE' || balance.quantity <= 0) {
+    const availableQuantity = Number(balance.availableQuantity ?? balance.quantity);
+    if (balance.status !== 'AVAILABLE' || availableQuantity <= 0) {
       continue;
     }
 
     const existing = bySku.get(balance.skuId);
     const barcode = primaryBarcode(balance);
     if (existing) {
-      existing.availableQuantity += balance.quantity;
+      existing.availableQuantity += availableQuantity;
       if (!existing.barcode && barcode) {
         existing.barcode = barcode;
       }
@@ -258,7 +259,7 @@ function buildStockSuggestions(balances: StockBalance[]) {
       internalSku: balance.sku.internalSku,
       name: balance.sku.name,
       barcode,
-      availableQuantity: balance.quantity,
+      availableQuantity,
     });
   }
 

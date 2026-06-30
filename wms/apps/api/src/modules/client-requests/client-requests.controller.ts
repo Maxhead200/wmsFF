@@ -30,6 +30,7 @@ import { CreateClientRequestDto } from './dto/create-client-request.dto';
 import { ImportOutboundRequestXlsxDto } from './dto/import-outbound-request-xlsx.dto';
 import { ListClientRequestsDto } from './dto/list-client-requests.dto';
 import { PreviewClientRequestAvailabilityDto } from './dto/preview-client-request-availability.dto';
+import { UpdateClientRequestItemsDto } from './dto/update-client-request-items.dto';
 import { UpdateClientRequestStatusDto } from './dto/update-client-request-status.dto';
 
 @ApiTags('client-requests')
@@ -215,6 +216,16 @@ export class ClientRequestsController {
   @RequirePermissions('client-requests:write')
   cancel(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.clientRequests.cancel(id, user);
+  }
+
+  @Patch(':id/items')
+  @RequirePermissions('client-requests:write')
+  updateItems(
+    @Param('id') id: string,
+    @Body() dto: UpdateClientRequestItemsDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.clientRequests.updateItems(id, dto, user);
   }
 
   @Patch(':id/status')

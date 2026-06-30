@@ -10,6 +10,7 @@ import { clientRequestPackageInclude } from './client-request-packages.include';
 import { CreateClientRequestDto } from './dto/create-client-request.dto';
 import { ListClientRequestsDto } from './dto/list-client-requests.dto';
 import { PreviewClientRequestAvailabilityDto } from './dto/preview-client-request-availability.dto';
+import { UpdateClientRequestItemsDto } from './dto/update-client-request-items.dto';
 import { UpdateClientRequestStatusDto } from './dto/update-client-request-status.dto';
 
 @Injectable()
@@ -75,7 +76,7 @@ export class ClientRequestsService {
     const skuIds = [...new Set(resolved.map((line) => line.skuId).filter(Boolean))] as string[];
     const barcodes = [...new Set(resolved.map((line) => line.barcode).filter(Boolean))] as string[];
     const stockBySkuId = await this.stockQuantityBySkuId(dto.clientId, skuIds);
-    const reservationsBySkuId = await this.activeReservationBySkuId(dto.clientId, skuIds, barcodes);
+    const reservationsBySkuId = await this.activeReservationBySkuId(dto.clientId, skuIds, barcodes, dto.excludeRequestId);
 
     const lines = resolved.map((line) => {
       if (!line.skuId) {
@@ -177,6 +178,73 @@ export class ClientRequestsService {
 
     void this.telegram.notifyFulfillmentNewRequest(created.id);
     return created;
+  }
+
+  async updateItems(id: string, dto: UpdateClientRequestItemsDto, user: AuthUser) {
+    const request = await this.prisma.clientRequest.findUnique({
+      where: { id },
+      select: { id: true, clientId: true, status: true, title: true, type: true },
+    });
+
+    if (!request) {
+      throw new NotFoundException('Клиентская заявка не найдена.');
+    }
+
+    this.clientScopes.requireClientAccess(user, request.clientId, 'write');
+
+    if (!clientEditableItemStatuses.has(request.status)) {
+      throw new BadRequestException('Состав заявки можно менять только до передачи в работу.');
+    }
+
+    const items = dto.items ?? [];
+    await this.ensureSkuItemsBelongToClient(request.clientId, items);
+    const availability = await this.previewAvailability(
+      {
+        clientId: request.clientId,
+        type: request.type,
+        excludeRequestId: request.id,
+        items,
+      },
+      user,
+    );
+    if (!availability.canCommit) {
+      throw new BadRequestException('В измененном составе есть позиции с нехваткой свободного остатка.');
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const updatedRequest = await tx.clientRequest.update({
+        where: { id },
+        data: {
+          items: {
+            deleteMany: {},
+            create: items.map((item) => ({
+              skuId: normalizeText(item.skuId),
+              barcode: normalizeText(item.barcode),
+              name: normalizeText(item.name),
+              quantity: item.quantity,
+              comment: normalizeText(item.comment),
+            })),
+          },
+        },
+        include: clientRequestInclude,
+      });
+
+      await tx.clientRequestEvent.create({
+        data: {
+          requestId: id,
+          clientId: request.clientId,
+          eventType: ClientRequestEventType.COMMENT,
+          title: 'Состав заявки изменен',
+          body: `${items.length} позиций, ${items.reduce((sum, item) => sum + item.quantity, 0)} шт.`,
+          createdByUserId: user.id,
+        },
+      });
+
+      return updatedRequest;
+    });
+
+    void this.telegram.notifyFulfillmentRequestChanged(updated.id);
+    return updated;
   }
 
   async updateStatus(id: string, dto: UpdateClientRequestStatusDto, user: AuthUser) {
@@ -400,7 +468,7 @@ export class ClientRequestsService {
     return new Map(stockRows.map((row) => [row.skuId, Number(row._sum.quantity ?? 0)]));
   }
 
-  private async activeReservationBySkuId(clientId: string, skuIds: string[], barcodes: string[]) {
+  private async activeReservationBySkuId(clientId: string, skuIds: string[], barcodes: string[], excludeRequestId?: string) {
     const empty = new Map<string, { quantity: number; requests: ClientRequestAvailabilityConflict[] }>();
     if (skuIds.length === 0 && barcodes.length === 0) {
       return empty;
@@ -408,6 +476,7 @@ export class ClientRequestsService {
 
     const requests = await this.prisma.clientRequest.findMany({
       where: {
+        id: excludeRequestId ? { not: excludeRequestId } : undefined,
         clientId,
         type: ClientRequestType.OUTBOUND,
         status: { in: activeRequestStatuses },
@@ -539,6 +608,12 @@ const activeRequestStatuses = [
 ];
 
 const clientCancelableStatuses = new Set<ClientRequestStatus>([
+  ClientRequestStatus.SUBMITTED,
+  ClientRequestStatus.IN_REVIEW,
+  ClientRequestStatus.APPROVED,
+]);
+
+const clientEditableItemStatuses = new Set<ClientRequestStatus>([
   ClientRequestStatus.SUBMITTED,
   ClientRequestStatus.IN_REVIEW,
   ClientRequestStatus.APPROVED,

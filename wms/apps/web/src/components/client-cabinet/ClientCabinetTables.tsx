@@ -28,6 +28,8 @@ import {
   primaryBarcode,
   requestStatusLabel,
   requestTypeLabel,
+  stockAvailableQuantity,
+  stockReservedQuantity,
   stockStatusLabel,
 } from './clientCabinetFormat';
 import { ClientCabinetNotifications } from './ClientCabinetNotifications';
@@ -74,6 +76,8 @@ type SkuStockSummary = {
   primaryBarcode: string;
   boxesCount: number;
   quantity: number;
+  reservedQuantity: number;
+  inWorkRequests: NonNullable<StockBalance['inWorkRequests']>;
   updatedAt: string;
 };
 
@@ -341,17 +345,24 @@ function renderSkuTable(items: SkuStockSummary[], canSeeStoragePlaces: boolean, 
           {items.map((item) => (
             <tr
               key={item.skuId}
+              className={hasInWorkRequests(item) ? 'client-cabinet-table-row--reserved' : undefined}
               onClick={() => onOpenProductCard(item.skuId)}
               onKeyDown={(event) => openProductCardFromKeyboard(event, item.skuId, onOpenProductCard)}
               tabIndex={0}
             >
               <td>
                 <strong>{item.internalSku}</strong>
+                {stockWorkNote(item.inWorkRequests)}
               </td>
               <td>{item.name}</td>
               <td>{item.primaryBarcode}</td>
               {canSeeStoragePlaces ? <td>{formatCabinetNumber(item.boxesCount)}</td> : null}
-              <td>{formatCabinetNumber(item.quantity)}</td>
+              <td>
+                {formatCabinetNumber(item.quantity)}
+                {item.reservedQuantity > 0 ? (
+                  <span className="client-cabinet-quantity-note">В работе {formatCabinetNumber(item.reservedQuantity)} шт.</span>
+                ) : null}
+              </td>
               <td>{formatCabinetDate(item.updatedAt)}</td>
             </tr>
           ))}
@@ -380,6 +391,7 @@ function renderStockTable(items: StockBalance[], canSeeStoragePlaces: boolean, o
           {items.map((balance) => (
             <tr
               key={balance.id}
+              className={hasInWorkRequests(balance) ? 'client-cabinet-table-row--reserved' : undefined}
               onClick={() => onOpenProductCard(balance.skuId)}
               onKeyDown={(event) => openProductCardFromKeyboard(event, balance.skuId, onOpenProductCard)}
               tabIndex={0}
@@ -387,6 +399,7 @@ function renderStockTable(items: StockBalance[], canSeeStoragePlaces: boolean, o
               <td>
                 <strong>{balance.sku.internalSku}</strong>
                 <span>{balance.sku.name}</span>
+                {stockWorkNote(balance.inWorkRequests)}
               </td>
               <td>{primaryBarcode(balance)}</td>
               {canSeeStoragePlaces ? <td>{balance.box?.code ?? '-'}</td> : null}
@@ -394,7 +407,14 @@ function renderStockTable(items: StockBalance[], canSeeStoragePlaces: boolean, o
               <td>
                 <span className="status status--planned">{stockStatusLabel(balance.status)}</span>
               </td>
-              <td>{formatCabinetNumber(Number(balance.quantity))}</td>
+              <td>
+                {formatCabinetNumber(stockAvailableQuantity(balance))}
+                {stockReservedQuantity(balance) > 0 ? (
+                  <span className="client-cabinet-quantity-note">
+                    В работе {formatCabinetNumber(stockReservedQuantity(balance))} из {formatCabinetNumber(Number(balance.quantity))}
+                  </span>
+                ) : null}
+              </td>
               <td>{formatCabinetDate(balance.updatedAt)}</td>
             </tr>
           ))}
@@ -612,6 +632,8 @@ function buildSkuRows(stock: StockBalance[]): SkuStockSummary[] {
         primaryBarcode: primaryBarcode(balance),
         boxesCount: 0,
         quantity: 0,
+        reservedQuantity: 0,
+        inWorkRequests: [],
         updatedAt,
         boxCodes: new Set<string>(),
       };
@@ -620,7 +642,9 @@ function buildSkuRows(stock: StockBalance[]): SkuStockSummary[] {
       row.boxCodes.add(balance.box.code);
     }
 
-    row.quantity += Number(balance.quantity);
+    row.quantity += stockAvailableQuantity(balance);
+    row.reservedQuantity += stockReservedQuantity(balance);
+    row.inWorkRequests = mergeInWorkRequests(row.inWorkRequests, balance.inWorkRequests ?? []);
     row.updatedAt = updatedAt;
     row.boxesCount = row.boxCodes.size;
     rows.set(balance.skuId, row);
@@ -659,10 +683,45 @@ function quantityForTab(tab: ClientCabinetMetricTarget, skuRows: SkuStockSummary
   }
 
   if (tab === 'stock') {
-    return stock.reduce((sum, balance) => sum + Number(balance.quantity), 0);
+    return stock.reduce((sum, balance) => sum + stockAvailableQuantity(balance), 0);
   }
 
   return null;
+}
+
+function hasInWorkRequests(item: { reservedQuantity?: number; inWorkRequests?: unknown[] }) {
+  return Number(item.reservedQuantity ?? 0) > 0 || Boolean(item.inWorkRequests?.length);
+}
+
+function stockWorkNote(requests?: StockBalance['inWorkRequests']) {
+  if (!requests?.length) {
+    return null;
+  }
+
+  const text = requests
+    .slice(0, 2)
+    .map((request) => `${request.title}, ${formatCabinetNumber(request.quantity)} шт.`)
+    .join('; ');
+
+  return <span className="client-cabinet-work-note">В работе: {text}</span>;
+}
+
+function mergeInWorkRequests(
+  existing: NonNullable<StockBalance['inWorkRequests']>,
+  next: NonNullable<StockBalance['inWorkRequests']>,
+) {
+  const byRequest = new Map(existing.map((request) => [request.id, { ...request }]));
+
+  next.forEach((request) => {
+    const current = byRequest.get(request.id);
+    if (current) {
+      current.quantity += request.quantity;
+    } else {
+      byRequest.set(request.id, { ...request });
+    }
+  });
+
+  return [...byRequest.values()].sort((left, right) => left.createdAt.localeCompare(right.createdAt));
 }
 
 function tableCountText(

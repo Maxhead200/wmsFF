@@ -1,5 +1,5 @@
 import { AlertTriangle, CheckCircle2, FileSpreadsheet, Send, Trash2, Upload, Wand2 } from 'lucide-react';
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   createClientRequest,
   previewOutboundRequestXlsx,
@@ -43,6 +43,7 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
   const [message, setMessage] = useState('');
   const [isPreviewing, setPreviewing] = useState(false);
   const [isCommitting, setCommitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   if (writableClients.length === 0) {
     return null;
@@ -192,9 +193,26 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
         </label>
         <label className="client-request-fields__wide">
           <span>Файл Excel</span>
+          <div className="client-request-xlsx-file-actions">
+            <button className="secondary-action client-request-small-button" type="button" onClick={downloadRequestTemplate}>
+              <FileSpreadsheet size={15} aria-hidden="true" />
+              <span>Скачать шаблон</span>
+            </button>
+            <button
+              className="secondary-action client-request-small-button"
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload size={15} aria-hidden="true" />
+              <span>Загрузить файл</span>
+            </button>
+            <strong>{file?.name ?? 'Файл не выбран'}</strong>
+          </div>
           <input
+            ref={fileInputRef}
             key={fileInputKey}
             accept=".xlsx,.xls"
+            hidden
             type="file"
             onChange={(event) => {
               setFile(event.target.files?.[0] ?? null);
@@ -510,6 +528,24 @@ export function ClientRequestXlsxImportForm({ clients, session, onCreated }: Cli
       ),
     );
   }
+}
+
+function downloadRequestTemplate() {
+  const html = [
+    '<html><head><meta charset="utf-8"></head><body><table>',
+    '<tr><th>Баркод</th><th>Количество</th><th>Переклеить</th><th>Количество переклейки</th></tr>',
+    '<tr><td>2049156013678</td><td>40</td><td>2051369340472</td><td>15</td></tr>',
+    '</table></body></html>',
+  ].join('');
+  const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'shablon-zayavki-sborki.xls';
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 type EditableXlsxLine = OutboundRequestXlsxLine & {

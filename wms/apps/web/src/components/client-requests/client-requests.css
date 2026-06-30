@@ -91,6 +91,20 @@
   grid-template-columns: minmax(180px, 1fr) minmax(140px, 0.8fr) minmax(140px, 0.8fr) minmax(220px, 1.2fr);
 }
 
+.client-request-xlsx-file-actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.client-request-xlsx-file-actions strong {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 .client-request-submit {
   width: fit-content;
 }
@@ -110,6 +124,49 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.client-request-edit-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  background: rgb(15 23 42 / 0.38);
+  padding: 20px;
+}
+
+.client-request-edit-card {
+  display: grid;
+  width: min(1040px, 100%);
+  max-height: min(820px, 92vh);
+  overflow: auto;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 16px;
+  box-shadow: 0 24px 70px rgb(15 23 42 / 0.24);
+}
+
+.client-request-edit-card__header,
+.client-request-edit-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.client-request-edit-card__header h3 {
+  font-size: 18px;
+}
+
+.client-request-edit-card__header span {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .client-request-xlsx-summary span {

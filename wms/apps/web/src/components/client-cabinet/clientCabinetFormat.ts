@@ -36,6 +36,14 @@ export function primaryBarcode(balance: StockBalance) {
   return balance.sku.barcodes.find((barcode) => barcode.isPrimary)?.value ?? balance.sku.barcodes[0]?.value ?? '-';
 }
 
+export function stockAvailableQuantity(balance: StockBalance) {
+  return Number(balance.availableQuantity ?? balance.quantity);
+}
+
+export function stockReservedQuantity(balance: StockBalance) {
+  return Number(balance.reservedQuantity ?? 0);
+}
+
 export function formatCabinetNumber(value: number) {
   return value.toLocaleString('ru-RU', { maximumFractionDigits: 3 });
 }

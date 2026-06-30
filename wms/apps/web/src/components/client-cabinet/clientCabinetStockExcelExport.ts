@@ -1,5 +1,5 @@
 import type { ClientSummary, StockBalance } from '../../lib/api';
-import { formatCabinetDate, formatCabinetNumber, primaryBarcode, stockStatusLabel } from './clientCabinetFormat';
+import { formatCabinetDate, formatCabinetNumber, primaryBarcode, stockAvailableQuantity, stockStatusLabel } from './clientCabinetFormat';
 
 export function downloadClientCabinetStockExcel(client: ClientSummary, stock: StockBalance[], canSeeStoragePlaces: boolean) {
   const stockHeader = ['SKU', 'Наименование', 'Штрихкод', 'Статус', 'Количество', 'Обновлено'];
@@ -16,7 +16,7 @@ export function downloadClientCabinetStockExcel(client: ClientSummary, stock: St
     ['Клиент', client.name],
     ['Дата выгрузки', new Date().toLocaleString('ru-RU')],
     ['Строк остатков', stockRows.length],
-    ['Единиц на остатке', formatCabinetNumber(stock.reduce((sum, balance) => sum + Number(balance.quantity), 0))],
+    ['Единиц на остатке', formatCabinetNumber(stock.reduce((sum, balance) => sum + stockAvailableQuantity(balance), 0))],
     [],
     stockHeader,
     ...stockRows,
@@ -70,7 +70,7 @@ function aggregateStockRows(stock: StockBalance[]) {
     existing.internalSkus.add(balance.sku.internalSku);
     existing.names.add(balance.sku.name);
     existing.statuses.add(stockStatusLabel(balance.status));
-    existing.quantity += Number(balance.quantity);
+    existing.quantity += stockAvailableQuantity(balance);
     existing.updatedAt = latestDateString(existing.updatedAt, balance.updatedAt);
     existing.internalSku = [...existing.internalSkus].sort((left, right) => left.localeCompare(right, 'ru')).join(', ');
     existing.name = [...existing.names].sort((left, right) => left.localeCompare(right, 'ru')).join(', ');
@@ -81,6 +81,7 @@ function aggregateStockRows(stock: StockBalance[]) {
 
   return [...byBarcode.values()]
     .map(({ internalSkus, names, statuses, ...row }) => row)
+    .filter((row) => row.quantity > 0)
     .sort((left, right) => left.name.localeCompare(right.name, 'ru') || left.barcode.localeCompare(right.barcode, 'ru'));
 }
 

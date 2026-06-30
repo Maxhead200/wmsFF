@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, StockStatus } from '@prisma/client';
+import { ClientRequestStatus, Prisma, StockStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
@@ -13,6 +13,14 @@ export type BalanceKeyInput = {
   status: StockStatus;
 };
 
+const stockBalanceListInclude = {
+  sku: { include: { barcodes: true } },
+  box: true,
+  pallet: true,
+} satisfies Prisma.StockBalanceInclude;
+
+type StockBalanceListRow = Prisma.StockBalanceGetPayload<{ include: typeof stockBalanceListInclude }>;
+
 @Injectable()
 export class StockBalancesService {
   constructor(
@@ -20,7 +28,7 @@ export class StockBalancesService {
     private readonly clientScopes: ClientScopeService,
   ) {}
 
-  list(filter: ListStockBalancesDto, user: AuthUser) {
+  async list(filter: ListStockBalancesDto, user: AuthUser) {
     const search = filter.search?.trim();
     const skuWhere: Prisma.SkuWhereInput | undefined =
       filter.barcode || search
@@ -46,20 +54,116 @@ export class StockBalancesService {
       sku: skuWhere,
     };
 
-    return this.prisma.stockBalance.findMany({
+    const balances = await this.prisma.stockBalance.findMany({
       where,
-      include: {
-        sku: { include: { barcodes: true } },
-        box: true,
-        pallet: true,
-      },
+      include: stockBalanceListInclude,
       orderBy: [{ updatedAt: 'desc' }],
       take: search ? 100 : undefined,
     });
+
+    return this.withInWorkReservations(balances);
   }
 
   balanceKey(input: BalanceKeyInput) {
     // Русский комментарий: отдельный ключ убирает неоднозначность SQL NULL в составных unique-индексах.
     return [input.clientId, input.skuId, input.boxId ?? 'no-box', input.palletId ?? 'no-pallet', input.status].join(':');
   }
+
+  private async withInWorkReservations(balances: StockBalanceListRow[]) {
+    const clientIds = [...new Set(balances.map((balance) => balance.clientId))];
+    const skuIds = [...new Set(balances.map((balance) => balance.skuId))];
+
+    if (clientIds.length === 0 || skuIds.length === 0) {
+      return balances.map((balance) => ({
+        ...balance,
+        reservedQuantity: 0,
+        availableQuantity: Number(balance.quantity),
+        inWorkRequests: [],
+      }));
+    }
+
+    const requestItems = await this.prisma.clientRequestItem.findMany({
+      where: {
+        skuId: { in: skuIds },
+        request: {
+          clientId: { in: clientIds },
+          status: ClientRequestStatus.IN_WORK,
+        },
+      },
+      select: {
+        skuId: true,
+        quantity: true,
+        request: {
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            destinationCity: true,
+            createdAt: true,
+            clientId: true,
+          },
+        },
+      },
+    });
+
+    const reservations = new Map<
+      string,
+      {
+        quantity: number;
+        requests: Map<string, { id: string; title: string; status: ClientRequestStatus; destinationCity: string | null; createdAt: Date; quantity: number }>;
+      }
+    >();
+
+    requestItems.forEach((item) => {
+      if (!item.skuId) {
+        return;
+      }
+
+      const key = reservationKey(item.request.clientId, item.skuId);
+      const reservation = reservations.get(key) ?? { quantity: 0, requests: new Map() };
+      reservation.quantity += item.quantity;
+
+      const existingRequest = reservation.requests.get(item.request.id);
+      reservation.requests.set(item.request.id, {
+        id: item.request.id,
+        title: item.request.title,
+        status: item.request.status,
+        destinationCity: item.request.destinationCity,
+        createdAt: item.request.createdAt,
+        quantity: (existingRequest?.quantity ?? 0) + item.quantity,
+      });
+      reservations.set(key, reservation);
+    });
+
+    const remainingByKey = new Map([...reservations.entries()].map(([key, reservation]) => [key, reservation.quantity]));
+
+    return balances.map((balance) => {
+      const key = reservationKey(balance.clientId, balance.skuId);
+      const physicalQuantity = Number(balance.quantity);
+      if (balance.status !== StockStatus.AVAILABLE) {
+        return {
+          ...balance,
+          reservedQuantity: 0,
+          availableQuantity: physicalQuantity,
+          inWorkRequests: [],
+        };
+      }
+      const remaining = remainingByKey.get(key) ?? 0;
+      const reservedQuantity = Math.min(physicalQuantity, Math.max(0, remaining));
+      remainingByKey.set(key, Math.max(0, remaining - reservedQuantity));
+
+      return {
+        ...balance,
+        reservedQuantity,
+        availableQuantity: Math.max(0, physicalQuantity - reservedQuantity),
+        inWorkRequests: [...(reservations.get(key)?.requests.values() ?? [])].sort(
+          (left, right) => right.createdAt.getTime() - left.createdAt.getTime(),
+        ),
+      };
+    });
+  }
+}
+
+function reservationKey(clientId: string, skuId: string) {
+  return `${clientId}:${skuId}`;
 }

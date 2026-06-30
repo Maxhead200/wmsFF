@@ -100,6 +100,68 @@ export class TelegramNotificationsService {
     await this.sendToMany(settings.payload.fulfillmentChatIds, text);
   }
 
+  async notifyFulfillmentRequestChanged(requestId: string) {
+    const settings = await this.loadSettings();
+    if (!this.canSend(settings.payload)) {
+      return;
+    }
+
+    const request = await this.prisma.clientRequest.findUnique({
+      where: { id: requestId },
+      include: {
+        client: { select: { name: true } },
+        items: { select: { quantity: true } },
+      },
+    });
+    if (!request) {
+      return;
+    }
+
+    const text = [
+      'Заявка клиента изменена',
+      `Клиент: ${request.client.name}`,
+      `Заявка: ${request.title}`,
+      `Город: ${request.destinationCity || '-'}`,
+      `Статус: ${requestStatusLabel(request.status)}`,
+      `Позиций: ${request.items.length}`,
+      `Количество: ${request.items.reduce((sum, item) => sum + item.quantity, 0)}`,
+      'Нужно обновить инструкцию для склада.',
+    ].join('\n');
+
+    await this.sendToMany(settings.payload.fulfillmentChatIds, text);
+  }
+
+  async notifyClientNotification(notificationId: string) {
+    const settings = await this.loadSettings();
+    if (!this.canSend(settings.payload)) {
+      return;
+    }
+
+    const notification = await this.prisma.clientNotification.findUnique({
+      where: { id: notificationId },
+      include: {
+        client: { select: { name: true, telegramChatId: true } },
+        request: { select: { title: true, destinationCity: true, status: true } },
+      },
+    });
+    const chatId = notification?.client.telegramChatId?.trim();
+    if (!notification || !chatId) {
+      return;
+    }
+
+    const text = [
+      notification.title,
+      notification.body ?? '',
+      notification.request ? `Заявка: ${notification.request.title}` : '',
+      notification.request?.destinationCity ? `Город: ${notification.request.destinationCity}` : '',
+      notification.request ? `Статус: ${requestStatusLabel(notification.request.status)}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    await this.sendText(chatId, text);
+  }
+
   async notifyClientRequestStatus(requestId: string, statusFrom: ClientRequestStatus | null, statusTo: ClientRequestStatus) {
     const settings = await this.loadSettings();
     if (!this.canSend(settings.payload)) {

@@ -7,7 +7,7 @@ import type {
   ClientRequestSummary,
   StockBalance,
 } from '../../lib/api';
-import { formatCabinetMoney, formatCabinetNumber } from './clientCabinetFormat';
+import { formatCabinetMoney, formatCabinetNumber, stockAvailableQuantity } from './clientCabinetFormat';
 
 export type ClientCabinetMetricTarget = 'skus' | 'stock' | 'requests' | 'invoices' | 'settings';
 
@@ -24,7 +24,7 @@ const closedRequestStatuses = ['DONE', 'CANCELLED', 'REJECTED'];
 
 export function ClientCabinetMetrics({ stock, requests, invoices, charges, reconciliation, onNavigate }: ClientCabinetMetricsProps) {
   const uniqueSkuCount = new Set(stock.map((balance) => balance.skuId)).size;
-  const totalQuantity = stock.reduce((sum, balance) => sum + Number(balance.quantity), 0);
+  const totalQuantity = stock.reduce((sum, balance) => sum + stockAvailableQuantity(balance), 0);
   const activeRequests = requests.filter((request) => !closedRequestStatuses.includes(request.status)).length;
   const invoiceDebtRub =
     reconciliation?.totals.debtRub ??

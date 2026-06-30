@@ -1,4 +1,4 @@
-import { CheckCircle2, ClipboardList, FileDown, FileText, PackageCheck, Send, Truck, XCircle } from 'lucide-react';
+import { CheckCircle2, ClipboardList, FileDown, FileText, PackageCheck, Pencil, Send, Truck, XCircle } from 'lucide-react';
 import { type ClientRequestStatus, type ClientRequestSummary } from '../../lib/api';
 import {
   requestPriorityLabel,
@@ -13,8 +13,10 @@ type ClientRequestsTableProps = {
   canChangeStatus: boolean;
   canPickOutbound: boolean;
   canCancelRequests: boolean;
+  canEditRequests: boolean;
   onStatusChange: (requestId: string, status: ClientRequestStatus) => void;
   onCancelRequest: (request: ClientRequestSummary) => void;
+  onEditRequest?: (request: ClientRequestSummary) => void;
   onOpenDocument?: (request: ClientRequestSummary) => void;
   onDownloadMarketplaceProductsTemplate?: (request: ClientRequestSummary) => void;
   onDownloadMarketplacePackagesTemplate?: (request: ClientRequestSummary) => void;
@@ -36,8 +38,10 @@ export function ClientRequestsTable({
   canChangeStatus,
   canPickOutbound,
   canCancelRequests,
+  canEditRequests,
   onStatusChange,
   onCancelRequest,
+  onEditRequest,
   onOpenDocument,
   onDownloadMarketplaceProductsTemplate,
   onDownloadMarketplacePackagesTemplate,
@@ -58,7 +62,7 @@ export function ClientRequestsTable({
             <th>Срок</th>
             <th>Статус</th>
             {canPickOutbound ? <th>Склад</th> : null}
-            {canCancelRequests ? <th>Действия</th> : null}
+            {canCancelRequests || canEditRequests ? <th>Действия</th> : null}
             {canChangeStatus ? <th>Процесс</th> : null}
           </tr>
         </thead>
@@ -188,9 +192,21 @@ export function ClientRequestsTable({
                   )}
                 </td>
               ) : null}
-              {canCancelRequests ? (
+              {canCancelRequests || canEditRequests ? (
                 <td>
-                  {canCancelRequest(request) ? (
+                  <div className="client-request-actions">
+                  {canEditRequests && onEditRequest && canEditRequest(request) ? (
+                    <button
+                      className="client-request-action-button"
+                      type="button"
+                      onClick={() => onEditRequest(request)}
+                      title="Изменить состав заявки"
+                    >
+                      <Pencil size={15} aria-hidden="true" />
+                      <span>Изменить</span>
+                    </button>
+                  ) : null}
+                  {canCancelRequests && canCancelRequest(request) ? (
                     <button
                       className="client-request-action-button client-request-action-button--cancel"
                       type="button"
@@ -200,9 +216,9 @@ export function ClientRequestsTable({
                       <XCircle size={15} aria-hidden="true" />
                       <span>Отменить</span>
                     </button>
-                  ) : (
-                    '-'
-                  )}
+                  ) : null}
+                  {!canEditRequest(request) && !canCancelRequest(request) ? '-' : null}
+                  </div>
                 </td>
               ) : null}
               {canChangeStatus ? (
@@ -256,6 +272,10 @@ function canDownloadMarketplaceTemplates(request: ClientRequestSummary) {
 
 function canCancelRequest(request: ClientRequestSummary) {
   return request.type === 'OUTBOUND' && ['SUBMITTED', 'IN_REVIEW', 'APPROVED'].includes(request.status);
+}
+
+function canEditRequest(request: ClientRequestSummary) {
+  return ['SUBMITTED', 'IN_REVIEW', 'APPROVED'].includes(request.status);
 }
 
 function itemsSummary(request: ClientRequestSummary) {

@@ -99,6 +99,39 @@ export class TsdSyncController {
     return this.sync.finishRequestMoves(id, dto, user);
   }
 
+  @Get('requests/:id/boxless-packing')
+  getBoxlessPacking(@Param('id') id: string, @Query('deviceCode') deviceCode: string, @CurrentUser() user: AuthUser) {
+    return this.sync.getBoxlessPacking(id, user, deviceCode);
+  }
+
+  @Post('requests/:id/boxless-packing/open-box')
+  openBoxlessPackingBox(
+    @Param('id') id: string,
+    @Body() dto: { boxCode?: string; deviceCode?: string },
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.sync.openBoxlessPackingBox(id, dto, user);
+  }
+
+  @Post('requests/:id/boxless-packing/scan-item')
+  scanBoxlessPackingItem(
+    @Param('id') id: string,
+    @Body() dto: { barcode?: string; deviceCode?: string },
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.sync.scanBoxlessPackingItem(id, dto, user);
+  }
+
+  @Post('requests/:id/boxless-packing/close-box')
+  closeBoxlessPackingBox(@Param('id') id: string, @Body() dto: { deviceCode?: string }, @CurrentUser() user: AuthUser) {
+    return this.sync.closeBoxlessPackingBox(id, dto, user);
+  }
+
+  @Post('requests/:id/boxless-packing/finish')
+  finishBoxlessPacking(@Param('id') id: string, @Body() dto: { deviceCode?: string }, @CurrentUser() user: AuthUser) {
+    return this.sync.finishBoxlessPacking(id, dto, user);
+  }
+
   @Get('sku-by-barcode')
   getSkuByBarcode(@Query('clientId') clientId: string, @Query('barcode') barcode: string, @CurrentUser() user: AuthUser) {
     return this.sync.getSkuByBarcode(clientId, barcode, user);

@@ -400,6 +400,14 @@ public class MainActivity extends Activity {
     }
 
     private void showPickRequestActions(PickRequest request) {
+        if (request.storesWithoutBoxes) {
+            showBoxlessPickRequestActions(request, null);
+            runAsync(() -> {
+                JSONObject state = api.boxlessPackingState(token, request.id, deviceCode);
+                main.post(() -> showBoxlessPickRequestActions(request, state));
+            });
+            return;
+        }
         showPickRequestActions(request, null, null);
         runAsync(() -> {
             JSONObject boxState = api.boxSearch(token, request.id, deviceCode);
@@ -442,6 +450,230 @@ public class MainActivity extends Activity {
 
         addBackButton(root, tr("pick.backToRequests"), () -> showPickRequests());
         setContentView(wrap(root));
+    }
+
+    private void showBoxlessPickRequestActions(PickRequest request, JSONObject packingState) {
+        setBackAction(() -> showPickRequests());
+        LinearLayout root = page();
+        root.setPadding(dp(14), dp(16), dp(14), dp(14));
+        addHeader(root);
+        addTitle(root, tr("pick.request") + " " + request.shortNumber());
+        root.addView(note(tr("common.client") + ": " + request.clientName));
+        root.addView(note(tr("common.city") + ": " + firstNonEmpty(request.city, "-")));
+        root.addView(note(tr("common.status") + ": " + request.status + " · " + tr("common.rows") + ": " + request.itemsCount));
+        root.addView(note(tr("boxless.mode")));
+        if (request.hasActiveWorkers()) {
+            TextView working = note(tr("pick.inWork") + ": " + request.activeWorkersText);
+            working.setTextColor(Color.rgb(120, 72, 0));
+            root.addView(working);
+        }
+
+        boolean complete = packingState != null && packingState.optBoolean("isComplete");
+        String progress = packingState == null
+            ? ""
+            : "\n" + packingState.optInt("packed") + " / " + packingState.optInt("total");
+        Button packing = stageButton(tr("boxless.title") + progress, complete);
+        packing.setOnClickListener(v -> loadBoxlessPacking(request));
+        root.addView(packing);
+
+        addBackButton(root, tr("pick.backToRequests"), () -> showPickRequests());
+        setContentView(wrap(root));
+    }
+
+    private void loadBoxlessPacking(PickRequest request) {
+        runAsync(() -> {
+            JSONObject state = api.boxlessPackingState(token, request.id, deviceCode);
+            main.post(() -> showBoxlessPacking(request, state, FLASH_NONE, ""));
+        });
+    }
+
+    private void showBoxlessPacking(PickRequest request, JSONObject state, int flashColor, String warning) {
+        setBackAction(() -> showPickRequestActions(request));
+        LinearLayout root = page();
+        if (flashColor != FLASH_NONE) {
+            root.setBackgroundColor(flashColor);
+        }
+        root.setPadding(dp(14), dp(16), dp(14), dp(14));
+        addHeader(root);
+        addTitle(root, tr("boxless.title"));
+        root.addView(note(tr("pick.request") + ": " + request.shortNumber()));
+        root.addView(note(tr("common.client") + ": " + request.clientName + " · " + tr("common.city").toLowerCase(Locale.ROOT) + ": " + firstNonEmpty(request.city, "-")));
+        if (warning != null && !warning.trim().isEmpty()) {
+            TextView error = note(warning);
+            error.setTextColor(flashColor == RED ? Color.WHITE : Color.rgb(62, 54, 54));
+            error.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+            error.setTextSize(scaledText(20));
+            root.addView(error);
+        }
+
+        int packed = state.optInt("packed");
+        int total = state.optInt("total");
+        int remaining = state.optInt("remaining");
+        String currentBox = state.optString("currentBox");
+        root.addView(note(tr("boxless.progress") + ": " + packed + " / " + total + ". " + tr("boxSearch.progressRemaining") + ": " + remaining));
+
+        if (currentBox == null || currentBox.trim().isEmpty()) {
+            EditText boxScan = input(tr("boxless.scanBox"), false);
+            boxScan.setSingleLine(true);
+            boxScan.setImeOptions(EditorInfo.IME_ACTION_DONE);
+            boxScan.setOnEditorActionListener((v, actionId, event) -> {
+                String scanned = text(boxScan);
+                boxScan.setText("");
+                openBoxlessBox(request, scanned);
+                return true;
+            });
+            root.addView(boxScan);
+
+            if (remaining == 0 && total > 0) {
+                Button finish = primary(tr("boxless.finish"));
+                finish.setOnClickListener(v -> finishBoxlessPacking(request));
+                root.addView(finish);
+            }
+            addBoxlessPackages(root, state.optJSONArray("packages"));
+            addBoxlessRows(root, state.optJSONArray("rows"), true);
+            Button refresh = secondary(tr("common.refresh"));
+            refresh.setOnClickListener(v -> loadBoxlessPacking(request));
+            root.addView(refresh);
+            addBackButton(root, tr("pick.backToRequests"), () -> showPickRequestActions(request));
+            setContentView(wrap(root));
+            if (flashColor != FLASH_NONE) {
+                main.postDelayed(() -> root.setBackgroundColor(BG), 550);
+            }
+            boxScan.requestFocus();
+            return;
+        }
+
+        TextView current = note(tr("boxless.currentBox") + ": " + currentBox + "\n" + tr("boxless.currentQuantity") + ": " + state.optInt("currentBoxQuantity"));
+        current.setTextSize(scaledText(20));
+        current.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        current.setBackgroundColor(Color.WHITE);
+        current.setPadding(dp(12), dp(12), dp(12), dp(12));
+        root.addView(current);
+
+        EditText itemScan = input(tr("boxless.scanItem"), false);
+        itemScan.setSingleLine(true);
+        itemScan.setImeOptions(EditorInfo.IME_ACTION_DONE);
+        itemScan.setOnEditorActionListener((v, actionId, event) -> {
+            String scanned = text(itemScan);
+            itemScan.setText("");
+            scanBoxlessItem(request, scanned);
+            return true;
+        });
+        root.addView(itemScan);
+
+        Button close = primary(tr("boxless.closeBox"));
+        close.setOnClickListener(v -> closeBoxlessBox(request));
+        root.addView(close);
+        addBoxlessRows(root, state.optJSONArray("rows"), true);
+        addBackButton(root, tr("pick.backToRequests"), () -> showPickRequestActions(request));
+        setContentView(wrap(root));
+        if (flashColor != FLASH_NONE) {
+            main.postDelayed(() -> root.setBackgroundColor(BG), 550);
+        }
+        itemScan.requestFocus();
+    }
+
+    private void openBoxlessBox(PickRequest request, String boxCode) {
+        if (boxCode.trim().isEmpty()) {
+            toast(tr("boxless.scanBoxToast"));
+            return;
+        }
+        runAsync(() -> {
+            try {
+                JSONObject state = api.openBoxlessPackingBox(token, request.id, boxCode, deviceCode);
+                main.post(() -> showBoxlessPacking(request, state, GREEN, tr("boxless.boxOpened")));
+            } catch (Exception error) {
+                JSONObject state = api.boxlessPackingState(token, request.id, deviceCode);
+                main.post(() -> showBoxlessPacking(request, state, RED, error.getMessage()));
+            }
+        });
+    }
+
+    private void scanBoxlessItem(PickRequest request, String barcode) {
+        if (barcode.trim().isEmpty()) {
+            toast(tr("boxless.scanItemToast"));
+            return;
+        }
+        runAsync(() -> {
+            try {
+                JSONObject state = api.scanBoxlessPackingItem(token, request.id, barcode, deviceCode);
+                main.post(() -> showBoxlessPacking(request, state, GREEN, tr("boxless.itemAdded")));
+            } catch (Exception error) {
+                JSONObject state = api.boxlessPackingState(token, request.id, deviceCode);
+                main.post(() -> showBoxlessPacking(request, state, RED, error.getMessage()));
+            }
+        });
+    }
+
+    private void closeBoxlessBox(PickRequest request) {
+        runAsync(() -> {
+            try {
+                JSONObject state = api.closeBoxlessPackingBox(token, request.id, deviceCode);
+                main.post(() -> showBoxlessPacking(request, state, GREEN, tr("boxless.boxClosed")));
+            } catch (Exception error) {
+                JSONObject state = api.boxlessPackingState(token, request.id, deviceCode);
+                main.post(() -> showBoxlessPacking(request, state, RED, error.getMessage()));
+            }
+        });
+    }
+
+    private void finishBoxlessPacking(PickRequest request) {
+        runAsync(() -> {
+            try {
+                JSONObject state = api.finishBoxlessPacking(token, request.id, deviceCode);
+                main.post(() -> showBoxlessPacking(request, state, GREEN, tr("boxless.complete")));
+            } catch (Exception error) {
+                JSONObject state = api.boxlessPackingState(token, request.id, deviceCode);
+                main.post(() -> showBoxlessPacking(request, state, RED, error.getMessage()));
+            }
+        });
+    }
+
+    private void addBoxlessPackages(LinearLayout root, JSONArray packages) {
+        if (packages == null || packages.length() == 0) {
+            return;
+        }
+        root.addView(note(tr("boxless.closedBoxes")));
+        for (int i = 0; i < packages.length(); i++) {
+            JSONObject item = packages.optJSONObject(i);
+            if (item == null) {
+                continue;
+            }
+            TextView row = note("✓ " + item.optString("packageCode") + " · " + item.optInt("quantity") + " " + tr("common.units"));
+            row.setTextSize(scaledText(18));
+            row.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+            row.setTextColor(Color.WHITE);
+            row.setBackgroundColor(GREEN);
+            row.setPadding(dp(12), dp(10), dp(12), dp(10));
+            root.addView(row, matchWrap());
+        }
+    }
+
+    private void addBoxlessRows(LinearLayout root, JSONArray rows, boolean onlyRemaining) {
+        if (rows == null || rows.length() == 0) {
+            return;
+        }
+        root.addView(note(tr("boxless.goods")));
+        for (int i = 0; i < rows.length(); i++) {
+            JSONObject row = rows.optJSONObject(i);
+            if (row == null) {
+                continue;
+            }
+            int remaining = row.optInt("remaining");
+            if (onlyRemaining && remaining <= 0) {
+                continue;
+            }
+            TextView view = note(
+                firstNonEmpty(row.optString("name"), row.optString("barcode"))
+                    + "\n" + row.optString("barcode")
+                    + "\n" + tr("boxless.packed") + ": " + row.optInt("packed") + " / " + row.optInt("requested")
+            );
+            view.setTextSize(scaledText(17));
+            view.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+            view.setBackgroundColor(remaining <= 0 ? Color.rgb(221, 245, 232) : Color.WHITE);
+            view.setPadding(dp(12), dp(10), dp(12), dp(10));
+            root.addView(view, matchWrap());
+        }
     }
 
     private void loadBoxSearch(PickRequest request) {
@@ -1582,6 +1814,7 @@ public class MainActivity extends Activity {
                     item.optString("status"),
                     item.optString("destinationCity"),
                     client == null ? "" : client.optString("name"),
+                    client != null && client.optBoolean("storesWithoutBoxes"),
                     count == null ? 0 : count.optInt("items"),
                     activeWorkers == null ? 0 : activeWorkers.length(),
                     activeWorkersLabel(activeWorkers)
@@ -1998,6 +2231,7 @@ public class MainActivity extends Activity {
                 case "common.offline": return "Oflayn";
                 case "common.offlineSaved": return "Oflayn, ma'lumotlar TSDda saqlanadi";
                 case "common.employee": return "xodim";
+                case "common.units": return "dona";
                 case "common.operationError": return "Operatsiya xatosi";
                 case "common.operationCreateFailed": return "Operatsiyani yaratib bo'lmadi";
                 case "login.enterCredentials": return "Login va parolni kiriting.";
@@ -2061,6 +2295,24 @@ public class MainActivity extends Activity {
                 case "moves.scanItemToast": return "Tovar SHKini skanerlang.";
                 case "moves.targetOpened": return "Yangi quti ochildi.";
                 case "moves.itemMoved": return "Tovar ko'chirildi.";
+                case "boxless.mode": return "Mijoz qutisiz saqlanadi. Yig'ish faqat jo'natma qutilari bo'yicha.";
+                case "boxless.title": return "Qutilar bo'yicha yig'ish";
+                case "boxless.progress": return "Yig'ildi";
+                case "boxless.scanBox": return "Jo'natma qutisi SHKini skanerlash";
+                case "boxless.scanItem": return "Tovar SHKini skanerlash";
+                case "boxless.currentBox": return "Ochiq quti";
+                case "boxless.currentQuantity": return "Qutida";
+                case "boxless.closeBox": return "Qutini yopish";
+                case "boxless.finish": return "Qadoqlashni yakunlash";
+                case "boxless.closedBoxes": return "Yopilgan qutilar:";
+                case "boxless.goods": return "Buyurtma tovarlari:";
+                case "boxless.packed": return "Yig'ildi";
+                case "boxless.scanBoxToast": return "Quti SHKini skanerlang.";
+                case "boxless.scanItemToast": return "Tovar SHKini skanerlang.";
+                case "boxless.boxOpened": return "Quti ochildi.";
+                case "boxless.itemAdded": return "Tovar qutiga qo'shildi.";
+                case "boxless.boxClosed": return "Quti yopildi.";
+                case "boxless.complete": return "Qadoqlash tugadi. WB/Ozon fayllari tayyor.";
                 case "stage.searchRequired": return "Avval barcha qutilarni topishni yakunlang.";
                 case "stage.supervisorBypass": return "Bosqich rahbar tomonidan qidirish tugashini kutmasdan ochildi. Faqat topilgan qutilar bilan ishlang.";
                 case "stage.noFoundBoxes": return "Hozircha topilgan qutilar yo'q.";
@@ -2172,6 +2424,7 @@ public class MainActivity extends Activity {
                 case "common.offline": return "Offline";
                 case "common.offlineSaved": return "Offline, data is saved on TSD";
                 case "common.employee": return "employee";
+                case "common.units": return "pcs";
                 case "common.operationError": return "Operation error";
                 case "common.operationCreateFailed": return "Could not create operation";
                 case "login.enterCredentials": return "Enter login and password.";
@@ -2235,6 +2488,24 @@ public class MainActivity extends Activity {
                 case "moves.scanItemToast": return "Scan product barcode.";
                 case "moves.targetOpened": return "New box opened.";
                 case "moves.itemMoved": return "Product moved.";
+                case "boxless.mode": return "Client stores goods without warehouse boxes. Pick only by shipment boxes.";
+                case "boxless.title": return "Pick by boxes";
+                case "boxless.progress": return "Packed";
+                case "boxless.scanBox": return "Scan shipment box barcode";
+                case "boxless.scanItem": return "Scan product barcode";
+                case "boxless.currentBox": return "Open box";
+                case "boxless.currentQuantity": return "In box";
+                case "boxless.closeBox": return "Close box";
+                case "boxless.finish": return "Finish packing";
+                case "boxless.closedBoxes": return "Closed boxes:";
+                case "boxless.goods": return "Request goods:";
+                case "boxless.packed": return "Packed";
+                case "boxless.scanBoxToast": return "Scan box barcode.";
+                case "boxless.scanItemToast": return "Scan product barcode.";
+                case "boxless.boxOpened": return "Box opened.";
+                case "boxless.itemAdded": return "Product added to box.";
+                case "boxless.boxClosed": return "Box closed.";
+                case "boxless.complete": return "Packing complete. WB/Ozon files are ready.";
                 case "stage.searchRequired": return "Finish finding all boxes first.";
                 case "stage.supervisorBypass": return "Stage opened by a supervisor before box search is complete. Work only with found boxes.";
                 case "stage.noFoundBoxes": return "No boxes have been found yet.";
@@ -2345,6 +2616,7 @@ public class MainActivity extends Activity {
             case "common.offline": return "Офлайн";
             case "common.offlineSaved": return "Офлайн, данные сохраняются на ТСД";
             case "common.employee": return "сотрудник";
+            case "common.units": return "шт.";
             case "common.operationError": return "Ошибка операции";
             case "common.operationCreateFailed": return "Не удалось создать операцию";
             case "login.enterCredentials": return "Введите логин и пароль.";
@@ -2408,6 +2680,24 @@ public class MainActivity extends Activity {
             case "moves.scanItemToast": return "Сканируйте ШК товара.";
             case "moves.targetOpened": return "Новый короб открыт.";
             case "moves.itemMoved": return "Товар перемещен.";
+            case "boxless.mode": return "Клиент хранит товар без складских коробов. Сборка идет только по коробам отгрузки.";
+            case "boxless.title": return "Сборка по коробам";
+            case "boxless.progress": return "Собрано";
+            case "boxless.scanBox": return "Скан ШК короба отгрузки";
+            case "boxless.scanItem": return "Скан ШК товара";
+            case "boxless.currentBox": return "Открытый короб";
+            case "boxless.currentQuantity": return "В коробе";
+            case "boxless.closeBox": return "Закрыть короб";
+            case "boxless.finish": return "Завершить упаковку";
+            case "boxless.closedBoxes": return "Закрытые короба:";
+            case "boxless.goods": return "Товары заявки:";
+            case "boxless.packed": return "Собрано";
+            case "boxless.scanBoxToast": return "Сканируйте ШК короба.";
+            case "boxless.scanItemToast": return "Сканируйте ШК товара.";
+            case "boxless.boxOpened": return "Короб открыт.";
+            case "boxless.itemAdded": return "Товар добавлен в короб.";
+            case "boxless.boxClosed": return "Короб закрыт.";
+            case "boxless.complete": return "Упаковка завершена. Файлы WB/Ozon готовы.";
             case "stage.searchRequired": return "Сначала завершите поиск всех коробов.";
             case "stage.supervisorBypass": return "Этап открыт старшим сотрудником до завершения поиска. Работайте только с уже найденными коробами.";
             case "stage.noFoundBoxes": return "Пока нет найденных коробов.";
@@ -2670,6 +2960,7 @@ public class MainActivity extends Activity {
         final String status;
         final String city;
         final String clientName;
+        final boolean storesWithoutBoxes;
         final int itemsCount;
         final int activeWorkersCount;
         final String activeWorkersText;
@@ -2680,6 +2971,7 @@ public class MainActivity extends Activity {
             String status,
             String city,
             String clientName,
+            boolean storesWithoutBoxes,
             int itemsCount,
             int activeWorkersCount,
             String activeWorkersText
@@ -2689,6 +2981,7 @@ public class MainActivity extends Activity {
             this.status = status == null ? "" : status;
             this.city = city == null ? "" : city;
             this.clientName = clientName == null || clientName.isEmpty() ? "-" : clientName;
+            this.storesWithoutBoxes = storesWithoutBoxes;
             this.itemsCount = itemsCount;
             this.activeWorkersCount = activeWorkersCount;
             this.activeWorkersText = activeWorkersText == null ? "" : activeWorkersText;

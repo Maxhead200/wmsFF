@@ -77,6 +77,35 @@ final class ApiClient {
         return new JSONObject(request("POST", "/tsd/requests/" + enc(requestId) + "/moves/finish", token, body.toString()));
     }
 
+    JSONObject boxlessPackingState(String token, String requestId, String deviceCode) throws IOException, JSONException {
+        String path = "/tsd/requests/" + enc(requestId) + "/boxless-packing?deviceCode=" + enc(deviceCode);
+        return new JSONObject(request("GET", path, token, null));
+    }
+
+    JSONObject openBoxlessPackingBox(String token, String requestId, String boxCode, String deviceCode) throws IOException, JSONException {
+        JSONObject body = new JSONObject()
+            .put("boxCode", boxCode)
+            .put("deviceCode", deviceCode);
+        return new JSONObject(request("POST", "/tsd/requests/" + enc(requestId) + "/boxless-packing/open-box", token, body.toString()));
+    }
+
+    JSONObject scanBoxlessPackingItem(String token, String requestId, String barcode, String deviceCode) throws IOException, JSONException {
+        JSONObject body = new JSONObject()
+            .put("barcode", barcode)
+            .put("deviceCode", deviceCode);
+        return new JSONObject(request("POST", "/tsd/requests/" + enc(requestId) + "/boxless-packing/scan-item", token, body.toString()));
+    }
+
+    JSONObject closeBoxlessPackingBox(String token, String requestId, String deviceCode) throws IOException, JSONException {
+        JSONObject body = new JSONObject().put("deviceCode", deviceCode);
+        return new JSONObject(request("POST", "/tsd/requests/" + enc(requestId) + "/boxless-packing/close-box", token, body.toString()));
+    }
+
+    JSONObject finishBoxlessPacking(String token, String requestId, String deviceCode) throws IOException, JSONException {
+        JSONObject body = new JSONObject().put("deviceCode", deviceCode);
+        return new JSONObject(request("POST", "/tsd/requests/" + enc(requestId) + "/boxless-packing/finish", token, body.toString()));
+    }
+
     JSONObject scanRelabelSource(String token, String requestId, String boxCode, String barcode, String deviceCode) throws IOException, JSONException {
         JSONObject body = new JSONObject()
             .put("boxCode", boxCode)

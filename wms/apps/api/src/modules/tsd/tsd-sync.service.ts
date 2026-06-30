@@ -90,6 +90,7 @@ export class TsdSyncService {
           select: {
             id: true,
             name: true,
+            storesWithoutBoxes: true,
           },
         },
         _count: {
@@ -333,6 +334,117 @@ export class TsdSyncService {
     await this.saveMoveState(requestId, moveState, user.id);
     await this.finalizeTsdPackingIfReady(requestId, user, document, tasks, moveState);
     return this.movesState(requestId, tasks, moveState, { type: 'finish', matched: true });
+  }
+
+  async getBoxlessPacking(requestId: string, user: AuthUser, deviceCode?: string) {
+    await this.touchRequestWorker(requestId, user, 'Сборка по коробам', deviceCode);
+    const request = await this.loadBoxlessPackingRequest(requestId, user, 'read');
+    const state = await this.loadBoxlessPackingState(requestId);
+    return this.boxlessPackingState(request, state, null);
+  }
+
+  async openBoxlessPackingBox(requestId: string, dto: { boxCode?: string; deviceCode?: string }, user: AuthUser) {
+    await this.touchRequestWorker(requestId, user, 'Сборка по коробам', dto.deviceCode);
+    const boxCode = dto.boxCode?.trim();
+    if (!boxCode) {
+      throw new BadRequestException('Сканируйте номер короба для упаковки.');
+    }
+
+    const request = await this.loadBoxlessPackingRequest(requestId, user, 'write');
+    this.ensureBoxlessPackingCanChange(request.status);
+    const state = await this.loadBoxlessPackingState(requestId);
+    if (state.currentBox) {
+      throw new BadRequestException(`Сначала закройте текущий короб ${state.currentBox}.`);
+    }
+    if (state.packages.some((item) => normalizeBoxCode(item.packageCode) === normalizeBoxCode(boxCode))) {
+      throw new BadRequestException(`Короб ${boxCode} уже закрыт в этой заявке.`);
+    }
+
+    state.currentBox = boxCode;
+    state.currentItems = [];
+    await this.saveBoxlessPackingState(requestId, state, user.id);
+    await this.markRequestInWork(requestId, request.status, user.id);
+    return this.boxlessPackingState(request, state, { type: 'box', matched: true, boxCode });
+  }
+
+  async scanBoxlessPackingItem(requestId: string, dto: { barcode?: string; deviceCode?: string }, user: AuthUser) {
+    await this.touchRequestWorker(requestId, user, 'Сборка по коробам', dto.deviceCode);
+    const barcode = dto.barcode?.trim();
+    if (!barcode) {
+      throw new BadRequestException('Сканируйте штрихкод товара.');
+    }
+
+    const request = await this.loadBoxlessPackingRequest(requestId, user, 'write');
+    this.ensureBoxlessPackingCanChange(request.status);
+    const state = await this.loadBoxlessPackingState(requestId);
+    if (!state.currentBox) {
+      throw new BadRequestException('Сначала сканируйте короб, в который собираете товар.');
+    }
+
+    const item = this.findBoxlessPackingItem(request.items, state, barcode);
+    if (!item) {
+      throw new BadRequestException('Этот товар не нужен по заявке или нужное количество уже собрано.');
+    }
+
+    const existing = state.currentItems.find((row) => row.requestItemId === item.id && normalizeBoxCode(row.barcode ?? '') === normalizeBoxCode(barcode));
+    if (existing) {
+      existing.quantity += 1;
+    } else {
+      state.currentItems.push({
+        requestItemId: item.id,
+        skuId: item.skuId,
+        barcode,
+        quantity: 1,
+      });
+    }
+
+    await this.saveBoxlessPackingState(requestId, state, user.id);
+    await this.markRequestInWork(requestId, request.status, user.id);
+    return this.boxlessPackingState(request, state, { type: 'item', matched: true, barcode });
+  }
+
+  async closeBoxlessPackingBox(requestId: string, dto: { deviceCode?: string }, user: AuthUser) {
+    await this.touchRequestWorker(requestId, user, 'Сборка по коробам', dto.deviceCode);
+    const request = await this.loadBoxlessPackingRequest(requestId, user, 'write');
+    this.ensureBoxlessPackingCanChange(request.status);
+    const state = await this.loadBoxlessPackingState(requestId);
+    if (!state.currentBox) {
+      throw new BadRequestException('Нет открытого короба для закрытия.');
+    }
+    if (state.currentItems.length === 0) {
+      throw new BadRequestException('В коробе нет отсканированного товара.');
+    }
+
+    state.packages.push({
+      packageCode: state.currentBox,
+      items: state.currentItems,
+    });
+    state.currentBox = '';
+    state.currentItems = [];
+    await this.saveBoxlessPackingState(requestId, state, user.id);
+    return this.boxlessPackingState(request, state, { type: 'close-box', matched: true });
+  }
+
+  async finishBoxlessPacking(requestId: string, dto: { deviceCode?: string }, user: AuthUser) {
+    await this.touchRequestWorker(requestId, user, 'Сборка по коробам', dto.deviceCode);
+    const request = await this.loadBoxlessPackingRequest(requestId, user, 'write');
+    this.ensureBoxlessPackingCanChange(request.status);
+    const state = await this.loadBoxlessPackingState(requestId);
+    if (state.currentBox) {
+      throw new BadRequestException(`Сначала закройте текущий короб ${state.currentBox}.`);
+    }
+    if (state.packages.length === 0) {
+      throw new BadRequestException('Нет закрытых коробов для завершения упаковки.');
+    }
+
+    const rows = this.boxlessPackingRows(request.items, state);
+    const remaining = rows.reduce((sum, row) => sum + row.remaining, 0);
+    if (remaining > 0) {
+      throw new BadRequestException(`Упаковка еще не завершена. Осталось единиц: ${remaining}.`);
+    }
+
+    await this.createBoxlessPackedPackages(requestId, user, request, state);
+    return this.boxlessPackingState(request, state, { type: 'finish', matched: true });
   }
 
   async getSkuByBarcode(clientId: string, barcode: string, user: AuthUser) {
@@ -940,6 +1052,225 @@ export class TsdSyncService {
     );
   }
 
+  private async loadBoxlessPackingRequest(requestId: string, user: AuthUser, access: 'read' | 'write') {
+    const request = await this.prisma.clientRequest.findUnique({
+      where: { id: requestId },
+      include: {
+        client: {
+          select: {
+            id: true,
+            storesWithoutBoxes: true,
+          },
+        },
+        items: {
+          include: {
+            sku: {
+              select: {
+                id: true,
+                internalSku: true,
+                clientSku: true,
+                article: true,
+                name: true,
+                barcodes: {
+                  select: {
+                    value: true,
+                    isPrimary: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { id: 'asc' },
+        },
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException('Клиентская заявка не найдена.');
+    }
+    if (request.type !== ClientRequestType.OUTBOUND) {
+      throw new BadRequestException('Сборка по коробам доступна только для заявок на отгрузку.');
+    }
+    if (!request.client.storesWithoutBoxes) {
+      throw new BadRequestException('Сборка по коробам доступна только для клиентов с хранением без коробов.');
+    }
+
+    this.clientScopes.requireClientAccess(user, request.clientId, access);
+    return request;
+  }
+
+  private ensureBoxlessPackingCanChange(status: ClientRequestStatus) {
+    const closedStatuses: ClientRequestStatus[] = [
+      ClientRequestStatus.PACKED,
+      ClientRequestStatus.DONE,
+      ClientRequestStatus.CANCELLED,
+      ClientRequestStatus.REJECTED,
+    ];
+    if (closedStatuses.includes(status)) {
+      throw new BadRequestException('Заявка уже закрыта или недоступна для упаковки.');
+    }
+  }
+
+  private async markRequestInWork(requestId: string, status: ClientRequestStatus, userId: string) {
+    if (status === ClientRequestStatus.IN_WORK) {
+      return;
+    }
+    const startableStatuses: ClientRequestStatus[] = [
+      ClientRequestStatus.SUBMITTED,
+      ClientRequestStatus.IN_REVIEW,
+      ClientRequestStatus.APPROVED,
+    ];
+    if (!startableStatuses.includes(status)) {
+      return;
+    }
+
+    await this.prisma.clientRequest.update({
+      where: { id: requestId },
+      data: {
+        status: ClientRequestStatus.IN_WORK,
+        assignedToUserId: userId,
+      },
+    });
+  }
+
+  private findBoxlessPackingItem(items: BoxlessPackingRequestItem[], state: BoxlessPackingState, barcode: string) {
+    const rows = this.boxlessPackingRows(items, state);
+    const normalized = normalizeBoxCode(barcode);
+    const byItemId = new Map(rows.map((row) => [row.requestItemId, row]));
+    return (
+      items.find((item) => {
+        const row = byItemId.get(item.id);
+        return Boolean(row && row.remaining > 0 && this.boxlessItemMatchesBarcode(item, normalized));
+      }) ?? null
+    );
+  }
+
+  private boxlessItemMatchesBarcode(item: BoxlessPackingRequestItem, normalizedBarcode: string) {
+    const values = [
+      finalRequestBarcode(item),
+      item.barcode ?? '',
+      ...(item.sku?.barcodes.map((barcode) => barcode.value) ?? []),
+    ];
+    return values.some((value) => normalizeBoxCode(value) === normalizedBarcode);
+  }
+
+  private boxlessPackingRows(items: BoxlessPackingRequestItem[], state: BoxlessPackingState) {
+    const packedByItem = new Map<string, number>();
+    for (const row of [...state.currentItems, ...state.packages.flatMap((packagePlace) => packagePlace.items)]) {
+      packedByItem.set(row.requestItemId, (packedByItem.get(row.requestItemId) ?? 0) + row.quantity);
+    }
+
+    return items.map((item) => {
+      const packed = Math.min(packedByItem.get(item.id) ?? 0, item.quantity);
+      return {
+        requestItemId: item.id,
+        skuId: item.skuId,
+        barcode: finalRequestBarcode(item) || item.barcode || item.sku?.barcodes.find((barcode) => barcode.isPrimary)?.value || '',
+        name: item.name ?? item.sku?.name ?? item.sku?.article ?? item.sku?.internalSku ?? '',
+        requested: item.quantity,
+        packed,
+        remaining: Math.max(0, item.quantity - packed),
+      };
+    });
+  }
+
+  private boxlessPackingState(
+    request: { id: string; items: BoxlessPackingRequestItem[] },
+    state: BoxlessPackingState,
+    lastScan: null | { type: string; matched: boolean; boxCode?: string; barcode?: string },
+  ) {
+    const rows = this.boxlessPackingRows(request.items, state);
+    const total = rows.reduce((sum, row) => sum + row.requested, 0);
+    const packed = rows.reduce((sum, row) => sum + row.packed, 0);
+    return {
+      requestId: request.id,
+      total,
+      packed,
+      remaining: Math.max(0, total - packed),
+      isComplete: total === packed && total > 0 && !state.currentBox,
+      currentBox: state.currentBox,
+      currentBoxQuantity: state.currentItems.reduce((sum, row) => sum + row.quantity, 0),
+      packages: state.packages.map((packagePlace) => ({
+        packageCode: packagePlace.packageCode,
+        quantity: packagePlace.items.reduce((sum, row) => sum + row.quantity, 0),
+      })),
+      rows,
+      lastScan,
+    };
+  }
+
+  private async loadBoxlessPackingState(requestId: string): Promise<BoxlessPackingState> {
+    const setting = await this.prisma.systemSetting.findUnique({
+      where: { key: boxlessPackingKey(requestId) },
+    });
+    const value = setting?.value;
+    const payload = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+    return {
+      currentBox: typeof payload.currentBox === 'string' ? payload.currentBox : '',
+      currentItems: parseBoxlessPackingItems(payload.currentItems),
+      packages: parseBoxlessPackingPackages(payload.packages),
+    };
+  }
+
+  private async saveBoxlessPackingState(requestId: string, state: BoxlessPackingState, userId: string) {
+    const value = {
+      currentBox: state.currentBox,
+      currentItems: state.currentItems,
+      packages: state.packages,
+    };
+    await this.prisma.systemSetting.upsert({
+      where: { key: boxlessPackingKey(requestId) },
+      update: {
+        value,
+        updatedByUserId: userId,
+      },
+      create: {
+        key: boxlessPackingKey(requestId),
+        value,
+        updatedByUserId: userId,
+      },
+    });
+  }
+
+  private async createBoxlessPackedPackages(
+    requestId: string,
+    user: AuthUser,
+    request: { clientId: string; items: BoxlessPackingRequestItem[] },
+    state: BoxlessPackingState,
+  ) {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.clientRequestPackage.deleteMany({ where: { requestId } });
+      for (const packagePlace of state.packages) {
+        await tx.clientRequestPackage.create({
+          data: {
+            requestId,
+            clientId: request.clientId,
+            packageCode: packagePlace.packageCode,
+            packageType: 'BOX',
+            comment: 'Упаковка сформирована ТСД: сборка по коробам без складских коробов',
+            createdByUserId: user.id,
+            items: {
+              create: packagePlace.items.map((item) => ({
+                requestItemId: item.requestItemId,
+                skuId: item.skuId,
+                barcode: item.barcode,
+                quantity: item.quantity,
+              })),
+            },
+          },
+        });
+      }
+      await tx.clientRequest.update({
+        where: { id: requestId },
+        data: {
+          status: ClientRequestStatus.PACKED,
+          assignedToUserId: user.id,
+          managerComment: 'Заявка упакована ТСД по коробам. Можно формировать файлы WB/Ozon.',
+        },
+      });
+    });
+  }
+
   private async loadRequestWorkers(requestIds: string[]) {
     const keys = requestIds.map(requestWorkersKey);
     const settings = keys.length
@@ -1045,6 +1376,10 @@ function movesKey(requestId: string) {
   return `TSD_MOVES:${requestId}`;
 }
 
+function boxlessPackingKey(requestId: string) {
+  return `TSD_BOXLESS_PACKING:${requestId}`;
+}
+
 function moveTaskId(sourceBox: string, barcode: string, article: string, size: string) {
   return Buffer.from([sourceBox, barcode, article, size].join('\u0001')).toString('base64url');
 }
@@ -1111,6 +1446,41 @@ type MoveState = {
   completed: Map<string, number>;
 };
 
+type BoxlessPackingRequestItem = {
+  id: string;
+  skuId: string | null;
+  barcode: string | null;
+  name: string | null;
+  comment: string | null;
+  quantity: number;
+  sku: null | {
+    id: string;
+    internalSku: string;
+    clientSku: string | null;
+    article: string | null;
+    name: string;
+    barcodes: Array<{ value: string; isPrimary: boolean }>;
+  };
+};
+
+type BoxlessPackingItem = {
+  requestItemId: string;
+  skuId: string | null;
+  barcode: string | null;
+  quantity: number;
+};
+
+type BoxlessPackingPackage = {
+  packageCode: string;
+  items: BoxlessPackingItem[];
+};
+
+type BoxlessPackingState = {
+  currentBox: string;
+  currentItems: BoxlessPackingItem[];
+  packages: BoxlessPackingPackage[];
+};
+
 type RequestWorker = {
   userId: string;
   userName: string;
@@ -1172,6 +1542,48 @@ function normalizeTsdStage(stage?: string) {
     return 'moves';
   }
   return 'box-search';
+}
+
+function parseBoxlessPackingItems(value: unknown): BoxlessPackingItem[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        return null;
+      }
+      const payload = item as Record<string, unknown>;
+      const requestItemId = typeof payload.requestItemId === 'string' ? payload.requestItemId : '';
+      const quantity = Number(payload.quantity);
+      if (!requestItemId || !Number.isInteger(quantity) || quantity <= 0) {
+        return null;
+      }
+      return {
+        requestItemId,
+        skuId: typeof payload.skuId === 'string' ? payload.skuId : null,
+        barcode: typeof payload.barcode === 'string' ? payload.barcode : null,
+        quantity,
+      };
+    })
+    .filter((item): item is BoxlessPackingItem => item !== null);
+}
+
+function parseBoxlessPackingPackages(value: unknown): BoxlessPackingPackage[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        return null;
+      }
+      const payload = item as Record<string, unknown>;
+      const packageCode = typeof payload.packageCode === 'string' ? payload.packageCode.trim() : '';
+      const items = parseBoxlessPackingItems(payload.items);
+      return packageCode && items.length > 0 ? { packageCode, items } : null;
+    })
+    .filter((item): item is BoxlessPackingPackage => item !== null);
 }
 
 function tsdStageLabel(stage?: string) {

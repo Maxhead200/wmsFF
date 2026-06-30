@@ -534,7 +534,6 @@ function downloadRequestTemplate() {
   const html = [
     '<html><head><meta charset="utf-8"></head><body><table>',
     '<tr><th>Баркод</th><th>Количество</th><th>Переклеить</th><th>Количество переклейки</th></tr>',
-    '<tr><td>2049156013678</td><td>40</td><td>2051369340472</td><td>15</td></tr>',
     '</table></body></html>',
   ].join('');
   const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' });

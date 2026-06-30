@@ -215,9 +215,10 @@ export class MarketplaceConnectionsService {
 
   private async fetchWildberriesProducts(connection: MarketplaceConnectionWithClient) {
     const products: MarketplaceProductSyncItem[] = [];
+    const maxPages = 1000;
     let cursor: Record<string, unknown> = { limit: 100 };
 
-    for (let page = 0; page < 100; page += 1) {
+    for (let page = 0; page < maxPages; page += 1) {
       const response = await marketplaceJson('https://content-api.wildberries.ru/content/v2/get/cards/list', {
         method: 'POST',
         headers: {
@@ -226,6 +227,9 @@ export class MarketplaceConnectionsService {
         },
         body: JSON.stringify({
           settings: {
+            sort: {
+              ascending: true,
+            },
             cursor,
             filter: {
               withPhoto: -1,
@@ -474,6 +478,23 @@ function isUniqueError(caught: unknown) {
   return caught instanceof Prisma.PrismaClientKnownRequestError && caught.code === 'P2002';
 }
 
+function toBoolean(value: unknown): boolean {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'number') {
+    return value === 1;
+  }
+
+  const normalized = textValue(value).toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  return ['1', 'true', 'yes', 'y', 'да'].includes(normalized);
+}
+
 async function marketplaceJson(url: string, init: RequestInit) {
   const response = await fetch(url, init);
   const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
@@ -497,6 +518,7 @@ function mapWildberriesCard(card: Record<string, unknown>, size: Record<string, 
   const barcodes = uniqueStrings(asArray<unknown>(size?.skus).map(textValue));
   const dimensions = asRecord(card.dimensions);
   const characteristics = asArray<Record<string, unknown>>(card.characteristics);
+  const needKiz = toBoolean(card.needKiz) || toBoolean(card.kizMarked);
   const color = characteristicValue(characteristics, ['цвет', 'color']);
   const productId = [nmID || vendorCode, chrtID].filter(Boolean).join(':') || vendorCode || cryptoSafeId(card);
   const offerId = barcodes[0] || chrtID || vendorCode || productId;
@@ -519,7 +541,11 @@ function mapWildberriesCard(card: Record<string, unknown>, size: Record<string, 
     lengthCm: positiveNumber(dimensions.length),
     widthCm: positiveNumber(dimensions.width),
     heightCm: positiveNumber(dimensions.height),
-    needsChestnyZnak: Boolean(textValue(card.imtID)) && hasCharacteristic(characteristics, ['киз', 'честный знак', 'маркировка']),
+    needsChestnyZnak:
+      needKiz ||
+      toBoolean(card.needKiz) ||
+      toBoolean(card.kizMarked) ||
+      (Boolean(textValue(card.imtID)) && hasCharacteristic(characteristics, ['киз', 'честный знак', 'маркировка'])),
     payload: {
       marketplace: 'WILDBERRIES',
       card,

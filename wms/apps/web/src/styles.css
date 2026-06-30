@@ -529,6 +529,7 @@ h1 {
 
 .auth-panel__brand {
   margin-bottom: 20px;
+  text-align: center;
 }
 
 .segmented-control {

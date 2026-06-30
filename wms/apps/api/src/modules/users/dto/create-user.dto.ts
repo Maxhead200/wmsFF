@@ -1,4 +1,4 @@
-import { ArrayNotEmpty, IsArray, IsOptional, IsString, Length } from 'class-validator';
+import { ArrayNotEmpty, IsArray, IsOptional, IsString, Length, Matches } from 'class-validator';
 
 export class CreateUserDto {
   @IsString()
@@ -10,8 +10,13 @@ export class CreateUserDto {
   name!: string;
 
   @IsString()
-  @Length(10, 200)
+  @Length(1, 200)
   password!: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}$/)
+  tsdActivationCode?: string;
 
   @IsOptional()
   @IsArray()

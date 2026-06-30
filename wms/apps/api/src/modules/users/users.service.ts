@@ -8,6 +8,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserClientScopesDto } from './dto/update-user-client-scopes.dto';
 import { UpdateUserPrinterScopesDto } from './dto/update-user-printer-scopes.dto';
 import { UpdateUserRolesDto } from './dto/update-user-roles.dto';
+import { UpdateUserTsdActivationCodeDto } from './dto/update-user-tsd-activation-code.dto';
 import { normalizePrinterGroupCode } from '../auth/printer-scope.service';
 
 @Injectable()
@@ -18,12 +19,13 @@ export class UsersService {
     private readonly passwords: PasswordService,
   ) {}
 
-  list() {
-    return this.prisma.user.findMany({
+  async list() {
+    const users = await this.prisma.user.findMany({
       where: { isDemo: false },
       orderBy: { createdAt: 'desc' },
       select: this.userSummarySelect(),
     });
+    return users.map((user) => this.withTsdActivationCodeFlag(user));
   }
 
   async create(dto: CreateUserDto) {
@@ -32,11 +34,12 @@ export class UsersService {
     await this.ensureClientsExist(clientScopes.map((scope) => scope.clientId));
 
     // Русский комментарий: API никогда не возвращает passwordHash; пароль сохраняется только как scrypt hash.
-    return this.prisma.user.create({
+    const user = await this.prisma.user.create({
       data: {
         email: dto.email.trim().toLowerCase(),
         name: dto.name.trim(),
         passwordHash: await this.passwords.hash(dto.password),
+        tsdActivationCodeHash: dto.tsdActivationCode ? await this.passwords.hash(dto.tsdActivationCode) : null,
         roles: {
           create: roles.map((role) => ({ roleId: role.id })),
         },
@@ -46,36 +49,9 @@ export class UsersService {
             }
           : undefined,
       },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        status: true,
-        roles: {
-          select: {
-            role: {
-              select: {
-                code: true,
-                name: true,
-              },
-            },
-          },
-        },
-        clientScopes: {
-          select: {
-            canRead: true,
-            canWrite: true,
-            client: {
-              select: {
-                id: true,
-                code: true,
-                name: true,
-              },
-            },
-          },
-        },
-      },
+      select: { id: true },
     });
+    return this.findUserSummary(user.id);
   }
 
   async updateClientScopes(userId: string, dto: UpdateUserClientScopesDto) {
@@ -156,6 +132,22 @@ export class UsersService {
         })),
         skipDuplicates: true,
       });
+    });
+
+    return this.findUserSummary(userId);
+  }
+
+  async updateTsdActivationCode(userId: string, dto: UpdateUserTsdActivationCodeDto) {
+    await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { id: true },
+    });
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        tsdActivationCodeHash: dto.code ? await this.passwords.hash(dto.code) : null,
+      },
     });
 
     return this.findUserSummary(userId);
@@ -320,11 +312,12 @@ export class UsersService {
     }
   }
 
-  private findUserSummary(userId: string) {
-    return this.prisma.user.findUniqueOrThrow({
+  private async findUserSummary(userId: string) {
+    const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
       select: this.userSummarySelect(),
     });
+    return this.withTsdActivationCodeFlag(user);
   }
 
   private userSummarySelect() {
@@ -334,6 +327,7 @@ export class UsersService {
       name: true,
       status: true,
       createdAt: true,
+      tsdActivationCodeHash: true,
       roles: {
         select: {
           role: {
@@ -365,5 +359,13 @@ export class UsersService {
         },
       },
     } as const;
+  }
+
+  private withTsdActivationCodeFlag<T extends { tsdActivationCodeHash: string | null }>(user: T) {
+    const { tsdActivationCodeHash, ...rest } = user;
+    return {
+      ...rest,
+      hasTsdActivationCode: Boolean(tsdActivationCodeHash),
+    };
   }
 }

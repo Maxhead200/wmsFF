@@ -20,6 +20,7 @@ const emptyUserForm = {
   email: '',
   name: '',
   password: '',
+  tsdActivationCode: '',
 };
 
 export function UserCreateForm({ session }: UserCreateFormProps) {
@@ -27,6 +28,7 @@ export function UserCreateForm({ session }: UserCreateFormProps) {
   const [clients, setClients] = useState<ClientSummary[]>([]);
   const [form, setForm] = useState(emptyUserForm);
   const [roleCodes, setRoleCodes] = useState<string[]>(['OPERATOR']);
+  const [tsdOnly, setTsdOnly] = useState(false);
   const [scopeMode, setScopeMode] = useState<'all' | 'limited'>('all');
   const [scopeMap, setScopeMap] = useState<ScopeMap>({});
   const [createdUser, setCreatedUser] = useState<UserSummary | null>(null);
@@ -86,6 +88,9 @@ export function UserCreateForm({ session }: UserCreateFormProps) {
   }, [clientRoleSelected]);
 
   function toggleRole(code: string) {
+    if (tsdOnly) {
+      return;
+    }
     setRoleCodes((current) => {
       if (current.includes(code)) {
         return current.filter((item) => item !== code);
@@ -93,6 +98,17 @@ export function UserCreateForm({ session }: UserCreateFormProps) {
 
       return [...current, code];
     });
+  }
+
+  function toggleTsdOnly(checked: boolean) {
+    setTsdOnly(checked);
+    if (checked) {
+      setRoleCodes(['TSD']);
+      setScopeMode('all');
+      setScopeMap({});
+      return;
+    }
+    setRoleCodes(['OPERATOR']);
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -107,6 +123,7 @@ export function UserCreateForm({ session }: UserCreateFormProps) {
         email: form.email.trim(),
         name: form.name.trim(),
         password: form.password,
+        tsdActivationCode: form.tsdActivationCode.trim() || undefined,
         roleCodes: roleCodes.length ? roleCodes : undefined,
         clientIds: scopes?.clientIds.length ? scopes.clientIds : undefined,
         writableClientIds: scopes?.writableClientIds.length ? scopes.writableClientIds : undefined,
@@ -141,19 +158,37 @@ export function UserCreateForm({ session }: UserCreateFormProps) {
         <label>
           <span>Пароль</span>
           <input
-            minLength={10}
             type="password"
             value={form.password}
             onChange={(event) => setForm({ ...form, password: event.target.value })}
             required
           />
         </label>
+        <label>
+          <span>Код ТСД, 4 цифры</span>
+          <input
+            inputMode="numeric"
+            maxLength={4}
+            pattern="\d{4}"
+            placeholder="например 1234"
+            type="text"
+            value={form.tsdActivationCode}
+            onChange={(event) => setForm({ ...form, tsdActivationCode: event.target.value.replace(/\D/g, '').slice(0, 4) })}
+          />
+        </label>
       </div>
 
       <div className="role-choice-grid" aria-label="Роли пользователя">
+        <label className="role-choice role-choice--wide">
+          <input checked={tsdOnly} type="checkbox" onChange={(event) => toggleTsdOnly(event.target.checked)} />
+          <span>
+            <strong>Только ТСД</strong>
+            Вход в приложение ТСД логином и паролем, без привязки устройства
+          </span>
+        </label>
         {roles.map((role) => (
           <label className="role-choice" key={role.code}>
-            <input checked={roleCodes.includes(role.code)} type="checkbox" onChange={() => toggleRole(role.code)} />
+            <input checked={roleCodes.includes(role.code)} disabled={tsdOnly} type="checkbox" onChange={() => toggleRole(role.code)} />
             <span>
               <strong>{role.code}</strong>
               {role.name}

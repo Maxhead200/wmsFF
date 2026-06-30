@@ -7,6 +7,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserClientScopesDto } from './dto/update-user-client-scopes.dto';
 import { UpdateUserPrinterScopesDto } from './dto/update-user-printer-scopes.dto';
 import { UpdateUserRolesDto } from './dto/update-user-roles.dto';
+import { UpdateUserTsdActivationCodeDto } from './dto/update-user-tsd-activation-code.dto';
 import { UsersService } from './users.service';
 
 @ApiTags('users')
@@ -43,6 +44,12 @@ export class UsersController {
   @RequirePermissions('users:write')
   updateRoles(@Param('id') id: string, @Body() dto: UpdateUserRolesDto) {
     return this.users.updateRoles(id, dto);
+  }
+
+  @Patch(':id/tsd-activation-code')
+  @RequirePermissions('users:write')
+  updateTsdActivationCode(@Param('id') id: string, @Body() dto: UpdateUserTsdActivationCodeDto) {
+    return this.users.updateTsdActivationCode(id, dto);
   }
 
   @Delete(':id')

@@ -1,8 +1,11 @@
 package pro.logoff.wms.tsd
 
 import android.app.AlertDialog
+import android.content.Intent
 import android.graphics.BitmapFactory
 import android.graphics.Color
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.text.InputType
 import android.view.Gravity
@@ -27,8 +30,8 @@ import pro.logoff.wms.tsd.auth.TsdSessionStore
 import pro.logoff.wms.tsd.data.OperationOutbox
 import pro.logoff.wms.tsd.data.PendingOperation
 import pro.logoff.wms.tsd.data.TsdDatabase
+import pro.logoff.wms.tsd.network.AuthLoginRequest
 import pro.logoff.wms.tsd.network.TsdClientSummary
-import pro.logoff.wms.tsd.network.TsdLoginRequest
 import pro.logoff.wms.tsd.network.TsdSkuSummary
 import pro.logoff.wms.tsd.network.WmsApiFactory
 import pro.logoff.wms.tsd.sync.TsdSyncRunner
@@ -41,6 +44,7 @@ private const val LIGHT_BLUE = "#E8F3FF"
 private const val DARK = "#1D2733"
 private const val DANGER = "#C62828"
 private const val LOGO_RED = "#B40012"
+private const val APK_DOWNLOAD_URL = "https://wms.logoff.pro/downloads/logoff-tsd.apk"
 
 class MainActivity : ComponentActivity() {
     private lateinit var outbox: OperationOutbox
@@ -147,34 +151,31 @@ class MainActivity : ComponentActivity() {
 
     private fun addLogin() {
         val baseUrlInput = input("API URL", "https://wms.logoff.pro/")
-        val codeInput = input("Код ТСД")
-        val secretInput = input("Секрет ТСД").apply {
+        val loginInput = input("Логин сотрудника")
+        val passwordInput = input("Пароль").apply {
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         }
         root.addView(baseUrlInput)
-        root.addView(codeInput)
-        root.addView(secretInput)
+        root.addView(loginInput)
+        root.addView(passwordInput)
         root.addView(primaryButton("Войти на ТСД") {
-            val code = codeInput.textValue()
-            val secret = secretInput.textValue()
-            if (code.isEmpty() || secret.isEmpty()) {
-                updateStatus("Укажите код и секрет ТСД")
-                return@primaryButton
-            }
-            if (code.length < 2) {
-                updateStatus("Код ТСД должен быть не короче 2 символов.")
-                return@primaryButton
-            }
-            if (secret.length < 8) {
-                updateStatus("Секрет ТСД должен быть не короче 8 символов. Проверьте данные из сервисного меню WMS.")
+            val login = loginInput.textValue()
+            val password = passwordInput.textValue()
+            if (login.isEmpty() || password.isEmpty()) {
+                updateStatus("Укажите логин и пароль сотрудника")
                 return@primaryButton
             }
             lifecycleScope.launch {
                 val result = runCatching {
-                    WmsApiFactory.create(baseUrlInput.textValue()).login(TsdLoginRequest(code = code, secret = secret))
+                    WmsApiFactory.create(baseUrlInput.textValue()).login(AuthLoginRequest(email = login, password = password))
                 }
                 result.onSuccess {
-                    sessionStore.save(it)
+                    val permissions = it.user.permissionCodes
+                    if (!permissions.contains("tsd:use") && !permissions.contains("system:admin")) {
+                        updateStatus("У пользователя нет права Работа с ТСД.")
+                        return@onSuccess
+                    }
+                    sessionStore.save(it, defaultDeviceCode())
                     updateStatus("Вход выполнен")
                     refreshClientsIfLoggedIn()
                     screen = TsdScreen.MENU
@@ -211,6 +212,9 @@ class MainActivity : ComponentActivity() {
                 refreshClientsIfLoggedIn()
                 render()
             }
+        })
+        root.addView(secondaryButton("Проверить обновление приложения") {
+            openApkDownload()
         })
         root.addView(secondaryButton("Настройки / вход") {
             screen = TsdScreen.LOGIN
@@ -553,7 +557,7 @@ class MainActivity : ComponentActivity() {
     private fun syncPending(silent: Boolean = false) {
         val session = sessionStore.load()
         if (session == null) {
-            if (!silent) updateStatus("Сначала войдите по коду и секрету ТСД.")
+            if (!silent) updateStatus("Сначала войдите логином и паролем сотрудника.")
             return
         }
         lifecycleScope.launch {
@@ -631,8 +635,8 @@ class MainActivity : ComponentActivity() {
                 return serverMessage
             }
             return when (error.code()) {
-                400 -> "Сервер не принял данные. Проверьте код ТСД и секрет."
-                401 -> "Неверный код или секрет ТСД, либо ТСД заблокирован."
+                400 -> "Сервер не принял данные. Проверьте логин и пароль."
+                401 -> "Неверный логин или пароль сотрудника."
                 403 -> "Нет доступа к этому действию."
                 404 -> "Сервер не нашел нужный адрес API."
                 else -> "Ошибка сервера: HTTP ${error.code()}"
@@ -650,6 +654,23 @@ class MainActivity : ComponentActivity() {
                 else -> json.optString("error")
             }
         }.getOrDefault("")
+    }
+
+    private fun defaultDeviceCode(): String {
+        val raw = "${Build.MANUFACTURER}-${Build.MODEL}".ifBlank { "TSD" }
+        return raw.uppercase()
+            .replace(Regex("[^A-Z0-9]+"), "-")
+            .trim('-')
+            .take(32)
+            .ifBlank { "TSD" }
+    }
+
+    private fun openApkDownload() {
+        runCatching {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(APK_DOWNLOAD_URL)))
+        }.onFailure {
+            updateStatus("Не удалось открыть скачивание APK: ${it.message ?: "ошибка"}")
+        }
     }
 
     private fun receiptSummaryText(): String =

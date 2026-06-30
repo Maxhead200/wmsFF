@@ -9,7 +9,7 @@ export class BootstrapAdminDto {
   name!: string;
 
   @IsString()
-  @Length(10, 200)
+  @Length(1, 200)
   password!: string;
 
   @IsString()

@@ -1,8 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { ClientRequestStatus, ClientRequestType, StockStatus, TsdReviewReason } from '@prisma/client';
+import { ClientRequestStatus, ClientRequestType, Prisma, StockStatus, TsdReviewReason } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
+import { PasswordService } from '../auth/password.service';
 import { PickInstructionService } from '../stock/pick-instruction.service';
 import { StockOperationsService } from '../stock/stock-operations.service';
 import { ScanOperationDto, SyncTsdOperationsDto } from './dto/scan-operation.dto';
@@ -21,6 +22,7 @@ export class TsdSyncService {
     private readonly clientScopes: ClientScopeService,
     private readonly payloadParser: TsdPayloadParser,
     private readonly operationLog: TsdOperationLogService,
+    private readonly passwords: PasswordService,
   ) {}
 
   async acceptOperation(operation: ScanOperationDto, user: AuthUser) {
@@ -107,7 +109,10 @@ export class TsdSyncService {
     }));
   }
 
-  async getRequestBoxSearch(requestId: string, user: AuthUser, deviceCode?: string, stage?: string) {
+  async getRequestBoxSearch(requestId: string, user: AuthUser, deviceCode?: string, stage?: string, managerCode?: string) {
+    if (normalizeTsdStage(stage) !== 'box-search') {
+      await this.assertStageUnlocked(requestId, normalizeTsdStage(stage), user, managerCode);
+    }
     await this.touchRequestWorker(requestId, user, tsdStageLabel(stage), deviceCode);
     const document = await this.pickInstructions.getRequestInstruction(requestId, user);
     const requiredBoxes = this.requiredSearchBoxes(document);
@@ -146,7 +151,8 @@ export class TsdSyncService {
     });
   }
 
-  async getRequestRelabel(requestId: string, user: AuthUser, deviceCode?: string) {
+  async getRequestRelabel(requestId: string, user: AuthUser, deviceCode?: string, managerCode?: string) {
+    await this.assertStageUnlocked(requestId, 'relabel', user, managerCode);
     await this.touchRequestWorker(requestId, user, 'Перемаркировка', deviceCode);
     const document = await this.pickInstructions.getRequestInstruction(requestId, user);
     const tasks = this.relabelTasks(document);
@@ -156,9 +162,10 @@ export class TsdSyncService {
 
   async scanRelabelSource(
     requestId: string,
-    dto: { boxCode?: string; barcode?: string; deviceCode?: string },
+    dto: { boxCode?: string; barcode?: string; deviceCode?: string; managerCode?: string },
     user: AuthUser,
   ) {
+    await this.assertStageUnlocked(requestId, 'relabel', user, dto.managerCode);
     await this.touchRequestWorker(requestId, user, 'Перемаркировка', dto.deviceCode);
     const boxCode = dto.boxCode?.trim();
     const barcode = dto.barcode?.trim();
@@ -189,9 +196,10 @@ export class TsdSyncService {
 
   async scanRelabelTarget(
     requestId: string,
-    dto: { lineId?: string; targetBarcode?: string; deviceCode?: string },
+    dto: { lineId?: string; targetBarcode?: string; deviceCode?: string; managerCode?: string },
     user: AuthUser,
   ) {
+    await this.assertStageUnlocked(requestId, 'relabel', user, dto.managerCode);
     await this.touchRequestWorker(requestId, user, 'Перемаркировка', dto.deviceCode);
     const lineId = dto.lineId?.trim();
     const targetBarcode = dto.targetBarcode?.trim();
@@ -227,7 +235,8 @@ export class TsdSyncService {
     });
   }
 
-  async getRequestMoves(requestId: string, user: AuthUser, deviceCode?: string) {
+  async getRequestMoves(requestId: string, user: AuthUser, deviceCode?: string, managerCode?: string) {
+    await this.assertStageUnlocked(requestId, 'moves', user, managerCode);
     await this.touchRequestWorker(requestId, user, 'Перемещения', deviceCode);
     const document = await this.pickInstructions.getRequestInstruction(requestId, user);
     const tasks = this.moveTasks(document);
@@ -238,9 +247,10 @@ export class TsdSyncService {
 
   async openMoveTargetBox(
     requestId: string,
-    dto: { targetBoxCode?: string; deviceCode?: string },
+    dto: { targetBoxCode?: string; deviceCode?: string; managerCode?: string },
     user: AuthUser,
   ) {
+    await this.assertStageUnlocked(requestId, 'moves', user, dto.managerCode);
     await this.touchRequestWorker(requestId, user, 'Перемещения', dto.deviceCode);
     const targetBoxCode = dto.targetBoxCode?.trim();
     if (!targetBoxCode) {
@@ -257,9 +267,10 @@ export class TsdSyncService {
 
   async scanMoveItem(
     requestId: string,
-    dto: { sourceBox?: string; barcode?: string; targetBoxCode?: string; deviceCode?: string },
+    dto: { sourceBox?: string; barcode?: string; targetBoxCode?: string; deviceCode?: string; managerCode?: string },
     user: AuthUser,
   ) {
+    await this.assertStageUnlocked(requestId, 'moves', user, dto.managerCode);
     await this.touchRequestWorker(requestId, user, 'Перемещения', dto.deviceCode);
     const sourceBox = dto.sourceBox?.trim();
     const barcode = dto.barcode?.trim();
@@ -320,7 +331,8 @@ export class TsdSyncService {
     return this.movesState(requestId, tasks, moveState, { type: 'item', matched: true, task, targetBoxCode });
   }
 
-  async finishRequestMoves(requestId: string, dto: { deviceCode?: string }, user: AuthUser) {
+  async finishRequestMoves(requestId: string, dto: { deviceCode?: string; managerCode?: string }, user: AuthUser) {
+    await this.assertStageUnlocked(requestId, 'moves', user, dto.managerCode);
     await this.touchRequestWorker(requestId, user, 'Перемещения', dto.deviceCode);
     const document = await this.pickInstructions.getRequestInstruction(requestId, user);
     const tasks = this.moveTasks(document);
@@ -659,6 +671,115 @@ export class TsdSyncService {
         include: { sku: true },
       })
       .then((barcode) => barcode?.sku ?? null);
+  }
+
+  private async assertStageUnlocked(
+    requestId: string,
+    stage: 'box-search' | 'relabel' | 'moves',
+    user: AuthUser,
+    managerCode?: string,
+  ) {
+    if (stage === 'box-search') {
+      return;
+    }
+
+    if (await this.isStageOverrideSaved(requestId, stage)) {
+      return;
+    }
+
+    const document = await this.pickInstructions.getRequestInstruction(requestId, user);
+    const requiredBoxes = this.requiredSearchBoxes(document);
+    const foundBoxes = await this.loadFoundSearchBoxes(requestId);
+    const searchComplete = this.boxSearchState(requestId, requiredBoxes, foundBoxes, null).isComplete;
+    const relabelTasks = this.relabelTasks(document);
+    const relabelCompleted = await this.loadRelabelCompleted(requestId);
+    const relabelComplete = this.relabelState(requestId, relabelTasks, relabelCompleted, null).isComplete;
+
+    const locked =
+      stage === 'relabel'
+        ? !searchComplete
+        : !searchComplete || !relabelComplete;
+
+    if (!locked) {
+      return;
+    }
+
+    if (managerCode && await this.verifyManagerActivationCode(managerCode)) {
+      await this.saveStageOverride(requestId, stage, user.id);
+      return;
+    }
+
+    throw new BadRequestException({
+      code: 'TSD_STAGE_LOCKED',
+      stage,
+      message:
+        stage === 'relabel'
+          ? 'Этап перемаркировки закрыт, пока не завершен поиск коробов. Введите 4-значный код менеджера или нажмите Отмена.'
+          : 'Этап перемещений закрыт, пока не завершены предыдущие этапы. Введите 4-значный код менеджера или нажмите Отмена.',
+      requiredCode: true,
+    });
+  }
+
+  private async verifyManagerActivationCode(code: string) {
+    if (!/^\d{4}$/.test(code.trim())) {
+      return false;
+    }
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        status: 'ACTIVE',
+        tsdActivationCodeHash: { not: null },
+        roles: {
+          some: {
+            role: {
+              code: { in: ['OWNER', 'ADMIN', 'MANAGER'] },
+            },
+          },
+        },
+      },
+      select: {
+        tsdActivationCodeHash: true,
+      },
+    });
+
+    for (const user of users) {
+      if (user.tsdActivationCodeHash && await this.passwords.verify(code.trim(), user.tsdActivationCodeHash)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private async isStageOverrideSaved(requestId: string, stage: 'relabel' | 'moves') {
+    const setting = await this.prisma.systemSetting.findUnique({ where: { key: stageOverrideKey(requestId) } });
+    const value = setting?.value;
+    const payload = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+    return payload[stage] === true;
+  }
+
+  private async saveStageOverride(requestId: string, stage: 'relabel' | 'moves', userId: string) {
+    const setting = await this.prisma.systemSetting.findUnique({ where: { key: stageOverrideKey(requestId) } });
+    const value = setting?.value;
+    const payload = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+    const nextValue = {
+      ...payload,
+      [stage]: true,
+      [`${stage}UnlockedAt`]: new Date().toISOString(),
+      [`${stage}UnlockedByUserId`]: userId,
+    } as Prisma.InputJsonObject;
+
+    await this.prisma.systemSetting.upsert({
+      where: { key: stageOverrideKey(requestId) },
+      update: {
+        value: nextValue,
+        updatedByUserId: userId,
+      },
+      create: {
+        key: stageOverrideKey(requestId),
+        value: nextValue,
+        updatedByUserId: userId,
+      },
+    });
   }
 
   private requiredSearchBoxes(document: {
@@ -1379,6 +1500,10 @@ function relabelKey(requestId: string) {
 
 function movesKey(requestId: string) {
   return `TSD_MOVES:${requestId}`;
+}
+
+function stageOverrideKey(requestId: string) {
+  return `TSD_STAGE_OVERRIDES:${requestId}`;
 }
 
 function boxlessPackingKey(requestId: string) {

@@ -38,25 +38,31 @@ export class TsdSyncController {
     @Param('id') id: string,
     @Query('deviceCode') deviceCode: string,
     @Query('stage') stage: string | undefined,
+    @Query('managerCode') managerCode: string | undefined,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.sync.getRequestBoxSearch(id, user, deviceCode, stage);
+    return this.sync.getRequestBoxSearch(id, user, deviceCode, stage, managerCode);
   }
 
   @Post('requests/:id/box-search/scan')
-  scanRequestBox(@Param('id') id: string, @Body() dto: { boxCode?: string; deviceCode?: string }, @CurrentUser() user: AuthUser) {
+  scanRequestBox(@Param('id') id: string, @Body() dto: { boxCode?: string; deviceCode?: string; managerCode?: string }, @CurrentUser() user: AuthUser) {
     return this.sync.scanRequestBox(id, dto, user);
   }
 
   @Get('requests/:id/relabel')
-  getRequestRelabel(@Param('id') id: string, @Query('deviceCode') deviceCode: string, @CurrentUser() user: AuthUser) {
-    return this.sync.getRequestRelabel(id, user, deviceCode);
+  getRequestRelabel(
+    @Param('id') id: string,
+    @Query('deviceCode') deviceCode: string,
+    @Query('managerCode') managerCode: string | undefined,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.sync.getRequestRelabel(id, user, deviceCode, managerCode);
   }
 
   @Post('requests/:id/relabel/scan-source')
   scanRelabelSource(
     @Param('id') id: string,
-    @Body() dto: { boxCode?: string; barcode?: string; deviceCode?: string },
+    @Body() dto: { boxCode?: string; barcode?: string; deviceCode?: string; managerCode?: string },
     @CurrentUser() user: AuthUser,
   ) {
     return this.sync.scanRelabelSource(id, dto, user);
@@ -65,21 +71,26 @@ export class TsdSyncController {
   @Post('requests/:id/relabel/scan-target')
   scanRelabelTarget(
     @Param('id') id: string,
-    @Body() dto: { lineId?: string; targetBarcode?: string; deviceCode?: string },
+    @Body() dto: { lineId?: string; targetBarcode?: string; deviceCode?: string; managerCode?: string },
     @CurrentUser() user: AuthUser,
   ) {
     return this.sync.scanRelabelTarget(id, dto, user);
   }
 
   @Get('requests/:id/moves')
-  getRequestMoves(@Param('id') id: string, @Query('deviceCode') deviceCode: string, @CurrentUser() user: AuthUser) {
-    return this.sync.getRequestMoves(id, user, deviceCode);
+  getRequestMoves(
+    @Param('id') id: string,
+    @Query('deviceCode') deviceCode: string,
+    @Query('managerCode') managerCode: string | undefined,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.sync.getRequestMoves(id, user, deviceCode, managerCode);
   }
 
   @Post('requests/:id/moves/target-box')
   openMoveTargetBox(
     @Param('id') id: string,
-    @Body() dto: { targetBoxCode?: string; deviceCode?: string },
+    @Body() dto: { targetBoxCode?: string; deviceCode?: string; managerCode?: string },
     @CurrentUser() user: AuthUser,
   ) {
     return this.sync.openMoveTargetBox(id, dto, user);
@@ -88,14 +99,14 @@ export class TsdSyncController {
   @Post('requests/:id/moves/scan-item')
   scanMoveItem(
     @Param('id') id: string,
-    @Body() dto: { sourceBox?: string; barcode?: string; targetBoxCode?: string; deviceCode?: string },
+    @Body() dto: { sourceBox?: string; barcode?: string; targetBoxCode?: string; deviceCode?: string; managerCode?: string },
     @CurrentUser() user: AuthUser,
   ) {
     return this.sync.scanMoveItem(id, dto, user);
   }
 
   @Post('requests/:id/moves/finish')
-  finishRequestMoves(@Param('id') id: string, @Body() dto: { deviceCode?: string }, @CurrentUser() user: AuthUser) {
+  finishRequestMoves(@Param('id') id: string, @Body() dto: { deviceCode?: string; managerCode?: string }, @CurrentUser() user: AuthUser) {
     return this.sync.finishRequestMoves(id, dto, user);
   }
 

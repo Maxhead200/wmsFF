@@ -233,6 +233,7 @@ model User {
   id                             String                         @id @default(uuid())
   email                          String                         @unique
   passwordHash                   String
+  tsdActivationCodeHash          String?
   name                           String
   status                         UserStatus                     @default(ACTIVE)
   isDemo                         Boolean                        @default(false)

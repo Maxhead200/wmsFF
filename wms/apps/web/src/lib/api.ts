@@ -1826,6 +1826,7 @@ export type UserSummary = {
   name: string;
   status: string;
   createdAt?: string;
+  hasTsdActivationCode?: boolean;
   roles: Array<{
     role: {
       code: string;
@@ -1840,6 +1841,7 @@ export type CreateUserPayload = {
   email: string;
   name: string;
   password: string;
+  tsdActivationCode?: string;
   roleCodes?: string[];
   clientIds?: string[];
   writableClientIds?: string[];
@@ -1868,6 +1870,10 @@ export type UpdateUserPrinterScopesPayload = {
     canPrint?: boolean;
     canManage?: boolean;
   }>;
+};
+
+export type UpdateUserTsdActivationCodePayload = {
+  code?: string;
 };
 
 export type TsdDeviceSummary = {
@@ -3337,6 +3343,14 @@ export async function updateUserClientScopes(
 
 export async function updateUserRoles(accessToken: string, userId: string, payload: UpdateUserRolesPayload) {
   return request<UserSummary>(`/users/${userId}/roles`, {
+    method: 'PATCH',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function updateUserTsdActivationCode(accessToken: string, userId: string, payload: UpdateUserTsdActivationCodePayload) {
+  return request<UserSummary>(`/users/${userId}/tsd-activation-code`, {
     method: 'PATCH',
     body: payload,
     accessToken,

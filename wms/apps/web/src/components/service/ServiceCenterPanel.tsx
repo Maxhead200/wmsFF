@@ -52,6 +52,7 @@ import {
   updateServiceBillingServiceStatus,
   updateServiceMaintenance,
   updateServiceTelegramSettings,
+  updateUserTsdActivationCode,
   createServiceBillingService,
   type AuthSession,
   type BillingUnit,
@@ -171,7 +172,8 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
   const [isDemoAction, setDemoAction] = useState(false);
   const [serviceForm, setServiceForm] = useState({ code: '', name: '', unit: 'SERVICE' as BillingUnit, defaultPriceRub: '' });
   const [tsdUsers, setTsdUsers] = useState<LoadState<UserSummary[]>>({ status: 'idle', data: [] });
-  const [tsdUserForm, setTsdUserForm] = useState({ name: '', email: '', password: '', clientId: '' });
+  const [tsdUserForm, setTsdUserForm] = useState({ name: '', email: '', password: '', clientId: '', activationCode: '' });
+  const [tsdActivationDrafts, setTsdActivationDrafts] = useState<Record<string, string>>({});
 
   const selectedClient = useMemo(
     () => clients.data.find((client) => client.id === selectedClientId) ?? null,
@@ -596,13 +598,14 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
         name: tsdUserForm.name,
         email: tsdUserForm.email,
         password: tsdUserForm.password,
-        roleCodes: ['OPERATOR', 'TSD'],
+        tsdActivationCode: tsdUserForm.activationCode || undefined,
+        roleCodes: ['TSD'],
         clientIds,
         writableClientIds: clientIds,
       });
       setTsdUsers((current) => ({ ...current, status: 'ready', data: [created, ...current.data] }));
-      setTsdUserForm({ name: '', email: '', password: '', clientId: '' });
-      setActionMessage('Сотрудник ТСД создан. Логин и пароль можно ввести на ТСД один раз.');
+      setTsdUserForm({ name: '', email: '', password: '', clientId: '', activationCode: '' });
+      setActionMessage('Сотрудник ТСД создан. На ТСД он входит обычным логином и паролем.');
     } catch (caught) {
       setTsdUsers((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
     }
@@ -618,6 +621,26 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
       setTsdUsers((current) => ({ ...current, data: current.data.filter((item) => item.id !== user.id) }));
       setActionMessage('Пользователь ТСД удален. Доступ и активные сессии отключены.');
       void loadOverview();
+    } catch (caught) {
+      setTsdUsers((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
+    }
+  }
+
+  async function saveTsdActivationCode(user: UserSummary, code: string) {
+    if (code && !/^\d{4}$/.test(code)) {
+      setTsdUsers((current) => ({ ...current, status: 'error', error: 'Код подтверждения ТСД должен состоять из 4 цифр.' }));
+      return;
+    }
+
+    try {
+      const updated = await updateUserTsdActivationCode(session.accessToken, user.id, { code: code || undefined });
+      setTsdUsers((current) => ({
+        ...current,
+        status: 'ready',
+        data: current.data.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)),
+      }));
+      setTsdActivationDrafts((current) => ({ ...current, [user.id]: '' }));
+      setActionMessage(code ? 'Код подтверждения ТСД сохранен.' : 'Код подтверждения ТСД очищен.');
     } catch (caught) {
       setTsdUsers((current) => ({ ...current, status: 'error', error: errorMessage(caught) }));
     }
@@ -772,8 +795,11 @@ export function ServiceCenterPanel({ session }: ServiceCenterPanelProps) {
         <TsdServicePanel
           clients={clients.data}
           form={tsdUserForm}
+          activationDrafts={tsdActivationDrafts}
           users={tsdUsers}
           onChange={setTsdUserForm}
+          onActivationDrafts={setTsdActivationDrafts}
+          onActivationSave={(user, code) => void saveTsdActivationCode(user, code)}
           onCreate={(event) => void createTsdUser(event)}
           onDelete={(user) => void removeTsdUser(user)}
           onRefresh={() => void loadTsdUsers()}
@@ -1174,18 +1200,24 @@ function TelegramSettingsPanel({
 }
 
 function TsdServicePanel({
+  activationDrafts,
   clients,
   form,
   users,
+  onActivationDrafts,
+  onActivationSave,
   onChange,
   onCreate,
   onDelete,
   onRefresh,
 }: {
+  activationDrafts: Record<string, string>;
   clients: ClientSummary[];
-  form: { name: string; email: string; password: string; clientId: string };
+  form: { name: string; email: string; password: string; clientId: string; activationCode: string };
   users: LoadState<UserSummary[]>;
-  onChange: (form: { name: string; email: string; password: string; clientId: string }) => void;
+  onActivationDrafts: (drafts: Record<string, string>) => void;
+  onActivationSave: (user: UserSummary, code: string) => void;
+  onChange: (form: { name: string; email: string; password: string; clientId: string; activationCode: string }) => void;
   onCreate: (event: FormEvent<HTMLFormElement>) => void;
   onDelete: (user: UserSummary) => void;
   onRefresh: () => void;
@@ -1201,13 +1233,21 @@ function TsdServicePanel({
       </div>
       <div className="service-warning">
         <Smartphone size={18} />
-        Установите APK на Android-ТСД, войдите логином сотрудника и проверьте код устройства. Резервная веб-версия: {appUrl}
+        Установите APK на Android-ТСД и войдите логином и паролем сотрудника. Резервная веб-версия: {appUrl}
       </div>
 
       <form className="service-inline-form" onSubmit={onCreate}>
         <input required placeholder="Имя сотрудника" value={form.name} onChange={(event) => onChange({ ...form, name: event.target.value })} />
         <input required placeholder="Логин сотрудника" autoComplete="username" value={form.email} onChange={(event) => onChange({ ...form, email: event.target.value })} />
-        <input required minLength={10} placeholder="Пароль от 10 символов" type="text" value={form.password} onChange={(event) => onChange({ ...form, password: event.target.value })} />
+        <input required placeholder="Пароль" type="text" value={form.password} onChange={(event) => onChange({ ...form, password: event.target.value })} />
+        <input
+          inputMode="numeric"
+          maxLength={4}
+          pattern="\d{4}"
+          placeholder="Код менеджера 4 цифры"
+          value={form.activationCode}
+          onChange={(event) => onChange({ ...form, activationCode: event.target.value.replace(/\D/g, '').slice(0, 4) })}
+        />
         <select value={form.clientId} onChange={(event) => onChange({ ...form, clientId: event.target.value })}>
           <option value="">Все клиенты</option>
           {clients.map((client) => (
@@ -1226,10 +1266,10 @@ function TsdServicePanel({
         </button>
       </div>
       {users.status === 'error' ? <div className="service-message service-message--error">{users.error}</div> : null}
-      <ServiceTable columns={['Имя', 'Логин', 'Статус', 'Клиенты', 'Действия']}>
+      <ServiceTable columns={['Имя', 'Логин', 'Статус', 'Клиенты', 'Код подтверждения', 'Действия']}>
         {users.data.length === 0 ? (
           <tr>
-            <td colSpan={5}>Операторы ТСД не созданы</td>
+            <td colSpan={6}>Операторы ТСД не созданы</td>
           </tr>
         ) : null}
         {users.data.map((user) => (
@@ -1238,6 +1278,29 @@ function TsdServicePanel({
             <td>{user.email}</td>
             <td>{user.status}</td>
             <td>{user.clientScopes.length ? user.clientScopes.map((scope) => scope.client.name).join(', ') : 'Все клиенты'}</td>
+            <td>
+              <div className="service-code-control">
+                <span>{user.hasTsdActivationCode ? 'Задан' : 'Не задан'}</span>
+                <input
+                  inputMode="numeric"
+                  maxLength={4}
+                  placeholder="4 цифры"
+                  value={activationDrafts[user.id] ?? ''}
+                  onChange={(event) =>
+                    onActivationDrafts({
+                      ...activationDrafts,
+                      [user.id]: event.target.value.replace(/\D/g, '').slice(0, 4),
+                    })
+                  }
+                />
+                <button className="secondary-link" type="button" onClick={() => onActivationSave(user, activationDrafts[user.id] ?? '')}>
+                  Сохранить
+                </button>
+                <button className="danger-link" type="button" onClick={() => onActivationSave(user, '')}>
+                  Очистить
+                </button>
+              </div>
+            </td>
             <td>
               <button className="danger-link" type="button" onClick={() => onDelete(user)}>
                 <Trash2 size={14} /> Удалить

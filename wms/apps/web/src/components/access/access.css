@@ -22,7 +22,7 @@
 }
 
 .access-tabs {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   margin-bottom: 16px;
 }
 
@@ -115,6 +115,12 @@
   border-radius: 8px;
   background: #fbfdff;
   padding: 10px;
+}
+
+.role-choice--wide {
+  grid-column: 1 / -1;
+  border-color: #bfdbfe;
+  background: #eff6ff;
 }
 
 .role-choice--selected {

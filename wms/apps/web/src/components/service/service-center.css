@@ -24,9 +24,9 @@
 
 .service-tabs {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
-  gap: 4px;
-  padding: 4px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  padding: 8px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #eef2f7;
@@ -92,20 +92,29 @@
 
 .service-tabs button {
   display: inline-flex;
-  min-height: 38px;
+  min-height: 50px;
   min-width: 0;
   align-items: center;
-  justify-content: center;
-  gap: 7px;
-  border: 0;
+  justify-content: flex-start;
+  gap: 9px;
+  border: 1px solid transparent;
   border-radius: 6px;
-  background: transparent;
+  background: #f8fafc;
   color: var(--muted);
+  padding: 0 12px;
+  text-align: left;
   font-weight: 800;
+}
+
+.service-tabs button span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.15;
 }
 
 .service-tabs button.active {
   background: var(--surface);
+  border-color: #fecaca;
   color: var(--red-dark);
   box-shadow: 0 1px 2px rgb(15 23 42 / 0.12);
 }
@@ -424,6 +433,22 @@
   font-size: 12px;
 }
 
+.service-code-control {
+  display: grid;
+  grid-template-columns: minmax(70px, auto) minmax(80px, 100px) auto auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.service-code-control input {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfdff;
+  padding: 0 8px;
+}
+
 .secondary-link,
 .danger-link {
   border: 0;
@@ -496,7 +521,7 @@
   .service-form-grid,
   .service-inline-form--ip,
   .service-inline-form {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(150px, 1fr));
   }
 }
 

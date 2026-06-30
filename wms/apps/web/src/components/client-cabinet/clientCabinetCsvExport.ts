@@ -124,7 +124,7 @@ export function downloadClientCabinetFinanceCsv(data: ClientCabinetExportData) {
     rows.push([
       'Начисление',
       charge.description,
-      formatCabinetDate(charge.serviceDate),
+      chargeDateOrPeriod(charge),
       charge.service?.code ?? charge.source,
       formatCabinetNumber(Number(charge.quantity)),
       billingUnitLabel(charge.unit),
@@ -193,6 +193,22 @@ function exportPeriodLabel(filters: ClientCabinetFiltersValue) {
   }
 
   return 'без ограничения периода';
+}
+
+function chargeDateOrPeriod(charge: BillingChargeSummary) {
+  const periodFrom = metadataString(charge.metadata, 'periodFrom');
+  const periodTo = metadataString(charge.metadata, 'periodTo');
+
+  if (charge.source === 'STORAGE' && periodFrom && periodTo) {
+    return `${formatCabinetDate(periodFrom)} - ${formatCabinetDate(periodTo)}`;
+  }
+
+  return formatCabinetDate(charge.serviceDate);
+}
+
+function metadataString(metadata: Record<string, unknown> | null, key: string) {
+  const value = metadata?.[key];
+  return typeof value === 'string' ? value : null;
 }
 
 function csvFileName(clientCode: string, suffix: string) {

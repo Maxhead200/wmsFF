@@ -408,13 +408,13 @@ function downloadPeriodPackage(period: PeriodGroup, filter: OperationFilter) {
 }
 
 function buildPeriodExportRows(period: PeriodGroup, filter: OperationFilter) {
-  const rows = [['Тип', 'Дата', 'Документ', 'Описание', 'Количество', 'Сумма, ₽']];
+  const rows = [['Тип', 'Дата/период', 'Документ', 'Описание', 'Количество', 'Сумма, ₽']];
 
   if (filter === 'all' || filter === 'services') {
     period.charges.forEach((charge) => {
       rows.push([
         'Услуга',
-        formatCabinetDate(charge.serviceDate),
+        chargeDateOrPeriod(charge),
         charge.service?.name ?? charge.description,
         charge.comment ?? charge.description,
         formatCabinetNumber(Number(charge.quantity)),
@@ -450,6 +450,22 @@ function buildPeriodExportRows(period: PeriodGroup, filter: OperationFilter) {
   }
 
   return rows;
+}
+
+function chargeDateOrPeriod(charge: BillingChargeSummary) {
+  const periodFrom = metadataString(charge.metadata, 'periodFrom');
+  const periodTo = metadataString(charge.metadata, 'periodTo');
+
+  if (charge.source === 'STORAGE' && periodFrom && periodTo) {
+    return `${formatCabinetDate(periodFrom)} - ${formatCabinetDate(periodTo)}`;
+  }
+
+  return formatCabinetDate(charge.serviceDate);
+}
+
+function metadataString(metadata: Record<string, unknown> | null, key: string) {
+  const value = metadata?.[key];
+  return typeof value === 'string' ? value : null;
 }
 
 function downloadTextFile(fileName: string, content: string, type: string) {

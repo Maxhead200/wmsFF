@@ -1633,6 +1633,42 @@ export type TransferBetweenBoxesResult = {
   };
 };
 
+export type ManualStockReceiptPayload = {
+  clientId: string;
+  barcode: string;
+  quantity: number;
+  boxCode?: string;
+  sourceDocument?: string;
+  comment?: string;
+};
+
+export type ManualStockReceiptResult = {
+  idempotencyKey: string;
+  status: 'APPLIED';
+  movementId: string;
+  sku: {
+    id: string;
+    internalSku: string;
+    clientSku: string | null;
+    article: string | null;
+    name: string;
+    barcode: string;
+  };
+  box: string;
+  quantity: number;
+  targetBalance: {
+    id: string;
+    balanceKey: string;
+    clientId: string;
+    skuId: string;
+    boxId: string | null;
+    palletId: string | null;
+    status: string;
+    quantity: number;
+    updatedAt: string;
+  };
+};
+
 type FulfillmentAllocation = {
   boxId: string | null;
   palletId: string | null;
@@ -3617,6 +3653,14 @@ export async function commitLogisticsImport(
 
 export async function transferBetweenBoxes(accessToken: string, payload: TransferBetweenBoxesPayload) {
   return request<TransferBetweenBoxesResult>('/stock/transfers/box-to-box', {
+    method: 'POST',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function createManualStockReceipt(accessToken: string, payload: ManualStockReceiptPayload) {
+  return request<ManualStockReceiptResult>('/stock/receipts/manual', {
     method: 'POST',
     body: payload,
     accessToken,

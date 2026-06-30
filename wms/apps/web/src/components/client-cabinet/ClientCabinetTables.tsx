@@ -38,6 +38,7 @@ import type { ClientCabinetMetricTarget } from './ClientCabinetMetrics';
 import { ClientCabinetPeriodSummary } from './ClientCabinetPeriodSummary';
 import { ClientCabinetServiceHistory } from './ClientCabinetServiceHistory';
 import { ClientCabinetStockImport } from './ClientCabinetStockImport';
+import { ClientCabinetManualStockReceipt } from './ClientCabinetManualStockReceipt';
 import { downloadClientCabinetStockExcel } from './clientCabinetStockExcelExport';
 import { ClientRequestFilesCell } from './ClientRequestFilesCell';
 
@@ -112,6 +113,7 @@ export function ClientCabinetTables({
 }: ClientCabinetTablesProps) {
   const canSeeStoragePlaces = currentUser.clientScopeMode === 'ALL' || !currentUser.roleCodes.includes('CLIENT');
   const canImportStock = canUse(currentUser, 'imports:write');
+  const canCreateManualStockReceipt = canUse(currentUser, 'stock:write');
   const [pageSize, setPageSize] = useState(20);
   const [pageByTab, setPageByTab] = useState<Record<ClientCabinetMetricTarget, number>>({
     skus: 1,
@@ -208,10 +210,17 @@ export function ClientCabinetTables({
               </button>
             </div>
 
-            {canImportStock && (activeSection === 'skus' || activeSection === 'stock') ? (
+            {(canImportStock || canCreateManualStockReceipt) && (activeSection === 'skus' || activeSection === 'stock') ? (
               <div className="client-cabinet-import-grid">
-                <ClientCabinetStockImport accessToken={accessToken} client={client} onImported={onStockImported} />
-                <ClientCabinetReceiptImport accessToken={accessToken} client={client} onImported={onStockImported} />
+                {canCreateManualStockReceipt ? (
+                  <ClientCabinetManualStockReceipt accessToken={accessToken} client={client} onImported={onStockImported} />
+                ) : null}
+                {canImportStock ? (
+                  <>
+                    <ClientCabinetStockImport accessToken={accessToken} client={client} onImported={onStockImported} />
+                    <ClientCabinetReceiptImport accessToken={accessToken} client={client} onImported={onStockImported} />
+                  </>
+                ) : null}
               </div>
             ) : null}
 

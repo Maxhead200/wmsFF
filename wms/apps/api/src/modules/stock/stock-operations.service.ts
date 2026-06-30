@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import {
   BillingChargeSource,
   BillingChargeStatus,
@@ -17,6 +18,7 @@ import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
 import { clientRequestPackageInclude } from '../client-requests/client-request-packages.include';
 import { FulfillClientRequestDto } from './dto/fulfill-client-request.dto';
+import { ManualStockReceiptDto } from './dto/manual-stock-receipt.dto';
 import { PickClientRequestDto } from './dto/pick-client-request.dto';
 import { TransferBetweenBoxesDto } from './dto/transfer-between-boxes.dto';
 import { StockBalancesService } from './stock-balances.service';
@@ -78,6 +80,8 @@ type RequestPackageInput = {
   }>;
 };
 
+const MANUAL_STOCK_BOX_CODE = 'MANUAL-STOCK';
+
 @Injectable()
 export class StockOperationsService {
   constructor(
@@ -91,6 +95,76 @@ export class StockOperationsService {
     this.clientScopes.requireClientAccess(user, dto.clientId, 'write');
 
     return this.prisma.$transaction((tx) => this.applyBoxTransfer(tx, dto));
+  }
+
+  createManualReceipt(dto: ManualStockReceiptDto, user: AuthUser) {
+    const clientId = dto.clientId.trim();
+    const barcode = dto.barcode.trim();
+    const quantity = Number(dto.quantity);
+    const boxCode = dto.boxCode?.trim() || MANUAL_STOCK_BOX_CODE;
+    const sourceDocument = dto.sourceDocument?.trim() || 'Ручной приход остатков';
+
+    if (!clientId) {
+      throw new BadRequestException('Выберите клиента для добавления остатков.');
+    }
+
+    if (!barcode) {
+      throw new BadRequestException('Укажите штрихкод товара.');
+    }
+
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      throw new BadRequestException('Количество должно быть целым числом больше нуля.');
+    }
+
+    this.clientScopes.requireClientAccess(user, clientId, 'write');
+
+    return this.prisma.$transaction(async (tx) => {
+      const sku = await this.resolveSku(tx, { clientId, barcode });
+      const box = await this.ensureTargetBox(tx, clientId, boxCode);
+      const status = StockStatus.AVAILABLE;
+      const idempotencyKey = `manual-receipt:${clientId}:${randomUUID()}`;
+
+      const targetBalance = await this.incrementTargetBalance(tx, {
+        clientId,
+        skuId: sku.id,
+        boxId: box.id,
+        palletId: box.palletId,
+        status,
+        quantity,
+      });
+
+      const movement = await tx.stockMovement.create({
+        data: {
+          clientId,
+          skuId: sku.id,
+          boxId: box.id,
+          palletId: box.palletId,
+          type: MovementType.RECEIPT,
+          status,
+          quantity,
+          sourceDocument,
+          idempotencyKey,
+          comment: dto.comment?.trim() || `Ручное добавление остатков в короб ${box.code}`,
+        },
+      });
+
+      return {
+        idempotencyKey,
+        status: 'APPLIED',
+        movementId: movement.id,
+        sku: {
+          id: sku.id,
+          internalSku: sku.internalSku,
+          clientSku: sku.clientSku,
+          article: sku.article,
+          name: sku.name,
+          barcode,
+        },
+        box: box.code,
+        quantity,
+        targetBalance,
+      };
+    });
   }
 
   async applyBoxTransfer(tx: Prisma.TransactionClient, dto: TransferBetweenBoxesDto) {

@@ -9,6 +9,7 @@ import { FulfillClientRequestDto } from './dto/fulfill-client-request.dto';
 import { ListStorageOverviewDto } from './dto/list-storage-overview.dto';
 import { ListPickWavesDto } from './dto/list-pick-waves.dto';
 import { ListStockBalancesDto } from './dto/list-stock-balances.dto';
+import { ManualStockReceiptDto } from './dto/manual-stock-receipt.dto';
 import { PickClientRequestDto } from './dto/pick-client-request.dto';
 import { RunPickWaveDto } from './dto/run-pick-wave.dto';
 import { TransferBetweenBoxesDto } from './dto/transfer-between-boxes.dto';
@@ -71,6 +72,12 @@ export class StockController {
   @RequirePermissions('stock:write')
   transferBetweenBoxes(@Body() dto: TransferBetweenBoxesDto, @CurrentUser() user: AuthUser) {
     return this.operations.transferBetweenBoxes(dto, user);
+  }
+
+  @Post('receipts/manual')
+  @RequirePermissions('stock:write')
+  createManualReceipt(@Body() dto: ManualStockReceiptDto, @CurrentUser() user: AuthUser) {
+    return this.operations.createManualReceipt(dto, user);
   }
 
   @Post('fulfillment/pick-request')

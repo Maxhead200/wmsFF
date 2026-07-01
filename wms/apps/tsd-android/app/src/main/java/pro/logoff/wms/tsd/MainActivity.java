@@ -423,9 +423,20 @@ public class MainActivity extends Activity {
         showPickRequestActions(request, null, null);
         runAsync(() -> {
             JSONObject boxState = api.boxSearch(token, request.id, deviceCode);
-            JSONObject relabelState = api.relabelState(token, request.id, deviceCode);
-            JSONObject movesState = api.movesState(token, request.id, deviceCode);
-            main.post(() -> showPickRequestActions(request, boxState, relabelState, movesState));
+            JSONObject relabelState = null;
+            JSONObject movesState = null;
+            if (boxState.optBoolean("isComplete") || hasStageControl()) {
+                try {
+                    relabelState = api.relabelState(token, request.id, deviceCode);
+                    if (relabelState.optBoolean("isComplete") || hasStageControl()) {
+                        movesState = api.movesState(token, request.id, deviceCode);
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+            JSONObject finalRelabelState = relabelState;
+            JSONObject finalMovesState = movesState;
+            main.post(() -> showPickRequestActions(request, boxState, finalRelabelState, finalMovesState));
         });
     }
 
@@ -696,36 +707,114 @@ public class MainActivity extends Activity {
     }
 
     private void loadRequestStage(PickRequest request, String stage) {
-        runAsync(() -> {
-            JSONObject state = api.requestStage(token, request.id, deviceCode, stage);
-            main.post(() -> {
-                if (!hasStageControl() && !state.optBoolean("isComplete")) {
-                    toast(tr("stage.searchRequired"));
-                    showBoxSearch(request, state);
-                    return;
+        loadRequestStage(request, stage, "");
+    }
+
+    private void loadRequestStage(PickRequest request, String stage, String managerCode) {
+        io.execute(() -> {
+            try {
+                JSONObject state = api.requestStage(token, request.id, deviceCode, stage, managerCode);
+                main.post(() -> showRequestStage(request, state, stage));
+            } catch (Exception error) {
+                if (isStageLockedError(error)) {
+                    main.post(() -> showStageCodeScreen(request, stage, stageLockMessage(error, stage), !managerCode.trim().isEmpty()));
+                } else {
+                    main.post(() -> toast(error.getMessage() == null ? tr("common.operationError") : error.getMessage()));
                 }
-                showRequestStage(request, state, stage);
-            });
+            }
         });
     }
 
     private void loadRelabelState(PickRequest request) {
-        runAsync(() -> {
-            JSONObject state = api.relabelState(token, request.id, deviceCode);
-            main.post(() -> showRelabelBoxes(request, state));
+        loadRelabelState(request, "");
+    }
+
+    private void loadRelabelState(PickRequest request, String managerCode) {
+        io.execute(() -> {
+            try {
+                JSONObject state = api.relabelState(token, request.id, deviceCode, managerCode);
+                main.post(() -> showRelabelBoxes(request, state));
+            } catch (Exception error) {
+                if (isStageLockedError(error)) {
+                    main.post(() -> showStageCodeScreen(request, "relabel", stageLockMessage(error, "relabel"), !managerCode.trim().isEmpty()));
+                } else {
+                    main.post(() -> toast(error.getMessage() == null ? tr("common.operationError") : error.getMessage()));
+                }
+            }
         });
     }
 
     private void loadMovesStage(PickRequest request) {
-        runAsync(() -> {
-            JSONObject relabel = api.relabelState(token, request.id, deviceCode);
-            if (!relabel.optBoolean("isComplete")) {
-                main.post(() -> showRelabelBoxes(request, relabel));
-                return;
+        loadMovesStage(request, "");
+    }
+
+    private void loadMovesStage(PickRequest request, String managerCode) {
+        io.execute(() -> {
+            try {
+                JSONObject state = api.movesState(token, request.id, deviceCode, managerCode);
+                main.post(() -> showMoveBoxes(request, state));
+            } catch (Exception error) {
+                if (isStageLockedError(error)) {
+                    main.post(() -> showStageCodeScreen(request, "moves", stageLockMessage(error, "moves"), !managerCode.trim().isEmpty()));
+                } else {
+                    main.post(() -> toast(error.getMessage() == null ? tr("common.operationError") : error.getMessage()));
+                }
             }
-            JSONObject state = api.movesState(token, request.id, deviceCode);
-            main.post(() -> showMoveBoxes(request, state));
         });
+    }
+
+    private void showStageCodeScreen(PickRequest request, String stage, String message, boolean codeRejected) {
+        setBackAction(() -> showPickRequestActions(request));
+        LinearLayout root = page();
+        root.setPadding(dp(14), dp(16), dp(14), dp(14));
+        addHeader(root);
+        addTitle(root, tr("stage.managerCodeTitle"));
+        root.addView(note(stageTitle(stage)));
+
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(14), dp(14), dp(14), dp(14));
+        panel.setBackgroundColor(Color.rgb(235, 243, 255));
+        panel.addView(note(message));
+        if (codeRejected) {
+            TextView error = note(tr("stage.managerCodeRejected"));
+            error.setTextColor(RED);
+            error.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+            panel.addView(error);
+        }
+
+        EditText code = input(tr("stage.managerCodeInput"), false);
+        code.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+        code.setSingleLine(true);
+        code.setImeOptions(EditorInfo.IME_ACTION_DONE);
+        code.setOnEditorActionListener((v, actionId, event) -> {
+            submitStageCode(request, stage, text(code));
+            return true;
+        });
+        Button unlock = primary(tr("stage.managerCodeUnlock"));
+        unlock.setOnClickListener(v -> submitStageCode(request, stage, text(code)));
+        Button cancel = secondary(tr("stage.managerCodeCancel"));
+        cancel.setOnClickListener(v -> showPickRequestActions(request));
+
+        panel.addView(code);
+        panel.addView(unlock);
+        panel.addView(cancel);
+        root.addView(panel, matchWrap());
+        setContentView(wrap(root));
+        code.requestFocus();
+    }
+
+    private void submitStageCode(PickRequest request, String stage, String code) {
+        String normalized = code.trim();
+        if (!normalized.matches("\\d{4}")) {
+            showStageCodeScreen(request, stage, tr("stage.managerCodeHint"), true);
+            return;
+        }
+        if ("moves".equals(stage)) {
+            loadMovesStage(request, normalized);
+            return;
+        }
+        loadRelabelState(request, normalized);
     }
 
     private void showRelabelBoxes(PickRequest request, JSONObject state) {
@@ -2592,6 +2681,14 @@ public class MainActivity extends Activity {
                 case "boxless.boxClosed": return "Quti yopildi.";
                 case "boxless.complete": return "Qadoqlash tugadi. WB/Ozon fayllari tayyor.";
                 case "stage.searchRequired": return "Avval barcha qutilarni topishni yakunlang.";
+                case "stage.managerCodeTitle": return "Menejer kodi";
+                case "stage.managerCodeInput": return "4 xonali kod";
+                case "stage.managerCodeUnlock": return "Bosqichni ochish";
+                case "stage.managerCodeCancel": return "Bekor qilish";
+                case "stage.managerCodeRejected": return "Kod mos kelmadi. Qayta kiriting yoki bekor qiling.";
+                case "stage.managerCodeHint": return "4 xonali menejer kodini kiriting.";
+                case "stage.relabelLocked": return "Qutilarni qidirish tugamaguncha qayta markalash bosqichi yopiq. Menejer kodini kiriting yoki bekor qiling.";
+                case "stage.movesLocked": return "Oldingi bosqichlar tugamaguncha ko'chirish bosqichi yopiq. Menejer kodini kiriting yoki bekor qiling.";
                 case "stage.supervisorBypass": return "Bosqich rahbar tomonidan qidirish tugashini kutmasdan ochildi. Faqat topilgan qutilar bilan ishlang.";
                 case "stage.noFoundBoxes": return "Hozircha topilgan qutilar yo'q.";
                 case "stage.foundBoxes": return "Topilgan qutilar:";
@@ -2809,6 +2906,14 @@ public class MainActivity extends Activity {
                 case "boxless.boxClosed": return "Box closed.";
                 case "boxless.complete": return "Packing complete. WB/Ozon files are ready.";
                 case "stage.searchRequired": return "Finish finding all boxes first.";
+                case "stage.managerCodeTitle": return "Manager code";
+                case "stage.managerCodeInput": return "4-digit code";
+                case "stage.managerCodeUnlock": return "Open stage";
+                case "stage.managerCodeCancel": return "Cancel";
+                case "stage.managerCodeRejected": return "Code did not match. Try again or cancel.";
+                case "stage.managerCodeHint": return "Enter the 4-digit manager code.";
+                case "stage.relabelLocked": return "Relabeling is locked until box search is complete. Enter a manager code or cancel.";
+                case "stage.movesLocked": return "Movements are locked until previous stages are complete. Enter a manager code or cancel.";
                 case "stage.supervisorBypass": return "Stage opened by a supervisor before box search is complete. Work only with found boxes.";
                 case "stage.noFoundBoxes": return "No boxes have been found yet.";
                 case "stage.foundBoxes": return "Found boxes:";
@@ -3025,6 +3130,14 @@ public class MainActivity extends Activity {
             case "boxless.boxClosed": return "Короб закрыт.";
             case "boxless.complete": return "Упаковка завершена. Файлы WB/Ozon готовы.";
             case "stage.searchRequired": return "Сначала завершите поиск всех коробов.";
+            case "stage.managerCodeTitle": return "Код менеджера";
+            case "stage.managerCodeInput": return "4-значный код";
+            case "stage.managerCodeUnlock": return "Открыть этап";
+            case "stage.managerCodeCancel": return "Отмена";
+            case "stage.managerCodeRejected": return "Код не подошел. Введите еще раз или отмените.";
+            case "stage.managerCodeHint": return "Введите 4-значный код менеджера.";
+            case "stage.relabelLocked": return "Этап перемаркировки закрыт, пока не завершен поиск коробов. Введите код менеджера или нажмите Отмена.";
+            case "stage.movesLocked": return "Этап перемещений закрыт, пока не завершены предыдущие этапы. Введите код менеджера или нажмите Отмена.";
             case "stage.supervisorBypass": return "Этап открыт старшим сотрудником до завершения поиска. Работайте только с уже найденными коробами.";
             case "stage.noFoundBoxes": return "Пока нет найденных коробов.";
             case "stage.foundBoxes": return "Найденные короба:";
@@ -3219,6 +3332,30 @@ public class MainActivity extends Activity {
             || roleCodes.contains("OWNER")
             || roleCodes.contains("ADMIN")
             || roleCodes.contains("MANAGER");
+    }
+
+    private boolean isStageLockedError(Exception error) {
+        String message = error.getMessage();
+        return message != null && message.startsWith("TSD_STAGE_LOCKED|");
+    }
+
+    private String stageLockMessage(Exception error, String fallbackStage) {
+        String message = error.getMessage();
+        if (message == null || !message.startsWith("TSD_STAGE_LOCKED|")) {
+            return stageDefaultLockMessage(fallbackStage);
+        }
+        String[] parts = message.split("\\|", 3);
+        if (parts.length >= 3 && !parts[2].trim().isEmpty()) {
+            return parts[2].trim();
+        }
+        if (parts.length >= 2 && !parts[1].trim().isEmpty()) {
+            return stageDefaultLockMessage(parts[1].trim());
+        }
+        return stageDefaultLockMessage(fallbackStage);
+    }
+
+    private String stageDefaultLockMessage(String stage) {
+        return "moves".equals(stage) ? tr("stage.movesLocked") : tr("stage.relabelLocked");
     }
 
     private String activeWorkersLabel(JSONArray workers) {

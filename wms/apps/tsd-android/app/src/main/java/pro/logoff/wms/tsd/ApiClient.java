@@ -42,17 +42,38 @@ final class ApiClient {
     }
 
     JSONObject requestStage(String token, String requestId, String deviceCode, String stage) throws IOException, JSONException {
+        return requestStage(token, requestId, deviceCode, stage, "");
+    }
+
+    JSONObject requestStage(String token, String requestId, String deviceCode, String stage, String managerCode) throws IOException, JSONException {
         String path = "/tsd/requests/" + enc(requestId) + "/box-search?deviceCode=" + enc(deviceCode) + "&stage=" + enc(stage);
+        if (managerCode != null && !managerCode.trim().isEmpty()) {
+            path += "&managerCode=" + enc(managerCode.trim());
+        }
         return new JSONObject(request("GET", path, token, null));
     }
 
     JSONObject relabelState(String token, String requestId, String deviceCode) throws IOException, JSONException {
+        return relabelState(token, requestId, deviceCode, "");
+    }
+
+    JSONObject relabelState(String token, String requestId, String deviceCode, String managerCode) throws IOException, JSONException {
         String path = "/tsd/requests/" + enc(requestId) + "/relabel?deviceCode=" + enc(deviceCode);
+        if (managerCode != null && !managerCode.trim().isEmpty()) {
+            path += "&managerCode=" + enc(managerCode.trim());
+        }
         return new JSONObject(request("GET", path, token, null));
     }
 
     JSONObject movesState(String token, String requestId, String deviceCode) throws IOException, JSONException {
+        return movesState(token, requestId, deviceCode, "");
+    }
+
+    JSONObject movesState(String token, String requestId, String deviceCode, String managerCode) throws IOException, JSONException {
         String path = "/tsd/requests/" + enc(requestId) + "/moves?deviceCode=" + enc(deviceCode);
+        if (managerCode != null && !managerCode.trim().isEmpty()) {
+            path += "&managerCode=" + enc(managerCode.trim());
+        }
         return new JSONObject(request("GET", path, token, null));
     }
 
@@ -187,6 +208,13 @@ final class ApiClient {
             Object message = json.opt("message");
             if (message instanceof JSONArray) {
                 return ((JSONArray) message).join(", ");
+            }
+            if (message instanceof JSONObject) {
+                JSONObject object = (JSONObject) message;
+                if ("TSD_STAGE_LOCKED".equals(object.optString("code"))) {
+                    return "TSD_STAGE_LOCKED|" + object.optString("stage") + "|" + object.optString("message");
+                }
+                return object.optString("message", object.toString());
             }
             if (message != null) {
                 return String.valueOf(message);

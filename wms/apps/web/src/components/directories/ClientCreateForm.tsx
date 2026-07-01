@@ -40,6 +40,7 @@ const emptyClientForm = {
   bankBik: '',
   bankAccount: '',
   correspondentAccount: '',
+  storageAccountingEnabled: false,
   fulfillmentManagerUserId: '',
 };
 
@@ -275,6 +276,14 @@ export function ClientCreateForm({ session }: ClientCreateFormProps) {
               ))}
             </select>
           </label>
+          <label className="directory-checkbox">
+            <input
+              checked={form.storageAccountingEnabled}
+              type="checkbox"
+              onChange={(event) => setForm({ ...form, storageAccountingEnabled: event.target.checked })}
+            />
+            <span>Вести учет хранения</span>
+          </label>
           <label>
             <span>Юр. адрес</span>
             <input value={form.legalAddress} onChange={(event) => setForm({ ...form, legalAddress: event.target.value })} />
@@ -319,6 +328,7 @@ export function ClientCreateForm({ session }: ClientCreateFormProps) {
             lines={[
               `${createdClient.code} - ${createdClient.name}`,
               `${clientKindLabel(createdClient.clientKind)} · ИНН ${createdClient.inn}`,
+              createdClient.storageAccountingEnabled ? 'Учет хранения включен' : 'Учет хранения отключен',
               selectedFulfillmentManager ? `Менеджер фулфилмента: ${selectedFulfillmentManager.name}` : 'Менеджер фулфилмента не назначен',
             ]}
           />
@@ -467,6 +477,7 @@ function compactPayload(form: typeof emptyClientForm): CreateClientPayload {
     ...optionalString('bankBik', form.bankBik),
     ...optionalString('bankAccount', form.bankAccount),
     ...optionalString('correspondentAccount', form.correspondentAccount),
+    storageAccountingEnabled: form.storageAccountingEnabled,
     ...optionalString('fulfillmentManagerUserId', form.fulfillmentManagerUserId),
   };
 }

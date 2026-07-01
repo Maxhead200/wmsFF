@@ -33,6 +33,7 @@ function summaryRows(overview: StorageOverviewPayload): CellValue[][] {
   return [
     ['Параметр', 'Значение'],
     ['Клиент', `${overview.client.code} · ${overview.client.name}`],
+    ['Учет хранения', overview.client.storageAccountingEnabled ? 'Включен' : 'Отключен'],
     ['Период с', formatDate(overview.periodFrom)],
     ['Период по', formatDate(overview.periodTo)],
     ['Тариф, ₽ / литр в сутки', overview.tariffRubPerLiterDay],

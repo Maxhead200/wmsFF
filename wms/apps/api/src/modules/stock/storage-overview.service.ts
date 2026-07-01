@@ -23,12 +23,18 @@ export class StorageOverviewService {
         id: true,
         code: true,
         name: true,
+        storageAccountingEnabled: true,
         storagePriceRubPerLiterDay: true,
       },
     });
 
     if (!client) {
       throw new NotFoundException('Клиент не найден.');
+    }
+
+    if (!client.storageAccountingEnabled) {
+      const tariff = decimalToNumber(client.storagePriceRubPerLiterDay) ?? 0;
+      return emptyStorageOverview(client, period.periodFrom, period.periodTo, tariff);
     }
 
     const [balances, movements] = await Promise.all([
@@ -127,6 +133,7 @@ export class StorageOverviewService {
         id: true,
         code: true,
         name: true,
+        storageAccountingEnabled: true,
         storagePriceRubPerLiterDay: true,
       },
     });
@@ -157,6 +164,37 @@ type StorageMovementForOverview = Prisma.StockMovementGetPayload<{
     sku: { include: { barcodes: true } };
   };
 }>;
+
+function emptyStorageOverview(
+  client: {
+    id: string;
+    code: string;
+    name: string;
+    storageAccountingEnabled: boolean;
+    storagePriceRubPerLiterDay: Prisma.Decimal | null;
+  },
+  periodFrom: Date,
+  periodTo: Date,
+  tariff: number,
+) {
+  return {
+    client,
+    periodFrom: periodFrom.toISOString(),
+    periodTo: periodTo.toISOString(),
+    tariffRubPerLiterDay: tariff,
+    totals: {
+      skuCount: 0,
+      quantity: 0,
+      totalLiters: 0,
+      literDays: 0,
+      storageCostRub: 0,
+    },
+    rows: [] as StorageOverviewRow[],
+    daily: [] as StorageOverviewDaily[],
+    dailyRows: [] as StorageOverviewDailyRow[],
+    skippedWithoutVolume: 0,
+  };
+}
 
 function groupCurrentStorage(balances: StorageBalanceForOverview[]) {
   const result = new Map<string, StorageOverviewRow>();
@@ -359,6 +397,13 @@ type StorageOverviewRow = {
 };
 
 export type StorageOverviewPayload = Awaited<ReturnType<StorageOverviewService['getOverview']>>;
+
+type StorageOverviewDaily = {
+  date: string;
+  totalLiters: number;
+  literDays: number;
+  positions: number;
+};
 
 type StorageOverviewDailyRow = {
   date: string;

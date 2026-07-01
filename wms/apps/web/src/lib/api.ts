@@ -33,6 +33,7 @@ export type ClientSummary = {
   bankBik: string | null;
   bankAccount: string | null;
   correspondentAccount: string | null;
+  storageAccountingEnabled: boolean;
   storagePriceRubPerLiterDay: string | number | null;
   fulfillmentManagerUserId: string | null;
   fulfillmentManager: {
@@ -1015,6 +1016,7 @@ export type CreateClientPayload = {
   bankBik?: string;
   bankAccount?: string;
   correspondentAccount?: string;
+  storageAccountingEnabled?: boolean;
   fulfillmentManagerUserId?: string;
 };
 
@@ -1263,6 +1265,7 @@ export type StorageOverviewRow = {
 
 export type StorageOverview = {
   client: Pick<ClientSummary, 'id' | 'code' | 'name'> & {
+    storageAccountingEnabled: boolean;
     storagePriceRubPerLiterDay: string | number | null;
   };
   periodFrom: string;
@@ -2604,7 +2607,7 @@ export async function updateStorageTariff(
   clientId: string,
   payload: { storagePriceRubPerLiterDay: number },
 ) {
-  return request<Pick<ClientSummary, 'id' | 'code' | 'name' | 'storagePriceRubPerLiterDay'>>(
+  return request<Pick<ClientSummary, 'id' | 'code' | 'name' | 'storageAccountingEnabled' | 'storagePriceRubPerLiterDay'>>(
     `/stock/storage/${clientId}/tariff`,
     {
       method: 'PATCH',

@@ -10,6 +10,7 @@ describe('StorageOverviewService', () => {
           id: 'client-1',
           code: 'CLIENT',
           name: 'Client',
+          storageAccountingEnabled: true,
           storagePriceRubPerLiterDay: '0.5',
         }),
       },
@@ -84,6 +85,7 @@ describe('StorageOverviewService', () => {
           id: 'client-1',
           code: 'CLIENT',
           name: 'Client',
+          storageAccountingEnabled: true,
           storagePriceRubPerLiterDay: '0.5',
         }),
       },
@@ -121,6 +123,53 @@ describe('StorageOverviewService', () => {
     expect(file.fileName).toBe('storage-CLIENT-2026-06-01-2026-06-01.xlsx');
     expect(file.mimeType).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     expect(file.content.subarray(0, 2).toString()).toBe('PK');
+  });
+
+  it('returns empty overview without reading stock when storage accounting is disabled', async () => {
+    const prisma = {
+      client: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'client-1',
+          code: 'CLIENT',
+          name: 'Client',
+          storageAccountingEnabled: false,
+          storagePriceRubPerLiterDay: '0.5',
+        }),
+      },
+      stockBalance: {
+        findMany: vi.fn(),
+      },
+      stockMovement: {
+        findMany: vi.fn(),
+      },
+    };
+    const service = new StorageOverviewService(prisma as never, {
+      requireClientAccess: vi.fn(),
+    } as never);
+
+    const overview = await service.getOverview(
+      {
+        clientId: 'client-1',
+        periodFrom: '2026-06-01',
+        periodTo: '2026-06-03',
+      },
+      {} as never,
+    );
+
+    expect(overview.client.storageAccountingEnabled).toBe(false);
+    expect(overview.tariffRubPerLiterDay).toBe(0.5);
+    expect(overview.totals).toEqual({
+      skuCount: 0,
+      quantity: 0,
+      totalLiters: 0,
+      literDays: 0,
+      storageCostRub: 0,
+    });
+    expect(overview.rows).toEqual([]);
+    expect(overview.daily).toEqual([]);
+    expect(overview.dailyRows).toEqual([]);
+    expect(prisma.stockBalance.findMany).not.toHaveBeenCalled();
+    expect(prisma.stockMovement.findMany).not.toHaveBeenCalled();
   });
 });
 

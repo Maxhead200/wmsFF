@@ -258,12 +258,13 @@ export class BillingService {
     });
 
     const storageService = await this.ensureStorageService();
-    const client = this.prisma.client?.findUnique
-      ? await this.prisma.client.findUnique({
-          where: { id: dto.clientId },
-          select: { storagePriceRubPerLiterDay: true },
-        })
-      : null;
+    const client = await this.prisma.client.findUnique({
+      where: { id: dto.clientId },
+      select: { storageAccountingEnabled: true, storagePriceRubPerLiterDay: true },
+    });
+    if (client && !client.storageAccountingEnabled) {
+      throw new BadRequestException('Для клиента отключен учет хранения.');
+    }
     const movements = await this.prisma.stockMovement.findMany({
       where: {
         clientId: dto.clientId,

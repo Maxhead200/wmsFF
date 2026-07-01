@@ -103,6 +103,7 @@ type ClientManagementForm = {
   bankBik: string;
   bankAccount: string;
   correspondentAccount: string;
+  storageAccountingEnabled: boolean;
 };
 
 const clientKindOptions: Array<{ value: ClientKind; label: string }> = [
@@ -929,6 +930,14 @@ function ClientCabinetClientEditor({
           <span>Корр. счет</span>
           <input value={form.correspondentAccount} onChange={(event) => onChange({ correspondentAccount: event.target.value })} />
         </label>
+        <label className="client-cabinet-editor-checkbox">
+          <input
+            checked={form.storageAccountingEnabled}
+            type="checkbox"
+            onChange={(event) => onChange({ storageAccountingEnabled: event.target.checked })}
+          />
+          <span>Вести учет хранения</span>
+        </label>
       </div>
       <div className="client-cabinet-client-editor__actions">
         <button className="primary-button" disabled={isSubmitting || !form.name.trim()} onClick={onSave} type="button">
@@ -989,6 +998,7 @@ function formFromClient(client: ClientSummary): ClientManagementForm {
     bankBik: client.bankBik ?? '',
     bankAccount: client.bankAccount ?? '',
     correspondentAccount: client.correspondentAccount ?? '',
+    storageAccountingEnabled: client.storageAccountingEnabled,
   };
 }
 
@@ -1008,6 +1018,7 @@ function compactClientPayload(form: ClientManagementForm): UpdateClientPayload {
     bankBik: form.bankBik.trim(),
     bankAccount: form.bankAccount.trim(),
     correspondentAccount: form.correspondentAccount.trim(),
+    storageAccountingEnabled: form.storageAccountingEnabled,
   };
 }
 

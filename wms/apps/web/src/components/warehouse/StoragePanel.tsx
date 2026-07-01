@@ -29,6 +29,7 @@ export function StoragePanel({ session }: StoragePanelProps) {
   const [isLoading, setLoading] = useState(false);
   const [isSavingTariff, setSavingTariff] = useState(false);
   const selectedClient = useMemo(() => clients.find((client) => client.id === clientId) ?? null, [clientId, clients]);
+  const storageEnabled = selectedClient?.storageAccountingEnabled === true;
 
   useEffect(() => {
     let isActive = true;
@@ -99,6 +100,10 @@ export function StoragePanel({ session }: StoragePanelProps) {
     if (!clientId) {
       return;
     }
+    if (!storageEnabled) {
+      setError('У выбранного клиента отключен учет хранения. Включите галочку в настройках клиента.');
+      return;
+    }
 
     const price = Number(tariff);
     if (!Number.isFinite(price) || price < 0) {
@@ -122,7 +127,13 @@ export function StoragePanel({ session }: StoragePanelProps) {
       });
       setClients((current) =>
         current.map((client) =>
-          client.id === updated.id ? { ...client, storagePriceRubPerLiterDay: updated.storagePriceRubPerLiterDay } : client,
+          client.id === updated.id
+            ? {
+                ...client,
+                storageAccountingEnabled: updated.storageAccountingEnabled,
+                storagePriceRubPerLiterDay: updated.storagePriceRubPerLiterDay,
+              }
+            : client,
         ),
       );
       setStorageCharge(charge);
@@ -169,7 +180,7 @@ export function StoragePanel({ session }: StoragePanelProps) {
           <select value={clientId} onChange={(event) => setClientId(event.target.value)}>
             {clients.map((client) => (
               <option key={client.id} value={client.id}>
-                {client.code} · {client.name}
+                {client.code} · {client.name}{client.storageAccountingEnabled ? '' : ' · хранение отключено'}
               </option>
             ))}
           </select>
@@ -192,7 +203,12 @@ export function StoragePanel({ session }: StoragePanelProps) {
             onChange={(event) => setTariff(event.target.value)}
           />
         </label>
-        <button className="icon-text-button warehouse-secondary" type="button" onClick={() => void saveTariff()} disabled={!clientId || isSavingTariff}>
+        <button
+          className="icon-text-button warehouse-secondary"
+          type="button"
+          onClick={() => void saveTariff()}
+          disabled={!clientId || !storageEnabled || isSavingTariff}
+        >
           <Save size={16} aria-hidden="true" />
           <span>{isSavingTariff ? 'Сохраняю' : 'Сохранить тариф'}</span>
         </button>
@@ -208,6 +224,9 @@ export function StoragePanel({ session }: StoragePanelProps) {
 
       {error ? <p className="form-error">{error}</p> : null}
       {message ? <p className="form-success">{message}</p> : null}
+      {selectedClient && !storageEnabled ? (
+        <p className="panel-message">У клиента отключен учет хранения. Хранение не требуется и начисление не создается.</p>
+      ) : null}
 
       {overview ? (
         <>

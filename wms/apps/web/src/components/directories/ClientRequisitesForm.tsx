@@ -34,6 +34,7 @@ type ClientRequisitesFormState = {
   bankBik: string;
   bankAccount: string;
   correspondentAccount: string;
+  storageAccountingEnabled: boolean;
   fulfillmentManagerUserId: string;
 };
 
@@ -52,6 +53,7 @@ const emptyForm: ClientRequisitesFormState = {
   bankBik: '',
   bankAccount: '',
   correspondentAccount: '',
+  storageAccountingEnabled: false,
   fulfillmentManagerUserId: '',
 };
 
@@ -317,6 +319,14 @@ export function ClientRequisitesForm({ session }: ClientRequisitesFormProps) {
             ))}
           </select>
         </label>
+        <label className="directory-checkbox">
+          <input
+            checked={form.storageAccountingEnabled}
+            type="checkbox"
+            onChange={(event) => setForm({ ...form, storageAccountingEnabled: event.target.checked })}
+          />
+          <span>Вести учет хранения</span>
+        </label>
         <label>
           <span>КПП</span>
           <input value={form.kpp} onChange={(event) => setForm({ ...form, kpp: event.target.value })} />
@@ -381,6 +391,7 @@ export function ClientRequisitesForm({ session }: ClientRequisitesFormProps) {
           lines={[
             `${savedClient.code} - ${savedClient.name}`,
             `${clientKindLabel(savedClient.clientKind)} · ИНН ${savedClient.inn ?? 'не задан'}`,
+            savedClient.storageAccountingEnabled ? 'Учет хранения включен' : 'Учет хранения отключен',
           ]}
         />
       ) : null}
@@ -404,6 +415,7 @@ function formFromClient(client: ClientSummary): ClientRequisitesFormState {
     bankBik: client.bankBik ?? '',
     bankAccount: client.bankAccount ?? '',
     correspondentAccount: client.correspondentAccount ?? '',
+    storageAccountingEnabled: client.storageAccountingEnabled,
     fulfillmentManagerUserId: client.fulfillmentManagerUserId ?? '',
   };
 }
@@ -424,6 +436,7 @@ function compactPayload(form: ClientRequisitesFormState): UpdateClientPayload {
     bankBik: form.bankBik,
     bankAccount: form.bankAccount,
     correspondentAccount: form.correspondentAccount,
+    storageAccountingEnabled: form.storageAccountingEnabled,
     fulfillmentManagerUserId: form.fulfillmentManagerUserId,
   };
 }

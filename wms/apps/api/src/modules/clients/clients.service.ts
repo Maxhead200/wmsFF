@@ -164,6 +164,7 @@ export class ClientsService {
           ...(dto.fulfillmentManagerUserId === undefined
             ? {}
             : { fulfillmentManagerUserId: normalizeNullableString(dto.fulfillmentManagerUserId) }),
+          ...(dto.storageAccountingEnabled === undefined ? {} : { storageAccountingEnabled: dto.storageAccountingEnabled }),
           ...nullableUpdateClientData(dto),
         },
         select: this.clientSummarySelect(),
@@ -271,6 +272,7 @@ export class ClientsService {
             legalName: dto.legalName.trim(),
             inn: dto.inn.trim(),
             ...optionalCreateClientData(dto),
+            storageAccountingEnabled: dto.storageAccountingEnabled ?? false,
             fulfillmentManagerUserId: normalizeNullableString(dto.fulfillmentManagerUserId),
           },
           select: this.clientSummarySelect(),
@@ -311,6 +313,7 @@ export class ClientsService {
         clientKind: ClientKind.LEGAL_ENTITY,
         name: row.name,
         legalName: row.name,
+        storageAccountingEnabled: false,
         ...(row.registrationDate ? { createdAt: row.registrationDate } : {}),
       },
       select: this.clientSummarySelect(),
@@ -369,6 +372,7 @@ export class ClientsService {
       bankBik: true,
       bankAccount: true,
       correspondentAccount: true,
+      storageAccountingEnabled: true,
       storagePriceRubPerLiterDay: true,
       fulfillmentManagerUserId: true,
       fulfillmentManager: {

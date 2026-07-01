@@ -158,6 +158,20 @@
   gap: 5px;
 }
 
+.client-cabinet-client-editor__grid .client-cabinet-editor-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 38px;
+  padding-top: 17px;
+}
+
+.client-cabinet-client-editor__grid .client-cabinet-editor-checkbox input {
+  width: 16px;
+  min-height: 16px;
+  padding: 0;
+}
+
 .client-cabinet-client-editor__grid input,
 .client-cabinet-client-editor__grid select {
   width: 100%;

@@ -100,6 +100,9 @@ describe('BillingService', () => {
 
   it('СЃРѕР·РґР°РµС‚ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРѕРµ РЅР°С‡РёСЃР»РµРЅРёРµ С…СЂР°РЅРµРЅРёСЏ РїРѕ РёСЃС‚РѕСЂРёС‡РµСЃРєРѕРјСѓ ledger', async () => {
     const prisma = {
+      client: {
+        findUnique: vi.fn().mockResolvedValue({ storageAccountingEnabled: true, storagePriceRubPerLiterDay: '0.5' }),
+      },
       billingService: {
         upsert: vi.fn().mockResolvedValue({
           id: 'service-storage',
@@ -186,8 +189,53 @@ describe('BillingService', () => {
     );
   });
 
+  it('does not create storage charge when storage accounting is disabled', async () => {
+    const prisma = {
+      client: {
+        findUnique: vi.fn().mockResolvedValue({ storageAccountingEnabled: false, storagePriceRubPerLiterDay: '0.5' }),
+      },
+      billingService: {
+        upsert: vi.fn().mockResolvedValue({
+          id: 'service-storage',
+          code: 'STORAGE_LITER_DAY',
+          defaultPriceRub: null,
+        }),
+      },
+      billingCharge: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn(),
+      },
+      stockMovement: {
+        findMany: vi.fn(),
+      },
+      stockBalance: {
+        findMany: vi.fn(),
+      },
+    };
+    const service = new BillingService(prisma as never, clientScopes());
+
+    await expect(
+      service.generateStorageCharge(
+        {
+          clientId: 'client-1',
+          periodFrom: '2026-06-01',
+          periodTo: '2026-06-03',
+          unitPriceRub: 0.5,
+        },
+        user({ clientIds: ['client-1'], writableClientIds: ['client-1'] }),
+      ),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(prisma.stockMovement.findMany).not.toHaveBeenCalled();
+    expect(prisma.stockBalance.findMany).not.toHaveBeenCalled();
+    expect(prisma.billingCharge.create).not.toHaveBeenCalled();
+  });
+
   it('РёСЃРїРѕР»СЊР·СѓРµС‚ snapshot РѕСЃС‚Р°С‚РєРѕРІ, РµСЃР»Рё ledger РїРѕ РєР»РёРµРЅС‚Сѓ РµС‰Рµ РїСѓСЃС‚РѕР№', async () => {
     const prisma = {
+      client: {
+        findUnique: vi.fn().mockResolvedValue({ storageAccountingEnabled: true, storagePriceRubPerLiterDay: '0.5' }),
+      },
       billingService: {
         upsert: vi.fn().mockResolvedValue({
           id: 'service-storage',
@@ -250,6 +298,9 @@ describe('BillingService', () => {
 
   it('calculates storage volume from dimensions when saved liters are empty', async () => {
     const prisma = {
+      client: {
+        findUnique: vi.fn().mockResolvedValue({ storageAccountingEnabled: true, storagePriceRubPerLiterDay: '0.06' }),
+      },
       billingService: {
         upsert: vi.fn().mockResolvedValue({
           id: 'service-storage',
@@ -310,6 +361,9 @@ describe('BillingService', () => {
 
   it('updates repeated automatic storage charge before invoice creation', async () => {
     const prisma = {
+      client: {
+        findUnique: vi.fn().mockResolvedValue({ storageAccountingEnabled: true, storagePriceRubPerLiterDay: '0.5' }),
+      },
       billingService: {
         upsert: vi.fn().mockResolvedValue({
           id: 'service-storage',

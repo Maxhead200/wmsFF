@@ -336,6 +336,7 @@ model Client {
   bankBik                  String?
   bankAccount              String?
   correspondentAccount     String?
+  storageAccountingEnabled Boolean                        @default(false)
   storagePriceRubPerLiterDay Decimal?                       @db.Decimal(12, 4)
   fulfillmentManagerUserId String?
   status                   ClientStatus                   @default(ACTIVE)

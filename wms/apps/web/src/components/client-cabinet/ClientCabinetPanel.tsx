@@ -1,5 +1,5 @@
 import { Ban, CheckCircle2, Pencil, RefreshCw, Save, Trash2, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   deleteClient,
   fetchBillingCharges,
@@ -48,6 +48,7 @@ import './client-cabinet.css';
 import { ClientCabinetExports } from './ClientCabinetExports';
 import { ClientCabinetMetrics, type ClientCabinetMetricTarget } from './ClientCabinetMetrics';
 import { ClientCabinetTables } from './ClientCabinetTables';
+import type { BrowserNotificationPermission } from './ClientCabinetNotifications';
 import { ClientMarketplaceConnections } from './ClientMarketplaceConnections';
 import { ClientCabinetFilterPresets } from './ClientCabinetFilterPresets';
 import {
@@ -141,10 +142,41 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
   const [managementMessage, setManagementMessage] = useState('');
   const [managementError, setManagementError] = useState('');
   const [isManagingClient, setManagingClient] = useState(false);
+  const [browserNotificationPermission, setBrowserNotificationPermission] = useState<BrowserNotificationPermission>(
+    browserNotificationPermissionState(),
+  );
+  const browserNotifiedIds = useRef<Set<string>>(loadBrowserNotifiedIds(session.user.id));
 
   useEffect(() => {
     void loadData();
   }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      void refreshNotifications();
+    }, 30000);
+
+    return () => window.clearInterval(timer);
+  }, [session.accessToken]);
+
+  useEffect(() => {
+    if (state.status !== 'ready' || !isClientUser(session.user) || browserNotificationPermission !== 'granted') {
+      return;
+    }
+
+    const freshUnread = state.data.notifications.filter(
+      (notification) => !notification.isRead && !browserNotifiedIds.current.has(notification.id),
+    );
+    if (freshUnread.length === 0) {
+      return;
+    }
+
+    freshUnread.forEach((notification) => {
+      showBrowserNotification(notification);
+      browserNotifiedIds.current.add(notification.id);
+    });
+    saveBrowserNotifiedIds(session.user.id, browserNotifiedIds.current);
+  }, [browserNotificationPermission, session.user, state.data.notifications, state.status]);
 
   useEffect(() => {
     if (state.status !== 'ready' || state.data.clients.length === 0) {
@@ -263,6 +295,30 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
         error: caught instanceof Error ? caught.message : 'Не удалось загрузить кабинет клиента.',
       }));
     }
+  }
+
+  async function refreshNotifications() {
+    try {
+      const notifications = await fetchClientNotifications(session.accessToken);
+      setState((current) => ({
+        ...current,
+        data: {
+          ...current.data,
+          notifications,
+        },
+      }));
+    } catch {
+      // Тихое обновление уведомлений не должно мешать работе кабинета.
+    }
+  }
+
+  async function enableBrowserNotifications() {
+    if (typeof Notification === 'undefined') {
+      setBrowserNotificationPermission('unsupported');
+      return;
+    }
+
+    setBrowserNotificationPermission(await Notification.requestPermission());
   }
 
   async function openInvoiceDocument(invoice: BillingInvoiceSummary) {
@@ -677,6 +733,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
             serviceHistory={view.serviceHistory}
             notifications={view.notifications}
             notificationPreferences={view.notificationPreferences}
+            browserNotificationPermission={browserNotificationPermission}
             activeSection={activeSection}
             onSectionChange={navigateToSection}
             onStockImported={loadData}
@@ -685,6 +742,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
             onOpenInvoiceDocument={(invoice) => void openInvoiceDocument(invoice)}
             onUploadRequestFile={uploadRequestFile}
             onDownloadRequestFile={downloadRequestFile}
+            onEnableBrowserNotifications={() => void enableBrowserNotifications()}
             onMarkNotificationRead={(notification) => void markNotificationRead(notification)}
             onToggleNotificationPreference={(preference, isEnabled) =>
               void toggleNotificationPreference(preference, isEnabled)
@@ -1037,6 +1095,65 @@ function canUse(user: AuthSession['user'], permission: string) {
 
 function isInternalUser(user: AuthSession['user']) {
   return user.clientScopeMode === 'ALL' || !user.roleCodes.includes('CLIENT');
+}
+
+function isClientUser(user: AuthSession['user']) {
+  return user.roleCodes.includes('CLIENT') && !user.permissionCodes.includes('system:admin');
+}
+
+function browserNotificationPermissionState(): BrowserNotificationPermission {
+  if (typeof Notification === 'undefined') {
+    return 'unsupported';
+  }
+
+  return Notification.permission;
+}
+
+function browserNotificationStorageKey(userId: string) {
+  return `wms-browser-notifications:${userId}`;
+}
+
+function loadBrowserNotifiedIds(userId: string) {
+  if (typeof localStorage === 'undefined') {
+    return new Set<string>();
+  }
+
+  try {
+    const raw = localStorage.getItem(browserNotificationStorageKey(userId));
+    const ids = raw ? (JSON.parse(raw) as unknown) : [];
+    return new Set(Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : []);
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function saveBrowserNotifiedIds(userId: string, ids: Set<string>) {
+  if (typeof localStorage === 'undefined') {
+    return;
+  }
+
+  try {
+    localStorage.setItem(browserNotificationStorageKey(userId), JSON.stringify(Array.from(ids).slice(-300)));
+  } catch {
+    // Если хранилище браузера недоступно, popup все равно уже показан.
+  }
+}
+
+function showBrowserNotification(notification: ClientNotificationSummary) {
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') {
+    return;
+  }
+
+  const popup = new Notification(notification.title || 'LOGOff WMS', {
+    body: notification.body || notification.request?.title || notification.client.name,
+    icon: '/favicon.ico',
+    tag: `wms-client-notification-${notification.id}`,
+  });
+
+  popup.onclick = () => {
+    window.focus();
+    popup.close();
+  };
 }
 
 function filterServiceHistory(

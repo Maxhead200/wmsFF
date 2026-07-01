@@ -30,6 +30,7 @@ import {
   stockStatusLabel,
 } from './clientCabinetFormat';
 import { ClientCabinetNotifications } from './ClientCabinetNotifications';
+import type { BrowserNotificationPermission } from './ClientCabinetNotifications';
 import { ClientCabinetReceiptImport } from './ClientCabinetReceiptImport';
 import type { ClientCabinetMetricTarget } from './ClientCabinetMetrics';
 import { ClientCabinetPeriodSummary } from './ClientCabinetPeriodSummary';
@@ -52,6 +53,7 @@ type ClientCabinetTablesProps = {
   serviceHistory: BillingServiceHistory | null;
   notifications: ClientNotificationSummary[];
   notificationPreferences: ClientNotificationPreferenceSummary[];
+  browserNotificationPermission: BrowserNotificationPermission;
   activeSection: ClientCabinetMetricTarget;
   onSectionChange: (section: ClientCabinetMetricTarget) => void;
   onStockSearchChange: (value: string) => void;
@@ -61,6 +63,7 @@ type ClientCabinetTablesProps = {
   onOpenInvoiceDocument: (invoice: BillingInvoiceSummary) => void;
   onUploadRequestFile: (request: ClientRequestSummary, file: File) => Promise<void>;
   onDownloadRequestFile: (request: ClientRequestSummary, file: ClientRequestFileSummary) => Promise<void>;
+  onEnableBrowserNotifications: () => void;
   onMarkNotificationRead: (notification: ClientNotificationSummary) => void;
   onToggleNotificationPreference: (preference: ClientNotificationPreferenceSummary, isEnabled: boolean) => void;
 };
@@ -91,6 +94,7 @@ export function ClientCabinetTables({
   serviceHistory,
   notifications,
   notificationPreferences,
+  browserNotificationPermission,
   activeSection,
   onSectionChange,
   onStockSearchChange,
@@ -100,6 +104,7 @@ export function ClientCabinetTables({
   onOpenInvoiceDocument,
   onUploadRequestFile,
   onDownloadRequestFile,
+  onEnableBrowserNotifications,
   onMarkNotificationRead,
   onToggleNotificationPreference,
 }: ClientCabinetTablesProps) {
@@ -154,6 +159,8 @@ export function ClientCabinetTables({
       <ClientCabinetNotifications
         notifications={notifications}
         preferences={notificationPreferences}
+        browserNotificationPermission={browserNotificationPermission}
+        onEnableBrowserNotifications={onEnableBrowserNotifications}
         onMarkRead={onMarkNotificationRead}
         onTogglePreference={onToggleNotificationPreference}
       />

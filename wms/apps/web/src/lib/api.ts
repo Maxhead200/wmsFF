@@ -80,6 +80,7 @@ export type ClientNotificationEvent =
   | 'BILLING_INVOICE_STATUS_CHANGED'
   | 'BILLING_PAYMENT_RECORDED'
   | 'LOGISTICS_DELIVERY_STATUS_CHANGED'
+  | 'SKU_EXPIRATION'
   | 'MANUAL';
 
 export type BillingUnit = 'SERVICE' | 'PIECE' | 'BOX' | 'PALLET' | 'LITER' | 'LITER_DAY' | 'DAY' | 'HOUR';

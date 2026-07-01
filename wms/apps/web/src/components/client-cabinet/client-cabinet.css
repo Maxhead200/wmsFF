@@ -713,13 +713,72 @@
 
 .client-cabinet-exports {
   display: grid;
-  grid-template-columns: minmax(150px, 0.8fr) minmax(0, 1.3fr) auto;
+  grid-template-columns: 1fr;
   gap: 10px;
-  align-items: center;
+  align-items: stretch;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #ffffff;
   padding: 12px;
+}
+
+.client-cabinet-exports__header {
+  display: grid;
+  grid-template-columns: minmax(170px, auto) minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.client-cabinet-exports__toggle {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 38px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfdff;
+  color: var(--ink);
+  padding: 0 10px;
+  text-align: left;
+}
+
+.client-cabinet-exports__toggle svg {
+  flex: 0 0 auto;
+  color: var(--red-dark);
+}
+
+.client-cabinet-exports__toggle > span {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.client-cabinet-exports__toggle strong,
+.client-cabinet-exports__toggle small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.client-cabinet-exports__toggle strong {
+  font-size: 14px;
+}
+
+.client-cabinet-exports__toggle small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.client-cabinet-exports__chevron {
+  margin-left: auto;
+  transition: transform 0.16s ease;
+}
+
+.client-cabinet-exports.is-open .client-cabinet-exports__chevron {
+  transform: rotate(180deg);
 }
 
 .client-cabinet-exports__title {
@@ -762,7 +821,6 @@
 }
 
 .client-cabinet-exports__pdf-options {
-  grid-column: 2 / 4;
   display: flex;
   min-width: 0;
   flex-wrap: wrap;
@@ -808,7 +866,6 @@
 }
 
 .client-cabinet-exports__message {
-  grid-column: 2 / 4;
   margin: 0;
 }
 
@@ -962,6 +1019,18 @@
 .client-cabinet-notifications {
   display: grid;
   gap: 10px;
+}
+
+.client-cabinet-notifications__heading {
+  align-items: center;
+}
+
+.client-cabinet-notifications__heading > div {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 
 .client-period-summary {
@@ -1244,6 +1313,23 @@
 
 .client-cabinet-notification--error {
   border-left: 4px solid #dc2626;
+}
+
+.client-cabinet-read-notifications {
+  display: grid;
+  gap: 8px;
+}
+
+.client-cabinet-read-notifications__toggle {
+  justify-self: start;
+}
+
+.client-cabinet-read-notifications__toggle svg {
+  transition: transform 0.16s ease;
+}
+
+.client-cabinet-read-notifications__toggle[aria-expanded='true'] svg {
+  transform: rotate(180deg);
 }
 
 .client-service-history {

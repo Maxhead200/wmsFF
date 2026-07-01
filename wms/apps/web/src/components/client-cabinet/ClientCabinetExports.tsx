@@ -1,4 +1,4 @@
-import { FileArchive, FileDown, Files, ReceiptText } from 'lucide-react';
+import { ChevronDown, FileArchive, FileDown, Files, ReceiptText } from 'lucide-react';
 import { useState } from 'react';
 import type {
   BillingChargeSummary,
@@ -41,6 +41,7 @@ export function ClientCabinetExports({
   charges,
   serviceHistory,
 }: ClientCabinetExportsProps) {
+  const [isOpen, setOpen] = useState(false);
   const [isHtmlPackaging, setHtmlPackaging] = useState(false);
   const [isPdfPackaging, setPdfPackaging] = useState(false);
   const [pdfOptions, setPdfOptions] = useState<ClientCabinetPdfPackageOptions>(defaultPdfPackageOptions);
@@ -81,82 +82,98 @@ export function ClientCabinetExports({
   }
 
   return (
-    <section className="client-cabinet-exports" aria-label="Выгрузки клиентского кабинета">
-      <div className="client-cabinet-exports__title">
-        <FileDown size={17} aria-hidden="true" />
-        <div>
-          <h3>Выгрузки</h3>
-          <span>по текущим фильтрам</span>
+    <section
+      className={`client-cabinet-exports ${isOpen ? 'is-open' : 'is-collapsed'}`}
+      aria-label="Выгрузки клиентского кабинета"
+    >
+      <div className="client-cabinet-exports__header">
+        <button
+          className="client-cabinet-exports__toggle"
+          type="button"
+          onClick={() => setOpen((current) => !current)}
+          aria-expanded={isOpen}
+          title={isOpen ? 'Свернуть выгрузки' : 'Показать выгрузки'}
+        >
+          <FileDown size={17} aria-hidden="true" />
+          <span>
+            <strong>Выгрузки</strong>
+            <small>по текущим фильтрам</small>
+          </span>
+          <ChevronDown className="client-cabinet-exports__chevron" size={17} aria-hidden="true" />
+        </button>
+
+        <div className="client-cabinet-exports__metrics" aria-label="Состав выгрузки">
+          <span>{documentsCount} документов</span>
+          <span>{pdfDocumentsCount} PDF в пакете</span>
+          <span>{financeRowsCount} финансовых строк</span>
         </div>
       </div>
 
-      <div className="client-cabinet-exports__metrics" aria-label="Состав выгрузки">
-        <span>{documentsCount} документов</span>
-        <span>{pdfDocumentsCount} PDF в пакете</span>
-        <span>{financeRowsCount} финансовых строк</span>
-      </div>
+      {isOpen ? (
+        <>
+          <div className="client-cabinet-exports__pdf-options" aria-label="Настройки PDF-пакета">
+            <PdfOption
+              label="Заявки"
+              checked={pdfOptions.includeRequests}
+              onChange={(checked) => setPdfOptions((current) => ({ ...current, includeRequests: checked }))}
+            />
+            <PdfOption
+              label="Счета"
+              checked={pdfOptions.includeInvoices}
+              onChange={(checked) => setPdfOptions((current) => ({ ...current, includeInvoices: checked }))}
+            />
+            <PdfOption
+              label="Акты"
+              checked={pdfOptions.includeActs}
+              onChange={(checked) => setPdfOptions((current) => ({ ...current, includeActs: checked }))}
+            />
+            <PdfOption
+              label="Папка юрлица"
+              checked={pdfOptions.groupByLegalEntity}
+              onChange={(checked) => setPdfOptions((current) => ({ ...current, groupByLegalEntity: checked }))}
+            />
+          </div>
 
-      <div className="client-cabinet-exports__pdf-options" aria-label="Настройки PDF-пакета">
-        <PdfOption
-          label="Заявки"
-          checked={pdfOptions.includeRequests}
-          onChange={(checked) => setPdfOptions((current) => ({ ...current, includeRequests: checked }))}
-        />
-        <PdfOption
-          label="Счета"
-          checked={pdfOptions.includeInvoices}
-          onChange={(checked) => setPdfOptions((current) => ({ ...current, includeInvoices: checked }))}
-        />
-        <PdfOption
-          label="Акты"
-          checked={pdfOptions.includeActs}
-          onChange={(checked) => setPdfOptions((current) => ({ ...current, includeActs: checked }))}
-        />
-        <PdfOption
-          label="Папка юрлица"
-          checked={pdfOptions.groupByLegalEntity}
-          onChange={(checked) => setPdfOptions((current) => ({ ...current, groupByLegalEntity: checked }))}
-        />
-      </div>
-
-      <div className="client-cabinet-exports__actions">
-        <button
-          className="icon-text-button"
-          type="button"
-          onClick={() => downloadClientCabinetDocumentsCsv(exportData)}
-          disabled={documentsCount === 0}
-        >
-          <FileDown size={15} aria-hidden="true" />
-          <span>Документы CSV</span>
-        </button>
-        <button
-          className="icon-text-button"
-          type="button"
-          onClick={() => void downloadHtmlPackage()}
-          disabled={documentsCount === 0 || isHtmlPackaging}
-        >
-          <Files size={15} aria-hidden="true" />
-          <span>{isHtmlPackaging ? 'Готовлю HTML' : 'Пакет HTML'}</span>
-        </button>
-        <button
-          className="icon-text-button"
-          type="button"
-          onClick={() => void downloadPdfPackage()}
-          disabled={pdfDocumentsCount === 0 || isPdfPackaging}
-        >
-          <FileArchive size={15} aria-hidden="true" />
-          <span>{isPdfPackaging ? 'Готовлю PDF' : 'Пакет PDF'}</span>
-        </button>
-        <button
-          className="icon-text-button"
-          type="button"
-          onClick={() => downloadClientCabinetFinanceCsv(exportData)}
-          disabled={financeRowsCount === 0}
-        >
-          <ReceiptText size={15} aria-hidden="true" />
-          <span>Финансы CSV</span>
-        </button>
-      </div>
+          <div className="client-cabinet-exports__actions">
+            <button
+              className="icon-text-button"
+              type="button"
+              onClick={() => downloadClientCabinetDocumentsCsv(exportData)}
+              disabled={documentsCount === 0}
+            >
+              <FileDown size={15} aria-hidden="true" />
+              <span>Документы CSV</span>
+            </button>
+            <button
+              className="icon-text-button"
+              type="button"
+              onClick={() => void downloadHtmlPackage()}
+              disabled={documentsCount === 0 || isHtmlPackaging}
+            >
+              <Files size={15} aria-hidden="true" />
+              <span>{isHtmlPackaging ? 'Готовлю HTML' : 'Пакет HTML'}</span>
+            </button>
+            <button
+              className="icon-text-button"
+              type="button"
+              onClick={() => void downloadPdfPackage()}
+              disabled={pdfDocumentsCount === 0 || isPdfPackaging}
+            >
+              <FileArchive size={15} aria-hidden="true" />
+              <span>{isPdfPackaging ? 'Готовлю PDF' : 'Пакет PDF'}</span>
+            </button>
+            <button
+              className="icon-text-button"
+              type="button"
+              onClick={() => downloadClientCabinetFinanceCsv(exportData)}
+              disabled={financeRowsCount === 0}
+            >
+              <ReceiptText size={15} aria-hidden="true" />
+              <span>Финансы CSV</span>
+            </button>
+          </div>
+        </>
+      ) : null}
 
       {message ? <p className="inline-status client-cabinet-exports__message">{message}</p> : null}
     </section>

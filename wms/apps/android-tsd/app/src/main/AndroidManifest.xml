@@ -3,6 +3,7 @@
 
     <application
         android:allowBackup="false"
+        android:icon="@drawable/ic_launcher"
         android:label="LOGOFF WMS TSD"
         android:theme="@style/AppTheme">
         <activity

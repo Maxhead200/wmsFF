@@ -1,6 +1,6 @@
 {
-  "versionCode": 22,
-  "versionName": "0.1.21",
+  "versionCode": 23,
+  "versionName": "0.1.22",
   "apkUrl": "https://wms.logoff.pro/downloads/logoff-tsd.apk",
-  "releaseNotes": "Возвращен интерфейс Android-ТСД как в версии 0.1.14."
+  "releaseNotes": "Возвращен главный экран ТСД с красными кнопками и логотипом как на рабочей версии."
 }

@@ -393,6 +393,9 @@ model UserSession {
   accessTokenId  String?   @unique
   ipAddress      String?
   userAgent      String?
+  appName        String    @default("WMS")
+  browserName    String    @default("Unknown")
+  startedAt      DateTime  @default(now())
   lastSeenAt     DateTime  @default(now())
   expiresAt      DateTime?
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)

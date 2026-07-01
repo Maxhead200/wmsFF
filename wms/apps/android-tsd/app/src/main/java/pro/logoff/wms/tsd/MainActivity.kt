@@ -41,7 +41,7 @@ private const val BLUE = "#0B79D0"
 private const val LIGHT_BLUE = "#E8F3FF"
 private const val DARK = "#1D2733"
 private const val DANGER = "#C62828"
-private const val LOGO_RED = "#B40012"
+private const val LOGO_BLUE = "#1976D2"
 private const val SERVICE_GRAY = "#E9EEF2"
 
 class MainActivity : ComponentActivity() {
@@ -49,6 +49,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var sessionStore: TsdSessionStore
     private lateinit var root: LinearLayout
     private lateinit var scrollView: ScrollView
+    private lateinit var statusView: TextView
 
     private var clients: List<TsdClientSummary> = emptyList()
     private var selectedClientId = ""
@@ -120,7 +121,7 @@ class MainActivity : ComponentActivity() {
             textSize = 17f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
-            setBackgroundColor(Color.parseColor(LOGO_RED))
+            setBackgroundColor(Color.parseColor(LOGO_BLUE))
             layoutParams = LinearLayout.LayoutParams(82, 72)
         })
         row.addView(TextView(this).apply {
@@ -132,13 +133,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun addStatus() {
-        root.addView(TextView(this).apply {
+        statusView = TextView(this).apply {
             text = statusText
             textSize = 17f
             setTextColor(Color.parseColor(DARK))
-            setPadding(18, 14, 18, 14)
-            setBackgroundColor(Color.parseColor(LIGHT_BLUE))
-        })
+            setPadding(0, 20, 0, 14)
+        }
+        root.addView(statusView)
     }
 
     private fun addLogin() {
@@ -604,7 +605,8 @@ class MainActivity : ComponentActivity() {
         val counts = outbox.counts()
         withContext(Dispatchers.Main) {
             if (screen == TsdScreen.MENU) {
-                statusText = "Офлайн · очередь: ${counts.pending}"
+                statusText = "${if (sessionStore.load() == null) "Офлайн" else "Онлайн"} · очередь: ${counts.pending}"
+                statusView.text = statusText
             }
             root.addView(TextView(this@MainActivity).apply {
                 text = "В очереди: ${counts.pending}; отклонено: ${counts.rejected}"
@@ -703,9 +705,9 @@ class MainActivity : ComponentActivity() {
             gravity = Gravity.CENTER
             isAllCaps = false
             setPadding(0, 0, 0, 0)
-            setBackgroundColor(Color.parseColor(LOGO_RED))
+            setBackgroundColor(Color.parseColor(LOGO_BLUE))
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 112).apply {
-                setMargins(0, 12, 0, 8)
+                setMargins(14, 12, 14, 8)
             }
             setOnClickListener { action() }
         }

@@ -205,6 +205,9 @@ final class ApiClient {
     private static String errorText(String response, int code) {
         try {
             JSONObject json = new JSONObject(response);
+            if ("TSD_STAGE_LOCKED".equals(json.optString("code"))) {
+                return "TSD_STAGE_LOCKED|" + json.optString("stage") + "|" + json.optString("message");
+            }
             Object message = json.opt("message");
             if (message instanceof JSONArray) {
                 return ((JSONArray) message).join(", ");

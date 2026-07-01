@@ -464,11 +464,23 @@ public class MainActivity extends Activity {
         root.addView(boxes);
 
         Button relabel = stageButton("2. " + tr("pick.relabel"), relabelState != null && relabelState.optBoolean("isComplete"));
-        relabel.setOnClickListener(v -> loadRelabelState(request));
+        relabel.setOnClickListener(v -> {
+            if (!hasStageControl() && boxState != null && !boxState.optBoolean("isComplete")) {
+                showStageCodeScreen(request, "relabel", tr("stage.relabelLocked"), false);
+                return;
+            }
+            loadRelabelState(request);
+        });
         root.addView(relabel);
 
         Button moves = stageButton("3. " + tr("pick.moves"), movesState != null && movesState.optBoolean("isComplete"));
-        moves.setOnClickListener(v -> loadMovesStage(request));
+        moves.setOnClickListener(v -> {
+            if (!hasStageControl() && (boxState == null || !boxState.optBoolean("isComplete") || relabelState == null || !relabelState.optBoolean("isComplete"))) {
+                showStageCodeScreen(request, "moves", tr("stage.movesLocked"), false);
+                return;
+            }
+            loadMovesStage(request);
+        });
         root.addView(moves);
 
         addBackButton(root, tr("pick.backToRequests"), () -> showPickRequests());

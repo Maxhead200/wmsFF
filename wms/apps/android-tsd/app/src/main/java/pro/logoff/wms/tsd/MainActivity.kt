@@ -52,6 +52,7 @@ class MainActivity : ComponentActivity() {
 
     private var clients: List<TsdClientSummary> = emptyList()
     private var selectedClientId = ""
+    private var receiptClientId = ""
     private var screen = TsdScreen.MENU
     private var legacyMode = TsdOperationMode.INVENTORY
 
@@ -185,6 +186,10 @@ class MainActivity : ComponentActivity() {
 
     private fun addMainMenu() {
         root.addView(menuButton("Приемка товара") {
+            if (receiptStage == ReceiptStage.NOT_STARTED) {
+                selectedClientId = ""
+                receiptClientId = ""
+            }
             screen = TsdScreen.RECEIPT
             render()
         })
@@ -213,6 +218,7 @@ class MainActivity : ComponentActivity() {
             sessionStore.clear()
             clients = emptyList()
             selectedClientId = ""
+            receiptClientId = ""
             updateStatus("Вход сброшен")
         })
         lifecycleScope.launch { addQueueInfo() }
@@ -334,6 +340,7 @@ class MainActivity : ComponentActivity() {
             return
         }
         receiptId = createReceiptId()
+        receiptClientId = selectedClientId
         currentBox = ""
         pendingBarcode = ""
         pendingSku = null
@@ -379,7 +386,7 @@ class MainActivity : ComponentActivity() {
             val result = runCatching {
                 WmsApiFactory.create("https://wms.logoff.pro/").skuByBarcode(
                     authorization = "${session.tokenType} ${session.accessToken}",
-                    clientId = selectedClientId,
+                    clientId = receiptClientId.ifEmpty { selectedClientId },
                     barcode = barcode,
                 )
             }
@@ -496,7 +503,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun closeCurrentBox() {
-        val clientId = selectedClientId
+        val clientId = receiptClientId.ifEmpty { selectedClientId }
         val linesToSend = currentBoxLines.toList()
         lifecycleScope.launch {
             for (line in linesToSend) {
@@ -532,6 +539,7 @@ class MainActivity : ComponentActivity() {
             .setPositiveButton("Готово") { _, _ ->
                 receiptStage = ReceiptStage.NOT_STARTED
                 currentBox = ""
+                receiptClientId = ""
                 currentBoxLines.clear()
                 closedBoxes.clear()
                 scannedKiz.clear()
@@ -569,7 +577,7 @@ class MainActivity : ComponentActivity() {
         result.onSuccess {
             clients = it
             if (selectedClientId.isEmpty() || clients.none { client -> client.id == selectedClientId }) {
-                selectedClientId = clients.firstOrNull()?.id ?: ""
+                selectedClientId = ""
             }
             statusText = if (screen == TsdScreen.MENU) statusText else if (clients.isEmpty()) "Нет доступных клиентов." else "Клиенты загружены."
         }.onFailure {
@@ -579,14 +587,19 @@ class MainActivity : ComponentActivity() {
 
     private fun clientSpinner(): Spinner {
         val spinner = Spinner(this)
-        val labels = clients.map { it.name.ifBlank { it.legalName ?: it.code ?: it.id } }
-        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, if (labels.isEmpty()) listOf("Клиенты не загружены") else labels)
+        val isReceiptLocked = screen == TsdScreen.RECEIPT && receiptStage != ReceiptStage.NOT_STARTED
+        val labels = listOf("Выберите клиента") + clients.map { it.name.ifBlank { it.legalName ?: it.code ?: it.id } }
+        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, if (clients.isEmpty()) listOf("Клиенты не загружены") else labels)
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         spinner.adapter = adapter
         val selectedIndex = clients.indexOfFirst { it.id == selectedClientId }
-        if (selectedIndex >= 0) spinner.setSelection(selectedIndex)
+        spinner.setSelection(if (selectedIndex >= 0) selectedIndex + 1 else 0)
+        spinner.isEnabled = !isReceiptLocked
         spinner.setOnItemSelectedListener(SimpleItemSelectedListener { position ->
-            selectedClientId = clients.getOrNull(position)?.id ?: ""
+            if (isReceiptLocked) {
+                return@SimpleItemSelectedListener
+            }
+            selectedClientId = if (clients.isEmpty() || position <= 0) "" else clients.getOrNull(position - 1)?.id ?: ""
         })
         return spinner
     }
@@ -658,7 +671,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun receiptSummaryText(): String =
-        "Приемка: $receiptId\nЗакрыто коробов: ${closedBoxes.size}; товаров: ${closedBoxes.sumOf { it.quantity }}\nТекущий короб: ${currentBox.ifEmpty { "не открыт" }}"
+        "Приемка: $receiptId\nКлиент: ${selectedClientName()}\nЗакрыто коробов: ${closedBoxes.size}; товаров: ${closedBoxes.sumOf { it.quantity }}\nТекущий короб: ${currentBox.ifEmpty { "не открыт" }}"
+
+    private fun selectedClientName(): String {
+        val clientId = receiptClientId.ifEmpty { selectedClientId }
+        return clients.find { it.id == clientId }?.let { it.name.ifBlank { it.legalName ?: it.code ?: it.id } } ?: "не выбран"
+    }
 
     private fun boxSummary(lines: List<ReceiptLine>): String =
         lines.groupBy { listOf(it.name, it.article ?: "", it.color ?: "", it.size ?: "") }

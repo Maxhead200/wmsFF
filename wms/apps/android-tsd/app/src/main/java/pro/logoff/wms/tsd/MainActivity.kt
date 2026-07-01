@@ -3,6 +3,7 @@ package pro.logoff.wms.tsd
 import android.app.AlertDialog
 import android.graphics.BitmapFactory
 import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
 import android.text.InputType
 import android.view.Gravity
@@ -27,8 +28,8 @@ import pro.logoff.wms.tsd.auth.TsdSessionStore
 import pro.logoff.wms.tsd.data.OperationOutbox
 import pro.logoff.wms.tsd.data.PendingOperation
 import pro.logoff.wms.tsd.data.TsdDatabase
+import pro.logoff.wms.tsd.network.AuthLoginRequest
 import pro.logoff.wms.tsd.network.TsdClientSummary
-import pro.logoff.wms.tsd.network.TsdLoginRequest
 import pro.logoff.wms.tsd.network.TsdSkuSummary
 import pro.logoff.wms.tsd.network.WmsApiFactory
 import pro.logoff.wms.tsd.sync.TsdSyncRunner
@@ -116,11 +117,11 @@ class MainActivity : ComponentActivity() {
         }
         row.addView(TextView(this).apply {
             text = "ТСД"
-            textSize = 20f
+            textSize = 17f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
             setBackgroundColor(Color.parseColor(LOGO_RED))
-            layoutParams = LinearLayout.LayoutParams(72, 72)
+            layoutParams = LinearLayout.LayoutParams(82, 72)
         })
         row.addView(TextView(this).apply {
             text = sessionStore.load()?.let { "  ${it.deviceName}\n  ${it.deviceCode}" } ?: "  Вход сотрудника\n  не выполнен"
@@ -142,34 +143,31 @@ class MainActivity : ComponentActivity() {
 
     private fun addLogin() {
         val baseUrlInput = input("API URL", "https://wms.logoff.pro/")
-        val codeInput = input("Код ТСД")
-        val secretInput = input("Секрет ТСД").apply {
+        val loginInput = input("Логин сотрудника")
+        val passwordInput = input("Пароль").apply {
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         }
         root.addView(baseUrlInput)
-        root.addView(codeInput)
-        root.addView(secretInput)
+        root.addView(loginInput)
+        root.addView(passwordInput)
         root.addView(primaryButton("Войти на ТСД") {
-            val code = codeInput.textValue()
-            val secret = secretInput.textValue()
-            if (code.isEmpty() || secret.isEmpty()) {
-                updateStatus("Укажите код и секрет ТСД")
-                return@primaryButton
-            }
-            if (code.length < 2) {
-                updateStatus("Код ТСД должен быть не короче 2 символов.")
-                return@primaryButton
-            }
-            if (secret.length < 8) {
-                updateStatus("Секрет ТСД должен быть не короче 8 символов. Проверьте данные из сервисного меню WMS.")
+            val login = loginInput.textValue()
+            val password = passwordInput.textValue()
+            if (login.isEmpty() || password.isEmpty()) {
+                updateStatus("Укажите логин и пароль сотрудника")
                 return@primaryButton
             }
             lifecycleScope.launch {
                 val result = runCatching {
-                    WmsApiFactory.create(baseUrlInput.textValue()).login(TsdLoginRequest(code = code, secret = secret))
+                    WmsApiFactory.create(baseUrlInput.textValue()).login(AuthLoginRequest(email = login, password = password))
                 }
                 result.onSuccess {
-                    sessionStore.save(it)
+                    val permissions = it.user.permissionCodes
+                    if (!permissions.contains("tsd:use") && !permissions.contains("system:admin")) {
+                        updateStatus("У пользователя нет права Работа с ТСД.")
+                        return@onSuccess
+                    }
+                    sessionStore.save(it, defaultDeviceCode())
                     updateStatus("Вход выполнен")
                     refreshClientsIfLoggedIn()
                     screen = TsdScreen.MENU
@@ -629,8 +627,8 @@ class MainActivity : ComponentActivity() {
                 return serverMessage
             }
             return when (error.code()) {
-                400 -> "Сервер не принял данные. Проверьте код ТСД и секрет."
-                401 -> "Неверный код или секрет ТСД, либо ТСД заблокирован."
+                400 -> "Сервер не принял данные. Проверьте логин и пароль."
+                401 -> "Неверный логин или пароль сотрудника."
                 403 -> "Нет доступа к этому действию."
                 404 -> "Сервер не нашел нужный адрес API."
                 else -> "Ошибка сервера: HTTP ${error.code()}"
@@ -648,6 +646,15 @@ class MainActivity : ComponentActivity() {
                 else -> json.optString("error")
             }
         }.getOrDefault("")
+    }
+
+    private fun defaultDeviceCode(): String {
+        val raw = "${Build.MANUFACTURER}-${Build.MODEL}".ifBlank { "TSD" }
+        return raw.uppercase()
+            .replace(Regex("[^A-Z0-9]+"), "-")
+            .trim('-')
+            .take(32)
+            .ifBlank { "TSD" }
     }
 
     private fun receiptSummaryText(): String =
@@ -691,12 +698,14 @@ class MainActivity : ComponentActivity() {
     private fun menuButton(label: String, action: () -> Unit): Button =
         Button(this).apply {
             text = label
-            textSize = 22f
+            textSize = 19f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
+            isAllCaps = false
+            setPadding(0, 0, 0, 0)
             setBackgroundColor(Color.parseColor(LOGO_RED))
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 128).apply {
-                setMargins(0, 14, 0, 12)
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 112).apply {
+                setMargins(0, 12, 0, 8)
             }
             setOnClickListener { action() }
         }
@@ -705,6 +714,7 @@ class MainActivity : ComponentActivity() {
         Button(this).apply {
             text = label
             textSize = 17f
+            isAllCaps = false
             setTextColor(Color.parseColor(DARK))
             setBackgroundColor(Color.parseColor(SERVICE_GRAY))
             setOnClickListener { action() }

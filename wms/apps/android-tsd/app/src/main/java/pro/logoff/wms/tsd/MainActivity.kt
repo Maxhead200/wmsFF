@@ -31,8 +31,11 @@ import pro.logoff.wms.tsd.data.OperationOutbox
 import pro.logoff.wms.tsd.data.PendingOperation
 import pro.logoff.wms.tsd.data.TsdDatabase
 import pro.logoff.wms.tsd.network.AuthLoginRequest
+import pro.logoff.wms.tsd.network.TsdBoxSearchState
 import pro.logoff.wms.tsd.network.TsdClientSummary
+import pro.logoff.wms.tsd.network.TsdRequestSummary
 import pro.logoff.wms.tsd.network.TsdSkuSummary
+import pro.logoff.wms.tsd.network.TsdWorkStageState
 import pro.logoff.wms.tsd.network.WmsApiFactory
 import pro.logoff.wms.tsd.sync.TsdSyncRunner
 import retrofit2.HttpException
@@ -53,6 +56,10 @@ class MainActivity : ComponentActivity() {
     private lateinit var scrollView: ScrollView
 
     private var clients: List<TsdClientSummary> = emptyList()
+    private var activeRequests: List<TsdRequestSummary> = emptyList()
+    private var selectedRequest: TsdRequestSummary? = null
+    private var selectedStage: TsdRequestStage = TsdRequestStage.BOX_SEARCH
+    private var stageText = ""
     private var selectedClientId = ""
     private var screen = TsdScreen.MENU
     private var legacyMode = TsdOperationMode.INVENTORY
@@ -108,6 +115,9 @@ class MainActivity : ComponentActivity() {
             TsdScreen.LOGIN -> addLogin()
             TsdScreen.MENU -> addMainMenu()
             TsdScreen.RECEIPT -> addReceiptScreen()
+            TsdScreen.REQUESTS -> addRequestsScreen()
+            TsdScreen.REQUEST_DETAIL -> addRequestDetailScreen()
+            TsdScreen.REQUEST_STAGE -> addRequestStageScreen()
             TsdScreen.LEGACY -> addLegacyOperation()
         }
     }
@@ -197,7 +207,7 @@ class MainActivity : ComponentActivity() {
             render()
         })
         root.addView(secondaryButton("Сборка заявки") {
-            updateStatus("Сборка заявок доступна в отдельном меню ТСД.")
+            loadActiveRequests()
         })
         root.addView(secondaryButton("Инвентаризация") {
             legacyMode = TsdOperationMode.INVENTORY
@@ -227,6 +237,195 @@ class MainActivity : ComponentActivity() {
             updateStatus("Вход сброшен")
         })
         lifecycleScope.launch { addQueueInfo() }
+    }
+
+    private fun addRequestsScreen() {
+        root.addView(TextView(this).apply {
+            text = "Активные заявки"
+            textSize = 22f
+            setTextColor(Color.parseColor(DARK))
+            setPadding(0, 16, 0, 10)
+        })
+        if (activeRequests.isEmpty()) {
+            root.addView(TextView(this).apply {
+                text = "Активных заявок для сборки нет."
+                textSize = 17f
+                setPadding(0, 12, 0, 12)
+            })
+        }
+        activeRequests.forEach { request ->
+            root.addView(secondaryButton(requestLabel(request)) {
+                selectedRequest = request
+                screen = TsdScreen.REQUEST_DETAIL
+                render()
+            })
+        }
+        root.addView(secondaryButton("Обновить заявки") { loadActiveRequests() })
+        root.addView(secondaryButton("Назад") {
+            screen = TsdScreen.MENU
+            render()
+        })
+    }
+
+    private fun addRequestDetailScreen() {
+        val request = selectedRequest
+        if (request == null) {
+            screen = TsdScreen.REQUESTS
+            render()
+            return
+        }
+        root.addView(TextView(this).apply {
+            text = buildString {
+                appendLine(request.title)
+                appendLine("Клиент: ${request.client.name}")
+                appendLine("Город: ${request.destinationCity ?: "-"}")
+                appendLine("Статус: ${request.status}; строк: ${request.counts.items}")
+                if (request.activeWorkers.isNotEmpty()) {
+                    appendLine("Уже в работе:")
+                    request.activeWorkers.take(4).forEach {
+                        appendLine("${it.userName} / ${it.deviceCode ?: "-"} / ${it.stage}")
+                    }
+                }
+            }
+            textSize = 18f
+            setPadding(0, 16, 0, 12)
+        })
+        if (request.client.storesWithoutBoxes) {
+            root.addView(primaryButton("Сборка по коробам") {
+                updateStatus("Сборка по коробам будет открыта отдельным экраном.")
+            })
+        } else {
+            root.addView(primaryButton("1. Поиск коробов") { openRequestStage(TsdRequestStage.BOX_SEARCH) })
+            root.addView(primaryButton("2. Перемаркировка") { openRequestStage(TsdRequestStage.RELABEL) })
+            root.addView(primaryButton("3. Перемещения") { openRequestStage(TsdRequestStage.MOVES) })
+        }
+        root.addView(secondaryButton("Назад к заявкам") {
+            screen = TsdScreen.REQUESTS
+            render()
+        })
+    }
+
+    private fun addRequestStageScreen() {
+        root.addView(TextView(this).apply {
+            text = selectedStage.title
+            textSize = 22f
+            setTextColor(Color.parseColor(DARK))
+            setPadding(0, 16, 0, 10)
+        })
+        root.addView(TextView(this).apply {
+            text = stageText.ifBlank { "Данные этапа загружены." }
+            textSize = 17f
+            setPadding(0, 8, 0, 12)
+        })
+        root.addView(secondaryButton("Обновить этап") { openRequestStage(selectedStage) })
+        root.addView(secondaryButton("Назад к заявке") {
+            screen = TsdScreen.REQUEST_DETAIL
+            render()
+        })
+    }
+
+    private fun loadActiveRequests() {
+        val session = sessionStore.load()
+        if (session == null) {
+            screen = TsdScreen.LOGIN
+            updateStatus("Сначала войдите логином и паролем сотрудника.")
+            return
+        }
+        lifecycleScope.launch {
+            val result = runCatching {
+                WmsApiFactory.create("https://wms.logoff.pro/").activeRequests("${session.tokenType} ${session.accessToken}")
+            }
+            result.onSuccess {
+                activeRequests = it
+                selectedRequest = selectedRequest?.let { current -> it.find { next -> next.id == current.id } }
+                statusText = "Заявки загружены: ${it.size}"
+                screen = TsdScreen.REQUESTS
+                render()
+            }.onFailure {
+                updateStatus(readableNetworkError(it))
+            }
+        }
+    }
+
+    private fun openRequestStage(stage: TsdRequestStage, managerCode: String? = null) {
+        val request = selectedRequest ?: return
+        val session = sessionStore.load()
+        if (session == null) {
+            screen = TsdScreen.LOGIN
+            updateStatus("Сначала войдите логином и паролем сотрудника.")
+            return
+        }
+        selectedStage = stage
+        lifecycleScope.launch {
+            val result = runCatching {
+                val authorization = "${session.tokenType} ${session.accessToken}"
+                when (stage) {
+                    TsdRequestStage.BOX_SEARCH -> {
+                        val state = WmsApiFactory.create("https://wms.logoff.pro/").requestBoxSearch(
+                            authorization = authorization,
+                            requestId = request.id,
+                            deviceCode = session.deviceCode,
+                            stage = "box-search",
+                            managerCode = managerCode,
+                        )
+                        boxSearchText(state)
+                    }
+                    TsdRequestStage.RELABEL -> {
+                        val state = WmsApiFactory.create("https://wms.logoff.pro/").requestRelabel(
+                            authorization = authorization,
+                            requestId = request.id,
+                            deviceCode = session.deviceCode,
+                            managerCode = managerCode,
+                        )
+                        workStageText(state)
+                    }
+                    TsdRequestStage.MOVES -> {
+                        val state = WmsApiFactory.create("https://wms.logoff.pro/").requestMoves(
+                            authorization = authorization,
+                            requestId = request.id,
+                            deviceCode = session.deviceCode,
+                            managerCode = managerCode,
+                        )
+                        workStageText(state)
+                    }
+                }
+            }
+            result.onSuccess {
+                stageText = it
+                statusText = "Этап открыт: ${stage.title}"
+                screen = TsdScreen.REQUEST_STAGE
+                render()
+            }.onFailure {
+                if (isStageLockedError(it)) {
+                    showManagerCodeDialog(stage)
+                } else {
+                    updateStatus(readableNetworkError(it))
+                }
+            }
+        }
+    }
+
+    private fun showManagerCodeDialog(stage: TsdRequestStage) {
+        val codeInput = EditText(this).apply {
+            hint = "Код 4 цифры"
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
+            setSingleLine(true)
+            textSize = 20f
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Этап пока закрыт")
+            .setMessage("Введите код менеджера, администратора или владельца, чтобы открыть: ${stage.title}.")
+            .setView(codeInput)
+            .setPositiveButton("Открыть") { _, _ ->
+                val code = codeInput.textValue()
+                if (!Regex("^\\d{4}$").matches(code)) {
+                    updateStatus("Код должен состоять из 4 цифр.")
+                    return@setPositiveButton
+                }
+                openRequestStage(stage, code)
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
     }
 
     private fun addReceiptScreen() {
@@ -656,6 +855,47 @@ class MainActivity : ComponentActivity() {
         }.getOrDefault("")
     }
 
+    private fun isStageLockedError(error: Throwable): Boolean {
+        if (error !is HttpException || error.code() != 400) return false
+        val body = error.response()?.errorBody()?.string().orEmpty()
+        return runCatching { JSONObject(body).optString("code") == "TSD_STAGE_LOCKED" }.getOrDefault(false)
+    }
+
+    private fun requestLabel(request: TsdRequestSummary): String =
+        buildString {
+            appendLine(request.title)
+            appendLine("${request.client.name} · ${request.destinationCity ?: "-"}")
+            appendLine("Статус: ${request.status}; строк: ${request.counts.items}")
+            if (request.activeWorkers.isNotEmpty()) {
+                val workers = request.activeWorkers.take(3).joinToString(", ") { "${it.userName}: ${it.stage}" }
+                appendLine("В работе: $workers")
+            }
+        }.trim()
+
+    private fun boxSearchText(state: TsdBoxSearchState): String =
+        buildString {
+            appendLine("Найдено: ${state.found} из ${state.total}")
+            appendLine("Осталось: ${state.remaining}")
+            if (state.missingBoxes.isNotEmpty()) {
+                appendLine()
+                appendLine("Нужно найти:")
+                state.missingBoxes.take(40).forEach { appendLine(it) }
+                if (state.missingBoxes.size > 40) appendLine("... еще ${state.missingBoxes.size - 40}")
+            }
+        }.trim()
+
+    private fun workStageText(state: TsdWorkStageState): String =
+        buildString {
+            appendLine("Выполнено: ${state.completed} из ${state.total}")
+            appendLine("Осталось: ${state.remaining}")
+            if (state.boxes.isNotEmpty()) {
+                appendLine()
+                appendLine("Короба:")
+                state.boxes.take(40).forEach { appendLine("${it.boxCode}: ${it.totalRemaining} шт.") }
+                if (state.boxes.size > 40) appendLine("... еще ${state.boxes.size - 40}")
+            }
+        }.trim()
+
     private fun defaultDeviceCode(): String {
         val raw = "${Build.MANUFACTURER}-${Build.MODEL}".ifBlank { "TSD" }
         return raw.uppercase()
@@ -753,6 +993,9 @@ private enum class TsdScreen {
     LOGIN,
     MENU,
     RECEIPT,
+    REQUESTS,
+    REQUEST_DETAIL,
+    REQUEST_STAGE,
     LEGACY,
 }
 
@@ -768,6 +1011,14 @@ private enum class TsdOperationMode(
 ) {
     MOVE("Перемещение"),
     INVENTORY("Инвентаризация"),
+}
+
+private enum class TsdRequestStage(
+    val title: String,
+) {
+    BOX_SEARCH("Поиск коробов"),
+    RELABEL("Перемаркировка"),
+    MOVES("Перемещения"),
 }
 
 private fun createReceiptId(): String =

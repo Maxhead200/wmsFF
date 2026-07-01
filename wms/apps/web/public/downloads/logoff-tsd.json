@@ -1,6 +1,6 @@
 {
-  "versionCode": 21,
-  "versionName": "0.1.20",
+  "versionCode": 22,
+  "versionName": "0.1.21",
   "apkUrl": "https://wms.logoff.pro/downloads/logoff-tsd.apk",
-  "releaseNotes": "Добавлен выбор активной заявки на ТСД и ввод 4-значного кода менеджера для разблокировки этапов сборки."
+  "releaseNotes": "Возвращен интерфейс Android-ТСД как в версии 0.1.14."
 }

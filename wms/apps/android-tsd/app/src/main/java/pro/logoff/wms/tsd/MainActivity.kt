@@ -1,1025 +1,399 @@
 package pro.logoff.wms.tsd
 
-import android.app.AlertDialog
-import android.content.Intent
-import android.graphics.BitmapFactory
-import android.graphics.Color
-import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.text.InputType
-import android.view.Gravity
 import android.view.KeyEvent
-import android.view.ViewGroup
-import android.widget.ArrayAdapter
+import android.view.View
 import android.widget.Button
 import android.widget.EditText
-import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
-import android.widget.Spinner
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
 import pro.logoff.wms.tsd.auth.TsdSessionStore
 import pro.logoff.wms.tsd.data.OperationOutbox
 import pro.logoff.wms.tsd.data.PendingOperation
 import pro.logoff.wms.tsd.data.TsdDatabase
-import pro.logoff.wms.tsd.network.AuthLoginRequest
-import pro.logoff.wms.tsd.network.TsdBoxSearchState
-import pro.logoff.wms.tsd.network.TsdClientSummary
-import pro.logoff.wms.tsd.network.TsdRequestSummary
-import pro.logoff.wms.tsd.network.TsdSkuSummary
-import pro.logoff.wms.tsd.network.TsdWorkStageState
+import pro.logoff.wms.tsd.network.TsdLoginRequest
 import pro.logoff.wms.tsd.network.WmsApiFactory
 import pro.logoff.wms.tsd.sync.TsdSyncRunner
-import retrofit2.HttpException
-import java.net.URL
-import java.util.UUID
-
-private const val BLUE = "#0B79D0"
-private const val LIGHT_BLUE = "#E8F3FF"
-private const val DARK = "#1D2733"
-private const val DANGER = "#C62828"
-private const val LOGO_RED = "#B40012"
-private const val APK_DOWNLOAD_URL = "https://wms.logoff.pro/downloads/logoff-tsd.apk"
 
 class MainActivity : ComponentActivity() {
     private lateinit var outbox: OperationOutbox
     private lateinit var sessionStore: TsdSessionStore
-    private lateinit var root: LinearLayout
-    private lateinit var scrollView: ScrollView
-
-    private var clients: List<TsdClientSummary> = emptyList()
-    private var activeRequests: List<TsdRequestSummary> = emptyList()
-    private var selectedRequest: TsdRequestSummary? = null
-    private var selectedStage: TsdRequestStage = TsdRequestStage.BOX_SEARCH
-    private var stageText = ""
-    private var selectedClientId = ""
-    private var screen = TsdScreen.MENU
-    private var legacyMode = TsdOperationMode.INVENTORY
-
-    private var receiptId = createReceiptId()
-    private var receiptStage = ReceiptStage.NOT_STARTED
-    private var currentBox = ""
-    private var pendingBarcode = ""
-    private var pendingSku: TsdSkuSummary? = null
-    private val confirmedBarcodes = linkedSetOf<String>()
-    private val confirmedSkuByBarcode = linkedMapOf<String, TsdSkuSummary>()
-    private val currentBoxLines = mutableListOf<ReceiptLine>()
-    private val closedBoxes = mutableListOf<ClosedReceiptBox>()
-    private val scannedKiz = linkedSetOf<String>()
-
-    private var statusText = "Готово"
+    private lateinit var statusView: TextView
+    private lateinit var sessionView: TextView
+    private lateinit var countsView: TextView
+    private lateinit var rejectedView: TextView
+    private lateinit var operationHintView: TextView
+    private lateinit var scanInput: EditText
+    private lateinit var baseUrlInput: EditText
+    private lateinit var deviceCodeInput: EditText
+    private lateinit var deviceSecretInput: EditText
+    private lateinit var clientIdInput: EditText
+    private lateinit var boxCodeInput: EditText
+    private lateinit var fromBoxCodeInput: EditText
+    private lateinit var toBoxCodeInput: EditText
+    private lateinit var quantityInput: EditText
+    private lateinit var stockStatusInput: EditText
+    private lateinit var sourceDocumentInput: EditText
+    private lateinit var commentInput: EditText
+    private lateinit var receiptModeButton: Button
+    private lateinit var moveModeButton: Button
+    private lateinit var inventoryModeButton: Button
+    private lateinit var loginButton: Button
+    private lateinit var logoutButton: Button
+    private lateinit var syncButton: Button
+    private lateinit var retryRejectedButton: Button
+    private var operationMode = TsdOperationMode.RECEIPT
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         outbox = OperationOutbox(TsdDatabase.get(this).operationDao())
         sessionStore = TsdSessionStore(this)
-        root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(24, 24, 24, 24)
-        }
-        scrollView = ScrollView(this).apply { addView(root) }
-        setContentView(scrollView)
-        render()
-        lifecycleScope.launch {
-            refreshClientsIfLoggedIn()
-            render()
-        }
-    }
 
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_ENTER) {
-            val focused = currentFocus
-            if (focused is EditText && focused.tag == "scan") {
-                submitReceiptScan(focused.text.toString())
-                focused.setText("")
-                return true
-            }
+        // Русский комментарий: MVP использует scanner keyboard wedge, поэтому сканер пишет прямо в EditText.
+        statusView = TextView(this).apply {
+            text = "Готово к сканированию"
+            textSize = 18f
         }
-        return super.dispatchKeyEvent(event)
-    }
+        sessionView = TextView(this).apply { textSize = 16f }
+        countsView = TextView(this).apply { textSize = 16f }
+        operationHintView = TextView(this).apply { textSize = 15f }
+        rejectedView = TextView(this).apply { textSize = 14f }
 
-    private fun render() {
-        root.removeAllViews()
-        root.setBackgroundColor(Color.WHITE)
-        addHeader()
-        addStatus()
-        when (screen) {
-            TsdScreen.LOGIN -> addLogin()
-            TsdScreen.MENU -> addMainMenu()
-            TsdScreen.RECEIPT -> addReceiptScreen()
-            TsdScreen.REQUESTS -> addRequestsScreen()
-            TsdScreen.REQUEST_DETAIL -> addRequestDetailScreen()
-            TsdScreen.REQUEST_STAGE -> addRequestStageScreen()
-            TsdScreen.LEGACY -> addLegacyOperation()
+        baseUrlInput = singleLineInput("API URL").apply {
+            setText("https://wms.logoff.pro/")
         }
-    }
-
-    private fun addHeader() {
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        row.addView(TextView(this).apply {
-            text = "LW"
-            textSize = 20f
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            setBackgroundColor(Color.parseColor(LOGO_RED))
-            layoutParams = LinearLayout.LayoutParams(72, 72)
-        })
-        row.addView(TextView(this).apply {
-            text = "  LOGOff ТСД"
-            textSize = 22f
-            setTextColor(Color.parseColor(DARK))
-        })
-        root.addView(row)
-        root.addView(TextView(this).apply {
-            text = sessionStore.load()?.let { "${it.deviceName} / ${it.deviceCode}" } ?: "Вход сотрудника не выполнен"
-            textSize = 15f
-            setTextColor(Color.DKGRAY)
-            setPadding(0, 12, 0, 12)
-        })
-    }
-
-    private fun addStatus() {
-        root.addView(TextView(this).apply {
-            text = statusText
-            textSize = 17f
-            setTextColor(Color.parseColor(DARK))
-            setPadding(18, 14, 18, 14)
-            setBackgroundColor(Color.parseColor(LIGHT_BLUE))
-        })
-    }
-
-    private fun addLogin() {
-        val baseUrlInput = input("API URL", "https://wms.logoff.pro/")
-        val loginInput = input("Логин сотрудника")
-        val passwordInput = input("Пароль").apply {
+        deviceCodeInput = singleLineInput("Код ТСД")
+        deviceSecretInput = singleLineInput("Секрет ТСД").apply {
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         }
-        root.addView(baseUrlInput)
-        root.addView(loginInput)
-        root.addView(passwordInput)
-        root.addView(primaryButton("Войти на ТСД") {
-            val login = loginInput.textValue()
-            val password = passwordInput.textValue()
-            if (login.isEmpty() || password.isEmpty()) {
-                updateStatus("Укажите логин и пароль сотрудника")
-                return@primaryButton
-            }
-            lifecycleScope.launch {
-                val result = runCatching {
-                    WmsApiFactory.create(baseUrlInput.textValue()).login(AuthLoginRequest(email = login, password = password))
-                }
-                result.onSuccess {
-                    val permissions = it.user.permissionCodes
-                    if (!permissions.contains("tsd:use") && !permissions.contains("system:admin")) {
-                        updateStatus("У пользователя нет права Работа с ТСД.")
-                        return@onSuccess
-                    }
-                    sessionStore.save(it, defaultDeviceCode())
-                    updateStatus("Вход выполнен")
-                    refreshClientsIfLoggedIn()
-                    screen = TsdScreen.MENU
-                    render()
-                }.onFailure {
-                    updateStatus(readableNetworkError(it))
-                }
-            }
-        })
-        root.addView(secondaryButton("Назад") {
-            screen = TsdScreen.MENU
-            render()
-        })
-    }
-
-    private fun addMainMenu() {
-        root.addView(primaryButton("Приемка товара") {
-            screen = TsdScreen.RECEIPT
-            render()
-        })
-        root.addView(secondaryButton("Сборка заявки") {
-            loadActiveRequests()
-        })
-        root.addView(secondaryButton("Инвентаризация") {
-            legacyMode = TsdOperationMode.INVENTORY
-            screen = TsdScreen.LEGACY
-            render()
-        })
-        root.addView(secondaryButton("Синхронизировать очередь") {
-            syncPending()
-        })
-        root.addView(secondaryButton("Обновить клиентов") {
-            lifecycleScope.launch {
-                refreshClientsIfLoggedIn()
-                render()
-            }
-        })
-        root.addView(secondaryButton("Проверить обновление приложения") {
-            openApkDownload()
-        })
-        root.addView(secondaryButton("Настройки / вход") {
-            screen = TsdScreen.LOGIN
-            render()
-        })
-        root.addView(secondaryButton("Сбросить вход") {
-            sessionStore.clear()
-            clients = emptyList()
-            selectedClientId = ""
-            updateStatus("Вход сброшен")
-        })
-        lifecycleScope.launch { addQueueInfo() }
-    }
-
-    private fun addRequestsScreen() {
-        root.addView(TextView(this).apply {
-            text = "Активные заявки"
-            textSize = 22f
-            setTextColor(Color.parseColor(DARK))
-            setPadding(0, 16, 0, 10)
-        })
-        if (activeRequests.isEmpty()) {
-            root.addView(TextView(this).apply {
-                text = "Активных заявок для сборки нет."
-                textSize = 17f
-                setPadding(0, 12, 0, 12)
-            })
+        clientIdInput = singleLineInput("ID клиента")
+        boxCodeInput = singleLineInput("Короб")
+        fromBoxCodeInput = singleLineInput("Короб-источник")
+        toBoxCodeInput = singleLineInput("Короб-приемник")
+        quantityInput = singleLineInput("Количество").apply {
+            inputType = InputType.TYPE_CLASS_NUMBER
         }
-        activeRequests.forEach { request ->
-            root.addView(secondaryButton(requestLabel(request)) {
-                selectedRequest = request
-                screen = TsdScreen.REQUEST_DETAIL
-                render()
-            })
+        stockStatusInput = singleLineInput("Статус остатка").apply {
+            setText("AVAILABLE")
         }
-        root.addView(secondaryButton("Обновить заявки") { loadActiveRequests() })
-        root.addView(secondaryButton("Назад") {
-            screen = TsdScreen.MENU
-            render()
-        })
-    }
+        sourceDocumentInput = singleLineInput("Документ-основание")
+        commentInput = singleLineInput("Комментарий")
 
-    private fun addRequestDetailScreen() {
-        val request = selectedRequest
-        if (request == null) {
-            screen = TsdScreen.REQUESTS
-            render()
-            return
-        }
-        root.addView(TextView(this).apply {
-            text = buildString {
-                appendLine(request.title)
-                appendLine("Клиент: ${request.client.name}")
-                appendLine("Город: ${request.destinationCity ?: "-"}")
-                appendLine("Статус: ${request.status}; строк: ${request.counts.items}")
-                if (request.activeWorkers.isNotEmpty()) {
-                    appendLine("Уже в работе:")
-                    request.activeWorkers.take(4).forEach {
-                        appendLine("${it.userName} / ${it.deviceCode ?: "-"} / ${it.stage}")
-                    }
-                }
-            }
-            textSize = 18f
-            setPadding(0, 16, 0, 12)
-        })
-        if (request.client.storesWithoutBoxes) {
-            root.addView(primaryButton("Сборка по коробам") {
-                updateStatus("Сборка по коробам будет открыта отдельным экраном.")
-            })
-        } else {
-            root.addView(primaryButton("1. Поиск коробов") { openRequestStage(TsdRequestStage.BOX_SEARCH) })
-            root.addView(primaryButton("2. Перемаркировка") { openRequestStage(TsdRequestStage.RELABEL) })
-            root.addView(primaryButton("3. Перемещения") { openRequestStage(TsdRequestStage.MOVES) })
-        }
-        root.addView(secondaryButton("Назад к заявкам") {
-            screen = TsdScreen.REQUESTS
-            render()
-        })
-    }
-
-    private fun addRequestStageScreen() {
-        root.addView(TextView(this).apply {
-            text = selectedStage.title
-            textSize = 22f
-            setTextColor(Color.parseColor(DARK))
-            setPadding(0, 16, 0, 10)
-        })
-        root.addView(TextView(this).apply {
-            text = stageText.ifBlank { "Данные этапа загружены." }
-            textSize = 17f
-            setPadding(0, 8, 0, 12)
-        })
-        root.addView(secondaryButton("Обновить этап") { openRequestStage(selectedStage) })
-        root.addView(secondaryButton("Назад к заявке") {
-            screen = TsdScreen.REQUEST_DETAIL
-            render()
-        })
-    }
-
-    private fun loadActiveRequests() {
-        val session = sessionStore.load()
-        if (session == null) {
-            screen = TsdScreen.LOGIN
-            updateStatus("Сначала войдите логином и паролем сотрудника.")
-            return
-        }
-        lifecycleScope.launch {
-            val result = runCatching {
-                WmsApiFactory.create("https://wms.logoff.pro/").activeRequests("${session.tokenType} ${session.accessToken}")
-            }
-            result.onSuccess {
-                activeRequests = it
-                selectedRequest = selectedRequest?.let { current -> it.find { next -> next.id == current.id } }
-                statusText = "Заявки загружены: ${it.size}"
-                screen = TsdScreen.REQUESTS
-                render()
-            }.onFailure {
-                updateStatus(readableNetworkError(it))
-            }
-        }
-    }
-
-    private fun openRequestStage(stage: TsdRequestStage, managerCode: String? = null) {
-        val request = selectedRequest ?: return
-        val session = sessionStore.load()
-        if (session == null) {
-            screen = TsdScreen.LOGIN
-            updateStatus("Сначала войдите логином и паролем сотрудника.")
-            return
-        }
-        selectedStage = stage
-        lifecycleScope.launch {
-            val result = runCatching {
-                val authorization = "${session.tokenType} ${session.accessToken}"
-                when (stage) {
-                    TsdRequestStage.BOX_SEARCH -> {
-                        val state = WmsApiFactory.create("https://wms.logoff.pro/").requestBoxSearch(
-                            authorization = authorization,
-                            requestId = request.id,
-                            deviceCode = session.deviceCode,
-                            stage = "box-search",
-                            managerCode = managerCode,
-                        )
-                        boxSearchText(state)
-                    }
-                    TsdRequestStage.RELABEL -> {
-                        val state = WmsApiFactory.create("https://wms.logoff.pro/").requestRelabel(
-                            authorization = authorization,
-                            requestId = request.id,
-                            deviceCode = session.deviceCode,
-                            managerCode = managerCode,
-                        )
-                        workStageText(state)
-                    }
-                    TsdRequestStage.MOVES -> {
-                        val state = WmsApiFactory.create("https://wms.logoff.pro/").requestMoves(
-                            authorization = authorization,
-                            requestId = request.id,
-                            deviceCode = session.deviceCode,
-                            managerCode = managerCode,
-                        )
-                        workStageText(state)
-                    }
-                }
-            }
-            result.onSuccess {
-                stageText = it
-                statusText = "Этап открыт: ${stage.title}"
-                screen = TsdScreen.REQUEST_STAGE
-                render()
-            }.onFailure {
-                if (isStageLockedError(it)) {
-                    showManagerCodeDialog(stage)
-                } else {
-                    updateStatus(readableNetworkError(it))
-                }
-            }
-        }
-    }
-
-    private fun showManagerCodeDialog(stage: TsdRequestStage) {
-        val codeInput = EditText(this).apply {
-            hint = "Код 4 цифры"
-            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-            setSingleLine(true)
-            textSize = 20f
-        }
-        AlertDialog.Builder(this)
-            .setTitle("Этап пока закрыт")
-            .setMessage("Введите код менеджера, администратора или владельца, чтобы открыть: ${stage.title}.")
-            .setView(codeInput)
-            .setPositiveButton("Открыть") { _, _ ->
-                val code = codeInput.textValue()
-                if (!Regex("^\\d{4}$").matches(code)) {
-                    updateStatus("Код должен состоять из 4 цифр.")
-                    return@setPositiveButton
-                }
-                openRequestStage(stage, code)
-            }
-            .setNegativeButton("Отмена", null)
-            .show()
-    }
-
-    private fun addReceiptScreen() {
-        root.addView(clientSpinner())
-        root.addView(TextView(this).apply {
-            text = receiptSummaryText()
-            textSize = 16f
-            setPadding(0, 12, 0, 12)
-        })
-
-        when (receiptStage) {
-            ReceiptStage.NOT_STARTED -> {
-                root.addView(primaryButton("Начать приемку") { startReceipt() })
-            }
-            ReceiptStage.WAIT_BOX -> {
-                val boxInput = scanInput("Сканируйте ШК нового короба")
-                root.addView(boxInput)
-                boxInput.requestFocus()
-            }
-            ReceiptStage.SCAN_BARCODE -> {
-                root.addView(TextView(this).apply {
-                    text = "Открыт короб: $currentBox"
-                    textSize = 18f
-                    setTextColor(Color.parseColor(BLUE))
-                    setPadding(0, 14, 0, 8)
-                })
-                val barcodeInput = scanInput("Сканируйте ШК товара")
-                root.addView(barcodeInput)
-                barcodeInput.requestFocus()
-                root.addView(secondaryButton("Закрыть короб") { confirmCloseBox() })
-            }
-            ReceiptStage.WAIT_KIZ -> {
-                root.addView(TextView(this).apply {
-                    text = "Товар: ${pendingSku?.name ?: pendingBarcode}\nТеперь сканируйте КИЗ"
-                    textSize = 18f
-                    setTextColor(Color.parseColor(BLUE))
-                    setPadding(0, 14, 0, 8)
-                })
-                val kizInput = scanInput("Сканируйте КИЗ")
-                root.addView(kizInput)
-                kizInput.requestFocus()
-            }
-        }
-
-        addCurrentBoxLines()
-        root.addView(secondaryButton("Закончить приемку") { finishReceipt() })
-        root.addView(secondaryButton("Назад") {
-            screen = TsdScreen.MENU
-            render()
-        })
-    }
-
-    private fun addLegacyOperation() {
-        val clientSpinner = clientSpinner()
-        val scanInput = scanInput("Сканируйте ШК товара")
-        val boxInput = input(if (legacyMode == TsdOperationMode.INVENTORY) "Короб" else "Короб-источник")
-        val toBoxInput = input("Короб-приемник")
-        val quantityInput = input("Количество", "1").apply { inputType = InputType.TYPE_CLASS_NUMBER }
-        root.addView(TextView(this).apply {
-            text = legacyMode.title
-            textSize = 20f
-            setPadding(0, 18, 0, 8)
-        })
-        root.addView(clientSpinner)
-        root.addView(boxInput)
-        if (legacyMode == TsdOperationMode.MOVE) {
-            root.addView(toBoxInput)
-        }
-        root.addView(quantityInput)
-        root.addView(scanInput)
-        root.addView(primaryButton("Записать скан") {
-            val clientId = selectedClientId
-            val barcode = scanInput.textValue()
-            val quantity = quantityInput.textValue().toIntOrNull() ?: 0
-            if (clientId.isEmpty() || barcode.isEmpty() || boxInput.textValue().isEmpty() || quantity <= 0) {
-                updateStatus("Заполните клиента, короб, ШК и количество.")
-                return@primaryButton
-            }
-            lifecycleScope.launch {
-                val operation = if (legacyMode == TsdOperationMode.MOVE) {
-                    val toBox = toBoxInput.textValue()
-                    if (toBox.isEmpty()) {
-                        updateStatus("Укажите короб-приемник.")
-                        return@launch
-                    }
-                    outbox.enqueueMove(clientId, barcode, boxInput.textValue(), toBox, quantity, "AVAILABLE", null)
-                } else {
-                    outbox.enqueueInventory(clientId, barcode, boxInput.textValue(), quantity, "AVAILABLE")
-                }
-                scanInput.setText("")
-                updateStatus("Скан записан: ${operation.operationType}")
-            }
-        })
-        root.addView(secondaryButton("Синхронизировать") { syncPending() })
-        root.addView(secondaryButton("Назад") {
-            screen = TsdScreen.MENU
-            render()
-        })
-    }
-
-    private fun submitReceiptScan(rawValue: String) {
-        val value = rawValue.trim()
-        if (screen != TsdScreen.RECEIPT || value.isEmpty()) return
-
-        when (receiptStage) {
-            ReceiptStage.WAIT_BOX -> openReceiptBox(value)
-            ReceiptStage.SCAN_BARCODE -> scanReceiptBarcode(value)
-            ReceiptStage.WAIT_KIZ -> scanReceiptKiz(value)
-            ReceiptStage.NOT_STARTED -> updateStatus("Нажмите Начать приемку.")
-        }
-    }
-
-    private fun startReceipt() {
-        if (selectedClientId.isEmpty()) {
-            updateStatus("Выберите клиента для приемки.")
-            return
-        }
-        receiptId = createReceiptId()
-        currentBox = ""
-        pendingBarcode = ""
-        pendingSku = null
-        currentBoxLines.clear()
-        closedBoxes.clear()
-        scannedKiz.clear()
-        confirmedBarcodes.clear()
-        confirmedSkuByBarcode.clear()
-        receiptStage = ReceiptStage.WAIT_BOX
-        statusText = "Приемка начата. Сканируйте новый короб."
-        render()
-    }
-
-    private fun openReceiptBox(boxCode: String) {
-        if (closedBoxes.any { it.code.equals(boxCode, ignoreCase = true) }) {
-            updateStatus("Короб $boxCode уже закрыт в этой приемке.")
-            return
-        }
-        currentBox = boxCode
-        currentBoxLines.clear()
-        receiptStage = ReceiptStage.SCAN_BARCODE
-        statusText = "Короб $boxCode открыт. Сканируйте товар."
-        render()
-    }
-
-    private fun scanReceiptBarcode(barcode: String) {
-        if (confirmedBarcodes.contains(barcode)) {
-            pendingBarcode = barcode
-            pendingSku = confirmedSkuByBarcode[barcode]
-            receiptStage = ReceiptStage.WAIT_KIZ
-            statusText = "Товар уже подтвержден. Сканируйте КИЗ."
-            render()
-            return
-        }
-
-        val session = sessionStore.load()
-        if (session == null) {
-            updateStatus("Сначала выполните вход ТСД.")
-            return
-        }
-
-        lifecycleScope.launch {
-            val result = runCatching {
-                WmsApiFactory.create("https://wms.logoff.pro/").skuByBarcode(
-                    authorization = "${session.tokenType} ${session.accessToken}",
-                    clientId = selectedClientId,
-                    barcode = barcode,
-                )
-            }
-            result.onSuccess { sku ->
-                showSkuConfirmation(barcode, sku)
-            }.onFailure {
-                updateStatus(it.message ?: "Товар не найден. Позовите менеджера.")
-            }
-        }
-    }
-
-    private fun showSkuConfirmation(barcode: String, sku: TsdSkuSummary) {
-        val content = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(20, 12, 20, 0)
-        }
-        val image = ImageView(this).apply {
-            setBackgroundColor(Color.parseColor(LIGHT_BLUE))
-            adjustViewBounds = true
-            maxHeight = 420
-        }
-        content.addView(image, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 360))
-        content.addView(TextView(this).apply {
-            text = buildString {
-                appendLine(sku.name)
-                appendLine("ШК: $barcode")
-                appendLine("Артикул: ${sku.article ?: sku.clientSku ?: sku.internalSku}")
-                appendLine("Цвет: ${sku.color ?: "-"}")
-                appendLine("Размер: ${sku.size ?: "-"}")
-                appendLine("Бренд: ${sku.brand ?: "-"}")
-                val extra = sku.marketplaceCharacteristics.take(5).joinToString("\n") { "${it.name}: ${it.value}" }
-                if (extra.isNotBlank()) appendLine(extra)
-            }
-            textSize = 17f
-            setPadding(0, 12, 0, 0)
-        })
-
-        val photo = sku.marketplacePhotos.firstOrNull()
-        if (photo != null) {
-            lifecycleScope.launch {
-                val bitmap = runCatching {
-                    withContext(Dispatchers.IO) {
-                        URL(photo).openStream().use { BitmapFactory.decodeStream(it) }
-                    }
-                }.getOrNull()
-                if (bitmap != null) {
-                    image.setImageBitmap(bitmap)
-                }
-            }
-        }
-
-        AlertDialog.Builder(this)
-            .setTitle("Это этот товар?")
-            .setView(content)
-            .setPositiveButton("Да") { _, _ ->
-                confirmedBarcodes += barcode
-                confirmedSkuByBarcode[barcode] = sku
-                pendingBarcode = barcode
-                pendingSku = sku
-                receiptStage = ReceiptStage.WAIT_KIZ
-                statusText = "Товар подтвержден. Сканируйте КИЗ."
-                render()
-            }
-            .setNegativeButton("Не тот товар") { _, _ ->
-                updateStatus("Отложите товар и позовите менеджера.")
-            }
-            .show()
-    }
-
-    private fun scanReceiptKiz(kiz: String) {
-        if (scannedKiz.contains(kiz)) {
-            updateStatus("Этот КИЗ уже отсканирован в текущей приемке.")
-            return
-        }
-        val sku = pendingSku
-        currentBoxLines += ReceiptLine(
-            boxCode = currentBox,
-            barcode = pendingBarcode,
-            kiz = kiz,
-            skuId = sku?.id,
-            name = sku?.name ?: pendingBarcode,
-            article = sku?.article ?: sku?.clientSku ?: sku?.internalSku,
-            color = sku?.color,
-            size = sku?.size,
-        )
-        scannedKiz += kiz
-        pendingBarcode = ""
-        pendingSku = null
-        receiptStage = ReceiptStage.SCAN_BARCODE
-        statusText = "КИЗ принят. Сканируйте следующий товар."
-        render()
-    }
-
-    private fun confirmCloseBox() {
-        if (currentBox.isEmpty()) {
-            updateStatus("Нет открытого короба.")
-            return
-        }
-        if (currentBoxLines.isEmpty()) {
-            updateStatus("В коробе нет товара.")
-            return
-        }
-        AlertDialog.Builder(this)
-            .setTitle("Закрыть короб $currentBox?")
-            .setMessage(boxSummary(currentBoxLines))
-            .setPositiveButton("Да, закрыть") { _, _ -> closeCurrentBox() }
-            .setNegativeButton("Пересканировать") { _, _ ->
-                currentBoxLines.clear()
-                statusText = "Короб очищен для повторного сканирования."
-                render()
-            }
-            .setNeutralButton("Отмена", null)
-            .show()
-    }
-
-    private fun closeCurrentBox() {
-        val clientId = selectedClientId
-        val linesToSend = currentBoxLines.toList()
-        lifecycleScope.launch {
-            for (line in linesToSend) {
-                outbox.enqueueReceipt(
-                    clientId = clientId,
-                    barcode = line.barcode,
-                    boxCode = line.boxCode,
-                    quantity = 1,
-                    kiz = line.kiz,
-                    status = "AVAILABLE",
-                    sourceDocument = receiptId,
-                    comment = "ТСД приемка: короб ${line.boxCode}",
-                )
-            }
-            closedBoxes += ClosedReceiptBox(currentBox, linesToSend.size)
-            currentBox = ""
-            currentBoxLines.clear()
-            receiptStage = ReceiptStage.WAIT_BOX
-            syncPending(silent = true)
-            statusText = "Короб закрыт. Сканируйте следующий короб или завершите приемку."
-            render()
-        }
-    }
-
-    private fun finishReceipt() {
-        if (currentBox.isNotEmpty() && currentBoxLines.isNotEmpty()) {
-            updateStatus("Сначала закройте текущий короб $currentBox.")
-            return
-        }
-        AlertDialog.Builder(this)
-            .setTitle("Приемка завершена")
-            .setMessage("Коробов: ${closedBoxes.size}\nТоваров: ${closedBoxes.sumOf { it.quantity }}")
-            .setPositiveButton("Готово") { _, _ ->
-                receiptStage = ReceiptStage.NOT_STARTED
-                currentBox = ""
-                currentBoxLines.clear()
-                closedBoxes.clear()
-                scannedKiz.clear()
-                confirmedBarcodes.clear()
-                confirmedSkuByBarcode.clear()
-                statusText = "Приемка завершена."
-                render()
-            }
-            .show()
-    }
-
-    private fun syncPending(silent: Boolean = false) {
-        val session = sessionStore.load()
-        if (session == null) {
-            if (!silent) updateStatus("Сначала войдите логином и паролем сотрудника.")
-            return
-        }
-        lifecycleScope.launch {
-            val summary = TsdSyncRunner(
-                outbox = outbox,
-                api = WmsApiFactory.create("https://wms.logoff.pro/"),
-                deviceId = session.deviceCode,
-            ).syncPending("${session.tokenType} ${session.accessToken}")
-            if (!silent) {
-                updateStatus("${summary.message}: принято ${summary.applied}, отклонено ${summary.rejected}, на повтор ${summary.retried}")
-            }
-        }
-    }
-
-    private suspend fun refreshClientsIfLoggedIn() {
-        val session = sessionStore.load() ?: return
-        val result = runCatching {
-            WmsApiFactory.create("https://wms.logoff.pro/").clients("${session.tokenType} ${session.accessToken}")
-        }
-        result.onSuccess {
-            clients = it
-            if (selectedClientId.isEmpty() || clients.none { client -> client.id == selectedClientId }) {
-                selectedClientId = clients.firstOrNull()?.id ?: ""
-            }
-            statusText = if (clients.isEmpty()) "Нет доступных клиентов." else "Клиенты загружены."
-        }.onFailure {
-            statusText = it.message ?: "Не удалось загрузить клиентов."
-        }
-    }
-
-    private fun clientSpinner(): Spinner {
-        val spinner = Spinner(this)
-        val labels = clients.map { it.name.ifBlank { it.legalName ?: it.code ?: it.id } }
-        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, if (labels.isEmpty()) listOf("Клиенты не загружены") else labels)
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        spinner.adapter = adapter
-        val selectedIndex = clients.indexOfFirst { it.id == selectedClientId }
-        if (selectedIndex >= 0) spinner.setSelection(selectedIndex)
-        spinner.setOnItemSelectedListener(SimpleItemSelectedListener { position ->
-            selectedClientId = clients.getOrNull(position)?.id ?: ""
-        })
-        return spinner
-    }
-
-    private fun addCurrentBoxLines() {
-        if (currentBoxLines.isEmpty()) return
-        root.addView(TextView(this).apply {
-            text = "В текущем коробе:\n${boxSummary(currentBoxLines)}"
-            textSize = 15f
-            setPadding(0, 12, 0, 12)
-        })
-    }
-
-    private suspend fun addQueueInfo() {
-        val counts = outbox.counts()
-        withContext(Dispatchers.Main) {
-            root.addView(TextView(this@MainActivity).apply {
-                text = "В очереди: ${counts.pending}; отклонено: ${counts.rejected}"
-                textSize = 15f
-                setPadding(0, 16, 0, 0)
-            })
-        }
-    }
-
-    private fun updateStatus(message: String) {
-        statusText = message
-        render()
-    }
-
-    private fun readableNetworkError(error: Throwable): String {
-        if (error is HttpException) {
-            val body = error.response()?.errorBody()?.string()
-            val serverMessage = body?.let { parseServerMessage(it) }.orEmpty()
-            if (serverMessage.isNotBlank()) {
-                return serverMessage
-            }
-            return when (error.code()) {
-                400 -> "Сервер не принял данные. Проверьте логин и пароль."
-                401 -> "Неверный логин или пароль сотрудника."
-                403 -> "Нет доступа к этому действию."
-                404 -> "Сервер не нашел нужный адрес API."
-                else -> "Ошибка сервера: HTTP ${error.code()}"
-            }
-        }
-        return error.message ?: "Не удалось выполнить запрос"
-    }
-
-    private fun parseServerMessage(body: String): String {
-        return runCatching {
-            val json = JSONObject(body)
-            when (val message = json.opt("message")) {
-                is JSONArray -> (0 until message.length()).joinToString("; ") { index -> message.optString(index) }
-                is String -> message
-                else -> json.optString("error")
-            }
-        }.getOrDefault("")
-    }
-
-    private fun isStageLockedError(error: Throwable): Boolean {
-        if (error !is HttpException || error.code() != 400) return false
-        val body = error.response()?.errorBody()?.string().orEmpty()
-        return runCatching { JSONObject(body).optString("code") == "TSD_STAGE_LOCKED" }.getOrDefault(false)
-    }
-
-    private fun requestLabel(request: TsdRequestSummary): String =
-        buildString {
-            appendLine(request.title)
-            appendLine("${request.client.name} · ${request.destinationCity ?: "-"}")
-            appendLine("Статус: ${request.status}; строк: ${request.counts.items}")
-            if (request.activeWorkers.isNotEmpty()) {
-                val workers = request.activeWorkers.take(3).joinToString(", ") { "${it.userName}: ${it.stage}" }
-                appendLine("В работе: $workers")
-            }
-        }.trim()
-
-    private fun boxSearchText(state: TsdBoxSearchState): String =
-        buildString {
-            appendLine("Найдено: ${state.found} из ${state.total}")
-            appendLine("Осталось: ${state.remaining}")
-            if (state.missingBoxes.isNotEmpty()) {
-                appendLine()
-                appendLine("Нужно найти:")
-                state.missingBoxes.take(40).forEach { appendLine(it) }
-                if (state.missingBoxes.size > 40) appendLine("... еще ${state.missingBoxes.size - 40}")
-            }
-        }.trim()
-
-    private fun workStageText(state: TsdWorkStageState): String =
-        buildString {
-            appendLine("Выполнено: ${state.completed} из ${state.total}")
-            appendLine("Осталось: ${state.remaining}")
-            if (state.boxes.isNotEmpty()) {
-                appendLine()
-                appendLine("Короба:")
-                state.boxes.take(40).forEach { appendLine("${it.boxCode}: ${it.totalRemaining} шт.") }
-                if (state.boxes.size > 40) appendLine("... еще ${state.boxes.size - 40}")
-            }
-        }.trim()
-
-    private fun defaultDeviceCode(): String {
-        val raw = "${Build.MANUFACTURER}-${Build.MODEL}".ifBlank { "TSD" }
-        return raw.uppercase()
-            .replace(Regex("[^A-Z0-9]+"), "-")
-            .trim('-')
-            .take(32)
-            .ifBlank { "TSD" }
-    }
-
-    private fun openApkDownload() {
-        runCatching {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(APK_DOWNLOAD_URL)))
-        }.onFailure {
-            updateStatus("Не удалось открыть скачивание APK: ${it.message ?: "ошибка"}")
-        }
-    }
-
-    private fun receiptSummaryText(): String =
-        "Приемка: $receiptId\nЗакрыто коробов: ${closedBoxes.size}; товаров: ${closedBoxes.sumOf { it.quantity }}\nТекущий короб: ${currentBox.ifEmpty { "не открыт" }}"
-
-    private fun boxSummary(lines: List<ReceiptLine>): String =
-        lines.groupBy { listOf(it.name, it.article ?: "", it.color ?: "", it.size ?: "") }
-            .map { (_, rows) ->
-                val first = rows.first()
-                "${first.name}\n${first.article ?: "-"} · ${first.color ?: "-"} · ${first.size ?: "-"}: ${rows.size} шт."
-            }
-            .joinToString("\n\n")
-
-    private fun input(hint: String, value: String = ""): EditText =
-        EditText(this).apply {
-            setSingleLine(true)
-            this.hint = hint
-            setText(value)
-            textSize = 18f
-        }
-
-    private fun scanInput(hint: String): EditText =
-        input(hint).apply {
-            tag = "scan"
-            setOnEditorActionListener { view, _, _ ->
-                submitReceiptScan(view.text.toString())
-                view.setText("")
+        scanInput = singleLineInput("Сканируйте штрихкод товара").apply {
+            setOnEditorActionListener { _, _, _ ->
+                submitScan()
                 true
             }
         }
 
-    private fun primaryButton(label: String, action: () -> Unit): Button =
-        Button(this).apply {
-            text = label
-            textSize = 18f
-            setTextColor(Color.WHITE)
-            setBackgroundColor(Color.parseColor(BLUE))
-            setOnClickListener { action() }
+        receiptModeButton = operationModeButton("Приемка", TsdOperationMode.RECEIPT)
+        moveModeButton = operationModeButton("Перемещение", TsdOperationMode.MOVE)
+        inventoryModeButton = operationModeButton("Инвентаризация", TsdOperationMode.INVENTORY)
+
+        loginButton = Button(this).apply {
+            text = "Войти на ТСД"
+            setOnClickListener { loginDevice() }
         }
 
-    private fun secondaryButton(label: String, action: () -> Unit): Button =
+        logoutButton = Button(this).apply {
+            text = "Сбросить вход"
+            setOnClickListener { clearSession() }
+        }
+
+        syncButton = Button(this).apply {
+            text = "Синхронизировать"
+            setOnClickListener { syncPending() }
+        }
+
+        retryRejectedButton = Button(this).apply {
+            text = "Вернуть отклонённые в очередь"
+            setOnClickListener { requeueRejected() }
+        }
+
+        val modeRow = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(receiptModeButton)
+            addView(moveModeButton)
+            addView(inventoryModeButton)
+        }
+
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(32, 32, 32, 32)
+            addView(statusView)
+            addView(sessionView)
+            addView(countsView)
+            addView(baseUrlInput)
+            addView(deviceCodeInput)
+            addView(deviceSecretInput)
+            addView(loginButton)
+            addView(logoutButton)
+            addView(TextView(this@MainActivity).apply {
+                text = "Операция"
+                textSize = 16f
+            })
+            addView(modeRow)
+            addView(operationHintView)
+            addView(clientIdInput)
+            addView(boxCodeInput)
+            addView(fromBoxCodeInput)
+            addView(toBoxCodeInput)
+            addView(quantityInput)
+            addView(stockStatusInput)
+            addView(sourceDocumentInput)
+            addView(commentInput)
+            addView(scanInput)
+            addView(syncButton)
+            addView(retryRejectedButton)
+            addView(TextView(this@MainActivity).apply {
+                text = "Отклонённые операции"
+                textSize = 16f
+            })
+            addView(rejectedView)
+        }
+
+        setContentView(ScrollView(this).apply { addView(root) })
+        setOperationMode(TsdOperationMode.RECEIPT)
+        lifecycleScope.launch { refreshQueue() }
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_ENTER) {
+            submitScan()
+            return true
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    private fun submitScan() {
+        val barcode = scanInput.textValue()
+        if (barcode.isEmpty()) return
+
+        val clientId = clientIdInput.requiredValue("Укажите ID клиента") ?: return
+        val stockStatus = stockStatusInput.optionalValue()
+
+        lifecycleScope.launch {
+            val operation = when (operationMode) {
+                TsdOperationMode.RECEIPT -> {
+                    val boxCode = boxCodeInput.requiredValue("Укажите короб приемки") ?: return@launch
+                    val quantity = quantityInput.quantityValue("Количество должно быть больше 0", allowZero = false) ?: return@launch
+                    outbox.enqueueReceipt(
+                        clientId = clientId,
+                        barcode = barcode,
+                        boxCode = boxCode,
+                        quantity = quantity,
+                        status = stockStatus,
+                        sourceDocument = sourceDocumentInput.optionalValue(),
+                        comment = commentInput.optionalValue(),
+                    )
+                }
+
+                TsdOperationMode.MOVE -> {
+                    val fromBoxCode = fromBoxCodeInput.requiredValue("Укажите короб-источник") ?: return@launch
+                    val toBoxCode = toBoxCodeInput.requiredValue("Укажите короб-приемник") ?: return@launch
+                    val quantity = quantityInput.quantityValue("Количество должно быть больше 0", allowZero = false) ?: return@launch
+                    outbox.enqueueMove(
+                        clientId = clientId,
+                        barcode = barcode,
+                        fromBoxCode = fromBoxCode,
+                        toBoxCode = toBoxCode,
+                        quantity = quantity,
+                        status = stockStatus,
+                        comment = commentInput.optionalValue(),
+                    )
+                }
+
+                TsdOperationMode.INVENTORY -> {
+                    val boxCode = boxCodeInput.requiredValue("Укажите короб инвентаризации") ?: return@launch
+                    val quantity = quantityInput.quantityValue("Факт может быть 0 или больше", allowZero = true) ?: return@launch
+                    outbox.enqueueInventory(
+                        clientId = clientId,
+                        barcode = barcode,
+                        boxCode = boxCode,
+                        countedQuantity = quantity,
+                        status = stockStatus,
+                    )
+                }
+            }
+
+            scanInput.setText("")
+            refreshQueue("${operationMode.title}: скан принят в offline-очередь (${operation.operationType})")
+        }
+    }
+
+    private fun loginDevice() {
+        val code = deviceCodeInput.textValue()
+        val secret = deviceSecretInput.textValue()
+        if (code.isEmpty() || secret.isEmpty()) {
+            statusView.text = "Укажите код и секрет ТСД"
+            return
+        }
+
+        loginButton.isEnabled = false
+        lifecycleScope.launch {
+            val result = runCatching {
+                val api = WmsApiFactory.create(baseUrlInput.textValue())
+                api.login(TsdLoginRequest(code = code, secret = secret))
+            }
+
+            loginButton.isEnabled = true
+            result.onSuccess { response ->
+                sessionStore.save(response)
+                deviceSecretInput.setText("")
+                refreshQueue("ТСД вошёл: ${response.device.name}")
+            }.onFailure { error ->
+                refreshQueue(error.message ?: "Не удалось войти на ТСД")
+            }
+        }
+    }
+
+    private fun clearSession() {
+        sessionStore.clear()
+        statusView.text = "Вход ТСД сброшен"
+        lifecycleScope.launch { refreshQueue() }
+    }
+
+    private fun syncPending() {
+        val session = sessionStore.load()
+        if (session == null) {
+            statusView.text = "Сначала войдите по коду и секрету ТСД"
+            return
+        }
+
+        syncButton.isEnabled = false
+        lifecycleScope.launch {
+            val api = runCatching {
+                WmsApiFactory.create(baseUrlInput.textValue())
+            }.getOrElse { error ->
+                syncButton.isEnabled = true
+                refreshQueue(error.message ?: "Некорректный API URL")
+                return@launch
+            }
+
+            val summary = TsdSyncRunner(outbox, api, session.deviceCode)
+                .syncPending("${session.tokenType} ${session.accessToken}")
+            syncButton.isEnabled = true
+            refreshQueue(
+                "${summary.message}: отправлено ${summary.sent}, принято ${summary.applied}, " +
+                    "отклонено ${summary.rejected}, на повтор ${summary.retried}",
+            )
+        }
+    }
+
+    private fun requeueRejected() {
+        lifecycleScope.launch {
+            val restored = outbox.requeueRejected()
+            refreshQueue("Возвращено в очередь: $restored")
+        }
+    }
+
+    private fun setOperationMode(mode: TsdOperationMode) {
+        operationMode = mode
+        operationHintView.text = mode.hint
+        receiptModeButton.isSelected = mode == TsdOperationMode.RECEIPT
+        moveModeButton.isSelected = mode == TsdOperationMode.MOVE
+        inventoryModeButton.isSelected = mode == TsdOperationMode.INVENTORY
+        receiptModeButton.isEnabled = mode != TsdOperationMode.RECEIPT
+        moveModeButton.isEnabled = mode != TsdOperationMode.MOVE
+        inventoryModeButton.isEnabled = mode != TsdOperationMode.INVENTORY
+
+        val isMove = mode == TsdOperationMode.MOVE
+        val isInventory = mode == TsdOperationMode.INVENTORY
+        boxCodeInput.visibility = if (isMove) View.GONE else View.VISIBLE
+        fromBoxCodeInput.visibility = if (isMove) View.VISIBLE else View.GONE
+        toBoxCodeInput.visibility = if (isMove) View.VISIBLE else View.GONE
+        sourceDocumentInput.visibility = if (mode == TsdOperationMode.RECEIPT) View.VISIBLE else View.GONE
+        commentInput.visibility = if (isInventory) View.GONE else View.VISIBLE
+        quantityInput.hint = if (isInventory) "Фактическое количество" else "Количество"
+        scanInput.hint = "Сканируйте штрихкод товара"
+    }
+
+    private suspend fun refreshQueue(message: String? = null) {
+        val counts = outbox.counts()
+        val rejected = outbox.rejected()
+
+        if (message != null) {
+            statusView.text = message
+        }
+        sessionView.text = sessionStore.load()?.let { session ->
+            "ТСД: ${session.deviceName} (${session.deviceCode})"
+        } ?: "ТСД не авторизован"
+        countsView.text = "В очереди: ${counts.pending}; отклонено: ${counts.rejected}"
+        rejectedView.text =
+            if (rejected.isEmpty()) {
+                "Отклонённых операций нет"
+            } else {
+                rejected.joinToString(separator = "\n\n") { it.toRejectedLine() }
+            }
+    }
+
+    private fun singleLineInput(label: String): EditText =
+        EditText(this).apply {
+            hint = label
+            setSingleLine(true)
+        }
+
+    private fun operationModeButton(label: String, mode: TsdOperationMode): Button =
         Button(this).apply {
             text = label
-            textSize = 17f
-            setTextColor(Color.parseColor(DARK))
-            setBackgroundColor(Color.parseColor(LIGHT_BLUE))
-            setOnClickListener { action() }
+            setOnClickListener { setOperationMode(mode) }
         }
 
     private fun EditText.textValue(): String = text.toString().trim()
-}
 
-private class SimpleItemSelectedListener(
-    private val onSelected: (position: Int) -> Unit,
-) : android.widget.AdapterView.OnItemSelectedListener {
-    override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
-        onSelected(position)
+    private fun EditText.optionalValue(): String? = textValue().ifEmpty { null }
+
+    private fun EditText.requiredValue(message: String): String? {
+        val value = textValue()
+        if (value.isEmpty()) {
+            statusView.text = message
+            requestFocus()
+            return null
+        }
+
+        return value
     }
 
-    override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
-}
+    private fun EditText.quantityValue(message: String, allowZero: Boolean): Int? {
+        val value = textValue().toIntOrNull()
+        val isValid = value != null && if (allowZero) value >= 0 else value > 0
+        if (!isValid) {
+            statusView.text = message
+            requestFocus()
+            return null
+        }
 
-private data class ReceiptLine(
-    val boxCode: String,
-    val barcode: String,
-    val kiz: String,
-    val skuId: String?,
-    val name: String,
-    val article: String?,
-    val color: String?,
-    val size: String?,
-)
+        return value
+    }
 
-private data class ClosedReceiptBox(
-    val code: String,
-    val quantity: Int,
-)
+    private fun PendingOperation.toRejectedLine(): String {
+        val barcode = payload["barcode"] ?: payload["fromBoxCode"] ?: operationKey
+        return "$operationType / $barcode\n$messageForOperator"
+    }
 
-private enum class TsdScreen {
-    LOGIN,
-    MENU,
-    RECEIPT,
-    REQUESTS,
-    REQUEST_DETAIL,
-    REQUEST_STAGE,
-    LEGACY,
-}
-
-private enum class ReceiptStage {
-    NOT_STARTED,
-    WAIT_BOX,
-    SCAN_BARCODE,
-    WAIT_KIZ,
+    private val PendingOperation.messageForOperator: String
+        get() = lastMessage ?: "Причина не указана"
 }
 
 private enum class TsdOperationMode(
     val title: String,
+    val hint: String,
 ) {
-    MOVE("Перемещение"),
-    INVENTORY("Инвентаризация"),
+    RECEIPT(
+        title = "Приемка",
+        hint = "Приемка добавит товар в указанный короб через receipt_scan.",
+    ),
+    MOVE(
+        title = "Перемещение",
+        hint = "Перемещение перенесет количество из короба-источника в короб-приемник.",
+    ),
+    INVENTORY(
+        title = "Инвентаризация",
+        hint = "Инвентаризация сверит фактическое количество в коробе с остатком WMS.",
+    ),
 }
-
-private enum class TsdRequestStage(
-    val title: String,
-) {
-    BOX_SEARCH("Поиск коробов"),
-    RELABEL("Перемаркировка"),
-    MOVES("Перемещения"),
-}
-
-private fun createReceiptId(): String =
-    "TSD-RECEIPT-${UUID.randomUUID().toString().take(8).uppercase()}"

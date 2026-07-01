@@ -1,7 +1,7 @@
 package pro.logoff.wms.tsd.auth
 
 import android.content.Context
-import pro.logoff.wms.tsd.network.AuthLoginResponse
+import pro.logoff.wms.tsd.network.TsdLoginResponse
 
 data class TsdSession(
     val accessToken: String,
@@ -27,12 +27,13 @@ class TsdSessionStore(context: Context) {
         )
     }
 
-    fun save(response: AuthLoginResponse, deviceCode: String) {
+    fun save(response: TsdLoginResponse) {
+        // Русский комментарий: сохраняем только выданный access token; исходный device secret после входа не держим.
         prefs.edit()
             .putString(KEY_TOKEN, response.accessToken)
             .putString(KEY_TOKEN_TYPE, response.tokenType)
-            .putString(KEY_DEVICE_CODE, deviceCode)
-            .putString(KEY_DEVICE_NAME, response.user.name)
+            .putString(KEY_DEVICE_CODE, response.device.code)
+            .putString(KEY_DEVICE_NAME, response.device.name)
             .apply()
     }
 

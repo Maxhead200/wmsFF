@@ -716,6 +716,7 @@ function fallbackBalanceSku(skuId: string): SkuForInstruction {
     heightCm: null,
     volumeLiters: null,
     volumeSource: 'MANUAL',
+    shelfLifeUntil: null,
     needsChestnyZnak: false,
     isUnmarked: false,
     needsLabel: false,

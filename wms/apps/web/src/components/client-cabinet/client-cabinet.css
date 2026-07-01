@@ -563,6 +563,79 @@
   opacity: 0.55;
 }
 
+.client-cabinet-filters {
+  grid-template-columns: 1fr;
+  align-items: stretch;
+}
+
+.client-cabinet-filters__header {
+  display: grid;
+  grid-template-columns: minmax(170px, auto) minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.client-cabinet-filters__toggle {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 38px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfdff;
+  color: var(--ink);
+  padding: 0 10px;
+  text-align: left;
+}
+
+.client-cabinet-filters__toggle svg {
+  flex: 0 0 auto;
+  color: var(--red-dark);
+}
+
+.client-cabinet-filters__toggle > span {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.client-cabinet-filters__toggle strong,
+.client-cabinet-filters__toggle small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.client-cabinet-filters__toggle strong {
+  font-size: 14px;
+}
+
+.client-cabinet-filters__toggle small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.client-cabinet-filters__chevron {
+  margin-left: auto;
+  transition: transform 0.16s ease;
+}
+
+.client-cabinet-filters.is-open .client-cabinet-filters__chevron {
+  transform: rotate(180deg);
+}
+
+.client-cabinet-filters .client-cabinet-filter-summary {
+  grid-column: auto;
+}
+
+.client-cabinet-filters .client-cabinet-filters__reset {
+  align-self: center;
+  justify-self: end;
+}
+
 .client-cabinet-presets {
   display: grid;
   grid-template-columns: minmax(150px, 0.8fr) minmax(180px, 1.2fr) minmax(180px, 1fr) auto;
@@ -1565,6 +1638,10 @@
     align-items: stretch;
   }
 
+  .client-cabinet-filters__header {
+    grid-template-columns: 1fr;
+  }
+
   .client-cabinet-presets {
     grid-template-columns: 1fr;
     align-items: stretch;
@@ -1596,6 +1673,10 @@
   }
 
   .client-cabinet-filters__reset {
+    justify-self: start;
+  }
+
+  .client-cabinet-filters .client-cabinet-filters__reset {
     justify-self: start;
   }
 

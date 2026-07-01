@@ -133,6 +133,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
   const [requestTimeline, setRequestTimeline] = useState<ClientRequestTimeline | null>(null);
   const [documentError, setDocumentError] = useState<string | null>(null);
   const [filters, setFilters] = useState<ClientCabinetFiltersValue>(emptyClientCabinetFilters);
+  const [areFiltersOpen, setFiltersOpen] = useState(false);
   const [stockSearch, setStockSearch] = useState('');
   const [activeSection, setActiveSection] = useState<ClientCabinetMetricTarget>('skus');
   const [editingClientId, setEditingClientId] = useState('');
@@ -637,13 +638,21 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
             reconciliation={view.reconciliation}
             onNavigate={navigateToSection}
           />
-          <ClientCabinetFilters value={filters} totals={view.filterTotals} onChange={setFilters} />
-          <ClientCabinetFilterPresets
-            userId={session.user.id}
-            clientId={view.client.id}
+          <ClientCabinetFilters
             value={filters}
-            onApply={setFilters}
+            totals={view.filterTotals}
+            isOpen={areFiltersOpen}
+            onChange={setFilters}
+            onToggle={() => setFiltersOpen((current) => !current)}
           />
+          {areFiltersOpen ? (
+            <ClientCabinetFilterPresets
+              userId={session.user.id}
+              clientId={view.client.id}
+              value={filters}
+              onApply={setFilters}
+            />
+          ) : null}
           <ClientCabinetExports
             accessToken={session.accessToken}
             client={view.client}

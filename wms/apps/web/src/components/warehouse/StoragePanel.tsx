@@ -1,10 +1,10 @@
-import { Download, RefreshCw, Save } from 'lucide-react';
+import { ChevronDown, Download, Filter, RefreshCw, Save } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
+  downloadStorageOverviewXlsx,
   fetchClients,
   fetchStorageOverview,
   generateStorageCharge,
-  downloadStorageOverviewXlsx,
   updateStorageTariff,
   type AuthSession,
   type BillingChargeSummary,
@@ -28,6 +28,7 @@ export function StoragePanel({ session }: StoragePanelProps) {
   const [storageCharge, setStorageCharge] = useState<BillingChargeSummary | null>(null);
   const [isLoading, setLoading] = useState(false);
   const [isSavingTariff, setSavingTariff] = useState(false);
+  const [areControlsOpen, setControlsOpen] = useState(false);
   const selectedClient = useMemo(() => clients.find((client) => client.id === clientId) ?? null, [clientId, clients]);
   const storageEnabled = selectedClient?.storageAccountingEnabled === true;
 
@@ -170,57 +171,73 @@ export function StoragePanel({ session }: StoragePanelProps) {
       <div className="warehouse-subheading">
         <div>
           <h3>Хранение</h3>
-          <span>остатки клиента, литраж и стоимость хранения за период</span>
+          <span>
+            {selectedClient ? `${selectedClient.name} · ${periodFrom} - ${periodTo}` : 'Остатки клиента, литраж и стоимость хранения за период'}
+          </span>
         </div>
+        <button
+          className="icon-text-button storage-controls-toggle"
+          type="button"
+          onClick={() => setControlsOpen((current) => !current)}
+          aria-expanded={areControlsOpen}
+          title={areControlsOpen ? 'Свернуть параметры' : 'Показать параметры'}
+        >
+          <Filter size={16} aria-hidden="true" />
+          <span>{areControlsOpen ? 'Свернуть параметры' : 'Параметры'}</span>
+          <ChevronDown className="storage-controls-toggle__chevron" size={16} aria-hidden="true" />
+        </button>
       </div>
 
-      <form className="storage-controls" onSubmit={(event) => void loadOverview(event)}>
-        <label>
-          <span>Клиент</span>
-          <select value={clientId} onChange={(event) => setClientId(event.target.value)}>
-            {clients.map((client) => (
-              <option key={client.id} value={client.id}>
-                {client.code} · {client.name}{client.storageAccountingEnabled ? '' : ' · хранение отключено'}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span>Период с</span>
-          <input type="date" value={periodFrom} onChange={(event) => setPeriodFrom(event.target.value)} />
-        </label>
-        <label>
-          <span>Период по</span>
-          <input type="date" value={periodTo} onChange={(event) => setPeriodTo(event.target.value)} />
-        </label>
-        <label>
-          <span>₽ / литр в сутки</span>
-          <input
-            min="0"
-            step="0.0001"
-            type="number"
-            value={tariff}
-            onChange={(event) => setTariff(event.target.value)}
-          />
-        </label>
-        <button
-          className="icon-text-button warehouse-secondary"
-          type="button"
-          onClick={() => void saveTariff()}
-          disabled={!clientId || !storageEnabled || isSavingTariff}
-        >
-          <Save size={16} aria-hidden="true" />
-          <span>{isSavingTariff ? 'Сохраняю' : 'Сохранить тариф'}</span>
-        </button>
-        <button className="primary-button" type="submit" disabled={!clientId || isLoading}>
-          <RefreshCw size={16} aria-hidden="true" />
-          <span>{isLoading ? 'Считаю' : 'Показать'}</span>
-        </button>
-        <button className="icon-text-button warehouse-secondary" type="button" onClick={() => void downloadStorageXlsx()} disabled={!clientId}>
-          <Download size={16} aria-hidden="true" />
-          <span>XLSX</span>
-        </button>
-      </form>
+      {areControlsOpen ? (
+        <form className="storage-controls" onSubmit={(event) => void loadOverview(event)}>
+          <label>
+            <span>Клиент</span>
+            <select value={clientId} onChange={(event) => setClientId(event.target.value)}>
+              {clients.map((client) => (
+                <option key={client.id} value={client.id}>
+                  {client.code} · {client.name}
+                  {client.storageAccountingEnabled ? '' : ' · хранение отключено'}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Период с</span>
+            <input type="date" value={periodFrom} onChange={(event) => setPeriodFrom(event.target.value)} />
+          </label>
+          <label>
+            <span>Период по</span>
+            <input type="date" value={periodTo} onChange={(event) => setPeriodTo(event.target.value)} />
+          </label>
+          <label>
+            <span>₽ / литр в сутки</span>
+            <input
+              min="0"
+              step="0.0001"
+              type="number"
+              value={tariff}
+              onChange={(event) => setTariff(event.target.value)}
+            />
+          </label>
+          <button
+            className="icon-text-button warehouse-secondary"
+            type="button"
+            onClick={() => void saveTariff()}
+            disabled={!clientId || !storageEnabled || isSavingTariff}
+          >
+            <Save size={16} aria-hidden="true" />
+            <span>{isSavingTariff ? 'Сохраняю' : 'Сохранить тариф'}</span>
+          </button>
+          <button className="primary-button" type="submit" disabled={!clientId || isLoading}>
+            <RefreshCw size={16} aria-hidden="true" />
+            <span>{isLoading ? 'Считаю' : 'Показать'}</span>
+          </button>
+          <button className="icon-text-button warehouse-secondary" type="button" onClick={() => void downloadStorageXlsx()} disabled={!clientId}>
+            <Download size={16} aria-hidden="true" />
+            <span>XLSX</span>
+          </button>
+        </form>
+      ) : null}
 
       {error ? <p className="form-error">{error}</p> : null}
       {message ? <p className="form-success">{message}</p> : null}

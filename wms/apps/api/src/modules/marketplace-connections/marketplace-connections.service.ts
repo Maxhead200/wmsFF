@@ -518,6 +518,7 @@ function mapWildberriesCard(card: Record<string, unknown>, size: Record<string, 
   const barcodes = uniqueStrings(asArray<unknown>(size?.skus).map(textValue));
   const dimensions = asRecord(card.dimensions);
   const characteristics = asArray<Record<string, unknown>>(card.characteristics);
+  const photos = extractWildberriesPhotos(card);
   const needKiz = toBoolean(card.needKiz) || toBoolean(card.kizMarked);
   const color = characteristicValue(characteristics, ['цвет', 'color']);
   const productId = [nmID || vendorCode, chrtID].filter(Boolean).join(':') || vendorCode || cryptoSafeId(card);
@@ -550,6 +551,7 @@ function mapWildberriesCard(card: Record<string, unknown>, size: Record<string, 
       marketplace: 'WILDBERRIES',
       card,
       size,
+      photos,
       characteristics,
       dimensions,
     },
@@ -678,6 +680,39 @@ function calculateVolumeLiters(product: Pick<MarketplaceProductSyncItem, 'length
   }
 
   return round((product.lengthCm * product.widthCm * product.heightCm) / 1000, 3);
+}
+
+function extractWildberriesPhotos(card: Record<string, unknown>) {
+  const photos: string[] = [];
+  const photoFields = ['big', 'c516x688', 'c246x328', 'hq', 'tm', 'url', 'link', 'file_name', 'photo', 'image'];
+
+  for (const photo of asArray<unknown>(card.photos)) {
+    if (typeof photo === 'string') {
+      photos.push(photo);
+      continue;
+    }
+    const record = asRecord(photo);
+    for (const field of photoFields) {
+      const value = textValue(record[field]);
+      if (value) {
+        photos.push(value);
+      }
+    }
+  }
+
+  for (const field of ['photo', 'photos', 'image', 'images', 'media']) {
+    const value = card[field];
+    if (typeof value === 'string') {
+      photos.push(value);
+    }
+    for (const item of asArray<unknown>(value)) {
+      if (typeof item === 'string') {
+        photos.push(item);
+      }
+    }
+  }
+
+  return uniqueStrings(photos).slice(0, 80);
 }
 
 function characteristicValue(characteristics: Array<Record<string, unknown>>, names: string[]) {

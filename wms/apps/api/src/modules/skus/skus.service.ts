@@ -956,7 +956,23 @@ function textFromJson(value: Prisma.JsonValue | undefined) {
 }
 
 function looksLikeImageUrl(value: string) {
-  return /^https?:\/\//i.test(value) && /\.(avif|gif|jpe?g|png|webp)(\?|$)/i.test(value);
+  const trimmed = value.trim();
+  if (!/^https?:\/\//i.test(trimmed)) {
+    return false;
+  }
+  if (/\.(avif|gif|jpe?g|png|webp)([?#].*)?$/i.test(trimmed)) {
+    return true;
+  }
+
+  try {
+    const url = new URL(trimmed);
+    const host = url.hostname.toLowerCase();
+    const path = url.pathname.toLowerCase();
+    const isWildberriesCdn = host.includes('wbbasket') || host.includes('wbstatic') || host.includes('wildberries');
+    return isWildberriesCdn && /(image|img|photo|picture|pic|media)/i.test(path);
+  } catch {
+    return false;
+  }
 }
 
 function uniqueValues(values: string[]) {

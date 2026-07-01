@@ -518,7 +518,7 @@ function mapWildberriesCard(card: Record<string, unknown>, size: Record<string, 
   const barcodes = uniqueStrings(asArray<unknown>(size?.skus).map(textValue));
   const dimensions = asRecord(card.dimensions);
   const characteristics = asArray<Record<string, unknown>>(card.characteristics);
-  const photos = extractWildberriesPhotos(card);
+  const photos = extractWildberriesPhotos(card, nmID);
   const needKiz = toBoolean(card.needKiz) || toBoolean(card.kizMarked);
   const color = characteristicValue(characteristics, ['цвет', 'color']);
   const productId = [nmID || vendorCode, chrtID].filter(Boolean).join(':') || vendorCode || cryptoSafeId(card);
@@ -682,7 +682,7 @@ function calculateVolumeLiters(product: Pick<MarketplaceProductSyncItem, 'length
   return round((product.lengthCm * product.widthCm * product.heightCm) / 1000, 3);
 }
 
-function extractWildberriesPhotos(card: Record<string, unknown>) {
+function extractWildberriesPhotos(card: Record<string, unknown>, nmID?: string) {
   const photos: string[] = [];
   const photoFields = ['big', 'c516x688', 'c246x328', 'hq', 'tm', 'url', 'link', 'file_name', 'photo', 'image'];
 
@@ -712,7 +712,44 @@ function extractWildberriesPhotos(card: Record<string, unknown>) {
     }
   }
 
+  const fallback = wildberriesMainPhotoUrl(nmID);
+  if (fallback) {
+    photos.push(fallback);
+  }
+
   return uniqueStrings(photos).slice(0, 80);
+}
+
+function wildberriesMainPhotoUrl(nmID?: string) {
+  const nm = Number(nmID);
+  if (!Number.isInteger(nm) || nm <= 0) {
+    return '';
+  }
+  const vol = Math.floor(nm / 100000);
+  const part = Math.floor(nm / 1000);
+  const basket = wildberriesBasketHost(vol);
+  return `https://${basket}.wbbasket.ru/vol${vol}/part${part}/${nm}/images/big/1.webp`;
+}
+
+function wildberriesBasketHost(vol: number) {
+  if (vol <= 143) return 'basket-01';
+  if (vol <= 287) return 'basket-02';
+  if (vol <= 431) return 'basket-03';
+  if (vol <= 719) return 'basket-04';
+  if (vol <= 1007) return 'basket-05';
+  if (vol <= 1061) return 'basket-06';
+  if (vol <= 1115) return 'basket-07';
+  if (vol <= 1169) return 'basket-08';
+  if (vol <= 1313) return 'basket-09';
+  if (vol <= 1601) return 'basket-10';
+  if (vol <= 1655) return 'basket-11';
+  if (vol <= 1919) return 'basket-12';
+  if (vol <= 2045) return 'basket-13';
+  if (vol <= 2189) return 'basket-14';
+  if (vol <= 2405) return 'basket-15';
+  if (vol <= 2621) return 'basket-16';
+  if (vol <= 2837) return 'basket-17';
+  return 'basket-18';
 }
 
 function characteristicValue(characteristics: Array<Record<string, unknown>>, names: string[]) {

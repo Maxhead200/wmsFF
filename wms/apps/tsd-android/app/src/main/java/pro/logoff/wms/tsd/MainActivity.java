@@ -6,8 +6,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
@@ -25,7 +23,6 @@ import android.view.inputmethod.EditorInfo;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Spinner;
@@ -48,11 +45,8 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.Locale;
-import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -69,13 +63,11 @@ public class MainActivity extends Activity {
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ArrayList<Client> clients = new ArrayList<>();
     private final ArrayList<PickRequest> pickRequests = new ArrayList<>();
+    private final HashSet<String> confirmedBarcodes = new HashSet<>();
     private final HashSet<String> receiptKiz = new HashSet<>();
     private final HashSet<String> roleCodes = new HashSet<>();
     private final HashSet<String> permissionCodes = new HashSet<>();
     private final ArrayList<JSONObject> relabelBatchQueue = new ArrayList<>();
-    private final ArrayList<ReceiptLine> currentBoxLines = new ArrayList<>();
-    private final ArrayList<ReceiptBoxSummary> receiptBoxes = new ArrayList<>();
-    private final ArrayList<String> boxRecheckBarcodes = new ArrayList<>();
 
     private SharedPreferences prefs;
     private OfflineQueue queue;
@@ -95,9 +87,6 @@ public class MainActivity extends Activity {
     private String receiptId = newReceiptId();
     private String boxCode = "";
     private String pendingBarcode = "";
-    private String lastConfirmedBarcode = "";
-    private ReceiptSku pendingReceiptSku = null;
-    private ReceiptSku lastReceiptSku = null;
     private String interfaceMode = "recommended";
     private String language = "ru";
     private boolean boxSearchScanBusy = false;
@@ -155,7 +144,7 @@ public class MainActivity extends Activity {
         logo.setTextSize(34);
         logo.setGravity(Gravity.CENTER);
         logo.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        logo.setBackgroundColor(BLUE);
+        logo.setBackgroundColor(RED);
         root.addView(logo, new LinearLayout.LayoutParams(dp(150), dp(150)));
         setContentView(root);
     }
@@ -359,7 +348,7 @@ public class MainActivity extends Activity {
         refresh.setOnClickListener(v -> loadClients());
         root.addView(refresh);
 
-        Button start = primary(tr("receipt.start"));
+        Button start = primary(tr("receipt.newBox"));
         start.setOnClickListener(v -> {
             if (clients.isEmpty()) {
                 toast(tr("receipt.noClients"));
@@ -368,7 +357,6 @@ public class MainActivity extends Activity {
             Client selected = (Client) spinner.getSelectedItem();
             selectedClientId = selected.id;
             selectedClientName = selected.name;
-            resetReceiptSession();
             showBoxScan();
         });
         root.addView(start);
@@ -423,20 +411,9 @@ public class MainActivity extends Activity {
         showPickRequestActions(request, null, null);
         runAsync(() -> {
             JSONObject boxState = api.boxSearch(token, request.id, deviceCode);
-            JSONObject relabelState = null;
-            JSONObject movesState = null;
-            if (boxState.optBoolean("isComplete") || hasStageControl()) {
-                try {
-                    relabelState = api.relabelState(token, request.id, deviceCode);
-                    if (relabelState.optBoolean("isComplete") || hasStageControl()) {
-                        movesState = api.movesState(token, request.id, deviceCode);
-                    }
-                } catch (Exception ignored) {
-                }
-            }
-            JSONObject finalRelabelState = relabelState;
-            JSONObject finalMovesState = movesState;
-            main.post(() -> showPickRequestActions(request, boxState, finalRelabelState, finalMovesState));
+            JSONObject relabelState = api.relabelState(token, request.id, deviceCode);
+            JSONObject movesState = api.movesState(token, request.id, deviceCode);
+            main.post(() -> showPickRequestActions(request, boxState, relabelState, movesState));
         });
     }
 
@@ -464,23 +441,11 @@ public class MainActivity extends Activity {
         root.addView(boxes);
 
         Button relabel = stageButton("2. " + tr("pick.relabel"), relabelState != null && relabelState.optBoolean("isComplete"));
-        relabel.setOnClickListener(v -> {
-            if (!hasStageControl() && boxState != null && !boxState.optBoolean("isComplete")) {
-                showStageCodeScreen(request, "relabel", tr("stage.relabelLocked"), false);
-                return;
-            }
-            loadRelabelState(request);
-        });
+        relabel.setOnClickListener(v -> loadRelabelState(request));
         root.addView(relabel);
 
         Button moves = stageButton("3. " + tr("pick.moves"), movesState != null && movesState.optBoolean("isComplete"));
-        moves.setOnClickListener(v -> {
-            if (!hasStageControl() && (boxState == null || !boxState.optBoolean("isComplete") || relabelState == null || !relabelState.optBoolean("isComplete"))) {
-                showStageCodeScreen(request, "moves", tr("stage.movesLocked"), false);
-                return;
-            }
-            loadMovesStage(request);
-        });
+        moves.setOnClickListener(v -> loadMovesStage(request));
         root.addView(moves);
 
         addBackButton(root, tr("pick.backToRequests"), () -> showPickRequests());
@@ -719,114 +684,36 @@ public class MainActivity extends Activity {
     }
 
     private void loadRequestStage(PickRequest request, String stage) {
-        loadRequestStage(request, stage, "");
-    }
-
-    private void loadRequestStage(PickRequest request, String stage, String managerCode) {
-        io.execute(() -> {
-            try {
-                JSONObject state = api.requestStage(token, request.id, deviceCode, stage, managerCode);
-                main.post(() -> showRequestStage(request, state, stage));
-            } catch (Exception error) {
-                if (isStageLockedError(error)) {
-                    main.post(() -> showStageCodeScreen(request, stage, stageLockMessage(error, stage), !managerCode.trim().isEmpty()));
-                } else {
-                    main.post(() -> toast(error.getMessage() == null ? tr("common.operationError") : error.getMessage()));
+        runAsync(() -> {
+            JSONObject state = api.requestStage(token, request.id, deviceCode, stage);
+            main.post(() -> {
+                if (!hasStageControl() && !state.optBoolean("isComplete")) {
+                    toast(tr("stage.searchRequired"));
+                    showBoxSearch(request, state);
+                    return;
                 }
-            }
+                showRequestStage(request, state, stage);
+            });
         });
     }
 
     private void loadRelabelState(PickRequest request) {
-        loadRelabelState(request, "");
-    }
-
-    private void loadRelabelState(PickRequest request, String managerCode) {
-        io.execute(() -> {
-            try {
-                JSONObject state = api.relabelState(token, request.id, deviceCode, managerCode);
-                main.post(() -> showRelabelBoxes(request, state));
-            } catch (Exception error) {
-                if (isStageLockedError(error)) {
-                    main.post(() -> showStageCodeScreen(request, "relabel", stageLockMessage(error, "relabel"), !managerCode.trim().isEmpty()));
-                } else {
-                    main.post(() -> toast(error.getMessage() == null ? tr("common.operationError") : error.getMessage()));
-                }
-            }
+        runAsync(() -> {
+            JSONObject state = api.relabelState(token, request.id, deviceCode);
+            main.post(() -> showRelabelBoxes(request, state));
         });
     }
 
     private void loadMovesStage(PickRequest request) {
-        loadMovesStage(request, "");
-    }
-
-    private void loadMovesStage(PickRequest request, String managerCode) {
-        io.execute(() -> {
-            try {
-                JSONObject state = api.movesState(token, request.id, deviceCode, managerCode);
-                main.post(() -> showMoveBoxes(request, state));
-            } catch (Exception error) {
-                if (isStageLockedError(error)) {
-                    main.post(() -> showStageCodeScreen(request, "moves", stageLockMessage(error, "moves"), !managerCode.trim().isEmpty()));
-                } else {
-                    main.post(() -> toast(error.getMessage() == null ? tr("common.operationError") : error.getMessage()));
-                }
+        runAsync(() -> {
+            JSONObject relabel = api.relabelState(token, request.id, deviceCode);
+            if (!relabel.optBoolean("isComplete")) {
+                main.post(() -> showRelabelBoxes(request, relabel));
+                return;
             }
+            JSONObject state = api.movesState(token, request.id, deviceCode);
+            main.post(() -> showMoveBoxes(request, state));
         });
-    }
-
-    private void showStageCodeScreen(PickRequest request, String stage, String message, boolean codeRejected) {
-        setBackAction(() -> showPickRequestActions(request));
-        LinearLayout root = page();
-        root.setPadding(dp(14), dp(16), dp(14), dp(14));
-        addHeader(root);
-        addTitle(root, tr("stage.managerCodeTitle"));
-        root.addView(note(stageTitle(stage)));
-
-        LinearLayout panel = new LinearLayout(this);
-        panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(dp(14), dp(14), dp(14), dp(14));
-        panel.setBackgroundColor(Color.rgb(235, 243, 255));
-        panel.addView(note(message));
-        if (codeRejected) {
-            TextView error = note(tr("stage.managerCodeRejected"));
-            error.setTextColor(RED);
-            error.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-            panel.addView(error);
-        }
-
-        EditText code = input(tr("stage.managerCodeInput"), false);
-        code.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
-        code.setSingleLine(true);
-        code.setImeOptions(EditorInfo.IME_ACTION_DONE);
-        code.setOnEditorActionListener((v, actionId, event) -> {
-            submitStageCode(request, stage, text(code));
-            return true;
-        });
-        Button unlock = primary(tr("stage.managerCodeUnlock"));
-        unlock.setOnClickListener(v -> submitStageCode(request, stage, text(code)));
-        Button cancel = secondary(tr("stage.managerCodeCancel"));
-        cancel.setOnClickListener(v -> showPickRequestActions(request));
-
-        panel.addView(code);
-        panel.addView(unlock);
-        panel.addView(cancel);
-        root.addView(panel, matchWrap());
-        setContentView(wrap(root));
-        code.requestFocus();
-    }
-
-    private void submitStageCode(PickRequest request, String stage, String code) {
-        String normalized = code.trim();
-        if (!normalized.matches("\\d{4}")) {
-            showStageCodeScreen(request, stage, tr("stage.managerCodeHint"), true);
-            return;
-        }
-        if ("moves".equals(stage)) {
-            loadMovesStage(request, normalized);
-            return;
-        }
-        loadRelabelState(request, normalized);
     }
 
     private void showRelabelBoxes(PickRequest request, JSONObject state) {
@@ -1699,10 +1586,6 @@ public class MainActivity extends Activity {
         setBackAction(() -> showReceiptStart());
         boxCode = "";
         pendingBarcode = "";
-        pendingReceiptSku = null;
-        lastConfirmedBarcode = "";
-        lastReceiptSku = null;
-        boxRecheckBarcodes.clear();
         LinearLayout root = receiptPage(tr("receipt.newBox"));
         EditText box = input(tr("receipt.scanBox"), false);
         box.setSingleLine(true);
@@ -1715,7 +1598,7 @@ public class MainActivity extends Activity {
         open.setOnClickListener(v -> openBox(text(box)));
         root.addView(box);
         root.addView(open);
-        if (receiptBoxes.size() > 0 || queue.size() > 0 || !receiptKiz.isEmpty()) {
+        if (queue.size() > 0 || !receiptKiz.isEmpty()) {
             Button finish = secondary(tr("receipt.finish"));
             finish.setOnClickListener(v -> finishReceipt());
             root.addView(finish);
@@ -1732,8 +1615,6 @@ public class MainActivity extends Activity {
             return;
         }
         boxCode = normalized;
-        currentBoxLines.clear();
-        boxRecheckBarcodes.clear();
         toast(tr("common.box") + " " + boxCode + " " + tr("receipt.opened"));
         showBarcodeScan();
     }
@@ -1743,7 +1624,6 @@ public class MainActivity extends Activity {
         LinearLayout root = receiptPage(tr("receipt.scanProduct"));
         TextView box = note(tr("common.box") + ": " + boxCode);
         root.addView(box);
-        root.addView(note(tr("receipt.currentBoxCount") + ": " + currentBoxLines.size()));
         EditText barcode = input(tr("receipt.productBarcode"), false);
         barcode.setSingleLine(true);
         barcode.setImeOptions(EditorInfo.IME_ACTION_DONE);
@@ -1756,7 +1636,7 @@ public class MainActivity extends Activity {
         root.addView(barcode);
         root.addView(accept);
         Button close = secondary(tr("receipt.closeBox"));
-        close.setOnClickListener(v -> confirmCloseBox());
+        close.setOnClickListener(v -> showBoxClosed());
         root.addView(close);
         addBackButton(root, tr("common.back"), () -> showReceiptStart());
         setContentView(wrap(root));
@@ -1769,62 +1649,43 @@ public class MainActivity extends Activity {
             toast(tr("receipt.scanBarcodeToast"));
             return;
         }
-        if (sameScan(lastConfirmedBarcode, barcode) && lastReceiptSku != null) {
+        if (confirmedBarcodes.contains(barcode)) {
             pendingBarcode = barcode;
-            pendingReceiptSku = lastReceiptSku;
             showKizScan();
             return;
         }
         runAsync(() -> {
             JSONObject sku = api.skuByBarcode(token, selectedClientId, barcode);
-            ReceiptSku summary = ReceiptSku.fromJson(barcode, sku);
-            main.post(() -> showSkuConfirm(summary));
+            main.post(() -> showSkuConfirm(barcode, sku));
         });
     }
 
-    private void showSkuConfirm(ReceiptSku sku) {
-        LinearLayout content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(8), dp(4), dp(8), 0);
-
-        if (!sku.photoUrl.isEmpty()) {
-            ImageView image = new ImageView(this);
-            image.setAdjustViewBounds(true);
-            image.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-            content.addView(image, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(220)));
-            loadReceiptImage(sku.photoUrl, image);
-        }
-
-        TextView details = note(receiptSkuText(sku));
-        details.setTextSize(scaledText(17));
-        content.addView(details);
-
+    private void showSkuConfirm(String barcode, JSONObject sku) {
+        String text = tr("receipt.barcodeShort") + ": " + barcode
+            + "\n" + tr("receipt.name") + ": " + sku.optString("name", "-")
+            + "\n" + tr("receipt.article") + ": " + firstNonEmpty(sku.optString("article"), sku.optString("clientSku"), sku.optString("internalSku"), "-")
+            + "\n" + tr("receipt.sizeColor") + ": " + compact(sku.optString("size"), sku.optString("color"))
+            + "\n" + tr("receipt.brand") + ": " + firstNonEmpty(sku.optString("brand"), "-");
         new AlertDialog.Builder(this)
             .setTitle(tr("receipt.confirmProduct"))
-            .setView(content)
+            .setMessage(text)
             .setPositiveButton(tr("receipt.confirmYes"), (dialog, which) -> {
-                lastConfirmedBarcode = sku.barcode;
-                lastReceiptSku = sku;
-                pendingBarcode = sku.barcode;
-                pendingReceiptSku = sku;
+                confirmedBarcodes.add(barcode);
+                pendingBarcode = barcode;
                 showKizScan();
             })
-            .setNegativeButton(tr("receipt.confirmNoManager"), (dialog, which) -> showManagerRequired(tr("receipt.wrongProduct") + ": " + sku.barcode))
+            .setNegativeButton(tr("receipt.confirmNo"), (dialog, which) -> showBarcodeScan())
             .show();
     }
 
     private void showKizScan() {
         setBackAction(() -> {
             pendingBarcode = "";
-            pendingReceiptSku = null;
             showBarcodeScan();
         });
         LinearLayout root = receiptPage(tr("receipt.scanKiz"));
         root.addView(note(tr("common.box") + ": " + boxCode));
         root.addView(note(tr("receipt.productBarcode") + ": " + pendingBarcode));
-        if (pendingReceiptSku != null) {
-            root.addView(note(pendingReceiptSku.shortLabel()));
-        }
         EditText kiz = input(tr("receipt.kiz"), false);
         kiz.setSingleLine(true);
         kiz.setImeOptions(EditorInfo.IME_ACTION_DONE);
@@ -1839,13 +1700,11 @@ public class MainActivity extends Activity {
         Button cancel = secondary(tr("receipt.cancelBarcode"));
         cancel.setOnClickListener(v -> {
             pendingBarcode = "";
-            pendingReceiptSku = null;
             showBarcodeScan();
         });
         root.addView(cancel);
         addBackButton(root, tr("common.back"), () -> {
             pendingBarcode = "";
-            pendingReceiptSku = null;
             showBarcodeScan();
         });
         setContentView(wrap(root));
@@ -1866,10 +1725,8 @@ public class MainActivity extends Activity {
             JSONObject operation = receiptOperation(kiz);
             queue.add(operation, userId);
             receiptKiz.add(kiz);
-            currentBoxLines.add(new ReceiptLine(boxCode, pendingBarcode, kiz, pendingReceiptSku));
             toast(tr("receipt.productAdded") + " " + tr("common.queue").toLowerCase(Locale.ROOT) + ": " + queue.size());
             pendingBarcode = "";
-            pendingReceiptSku = null;
             syncQueue();
             showBarcodeScan();
         } catch (JSONException error) {
@@ -1896,241 +1753,29 @@ public class MainActivity extends Activity {
             .put("payload", payload);
     }
 
-    private void confirmCloseBox() {
-        if (currentBoxLines.isEmpty()) {
-            toast(tr("receipt.emptyBox"));
-            return;
-        }
-        new AlertDialog.Builder(this)
-            .setTitle(tr("receipt.closeBoxConfirm"))
-            .setMessage(currentBoxSummaryText())
-            .setPositiveButton(tr("receipt.closeBoxYes"), (dialog, which) -> closeCurrentBox())
-            .setNegativeButton(tr("receipt.recheckBox"), (dialog, which) -> {
-                boxRecheckBarcodes.clear();
-                showBoxRecheck();
-            })
-            .show();
-    }
-
-    private void showBoxRecheck() {
-        setBackAction(() -> showBarcodeScan());
-        LinearLayout root = receiptPage(tr("receipt.recheckTitle"));
-        root.addView(note(tr("common.box") + ": " + boxCode));
-        root.addView(note(tr("receipt.recheckProgress") + ": " + boxRecheckBarcodes.size() + " / " + currentBoxLines.size()));
-
-        EditText barcode = input(tr("receipt.productBarcode"), false);
-        barcode.setSingleLine(true);
-        barcode.setImeOptions(EditorInfo.IME_ACTION_DONE);
-        barcode.setOnEditorActionListener((v, actionId, event) -> {
-            addBoxRecheckBarcode(text(barcode));
-            return true;
-        });
-        Button add = primary(tr("receipt.recheckAdd"));
-        add.setOnClickListener(v -> addBoxRecheckBarcode(text(barcode)));
-        Button verify = secondary(tr("receipt.recheckVerify"));
-        verify.setOnClickListener(v -> verifyBoxRecheck());
-        Button clear = secondary(tr("receipt.recheckClear"));
-        clear.setOnClickListener(v -> {
-            boxRecheckBarcodes.clear();
-            showBoxRecheck();
-        });
-
-        root.addView(barcode);
-        root.addView(add);
-        root.addView(verify);
-        root.addView(clear);
-        addBackButton(root, tr("common.back"), () -> showBarcodeScan());
-        setContentView(wrap(root));
-        barcode.requestFocus();
-    }
-
-    private void addBoxRecheckBarcode(String value) {
-        String barcode = value.trim();
-        if (barcode.isEmpty()) {
-            toast(tr("receipt.scanBarcodeToast"));
-            return;
-        }
-        boxRecheckBarcodes.add(barcode);
-        showBoxRecheck();
-    }
-
-    private void verifyBoxRecheck() {
-        if (boxRecheckBarcodes.size() != currentBoxLines.size()) {
-            showManagerRequired(tr("receipt.recheckCountMismatch"));
-            return;
-        }
-        if (!expectedBoxBarcodeCounts().equals(scannedBarcodeCounts(boxRecheckBarcodes))) {
-            showManagerRequired(tr("receipt.recheckMismatch"));
-            return;
-        }
-        toast(tr("receipt.recheckOk"));
-        closeCurrentBox();
-    }
-
-    private void closeCurrentBox() {
-        ReceiptBoxSummary summary = new ReceiptBoxSummary(boxCode, currentBoxLines.size(), currentBoxSummaryText());
-        receiptBoxes.add(summary);
-        currentBoxLines.clear();
-        boxRecheckBarcodes.clear();
-        pendingBarcode = "";
-        pendingReceiptSku = null;
-        lastConfirmedBarcode = "";
-        lastReceiptSku = null;
-        syncQueue();
-        showBoxClosed(summary);
-    }
-
-    private void showBoxClosed(ReceiptBoxSummary summary) {
-        setBackAction(() -> showBoxScan());
+    private void showBoxClosed() {
+        setBackAction(() -> showReceiptStart());
         LinearLayout root = receiptPage(tr("receipt.boxClosed"));
-        root.addView(note(tr("receipt.closedBox") + ": " + summary.boxCode));
-        root.addView(note(tr("receipt.boxItems") + ": " + summary.itemsCount));
-        root.addView(note(tr("receipt.receiptTotals") + ": " + receiptBoxes.size() + " / " + receiptTotalItems()));
+        root.addView(note(tr("receipt.closedBox") + ": " + boxCode));
         Button next = primary(tr("receipt.newBox"));
         next.setOnClickListener(v -> showBoxScan());
         Button finish = secondary(tr("receipt.finish"));
         finish.setOnClickListener(v -> finishReceipt());
         root.addView(next);
         root.addView(finish);
-        addBackButton(root, tr("common.back"), () -> showBoxScan());
+        addBackButton(root, tr("common.back"), () -> showReceiptStart());
         setContentView(wrap(root));
     }
 
     private void finishReceipt() {
-        if (!currentBoxLines.isEmpty()) {
-            toast(tr("receipt.closeCurrentBoxFirst"));
-            confirmCloseBox();
-            return;
-        }
-        int boxes = receiptBoxes.size();
-        int items = receiptTotalItems();
-        String finishedReceiptId = receiptId;
-        resetReceiptSession();
-        syncQueue();
-        showReceiptFinished(finishedReceiptId, boxes, items);
-    }
-
-    private void showReceiptFinished(String finishedReceiptId, int boxes, int items) {
-        setBackAction(() -> showMenu());
-        LinearLayout root = receiptPage(tr("receipt.finishedTitle"));
-        root.addView(note(tr("receipt.finished")));
-        root.addView(note(tr("receipt.document") + ": " + finishedReceiptId));
-        root.addView(note(tr("receipt.finishedBoxes") + ": " + boxes));
-        root.addView(note(tr("receipt.finishedItems") + ": " + items));
-        Button menu = primary(tr("common.back"));
-        menu.setOnClickListener(v -> showMenu());
-        root.addView(menu);
-        setContentView(wrap(root));
-    }
-
-    private void resetReceiptSession() {
+        confirmedBarcodes.clear();
         receiptKiz.clear();
-        currentBoxLines.clear();
-        receiptBoxes.clear();
-        boxRecheckBarcodes.clear();
         receiptId = newReceiptId();
         boxCode = "";
         pendingBarcode = "";
-        lastConfirmedBarcode = "";
-        pendingReceiptSku = null;
-        lastReceiptSku = null;
-    }
-
-    private int receiptTotalItems() {
-        int total = 0;
-        for (ReceiptBoxSummary box : receiptBoxes) {
-            total += box.itemsCount;
-        }
-        return total;
-    }
-
-    private String currentBoxSummaryText() {
-        StringBuilder builder = new StringBuilder();
-        builder.append(tr("common.box")).append(": ").append(boxCode).append('\n');
-        builder.append(tr("receipt.boxItems")).append(": ").append(currentBoxLines.size()).append("\n\n");
-
-        LinkedHashMap<String, ProductCounter> counters = new LinkedHashMap<>();
-        for (ReceiptLine line : currentBoxLines) {
-            ProductCounter counter = counters.get(line.barcode);
-            if (counter == null) {
-                counter = new ProductCounter(line);
-                counters.put(line.barcode, counter);
-            }
-            counter.quantity += 1;
-        }
-
-        for (ProductCounter counter : counters.values()) {
-            builder
-                .append(counter.label)
-                .append('\n')
-                .append(tr("receipt.barcodeShort"))
-                .append(": ")
-                .append(counter.barcode)
-                .append(" · ")
-                .append(counter.quantity)
-                .append(' ')
-                .append(tr("common.units"))
-                .append("\n\n");
-        }
-        return builder.toString().trim();
-    }
-
-    private Map<String, Integer> expectedBoxBarcodeCounts() {
-        HashMap<String, Integer> counts = new HashMap<>();
-        for (ReceiptLine line : currentBoxLines) {
-            String key = scanKey(line.barcode);
-            counts.put(key, counts.containsKey(key) ? counts.get(key) + 1 : 1);
-        }
-        return counts;
-    }
-
-    private Map<String, Integer> scannedBarcodeCounts(ArrayList<String> barcodes) {
-        HashMap<String, Integer> counts = new HashMap<>();
-        for (String barcode : barcodes) {
-            String key = scanKey(barcode);
-            counts.put(key, counts.containsKey(key) ? counts.get(key) + 1 : 1);
-        }
-        return counts;
-    }
-
-    private String receiptSkuText(ReceiptSku sku) {
-        StringBuilder text = new StringBuilder();
-        text.append(tr("receipt.barcodeShort")).append(": ").append(sku.barcode)
-            .append('\n').append(tr("receipt.name")).append(": ").append(firstNonEmpty(sku.name, "-"))
-            .append('\n').append(tr("receipt.article")).append(": ").append(firstNonEmpty(sku.article, sku.clientSku, sku.internalSku, "-"))
-            .append('\n').append(tr("receipt.sizeColor")).append(": ").append(compact(sku.size, sku.color))
-            .append('\n').append(tr("receipt.brand")).append(": ").append(firstNonEmpty(sku.brand, "-"));
-        for (String characteristic : sku.characteristics) {
-            text.append('\n').append(characteristic);
-        }
-        return text.toString();
-    }
-
-    private void showManagerRequired(String message) {
-        new AlertDialog.Builder(this)
-            .setTitle(tr("receipt.managerTitle"))
-            .setMessage(message)
-            .setPositiveButton(tr("common.back"), (dialog, which) -> showBarcodeScan())
-            .show();
-    }
-
-    private void loadReceiptImage(String imageUrl, ImageView target) {
-        io.execute(() -> {
-            try {
-                HttpURLConnection connection = (HttpURLConnection) new URL(imageUrl).openConnection();
-                connection.setConnectTimeout(6000);
-                connection.setReadTimeout(8000);
-                connection.setRequestProperty("User-Agent", "LOGOff-TSD-Android/0.1.25");
-                Bitmap bitmap;
-                try (InputStream stream = connection.getInputStream()) {
-                    bitmap = BitmapFactory.decodeStream(stream);
-                }
-                if (bitmap != null) {
-                    main.post(() -> target.setImageBitmap(bitmap));
-                }
-            } catch (Exception ignored) {
-            }
-        });
+        syncQueue();
+        toast(tr("receipt.finished"));
+        showMenu();
     }
 
     private void loadClients() {
@@ -2403,7 +2048,7 @@ public class MainActivity extends Activity {
         logo.setGravity(Gravity.CENTER);
         logo.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         logo.setTextSize(compact ? 18 : 34);
-        logo.setBackgroundColor(BLUE);
+        logo.setBackgroundColor(RED);
         int size = compact ? dp(48) : dp(132);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(size, compact ? dp(48) : dp(132));
         params.setMargins(0, 0, compact ? dp(10) : 0, dp(12));
@@ -2468,7 +2113,7 @@ public class MainActivity extends Activity {
         button.setTextColor(Color.WHITE);
         button.setTextSize(scaledText(18));
         button.setAllCaps(false);
-        button.setBackgroundColor(BLUE);
+        button.setBackgroundColor(RED);
         button.setMinHeight(dp(scaledSize(58)));
         button.setLayoutParams(buttonParams());
         return button;
@@ -2476,7 +2121,7 @@ public class MainActivity extends Activity {
 
     private Button stageButton(String text, boolean complete) {
         Button button = primary(text);
-        button.setBackgroundColor(complete ? GREEN : BLUE);
+        button.setBackgroundColor(complete ? GREEN : RED);
         return button;
     }
 
@@ -2594,7 +2239,6 @@ public class MainActivity extends Activity {
                 case "login.connected": return "Xodim ulandi";
                 case "menu.syncFirst": return "Avval navbatni sinxronlang";
                 case "receipt.refreshClients": return "Mijozlarni yangilash";
-                case "receipt.start": return "Qabulni boshlash";
                 case "receipt.newBox": return "Yangi quti";
                 case "receipt.noClients": return "Mavjud mijozlar yo'q.";
                 case "receipt.scanBox": return "Quti raqamini skanerlash";
@@ -2614,7 +2258,6 @@ public class MainActivity extends Activity {
                 case "receipt.confirmProduct": return "Tovarni tekshiring";
                 case "receipt.confirmYes": return "Ha, shu tovar";
                 case "receipt.confirmNo": return "Yo'q, bekor qilish";
-                case "receipt.confirmNoManager": return "Yo'q, menejerni chaqirish";
                 case "receipt.scanKiz": return "KIZ skanerlash";
                 case "receipt.kiz": return "Tovar KIZ";
                 case "receipt.saveProduct": return "Tovarni yozish";
@@ -2625,28 +2268,6 @@ public class MainActivity extends Activity {
                 case "receipt.boxClosed": return "Quti yopildi";
                 case "receipt.closedBox": return "Yopilgan quti";
                 case "receipt.finished": return "Qabul yakunlandi.";
-                case "receipt.currentBoxCount": return "Joriy qutida";
-                case "receipt.emptyBox": return "Quti bo'sh. Avval tovar qo'shing.";
-                case "receipt.closeBoxConfirm": return "Qutini tekshiring";
-                case "receipt.closeBoxYes": return "Ha, qutini yopish";
-                case "receipt.recheckBox": return "SHKni qayta tekshirish";
-                case "receipt.recheckTitle": return "Qutini qayta tekshirish";
-                case "receipt.recheckProgress": return "Qayta skanerlandi";
-                case "receipt.recheckAdd": return "SHK qo'shish";
-                case "receipt.recheckVerify": return "Tekshirish";
-                case "receipt.recheckClear": return "Qayta boshlash";
-                case "receipt.recheckCountMismatch": return "Soni mos kelmadi. Menejerni chaqiring.";
-                case "receipt.recheckMismatch": return "Tovarlar ro'yxati mos kelmadi. Menejerni chaqiring.";
-                case "receipt.recheckOk": return "Quti tekshirildi.";
-                case "receipt.wrongProduct": return "Tovar noto'g'ri. Menejerni chaqiring";
-                case "receipt.boxItems": return "Qutidagi tovarlar";
-                case "receipt.receiptTotals": return "Qutilar / tovarlar";
-                case "receipt.closeCurrentBoxFirst": return "Avval joriy qutini yoping.";
-                case "receipt.finishedTitle": return "Qabul yopildi";
-                case "receipt.document": return "Hujjat";
-                case "receipt.finishedBoxes": return "Qutilar";
-                case "receipt.finishedItems": return "Tovarlar";
-                case "receipt.managerTitle": return "Menejerni chaqiring";
                 case "pick.hint": return "Faol buyurtmani tanlang. Kimdir TSD bilan ishlayotgan buyurtmalar sariq rangda.";
                 case "pick.refresh": return "Buyurtmalarni yangilash";
                 case "pick.empty": return "Faol buyurtmalar yo'q. Yangilashni bosing.";
@@ -2693,14 +2314,6 @@ public class MainActivity extends Activity {
                 case "boxless.boxClosed": return "Quti yopildi.";
                 case "boxless.complete": return "Qadoqlash tugadi. WB/Ozon fayllari tayyor.";
                 case "stage.searchRequired": return "Avval barcha qutilarni topishni yakunlang.";
-                case "stage.managerCodeTitle": return "Menejer kodi";
-                case "stage.managerCodeInput": return "4 xonali kod";
-                case "stage.managerCodeUnlock": return "Bosqichni ochish";
-                case "stage.managerCodeCancel": return "Bekor qilish";
-                case "stage.managerCodeRejected": return "Kod mos kelmadi. Qayta kiriting yoki bekor qiling.";
-                case "stage.managerCodeHint": return "4 xonali menejer kodini kiriting.";
-                case "stage.relabelLocked": return "Qutilarni qidirish tugamaguncha qayta markalash bosqichi yopiq. Menejer kodini kiriting yoki bekor qiling.";
-                case "stage.movesLocked": return "Oldingi bosqichlar tugamaguncha ko'chirish bosqichi yopiq. Menejer kodini kiriting yoki bekor qiling.";
                 case "stage.supervisorBypass": return "Bosqich rahbar tomonidan qidirish tugashini kutmasdan ochildi. Faqat topilgan qutilar bilan ishlang.";
                 case "stage.noFoundBoxes": return "Hozircha topilgan qutilar yo'q.";
                 case "stage.foundBoxes": return "Topilgan qutilar:";
@@ -2819,7 +2432,6 @@ public class MainActivity extends Activity {
                 case "login.connected": return "Employee connected";
                 case "menu.syncFirst": return "Sync the queue first";
                 case "receipt.refreshClients": return "Refresh clients";
-                case "receipt.start": return "Start receiving";
                 case "receipt.newBox": return "New box";
                 case "receipt.noClients": return "No available clients.";
                 case "receipt.scanBox": return "Scan box number";
@@ -2839,7 +2451,6 @@ public class MainActivity extends Activity {
                 case "receipt.confirmProduct": return "Check product";
                 case "receipt.confirmYes": return "Yes, this is the product";
                 case "receipt.confirmNo": return "No, cancel";
-                case "receipt.confirmNoManager": return "No, call manager";
                 case "receipt.scanKiz": return "Scan KIZ";
                 case "receipt.kiz": return "Product KIZ";
                 case "receipt.saveProduct": return "Save product";
@@ -2850,28 +2461,6 @@ public class MainActivity extends Activity {
                 case "receipt.boxClosed": return "Box closed";
                 case "receipt.closedBox": return "Closed box";
                 case "receipt.finished": return "Receiving finished.";
-                case "receipt.currentBoxCount": return "Current box count";
-                case "receipt.emptyBox": return "The box is empty. Add products first.";
-                case "receipt.closeBoxConfirm": return "Check box";
-                case "receipt.closeBoxYes": return "Yes, close box";
-                case "receipt.recheckBox": return "Recheck barcodes";
-                case "receipt.recheckTitle": return "Recheck box";
-                case "receipt.recheckProgress": return "Rechecked";
-                case "receipt.recheckAdd": return "Add barcode";
-                case "receipt.recheckVerify": return "Verify";
-                case "receipt.recheckClear": return "Start over";
-                case "receipt.recheckCountMismatch": return "Quantity does not match. Call manager.";
-                case "receipt.recheckMismatch": return "Product list does not match. Call manager.";
-                case "receipt.recheckOk": return "Box checked.";
-                case "receipt.wrongProduct": return "Wrong product. Call manager";
-                case "receipt.boxItems": return "Box items";
-                case "receipt.receiptTotals": return "Boxes / items";
-                case "receipt.closeCurrentBoxFirst": return "Close the current box first.";
-                case "receipt.finishedTitle": return "Receiving closed";
-                case "receipt.document": return "Document";
-                case "receipt.finishedBoxes": return "Boxes";
-                case "receipt.finishedItems": return "Items";
-                case "receipt.managerTitle": return "Call manager";
                 case "pick.hint": return "Select an active request. Requests already handled on TSD are highlighted yellow.";
                 case "pick.refresh": return "Refresh requests";
                 case "pick.empty": return "No active requests yet. Press refresh.";
@@ -2918,14 +2507,6 @@ public class MainActivity extends Activity {
                 case "boxless.boxClosed": return "Box closed.";
                 case "boxless.complete": return "Packing complete. WB/Ozon files are ready.";
                 case "stage.searchRequired": return "Finish finding all boxes first.";
-                case "stage.managerCodeTitle": return "Manager code";
-                case "stage.managerCodeInput": return "4-digit code";
-                case "stage.managerCodeUnlock": return "Open stage";
-                case "stage.managerCodeCancel": return "Cancel";
-                case "stage.managerCodeRejected": return "Code did not match. Try again or cancel.";
-                case "stage.managerCodeHint": return "Enter the 4-digit manager code.";
-                case "stage.relabelLocked": return "Relabeling is locked until box search is complete. Enter a manager code or cancel.";
-                case "stage.movesLocked": return "Movements are locked until previous stages are complete. Enter a manager code or cancel.";
                 case "stage.supervisorBypass": return "Stage opened by a supervisor before box search is complete. Work only with found boxes.";
                 case "stage.noFoundBoxes": return "No boxes have been found yet.";
                 case "stage.foundBoxes": return "Found boxes:";
@@ -3043,7 +2624,6 @@ public class MainActivity extends Activity {
             case "login.connected": return "Сотрудник подключен";
             case "menu.syncFirst": return "Сначала синхронизируйте очередь";
             case "receipt.refreshClients": return "Обновить клиентов";
-            case "receipt.start": return "Начать приемку";
             case "receipt.newBox": return "Новый короб";
             case "receipt.noClients": return "Нет доступных клиентов.";
             case "receipt.scanBox": return "Скан номера короба";
@@ -3063,7 +2643,6 @@ public class MainActivity extends Activity {
             case "receipt.confirmProduct": return "Проверьте товар";
             case "receipt.confirmYes": return "Да, это этот товар";
             case "receipt.confirmNo": return "Нет, отменить";
-            case "receipt.confirmNoManager": return "Нет, позвать менеджера";
             case "receipt.scanKiz": return "Скан КИЗ";
             case "receipt.kiz": return "КИЗ товара";
             case "receipt.saveProduct": return "Записать товар";
@@ -3074,28 +2653,6 @@ public class MainActivity extends Activity {
             case "receipt.boxClosed": return "Короб закрыт";
             case "receipt.closedBox": return "Закрыт короб";
             case "receipt.finished": return "Приемка завершена.";
-            case "receipt.currentBoxCount": return "В текущем коробе";
-            case "receipt.emptyBox": return "Короб пустой. Сначала добавьте товар.";
-            case "receipt.closeBoxConfirm": return "Проверьте короб";
-            case "receipt.closeBoxYes": return "Да, закрыть короб";
-            case "receipt.recheckBox": return "Перепикать ШК";
-            case "receipt.recheckTitle": return "Проверка короба";
-            case "receipt.recheckProgress": return "Повторно пропикано";
-            case "receipt.recheckAdd": return "Добавить ШК";
-            case "receipt.recheckVerify": return "Проверить";
-            case "receipt.recheckClear": return "Начать заново";
-            case "receipt.recheckCountMismatch": return "Количество не совпало. Позовите менеджера.";
-            case "receipt.recheckMismatch": return "Состав товаров не совпал. Позовите менеджера.";
-            case "receipt.recheckOk": return "Короб проверен.";
-            case "receipt.wrongProduct": return "Товар неверный. Позовите менеджера";
-            case "receipt.boxItems": return "Товаров в коробе";
-            case "receipt.receiptTotals": return "Коробов / товаров";
-            case "receipt.closeCurrentBoxFirst": return "Сначала закройте текущий короб.";
-            case "receipt.finishedTitle": return "Приемка закрыта";
-            case "receipt.document": return "Документ";
-            case "receipt.finishedBoxes": return "Коробов";
-            case "receipt.finishedItems": return "Товаров";
-            case "receipt.managerTitle": return "Позовите менеджера";
             case "pick.hint": return "Выберите активную заявку. Желтым подсвечены заявки, где уже кто-то работает с ТСД.";
             case "pick.refresh": return "Обновить заявки";
             case "pick.empty": return "Активных заявок пока нет. Нажмите обновить.";
@@ -3142,14 +2699,6 @@ public class MainActivity extends Activity {
             case "boxless.boxClosed": return "Короб закрыт.";
             case "boxless.complete": return "Упаковка завершена. Файлы WB/Ozon готовы.";
             case "stage.searchRequired": return "Сначала завершите поиск всех коробов.";
-            case "stage.managerCodeTitle": return "Код менеджера";
-            case "stage.managerCodeInput": return "4-значный код";
-            case "stage.managerCodeUnlock": return "Открыть этап";
-            case "stage.managerCodeCancel": return "Отмена";
-            case "stage.managerCodeRejected": return "Код не подошел. Введите еще раз или отмените.";
-            case "stage.managerCodeHint": return "Введите 4-значный код менеджера.";
-            case "stage.relabelLocked": return "Этап перемаркировки закрыт, пока не завершен поиск коробов. Введите код менеджера или нажмите Отмена.";
-            case "stage.movesLocked": return "Этап перемещений закрыт, пока не завершены предыдущие этапы. Введите код менеджера или нажмите Отмена.";
             case "stage.supervisorBypass": return "Этап открыт старшим сотрудником до завершения поиска. Работайте только с уже найденными коробами.";
             case "stage.noFoundBoxes": return "Пока нет найденных коробов.";
             case "stage.foundBoxes": return "Найденные короба:";
@@ -3346,30 +2895,6 @@ public class MainActivity extends Activity {
             || roleCodes.contains("MANAGER");
     }
 
-    private boolean isStageLockedError(Exception error) {
-        String message = error.getMessage();
-        return message != null && message.startsWith("TSD_STAGE_LOCKED|");
-    }
-
-    private String stageLockMessage(Exception error, String fallbackStage) {
-        String message = error.getMessage();
-        if (message == null || !message.startsWith("TSD_STAGE_LOCKED|")) {
-            return stageDefaultLockMessage(fallbackStage);
-        }
-        String[] parts = message.split("\\|", 3);
-        if (parts.length >= 3 && !parts[2].trim().isEmpty()) {
-            return parts[2].trim();
-        }
-        if (parts.length >= 2 && !parts[1].trim().isEmpty()) {
-            return stageDefaultLockMessage(parts[1].trim());
-        }
-        return stageDefaultLockMessage(fallbackStage);
-    }
-
-    private String stageDefaultLockMessage(String stage) {
-        return "moves".equals(stage) ? tr("stage.movesLocked") : tr("stage.relabelLocked");
-    }
-
     private String activeWorkersLabel(JSONArray workers) {
         if (workers == null || workers.length() == 0) {
             return "";
@@ -3426,124 +2951,6 @@ public class MainActivity extends Activity {
         @Override
         public String toString() {
             return name;
-        }
-    }
-
-    private static final class ReceiptSku {
-        final String barcode;
-        final String internalSku;
-        final String clientSku;
-        final String article;
-        final String name;
-        final String color;
-        final String size;
-        final String brand;
-        final String photoUrl;
-        final ArrayList<String> characteristics;
-
-        ReceiptSku(
-            String barcode,
-            String internalSku,
-            String clientSku,
-            String article,
-            String name,
-            String color,
-            String size,
-            String brand,
-            String photoUrl,
-            ArrayList<String> characteristics
-        ) {
-            this.barcode = barcode == null ? "" : barcode;
-            this.internalSku = internalSku == null ? "" : internalSku;
-            this.clientSku = clientSku == null ? "" : clientSku;
-            this.article = article == null ? "" : article;
-            this.name = name == null ? "" : name;
-            this.color = color == null ? "" : color;
-            this.size = size == null ? "" : size;
-            this.brand = brand == null ? "" : brand;
-            this.photoUrl = photoUrl == null ? "" : photoUrl;
-            this.characteristics = characteristics;
-        }
-
-        static ReceiptSku fromJson(String barcode, JSONObject sku) {
-            ArrayList<String> characteristics = new ArrayList<>();
-            JSONArray rows = sku.optJSONArray("marketplaceCharacteristics");
-            if (rows != null) {
-                for (int i = 0; i < rows.length() && characteristics.size() < 5; i++) {
-                    JSONObject row = rows.optJSONObject(i);
-                    if (row == null) {
-                        continue;
-                    }
-                    String name = row.optString("name", "").trim();
-                    String value = row.optString("value", "").trim();
-                    if (!name.isEmpty() && !value.isEmpty()) {
-                        characteristics.add(name + ": " + value);
-                    }
-                }
-            }
-
-            JSONArray photos = sku.optJSONArray("marketplacePhotos");
-            String photoUrl = photos != null && photos.length() > 0 ? photos.optString(0, "") : "";
-            return new ReceiptSku(
-                barcode,
-                sku.optString("internalSku", ""),
-                sku.optString("clientSku", ""),
-                sku.optString("article", ""),
-                sku.optString("name", ""),
-                sku.optString("color", ""),
-                sku.optString("size", ""),
-                sku.optString("brand", ""),
-                photoUrl,
-                characteristics
-            );
-        }
-
-        String shortLabel() {
-            String articleText = !article.isEmpty() ? article : (!clientSku.isEmpty() ? clientSku : internalSku);
-            String details = MainActivity.compact(size, color);
-            return name + (articleText.isEmpty() ? "" : " · " + articleText) + ("-".equals(details) ? "" : " · " + details);
-        }
-    }
-
-    private static final class ReceiptLine {
-        final String boxCode;
-        final String barcode;
-        final String kiz;
-        final ReceiptSku sku;
-
-        ReceiptLine(String boxCode, String barcode, String kiz, ReceiptSku sku) {
-            this.boxCode = boxCode == null ? "" : boxCode;
-            this.barcode = barcode == null ? "" : barcode;
-            this.kiz = kiz == null ? "" : kiz;
-            this.sku = sku;
-        }
-
-        String label() {
-            return sku == null ? barcode : sku.shortLabel();
-        }
-    }
-
-    private static final class ReceiptBoxSummary {
-        final String boxCode;
-        final int itemsCount;
-        final String summaryText;
-
-        ReceiptBoxSummary(String boxCode, int itemsCount, String summaryText) {
-            this.boxCode = boxCode == null ? "" : boxCode;
-            this.itemsCount = itemsCount;
-            this.summaryText = summaryText == null ? "" : summaryText;
-        }
-    }
-
-    private static final class ProductCounter {
-        final String barcode;
-        final String label;
-        int quantity;
-
-        ProductCounter(ReceiptLine line) {
-            this.barcode = line.barcode;
-            this.label = line.label();
-            this.quantity = 0;
         }
     }
 

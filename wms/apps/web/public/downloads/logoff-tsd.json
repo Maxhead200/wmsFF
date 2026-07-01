@@ -1,6 +1,6 @@
 {
-  "versionCode": 24,
-  "versionName": "0.1.23",
+  "versionCode": 25,
+  "versionName": "0.1.24",
   "apkUrl": "https://wms.logoff.pro/downloads/logoff-tsd.apk",
-  "releaseNotes": "Возвращен вход сотрудника по логину и паролю; убраны код и секрет ТСД."
+  "releaseNotes": "Возвращен полный экран ТСД с приемкой, сборкой заявок, инвентаризацией, настройками языка и масштаба."
 }

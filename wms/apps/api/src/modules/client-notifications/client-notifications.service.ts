@@ -11,12 +11,14 @@ import { CreateClientNotificationDto } from './dto/create-client-notification.dt
 import { ListClientNotificationPreferencesDto } from './dto/list-client-notification-preferences.dto';
 import { ListClientNotificationsDto } from './dto/list-client-notifications.dto';
 import { UpdateClientNotificationPreferenceDto } from './dto/update-client-notification-preference.dto';
+import { TelegramNotificationService } from './telegram-notification.service';
 
 @Injectable()
 export class ClientNotificationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly clientScopes: ClientScopeService,
+    private readonly telegram: TelegramNotificationService,
   ) {}
 
   list(query: ListClientNotificationsDto, user: AuthUser) {
@@ -147,6 +149,27 @@ export class ClientNotificationsService {
     });
   }
 
+  async getTelegramSettings(clientId: string | undefined, user: AuthUser) {
+    const resolvedClientId = this.resolveWritableClientId(clientId, user, 'read');
+    return this.telegram.getClientSettings(resolvedClientId);
+  }
+
+  async updateTelegramSettings(
+    dto: { clientId?: string; enabled?: boolean; chatId?: string },
+    user: AuthUser,
+  ) {
+    const clientId = this.resolveWritableClientId(dto.clientId, user, 'write');
+    await this.ensureClientExists(clientId);
+    return this.telegram.updateClientSettings(
+      clientId,
+      {
+        enabled: dto.enabled === true,
+        chatId: dto.chatId ?? '',
+      },
+      user,
+    );
+  }
+
   private async ensureRequestBelongsToClient(clientId: string, requestId?: string) {
     if (!requestId) {
       return;
@@ -171,6 +194,20 @@ export class ClientNotificationsService {
     if (!client) {
       throw new NotFoundException('Client not found.');
     }
+  }
+
+  private resolveWritableClientId(clientId: string | undefined, user: AuthUser, mode: 'read' | 'write') {
+    if (clientId) {
+      this.clientScopes.requireClientAccess(user, clientId, mode);
+      return clientId;
+    }
+
+    const candidates = mode === 'write' ? user.writableClientIds : user.clientIds;
+    if (candidates.length === 1) {
+      return candidates[0];
+    }
+
+    throw new BadRequestException('Выберите клиента для настроек Telegram.');
   }
 
   private async ensureNotificationEventEnabled(clientId: string, eventType: ClientNotificationEvent) {

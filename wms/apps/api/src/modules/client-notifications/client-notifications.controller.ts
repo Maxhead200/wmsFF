@@ -25,6 +25,19 @@ export class ClientNotificationsController {
     return this.notifications.listPreferences(query, user);
   }
 
+  @Get('telegram-settings')
+  getTelegramSettings(@Query('clientId') clientId: string | undefined, @CurrentUser() user: AuthUser) {
+    return this.notifications.getTelegramSettings(clientId, user);
+  }
+
+  @Patch('telegram-settings')
+  updateTelegramSettings(
+    @Body() dto: { clientId?: string; enabled?: boolean; chatId?: string },
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.notifications.updateTelegramSettings(dto, user);
+  }
+
   @Patch('preferences')
   updatePreference(@Body() dto: UpdateClientNotificationPreferenceDto, @CurrentUser() user: AuthUser) {
     return this.notifications.updatePreference(dto, user);

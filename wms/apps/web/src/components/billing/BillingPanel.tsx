@@ -296,7 +296,7 @@ export function BillingPanel({ session }: BillingPanelProps) {
           <div className="billing-panel__subheading">
             <h3>Начисления</h3>
           </div>
-          <div className="billing-panel__list">{renderCharges(charges, canWrite, changeChargeStatus)}</div>
+          <div className="billing-panel__list">{renderCharges(session.accessToken, charges, canWrite, changeChargeStatus)}</div>
         </>
       ) : null}
 
@@ -367,6 +367,7 @@ function renderInvoices(
 }
 
 function renderCharges(
+  accessToken: string,
   state: LoadState<BillingChargeSummary>,
   canWrite: boolean,
   onStatusChange: (chargeId: string, status: BillingChargeStatus) => void,
@@ -391,7 +392,12 @@ function renderCharges(
   return (
     <>
       {state.status === 'loading' ? <p className="inline-status">Обновляю начисления.</p> : null}
-      <BillingChargesTable charges={state.data} canWrite={canWrite} onStatusChange={onStatusChange} />
+      <BillingChargesTable
+        accessToken={accessToken}
+        charges={state.data}
+        canWrite={canWrite}
+        onStatusChange={onStatusChange}
+      />
     </>
   );
 }

@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UserStatus } from '@prisma/client';
+import { AuditLogService } from '../../common/audit/audit-log.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AccessModelService } from './access-model.service';
 import { AccessTokenService } from './access-token.service';
@@ -34,6 +35,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly auditLog: AuditLogService,
     private readonly accessModel: AccessModelService,
     private readonly passwords: PasswordService,
     private readonly tokens: AccessTokenService,
@@ -63,7 +65,7 @@ export class AuthService {
     return this.authResponse(user);
   }
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, context: { ip?: string; userAgent?: string | string[] } = {}) {
     const user = await this.findUserWithAccess(this.normalizeEmail(dto.email));
     if (!user || !(await this.passwords.verify(dto.password, user.passwordHash))) {
       throw new UnauthorizedException('Неверный логин или пароль.');
@@ -73,7 +75,32 @@ export class AuthService {
       throw new UnauthorizedException('Пользователь заблокирован.');
     }
 
-    return this.authResponse(user);
+    const authUser = this.toAuthUser(user);
+    const maintenance = await this.getMaintenanceMode();
+    if (maintenance.enabled && !authUser.permissionCodes.includes('system:admin')) {
+      throw new UnauthorizedException(maintenance.message || 'Вход временно закрыт: идут сервисные работы.');
+    }
+
+    const session = {
+      accessToken: this.tokens.sign(user.id),
+      tokenType: 'Bearer' as const,
+      user: authUser,
+    };
+
+    await this.auditLog.write({
+      userId: user.id,
+      action: 'auth.login',
+      entity: 'user',
+      entityId: user.id,
+      payload: {
+        ip: context.ip,
+        userAgent: Array.isArray(context.userAgent) ? context.userAgent.join(', ') : context.userAgent,
+        roleCodes: authUser.roleCodes,
+        clientIds: authUser.clientIds,
+      },
+    });
+
+    return session;
   }
 
   private async findUserWithAccess(email: string) {
@@ -88,7 +115,7 @@ export class AuthService {
 
     return {
       accessToken: this.tokens.sign(user.id),
-      tokenType: 'Bearer',
+      tokenType: 'Bearer' as const,
       user: authUser,
     };
   }
@@ -156,4 +183,24 @@ export class AuthService {
 
     return 'LIMITED';
   }
+
+  private async getMaintenanceMode() {
+    const event = await this.prisma.auditLog.findFirst({
+      where: { action: 'service.maintenance.update', entity: 'system' },
+      orderBy: { createdAt: 'desc' },
+    });
+    const payload = event?.payload;
+    if (!isRecord(payload)) {
+      return { enabled: false, message: '' };
+    }
+
+    return {
+      enabled: payload.enabled === true,
+      message: typeof payload.message === 'string' ? payload.message : '',
+    };
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }

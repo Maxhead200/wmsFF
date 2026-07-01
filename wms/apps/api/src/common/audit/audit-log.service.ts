@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 
 export type AuditEvent = {
   userId?: string;
@@ -10,11 +12,17 @@ export type AuditEvent = {
 
 @Injectable()
 export class AuditLogService {
-  async write(event: AuditEvent) {
-    // Русский комментарий: здесь будет запись в Prisma AuditLog; пока оставлен тонкий интерфейс для модулей.
-    return {
-      ...event,
-      createdAt: new Date().toISOString(),
-    };
+  constructor(private readonly prisma: PrismaService) {}
+
+  write(event: AuditEvent) {
+    return this.prisma.auditLog.create({
+      data: {
+        userId: event.userId,
+        action: event.action,
+        entity: event.entity,
+        entityId: event.entityId,
+        payload: event.payload as Prisma.InputJsonValue | undefined,
+      },
+    });
   }
 }

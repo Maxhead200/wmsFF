@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Put, Query, Res, StreamableFile } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Res, StreamableFile } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import type { AuthUser } from '../auth/auth.types';
@@ -92,6 +92,17 @@ export class BillingController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.billing.updateChargeStatus(id, dto, user);
+  }
+
+  @Get('charges/:id/storage-breakdown')
+  getStorageChargeBreakdown(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.billing.getStorageChargeBreakdown(id, user);
+  }
+
+  @Delete('charges/:id/storage-breakdown/:date')
+  @RequirePermissions('billing:write')
+  deleteStorageChargeDay(@Param('id') id: string, @Param('date') date: string, @CurrentUser() user: AuthUser) {
+    return this.billing.deleteStorageChargeDay(id, date, user);
   }
 
   @Get('invoices')

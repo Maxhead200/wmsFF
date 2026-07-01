@@ -1020,6 +1020,12 @@ export type CreateClientPayload = {
   fulfillmentManagerUserId?: string;
 };
 
+export type ClientTelegramSettings = {
+  clientId: string;
+  enabled: boolean;
+  chatId: string;
+};
+
 export type UpdateClientPayload = Partial<CreateClientPayload>;
 
 export type ClientImportIssue = {
@@ -1239,6 +1245,117 @@ export type ServiceClientStockCleanupResult = {
     pallets: number;
   };
   after: ServiceClientStockSummary;
+};
+
+export type ServiceClientRequestsCleanupPreview = {
+  client: Pick<ClientSummary, 'id' | 'code' | 'name' | 'status'>;
+  confirmationText: string;
+  total: number;
+  statuses: Array<{ status: ClientRequestStatus; count: number }>;
+  requests: Array<{
+    id: string;
+    title: string;
+    status: ClientRequestStatus;
+    destinationCity: string | null;
+    createdAt: string;
+    _count: {
+      items: number;
+      files: number;
+      comments: number;
+      events: number;
+      packages: number;
+    };
+  }>;
+  warning: string;
+};
+
+export type ServiceClientRequestsCleanupResult = {
+  client: Pick<ClientSummary, 'id' | 'code' | 'name' | 'status'>;
+  deleted: {
+    requests: number;
+    pickWaveRequests: number;
+    detachedBillingCharges: number;
+    detachedLogistics: number;
+  };
+};
+
+export type ServiceMaintenanceMode = {
+  enabled: boolean;
+  message: string;
+  updatedAt: string | null;
+};
+
+export type ServiceSessionSummary = {
+  userId: string | null;
+  name: string;
+  email: string;
+  client: string;
+  ip: string;
+  userAgent: string;
+  openedAt: string;
+  minutesAgo: number;
+};
+
+export type ServiceTelegramSettings = {
+  global: {
+    enabled: boolean;
+    botToken: string;
+    fulfillmentChatIds: string[];
+  };
+  client: {
+    clientId: string;
+    enabled: boolean;
+    chatId: string;
+  } | null;
+};
+
+export type ServiceKizSearchRow = {
+  id: string;
+  value: string;
+  sourceDocument: string | null;
+  sourceRow: number | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  client: Pick<ClientSummary, 'id' | 'code' | 'name'>;
+  sku: {
+    id: string;
+    internalSku: string;
+    clientSku: string | null;
+    article: string | null;
+    name: string;
+    barcodes: Array<{ value: string }>;
+  };
+  box: { id: string; code: string; status: string } | null;
+  stockMovement: {
+    id: string;
+    type: string;
+    status: string;
+    sourceDocument: string | null;
+    comment: string | null;
+    createdAt: string;
+  } | null;
+};
+
+export type BillingStorageBreakdown = {
+  chargeId: string;
+  description: string;
+  periodFrom: string | null;
+  periodTo: string | null;
+  unitPriceRub: number;
+  quantity: number;
+  totalRub: number;
+  canDeleteRows: boolean;
+  rows: Array<{
+    date: string;
+    document: string;
+    description: string;
+    totalLiters: number;
+    literDays: number;
+    positions: number;
+    unitPriceRub: number;
+    totalRub: number;
+  }>;
 };
 
 export type StorageOverviewRow = {
@@ -2212,6 +2329,23 @@ export async function fetchClientNotificationPreferences(
   );
 }
 
+export async function fetchClientTelegramSettings(accessToken: string, clientId?: string) {
+  return request<ClientTelegramSettings>(withQuery('/client-notifications/telegram-settings', { clientId }), {
+    accessToken,
+  });
+}
+
+export async function updateClientTelegramSettings(
+  accessToken: string,
+  payload: { clientId?: string; enabled: boolean; chatId: string },
+) {
+  return request<ClientTelegramSettings>('/client-notifications/telegram-settings', {
+    method: 'PATCH',
+    body: payload,
+    accessToken,
+  });
+}
+
 export async function updateClientNotificationPreference(
   accessToken: string,
   payload: { clientId: string; eventType: ClientNotificationEvent; isEnabled: boolean },
@@ -2582,6 +2716,108 @@ export async function purgeServiceClientStock(accessToken: string, clientId: str
   return request<ServiceClientStockCleanupResult>(`/service/clients/${clientId}/stock-cleanup`, {
     method: 'POST',
     body: { confirmation },
+    accessToken,
+  });
+}
+
+export async function fetchServiceClientRequestsCleanupPreview(accessToken: string, clientId: string) {
+  return request<ServiceClientRequestsCleanupPreview>(`/service/clients/${clientId}/requests-cleanup`, {
+    accessToken,
+  });
+}
+
+export async function purgeServiceClientRequests(accessToken: string, clientId: string, confirmation: string) {
+  return request<ServiceClientRequestsCleanupResult>(`/service/clients/${clientId}/requests-cleanup`, {
+    method: 'POST',
+    body: { confirmation },
+    accessToken,
+  });
+}
+
+export async function fetchServiceMaintenance(accessToken: string) {
+  return request<ServiceMaintenanceMode>('/service/maintenance', {
+    accessToken,
+  });
+}
+
+export async function updateServiceMaintenance(
+  accessToken: string,
+  payload: { enabled: boolean; message?: string },
+) {
+  return request<ServiceMaintenanceMode>('/service/maintenance', {
+    method: 'PATCH',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function fetchServiceSessions(accessToken: string) {
+  return request<ServiceSessionSummary[]>('/service/sessions', {
+    accessToken,
+  });
+}
+
+export async function fetchServiceTelegramSettings(accessToken: string, clientId?: string) {
+  return request<ServiceTelegramSettings>(withQuery('/service/telegram', { clientId }), {
+    accessToken,
+  });
+}
+
+export async function updateServiceTelegramGlobal(
+  accessToken: string,
+  payload: { enabled: boolean; botToken: string; fulfillmentChatIds: string[] },
+) {
+  return request<ServiceTelegramSettings['global']>('/service/telegram/global', {
+    method: 'PATCH',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function updateServiceTelegramClient(
+  accessToken: string,
+  clientId: string,
+  payload: { enabled: boolean; chatId: string },
+) {
+  return request<NonNullable<ServiceTelegramSettings['client']>>(`/service/telegram/clients/${clientId}`, {
+    method: 'PATCH',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function testServiceTelegramFulfillment(accessToken: string) {
+  return request<{ sent: boolean; reason?: string }>('/service/telegram/test/fulfillment', {
+    method: 'POST',
+    accessToken,
+  });
+}
+
+export async function testServiceTelegramClient(accessToken: string, clientId: string) {
+  return request<{ sent: boolean; reason?: string }>(`/service/telegram/test/clients/${clientId}`, {
+    method: 'POST',
+    accessToken,
+  });
+}
+
+export async function searchServiceKiz(
+  accessToken: string,
+  filter: { clientId?: string; search?: string },
+) {
+  return request<ServiceKizSearchRow[]>(withQuery('/service/kiz', filter), {
+    accessToken,
+  });
+}
+
+export async function fetchBillingStorageBreakdown(accessToken: string, chargeId: string) {
+  return request<BillingStorageBreakdown>(`/billing/charges/${chargeId}/storage-breakdown`, {
+    accessToken,
+  });
+}
+
+export async function deleteBillingStorageBreakdownDay(accessToken: string, chargeId: string, date: string) {
+  return request<BillingStorageBreakdown>(`/billing/charges/${chargeId}/storage-breakdown/${date}`, {
+    method: 'DELETE',
     accessToken,
   });
 }

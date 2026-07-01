@@ -4,6 +4,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
 import { ClientScopeService } from '../auth/client-scope.service';
 import { isClientNotificationEnabled } from '../client-notifications/client-notification-preferences';
+import { TelegramNotificationService } from '../client-notifications/telegram-notification.service';
 import { clientRequestFileSummarySelect } from './client-request-files.service';
 import { clientRequestPackageInclude } from './client-request-packages.include';
 import { CreateClientRequestDto } from './dto/create-client-request.dto';
@@ -16,6 +17,7 @@ export class ClientRequestsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly clientScopes: ClientScopeService,
+    private readonly telegram?: TelegramNotificationService,
   ) {}
 
   list(query: ListClientRequestsDto, user: AuthUser) {
@@ -128,7 +130,7 @@ export class ClientRequestsService {
     const destinationCity = normalizeRequiredText(dto.destinationCity, 'Город поставки обязателен.');
 
     // Русский комментарий: клиентская заявка всегда стартует как SUBMITTED; статусы меняет отдельный workflow.
-    return this.prisma.$transaction(async (tx) => {
+    const created = await this.prisma.$transaction(async (tx) => {
       const request = await tx.clientRequest.create({
         data: {
           clientId: dto.clientId,
@@ -172,6 +174,18 @@ export class ClientRequestsService {
 
       return request;
     });
+
+    void this.telegram?.notifyFulfillment(
+      [
+        'LOGOFF WMS: новая заявка от клиента.',
+        `Заявка: ${created.title}`,
+        `Клиент: ${created.client.name}`,
+        `Город: ${created.destinationCity ?? '-'}`,
+        `Строк: ${created.items.length}`,
+      ].join('\n'),
+    );
+
+    return created;
   }
 
   async updateStatus(id: string, dto: UpdateClientRequestStatusDto, user: AuthUser) {
@@ -187,7 +201,7 @@ export class ClientRequestsService {
     // Русский комментарий: даже менеджер с ограниченным scope не меняет статусы чужого клиента.
     this.clientScopes.requireClientAccess(user, request.clientId, 'write');
 
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.clientRequest.update({
         where: { id },
         data: {
@@ -228,6 +242,20 @@ export class ClientRequestsService {
 
       return updated;
     });
+
+    if (request.status !== dto.status) {
+      void this.telegram?.notifyClient(
+        request.clientId,
+        [
+          'LOGOFF WMS: изменен статус заявки.',
+          `Заявка: ${updated.title}`,
+          `Город: ${updated.destinationCity ?? '-'}`,
+          `Статус: ${request.status} -> ${dto.status}`,
+        ].join('\n'),
+      );
+    }
+
+    return updated;
   }
 
   async cancel(id: string, user: AuthUser) {

@@ -12,130 +12,158 @@
   align-items: center;
 }
 
-.service-panel__heading svg {
-  color: var(--danger);
-}
-
-.service-modes {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.service-mode {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: start;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #f8fafc;
-  padding: 12px;
-}
-
-.service-mode--active {
-  border-color: #bbf7d0;
-  background: #f0fdf4;
-}
-
-.service-mode svg {
+.service-panel__heading svg,
+.service-section__heading svg,
+.service-metric svg {
   color: var(--red-dark);
 }
 
-.service-mode strong,
-.service-mode span {
-  display: block;
+.service-tabs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  gap: 8px;
 }
 
-.service-mode span {
-  margin-top: 4px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.service-mode small {
-  border-radius: 999px;
+.service-tabs button {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
   background: #ffffff;
-  color: var(--muted);
-  padding: 4px 8px;
-  font-size: 11px;
+  color: var(--ink);
+  padding: 0 12px;
   font-weight: 800;
 }
 
-.service-cleanup {
-  display: grid;
-  gap: 14px;
-  border-top: 1px solid var(--line);
-  padding-top: 16px;
+.service-tabs button.active {
+  border-color: rgb(215 25 32 / 0.38);
+  background: #fff8f8;
+  color: var(--red-dark);
 }
 
-.service-cleanup__controls,
-.service-danger-zone {
+.service-client-selector {
   display: grid;
   grid-template-columns: minmax(260px, 1fr) auto;
   gap: 10px;
   align-items: end;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdff;
+  padding: 12px;
 }
 
-.service-cleanup label,
+.service-client-selector label,
+.service-form-card label,
 .service-danger-zone label {
   display: grid;
   gap: 6px;
 }
 
-.service-cleanup label span,
+.service-client-selector label span,
+.service-form-card label > span,
 .service-danger-zone label span {
   color: var(--muted);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 800;
 }
 
-.service-cleanup select,
-.service-danger-zone input {
+.service-client-selector select,
+.service-form-card input,
+.service-form-card textarea,
+.service-danger-zone input,
+.service-search-row input {
   width: 100%;
   min-height: 40px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #fbfdff;
+  background: #ffffff;
   color: var(--ink);
   padding: 0 11px;
 }
 
-.service-cleanup select:focus,
-.service-danger-zone input:focus {
-  border-color: var(--red-dark);
-  outline: 3px solid rgb(215 25 32 / 0.14);
+.service-form-card textarea {
+  min-height: 96px;
+  padding-top: 9px;
+  resize: vertical;
 }
 
-.service-client-card {
+.service-section {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.service-section__heading {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
+}
+
+.service-section__heading h3 {
+  font-size: 18px;
+}
+
+.service-two-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.service-card {
+  display: grid;
+  gap: 8px;
+  align-content: start;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfdff;
   padding: 12px;
 }
 
-.service-client-card span,
-.service-client-card strong {
-  display: block;
+.service-card strong {
+  font-size: 17px;
 }
 
-.service-client-card div > span {
+.service-card span,
+.service-card small,
+.service-help,
+.service-muted-cell {
   color: var(--muted);
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 13px;
+  line-height: 1.35;
 }
 
-.service-client-card strong {
-  margin-top: 3px;
+.service-form-card {
+  gap: 12px;
+}
+
+.service-check {
+  display: flex !important;
+  align-items: center;
+  gap: 8px !important;
+}
+
+.service-check input {
+  width: 18px;
+  min-height: 18px;
+}
+
+.service-actions,
+.service-inline-action {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: fit-content;
 }
 
 .service-metrics {
   display: grid;
-  grid-template-columns: repeat(4, minmax(130px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
   gap: 10px;
 }
 
@@ -147,10 +175,6 @@
   padding: 12px;
 }
 
-.service-metric svg {
-  color: var(--red-dark);
-}
-
 .service-metric span,
 .service-metric strong {
   display: block;
@@ -160,7 +184,7 @@
   margin-top: 8px;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .service-metric strong {
@@ -183,16 +207,29 @@
   color: #9a3412;
 }
 
+.service-message {
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+  color: var(--ok);
+  font-weight: 800;
+}
+
 .service-message--error {
-  border: 1px solid #fecaca;
+  border-color: #fecaca;
   background: #fef2f2;
   color: var(--danger);
 }
 
-.service-message--success {
-  border: 1px solid #bbf7d0;
-  background: #f0fdf4;
-  color: var(--ok);
+.service-danger-box {
+  display: grid;
+  gap: 10px;
+}
+
+.service-danger-zone {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) auto;
+  gap: 10px;
+  align-items: end;
 }
 
 .danger-button {
@@ -214,18 +251,57 @@
   opacity: 0.55;
 }
 
-@media (max-width: 1100px) {
-  .service-modes,
-  .service-metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+.service-search-row {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) auto;
+  gap: 10px;
+}
+
+.service-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.service-table {
+  min-width: 900px;
+}
+
+.service-table--wide {
+  min-width: 1120px;
+}
+
+.service-table td span,
+.service-table td strong {
+  display: block;
+}
+
+.service-table td span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@media (max-width: 920px) {
+  .service-two-columns,
+  .service-client-selector,
+  .service-danger-zone,
+  .service-search-row {
+    grid-template-columns: 1fr;
+  }
+
+  .service-actions,
+  .service-inline-action,
+  .danger-button {
+    width: 100%;
   }
 }
 
-@media (max-width: 760px) {
-  .service-modes,
-  .service-metrics,
-  .service-cleanup__controls,
-  .service-danger-zone {
-    grid-template-columns: 1fr;
+@media (max-width: 620px) {
+  .service-panel {
+    padding: 14px;
+  }
+
+  .service-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

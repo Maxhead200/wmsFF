@@ -1,15 +1,19 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../../common/prisma/prisma.service';
+import { ClientRequestStatus, Prisma } from '@prisma/client';
 import { AuditLogService } from '../../common/audit/audit-log.service';
+import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
+import { TelegramNotificationService } from '../client-notifications/telegram-notification.service';
 
 const CLEANUP_CONFIRMATION = 'ОЧИСТИТЬ';
+const REQUEST_DELETE_CONFIRMATION = 'УДАЛИТЬ ЗАЯВКИ';
 
 @Injectable()
 export class ServiceCenterService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditLog: AuditLogService,
+    private readonly telegram: TelegramNotificationService,
   ) {}
 
   async getClientStockCleanupPreview(clientId: string) {
@@ -70,6 +74,261 @@ export class ServiceCenterService {
     };
   }
 
+  async getClientRequestsCleanupPreview(clientId: string) {
+    const client = await this.findClient(clientId);
+    const statuses = await this.prisma.clientRequest.groupBy({
+      by: ['status'],
+      where: { clientId },
+      _count: { _all: true },
+    });
+    const requests = await this.prisma.clientRequest.findMany({
+      where: { clientId },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        destinationCity: true,
+        createdAt: true,
+        _count: {
+          select: {
+            items: true,
+            files: true,
+            comments: true,
+            events: true,
+            packages: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+
+    return {
+      client,
+      confirmationText: REQUEST_DELETE_CONFIRMATION,
+      total: statuses.reduce((sum, row) => sum + row._count._all, 0),
+      statuses: statuses.map((row) => ({ status: row.status, count: row._count._all })),
+      requests,
+      warning:
+        'Будут удалены заявки выбранного клиента. Финансовые начисления и логистические заявки не удаляются, а отвязываются от удаляемых заявок.',
+    };
+  }
+
+  async purgeClientRequests(clientId: string, confirmation: string | undefined, user: AuthUser) {
+    if (confirmation !== REQUEST_DELETE_CONFIRMATION) {
+      throw new BadRequestException(`Для удаления заявок введите подтверждение: ${REQUEST_DELETE_CONFIRMATION}.`);
+    }
+
+    const client = await this.findClient(clientId);
+    const requestIds = (
+      await this.prisma.clientRequest.findMany({
+        where: { clientId },
+        select: { id: true },
+      })
+    ).map((request) => request.id);
+
+    if (requestIds.length === 0) {
+      return {
+        client,
+        deleted: { requests: 0, pickWaveRequests: 0, detachedBillingCharges: 0, detachedLogistics: 0 },
+      };
+    }
+
+    const deleted = await this.prisma.$transaction(async (tx) => {
+      const pickWaveRequests = await tx.pickWaveRequest.deleteMany({ where: { requestId: { in: requestIds } } });
+      const detachedBillingCharges = await tx.billingCharge.updateMany({
+        where: { requestId: { in: requestIds } },
+        data: { requestId: null },
+      });
+      const detachedLogistics = await tx.logisticsDeliveryRequest.updateMany({
+        where: { requestId: { in: requestIds } },
+        data: { requestId: null },
+      });
+      const requests = await tx.clientRequest.deleteMany({ where: { id: { in: requestIds } } });
+
+      return {
+        requests: requests.count,
+        pickWaveRequests: pickWaveRequests.count,
+        detachedBillingCharges: detachedBillingCharges.count,
+        detachedLogistics: detachedLogistics.count,
+      };
+    });
+
+    await this.auditLog.write({
+      userId: user.id,
+      action: 'service.client-requests.purge',
+      entity: 'client',
+      entityId: clientId,
+      payload: {
+        clientCode: client.code,
+        clientName: client.name,
+        deleted,
+      },
+    });
+
+    return { client, deleted };
+  }
+
+  async getMaintenanceMode() {
+    const event = await this.prisma.auditLog.findFirst({
+      where: { action: 'service.maintenance.update', entity: 'system' },
+      orderBy: { createdAt: 'desc' },
+    });
+    const payload = asRecord(event?.payload);
+
+    return {
+      enabled: payload?.enabled === true,
+      message: typeof payload?.message === 'string' ? payload.message : '',
+      updatedAt: event?.createdAt ?? null,
+    };
+  }
+
+  async updateMaintenanceMode(payload: { enabled?: boolean; message?: string }, user: AuthUser) {
+    const settings = {
+      enabled: payload.enabled === true,
+      message: normalizeText(payload.message) ?? 'Вход временно закрыт: идут сервисные работы.',
+    };
+
+    await this.auditLog.write({
+      userId: user.id,
+      action: 'service.maintenance.update',
+      entity: 'system',
+      payload: settings,
+    });
+
+    return this.getMaintenanceMode();
+  }
+
+  async listRecentSessions() {
+    const events = await this.prisma.auditLog.findMany({
+      where: { action: 'auth.login', entity: 'user' },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            clientScopes: {
+              include: {
+                client: { select: { id: true, code: true, name: true } },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 80,
+    });
+
+    const latestByUser = new Map<string, (typeof events)[number]>();
+    events.forEach((event) => {
+      if (event.userId && !latestByUser.has(event.userId)) {
+        latestByUser.set(event.userId, event);
+      }
+    });
+
+    return [...latestByUser.values()].map((event) => {
+      const payload = asRecord(event.payload);
+      return {
+        userId: event.userId,
+        name: event.user?.name ?? 'Пользователь удален',
+        email: event.user?.email ?? '',
+        client: event.user?.clientScopes.length
+          ? event.user.clientScopes.map((scope) => `${scope.client.code} ${scope.client.name}`).join(', ')
+          : 'Все клиенты или не задан',
+        ip: typeof payload?.ip === 'string' ? payload.ip : '',
+        userAgent: typeof payload?.userAgent === 'string' ? payload.userAgent : '',
+        openedAt: event.createdAt,
+        minutesAgo: Math.max(0, Math.round((Date.now() - event.createdAt.getTime()) / 60_000)),
+      };
+    });
+  }
+
+  async getTelegramSettings(clientId?: string) {
+    const [global, client] = await Promise.all([
+      this.telegram.getGlobalSettings(),
+      clientId ? this.telegram.getClientSettings(clientId) : Promise.resolve(null),
+    ]);
+
+    return { global, client };
+  }
+
+  updateTelegramGlobalSettings(payload: { enabled?: boolean; botToken?: string; fulfillmentChatIds?: string[] }, user: AuthUser) {
+    return this.telegram.updateGlobalSettings(
+      {
+        enabled: payload.enabled === true,
+        botToken: payload.botToken ?? '',
+        fulfillmentChatIds: payload.fulfillmentChatIds ?? [],
+      },
+      user,
+    );
+  }
+
+  async updateTelegramClientSettings(
+    clientId: string,
+    payload: { enabled?: boolean; chatId?: string },
+    user: AuthUser,
+  ) {
+    await this.findClient(clientId);
+    return this.telegram.updateClientSettings(
+      clientId,
+      {
+        enabled: payload.enabled === true,
+        chatId: payload.chatId ?? '',
+      },
+      user,
+    );
+  }
+
+  testTelegramFulfillment() {
+    return this.telegram.sendTestToFulfillment();
+  }
+
+  async testTelegramClient(clientId: string) {
+    await this.findClient(clientId);
+    return this.telegram.sendTestToClient(clientId);
+  }
+
+  async searchProductMarks(query: { clientId?: string; search?: string }) {
+    const search = normalizeText(query.search);
+    if (!search || search.length < 3) {
+      return [];
+    }
+
+    return this.prisma.productMark.findMany({
+      where: {
+        clientId: normalizeText(query.clientId),
+        value: { contains: search, mode: 'insensitive' },
+      },
+      include: {
+        client: { select: { id: true, code: true, name: true } },
+        sku: {
+          select: {
+            id: true,
+            internalSku: true,
+            clientSku: true,
+            article: true,
+            name: true,
+            barcodes: { select: { value: true }, take: 5 },
+          },
+        },
+        box: { select: { id: true, code: true, status: true } },
+        stockMovement: {
+          select: {
+            id: true,
+            type: true,
+            status: true,
+            sourceDocument: true,
+            comment: true,
+            createdAt: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+  }
+
   private async findClient(clientId: string) {
     const client = await this.prisma.client.findUnique({
       where: { id: clientId },
@@ -115,4 +374,13 @@ export class ServiceCenterService {
       productMarks,
     };
   }
+}
+
+function normalizeText(value?: string | null) {
+  const normalized = value?.trim();
+  return normalized ? normalized : undefined;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }

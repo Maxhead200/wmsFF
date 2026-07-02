@@ -149,7 +149,14 @@ export function ClientRequisitesForm({ session }: ClientRequisitesFormProps) {
     setActionMessage('');
     try {
       const updated = await updateClientStatus(session.accessToken, selectedClient.id, status);
-      setClients((current) => current.map((client) => (client.id === updated.id ? updated : client)));
+      const nextClients =
+        status === 'ARCHIVED'
+          ? clients.filter((client) => client.id !== updated.id)
+          : clients.map((client) => (client.id === updated.id ? updated : client));
+      setClients(nextClients);
+      if (status === 'ARCHIVED') {
+        setClientId(nextClients[0]?.id ?? '');
+      }
       setActionMessage(clientStatusActionMessage(status));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Не удалось изменить статус клиента.');

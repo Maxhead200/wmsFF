@@ -2246,10 +2246,15 @@ export async function fetchMe(accessToken: string) {
   });
 }
 
-export async function fetchClients(accessToken: string) {
-  return request<ClientSummary[]>('/clients', {
-    accessToken,
-  });
+export async function fetchClients(accessToken: string, options: { includeArchived?: boolean } = {}) {
+  return request<ClientSummary[]>(
+    withQuery('/clients', {
+      includeArchived: options.includeArchived ? 'true' : undefined,
+    }),
+    {
+      accessToken,
+    },
+  );
 }
 
 export async function fetchClientRequests(

@@ -29,11 +29,15 @@ export class ClientsService {
     private readonly clientScopes: ClientScopeService,
   ) {}
 
-  list(user: AuthUser) {
+  list(user: AuthUser, includeArchived = false) {
+    const clientFilter = this.clientScopes.resolveClientFilter(user);
+    const where: Prisma.ClientWhereInput = {
+      ...(clientFilter === undefined ? {} : { id: clientFilter }),
+      ...(includeArchived ? {} : { status: { not: ClientStatus.ARCHIVED } }),
+    };
+
     return this.prisma.client.findMany({
-      where: {
-        id: this.clientScopes.resolveClientFilter(user),
-      },
+      where,
       orderBy: { name: 'asc' },
       select: this.clientSummarySelect(),
     });

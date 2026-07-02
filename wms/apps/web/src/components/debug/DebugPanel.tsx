@@ -39,7 +39,7 @@ type DebugPanelProps = {
   onOpenWorkspace?: (id: WorkspaceId) => void;
 };
 
-type DebugTab = 'clients' | 'users' | 'data';
+type DebugTab = 'clients' | 'archive' | 'users' | 'data';
 
 type ClientDraft = {
   name: string;
@@ -73,6 +73,7 @@ type UserDraft = {
 
 const tabs: Array<{ id: DebugTab; label: string; icon: typeof Building2 }> = [
   { id: 'clients', label: 'Клиенты', icon: Building2 },
+  { id: 'archive', label: 'Архив', icon: Archive },
   { id: 'users', label: 'Пользователи', icon: UserCog },
   { id: 'data', label: 'Данные и режимы', icon: Database },
 ];
@@ -165,6 +166,7 @@ export function DebugPanel({ session, onOpenWorkspace }: DebugPanelProps) {
   const [selectedClientId, setSelectedClientId] = useState('');
   const [selectedUserId, setSelectedUserId] = useState('');
   const [clientSearch, setClientSearch] = useState('');
+  const [archiveSearch, setArchiveSearch] = useState('');
   const [userSearch, setUserSearch] = useState('');
   const [clientDraft, setClientDraft] = useState<ClientDraft>(emptyClientDraft);
   const [userDraft, setUserDraft] = useState<UserDraft>(emptyUserDraft);
@@ -184,7 +186,13 @@ export function DebugPanel({ session, onOpenWorkspace }: DebugPanelProps) {
     [clients, selectedClientId],
   );
   const selectedUser = useMemo(() => users.find((user) => user.id === selectedUserId) ?? null, [selectedUserId, users]);
-  const filteredClients = useMemo(() => filterClients(clients, clientSearch), [clients, clientSearch]);
+  const workingClients = useMemo(() => clients.filter((client) => client.status !== 'ARCHIVED'), [clients]);
+  const archivedClients = useMemo(() => clients.filter((client) => client.status === 'ARCHIVED'), [clients]);
+  const activeClientItems = activeTab === 'archive' ? archivedClients : workingClients;
+  const filteredClients = useMemo(() => filterClients(workingClients, clientSearch), [workingClients, clientSearch]);
+  const filteredArchivedClients = useMemo(() => filterClients(archivedClients, archiveSearch), [archivedClients, archiveSearch]);
+  const isArchiveTab = activeTab === 'archive';
+  const clientListForTab = isArchiveTab ? filteredArchivedClients : filteredClients;
   const filteredUsers = useMemo(() => filterUsers(users, userSearch), [users, userSearch]);
   const managerOptions = useMemo(
     () =>
@@ -199,10 +207,14 @@ export function DebugPanel({ session, onOpenWorkspace }: DebugPanelProps) {
   }, [session.accessToken]);
 
   useEffect(() => {
-    if (!selectedClient && clients[0]) {
-      setSelectedClientId(clients[0].id);
+    if (activeTab !== 'clients' && activeTab !== 'archive') {
+      return;
     }
-  }, [clients, selectedClient]);
+
+    if (!activeClientItems.some((client) => client.id === selectedClientId)) {
+      setSelectedClientId(activeClientItems[0]?.id ?? '');
+    }
+  }, [activeTab, activeClientItems, selectedClientId]);
 
   useEffect(() => {
     if (!selectedUser && users[0]) {
@@ -226,14 +238,14 @@ export function DebugPanel({ session, onOpenWorkspace }: DebugPanelProps) {
     setMessage('');
     try {
       const [nextClients, nextUsers, nextRoles] = await Promise.all([
-        fetchClients(session.accessToken),
+        fetchClients(session.accessToken, { includeArchived: true }),
         fetchUsers(session.accessToken),
         fetchRoles(session.accessToken),
       ]);
       setClients(nextClients);
       setUsers(nextUsers);
       setRoles(nextRoles);
-      setSelectedClientId((current) => current || nextClients[0]?.id || '');
+      setSelectedClientId((current) => current || nextClients.find((client) => client.status !== 'ARCHIVED')?.id || nextClients[0]?.id || '');
       setSelectedUserId((current) => current || nextUsers[0]?.id || '');
     } catch (caught) {
       setError(errorMessage(caught));
@@ -291,6 +303,12 @@ export function DebugPanel({ session, onOpenWorkspace }: DebugPanelProps) {
 
       setClients((current) => current.map((client) => (client.id === saved.id ? saved : client)));
       setClientDraft(clientToDraft(saved));
+      setSelectedClientId(saved.id);
+      if (saved.status === 'ARCHIVED') {
+        setActiveTab('archive');
+      } else if (activeTab === 'archive') {
+        setActiveTab('clients');
+      }
       setMessage('Данные клиента сохранены.');
     } catch (caught) {
       setError(errorMessage(caught));
@@ -313,11 +331,35 @@ export function DebugPanel({ session, onOpenWorkspace }: DebugPanelProps) {
       if (archived.id === selectedClientId) {
         setClientDraft(clientToDraft(archived));
       }
+      setSelectedClientId(archived.id);
+      setActiveTab('archive');
       setMessage('Клиент отправлен в архив.');
     } catch (caught) {
       setError(errorMessage(caught));
     } finally {
       setPendingArchiveClient(null);
+      setSavingClient(false);
+    }
+  }
+
+  async function restoreArchivedClient() {
+    if (!selectedClient || selectedClient.status !== 'ARCHIVED') {
+      return;
+    }
+
+    setSavingClient(true);
+    setError('');
+    setMessage('');
+    try {
+      const restored = await updateClientStatus(session.accessToken, selectedClient.id, 'ACTIVE');
+      setClients((current) => current.map((client) => (client.id === restored.id ? restored : client)));
+      setClientDraft(clientToDraft(restored));
+      setSelectedClientId(restored.id);
+      setActiveTab('clients');
+      setMessage('Клиент возвращен в рабочий список.');
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
       setSavingClient(false);
     }
   }
@@ -456,19 +498,25 @@ export function DebugPanel({ session, onOpenWorkspace }: DebugPanelProps) {
       ) : null}
       {error ? <p className="debug-message debug-message--error">{error}</p> : null}
 
-      {activeTab === 'clients' ? (
+      {activeTab === 'clients' || activeTab === 'archive' ? (
         <div className="debug-split">
           <DebugList
-            count={filteredClients.length}
-            emptyText="Клиенты не найдены"
-            onSearch={setClientSearch}
-            search={clientSearch}
-            searchPlaceholder="Поиск клиента, ИНН, кода"
-            title="Клиенты"
+            count={clientListForTab.length}
+            emptyText={isArchiveTab ? 'В архиве пока нет клиентов' : 'Клиенты не найдены'}
+            onSearch={isArchiveTab ? setArchiveSearch : setClientSearch}
+            search={isArchiveTab ? archiveSearch : clientSearch}
+            searchPlaceholder={isArchiveTab ? 'Поиск в архиве' : 'Поиск клиента, ИНН, кода'}
+            title={isArchiveTab ? 'Архив клиентов' : 'Клиенты'}
           >
-            {filteredClients.map((client) => (
+            {clientListForTab.map((client) => (
               <button
-                className={client.id === selectedClientId ? 'debug-list-item active' : 'debug-list-item'}
+                className={[
+                  'debug-list-item',
+                  client.id === selectedClientId ? 'active' : '',
+                  client.status === 'ARCHIVED' ? 'archived' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
                 key={client.id}
                 type="button"
                 onClick={() => setSelectedClientId(client.id)}
@@ -626,15 +674,27 @@ export function DebugPanel({ session, onOpenWorkspace }: DebugPanelProps) {
                 <Save size={16} aria-hidden="true" />
                 <span>{isSavingClient ? 'Сохранение' : 'Сохранить клиента'}</span>
               </button>
-              <button
-                className="primary-button debug-secondary"
-                type="button"
-                onClick={() => selectedClient && setPendingArchiveClient(selectedClient)}
-                disabled={!selectedClient || selectedClient.status === 'ARCHIVED' || isSavingClient}
-              >
-                <Archive size={16} aria-hidden="true" />
-                <span>В архив</span>
-              </button>
+              {selectedClient?.status === 'ARCHIVED' ? (
+                <button
+                  className="primary-button debug-secondary"
+                  type="button"
+                  onClick={() => void restoreArchivedClient()}
+                  disabled={isSavingClient}
+                >
+                  <CheckCircle2 size={16} aria-hidden="true" />
+                  <span>Вернуть в работу</span>
+                </button>
+              ) : (
+                <button
+                  className="primary-button debug-secondary"
+                  type="button"
+                  onClick={() => selectedClient && setPendingArchiveClient(selectedClient)}
+                  disabled={!selectedClient || isSavingClient}
+                >
+                  <Archive size={16} aria-hidden="true" />
+                  <span>В архив</span>
+                </button>
+              )}
             </div>
           </div>
         </div>

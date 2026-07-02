@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '../auth/auth.types';
@@ -15,8 +15,8 @@ export class ClientsController {
   constructor(private readonly clients: ClientsService) {}
 
   @Get()
-  list(@CurrentUser() user: AuthUser) {
-    return this.clients.list(user);
+  list(@CurrentUser() user: AuthUser, @Query('includeArchived') includeArchived?: string) {
+    return this.clients.list(user, includeArchived === 'true');
   }
 
   @Get(':id')

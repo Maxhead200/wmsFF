@@ -28,6 +28,7 @@ export type ClientSummary = {
   legalAddress: string | null;
   actualAddress: string | null;
   phone: string | null;
+  telegramChatId?: string | null;
   email: string | null;
   bankName: string | null;
   bankBik: string | null;
@@ -35,6 +36,7 @@ export type ClientSummary = {
   correspondentAccount: string | null;
   storageAccountingEnabled: boolean;
   storagePriceRubPerLiterDay: string | number | null;
+  storesWithoutBoxes?: boolean;
   fulfillmentManagerUserId: string | null;
   fulfillmentManager: {
     id: string;
@@ -1012,12 +1014,14 @@ export type CreateClientPayload = {
   legalAddress?: string;
   actualAddress?: string;
   phone?: string;
+  telegramChatId?: string;
   email?: string;
   bankName?: string;
   bankBik?: string;
   bankAccount?: string;
   correspondentAccount?: string;
   storageAccountingEnabled?: boolean;
+  storesWithoutBoxes?: boolean;
   fulfillmentManagerUserId?: string;
 };
 
@@ -1654,6 +1658,7 @@ export type UserSummary = {
   name: string;
   status: string;
   createdAt?: string;
+  hasTsdActivationCode?: boolean;
   roles: Array<{
     role: {
       code: string;
@@ -1683,6 +1688,13 @@ export type UpdateUserClientScopesPayload = {
 
 export type UpdateUserRolesPayload = {
   roleCodes: string[];
+};
+
+export type UpdateUserProfilePayload = {
+  email?: string;
+  name?: string;
+  password?: string;
+  status?: string;
 };
 
 export type UpdateUserPrinterScopesPayload = {
@@ -2948,6 +2960,29 @@ export async function updateUserRoles(accessToken: string, userId: string, paylo
   return request<UserSummary>(`/users/${userId}/roles`, {
     method: 'PATCH',
     body: payload,
+    accessToken,
+  });
+}
+
+export async function updateUserProfile(accessToken: string, userId: string, payload: UpdateUserProfilePayload) {
+  return request<UserSummary>(`/users/${userId}/profile`, {
+    method: 'PATCH',
+    body: payload,
+    accessToken,
+  });
+}
+
+export async function setUserTsdActivationCode(accessToken: string, userId: string, code: string) {
+  return request<UserSummary>(`/users/${userId}/tsd-activation-code`, {
+    method: 'PATCH',
+    body: { code },
+    accessToken,
+  });
+}
+
+export async function clearUserTsdActivationCode(accessToken: string, userId: string) {
+  return request<UserSummary>(`/users/${userId}/tsd-activation-code`, {
+    method: 'DELETE',
     accessToken,
   });
 }

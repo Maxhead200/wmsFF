@@ -38,6 +38,10 @@ export class CreateClientDto {
   phone?: string;
 
   @IsOptional()
+  @IsString()
+  telegramChatId?: string;
+
+  @IsOptional()
   @ValidateIf((_object, value) => value !== '')
   @IsEmail()
   email?: string;
@@ -61,6 +65,10 @@ export class CreateClientDto {
   @IsOptional()
   @IsBoolean()
   storageAccountingEnabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  storesWithoutBoxes?: boolean;
 
   @IsOptional()
   @IsString()

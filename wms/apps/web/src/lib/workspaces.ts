@@ -2,6 +2,7 @@ import {
   BriefcaseBusiness,
   Building2,
   Boxes,
+  Bug,
   Calculator,
   ClipboardList,
   Database,
@@ -31,6 +32,7 @@ export type WorkspaceId =
   | 'own-companies'
   | 'print'
   | 'service'
+  | 'debug'
   | 'data';
 
 export type WorkspaceNavItem = {
@@ -174,6 +176,16 @@ export const workspaceNav: WorkspaceNavItem[] = [
     description: 'Опасные операции владельца и администратора: очистка остатков клиента и системное обслуживание.',
     permissions: ['system:admin'],
     icon: Settings2,
+    status: 'ready',
+    audience: 'internal',
+  },
+  {
+    id: 'debug',
+    title: 'Отладка',
+    eyebrow: 'Контроль',
+    description: 'Быстрое редактирование клиентов, пользователей, операторов и служебных параметров БД.',
+    permissions: ['system:admin'],
+    icon: Bug,
     status: 'ready',
     audience: 'internal',
   },

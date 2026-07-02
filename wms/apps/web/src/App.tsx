@@ -7,6 +7,7 @@ import { CatalogPanel } from './components/catalog/CatalogPanel';
 import { ClientCabinetPanel } from './components/client-cabinet/ClientCabinetPanel';
 import { ClientRequestsPanel } from './components/client-requests/ClientRequestsPanel';
 import { DashboardDataPanel } from './components/DashboardDataPanel';
+import { DebugPanel } from './components/debug/DebugPanel';
 import { DirectoryPanel } from './components/directories/DirectoryPanel';
 import { ImportPanel } from './components/imports/ImportPanel';
 import { LogisticsQuotePanel } from './components/logistics/LogisticsQuotePanel';
@@ -232,6 +233,8 @@ function renderWorkspace(
       return <PrintPanel session={session} />;
     case 'service':
       return <ServiceCenterPanel session={session} />;
+    case 'debug':
+      return <DebugPanel session={session} onOpenWorkspace={setActiveWorkspaceId} />;
     case 'data':
       return <DashboardDataPanel session={session} />;
     case 'overview':
@@ -387,6 +390,7 @@ function defaultWorkspaceForUser(user: AuthUser): WorkspaceId {
         'own-companies',
         'print',
         'service',
+        'debug',
         'data',
         'overview',
       ];

@@ -165,6 +165,7 @@ export class ClientsService {
             ? {}
             : { fulfillmentManagerUserId: normalizeNullableString(dto.fulfillmentManagerUserId) }),
           ...(dto.storageAccountingEnabled === undefined ? {} : { storageAccountingEnabled: dto.storageAccountingEnabled }),
+          ...(dto.storesWithoutBoxes === undefined ? {} : { storesWithoutBoxes: dto.storesWithoutBoxes }),
           ...nullableUpdateClientData(dto),
         },
         select: this.clientSummarySelect(),
@@ -273,6 +274,7 @@ export class ClientsService {
             inn: dto.inn.trim(),
             ...optionalCreateClientData(dto),
             storageAccountingEnabled: dto.storageAccountingEnabled ?? false,
+            storesWithoutBoxes: dto.storesWithoutBoxes ?? false,
             fulfillmentManagerUserId: normalizeNullableString(dto.fulfillmentManagerUserId),
           },
           select: this.clientSummarySelect(),
@@ -367,6 +369,7 @@ export class ClientsService {
       legalAddress: true,
       actualAddress: true,
       phone: true,
+      telegramChatId: true,
       email: true,
       bankName: true,
       bankBik: true,
@@ -374,6 +377,7 @@ export class ClientsService {
       correspondentAccount: true,
       storageAccountingEnabled: true,
       storagePriceRubPerLiterDay: true,
+      storesWithoutBoxes: true,
       fulfillmentManagerUserId: true,
       fulfillmentManager: {
         select: {
@@ -396,6 +400,7 @@ const optionalClientFields = [
   'legalAddress',
   'actualAddress',
   'phone',
+  'telegramChatId',
   'email',
   'bankName',
   'bankBik',

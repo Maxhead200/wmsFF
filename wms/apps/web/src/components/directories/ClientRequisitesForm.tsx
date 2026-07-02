@@ -1,4 +1,4 @@
-import { Ban, CheckCircle2, Pencil, RefreshCw, Save, Trash2 } from 'lucide-react';
+import { Archive, Ban, CheckCircle2, Pencil, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   deleteClient,
@@ -13,6 +13,7 @@ import {
   type UpdateClientPayload,
   type UserSummary,
 } from '../../lib/api';
+import { ConfirmDialog } from '../common/ConfirmDialog';
 import { DirectoryResultCard } from './DirectoryResultCard';
 
 type ClientRequisitesFormProps = {
@@ -76,6 +77,7 @@ export function ClientRequisitesForm({ session }: ClientRequisitesFormProps) {
   const [isSubmitting, setSubmitting] = useState(false);
   const [isStatusSubmitting, setStatusSubmitting] = useState(false);
   const [isDeleting, setDeleting] = useState(false);
+  const [pendingArchiveClient, setPendingArchiveClient] = useState<ClientSummary | null>(null);
   const selectedClient = useMemo(() => clients.find((client) => client.id === clientId) ?? null, [clientId, clients]);
 
   useEffect(() => {
@@ -148,12 +150,17 @@ export function ClientRequisitesForm({ session }: ClientRequisitesFormProps) {
     try {
       const updated = await updateClientStatus(session.accessToken, selectedClient.id, status);
       setClients((current) => current.map((client) => (client.id === updated.id ? updated : client)));
-      setActionMessage(status === 'ACTIVE' ? 'Клиент активирован.' : 'Клиент заблокирован.');
+      setActionMessage(clientStatusActionMessage(status));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Не удалось изменить статус клиента.');
     } finally {
       setStatusSubmitting(false);
     }
+  }
+
+  async function archiveClientConfirmed() {
+    setPendingArchiveClient(null);
+    await changeStatus('ARCHIVED');
   }
 
   async function removeClient() {
@@ -269,6 +276,17 @@ export function ClientRequisitesForm({ session }: ClientRequisitesFormProps) {
                 <span>Активировать</span>
               </button>
             )}
+            {selectedClient.status !== 'ARCHIVED' ? (
+              <button
+                className="icon-text-button client-action-button"
+                disabled={isStatusSubmitting || isDeleting}
+                onClick={() => setPendingArchiveClient(selectedClient)}
+                type="button"
+              >
+                <Archive size={15} aria-hidden="true" />
+                <span>В архив</span>
+              </button>
+            ) : null}
             <button
               className="icon-text-button client-action-button client-action-button--danger"
               disabled={isDeleting || isStatusSubmitting}
@@ -385,6 +403,18 @@ export function ClientRequisitesForm({ session }: ClientRequisitesFormProps) {
         <span>{isSubmitting ? 'Сохранение' : 'Сохранить реквизиты'}</span>
       </button>
 
+      {pendingArchiveClient ? (
+        <ConfirmDialog
+          title="Отправить клиента в архив"
+          message="Клиент останется в базе, но будет помечен архивным и убран из рабочего контура."
+          details={[`${pendingArchiveClient.code} · ${pendingArchiveClient.name}`]}
+          confirmLabel="В архив"
+          isBusy={isStatusSubmitting}
+          onCancel={() => setPendingArchiveClient(null)}
+          onConfirm={() => void archiveClientConfirmed()}
+        />
+      ) : null}
+
       {savedClient ? (
         <DirectoryResultCard
           title="Реквизиты сохранены"
@@ -450,6 +480,15 @@ function clientStatusLabel(status: ClientStatus) {
     ACTIVE: 'Активен',
     PAUSED: 'Заблокирован',
     ARCHIVED: 'В архиве',
+  };
+  return labels[status];
+}
+
+function clientStatusActionMessage(status: ClientStatus) {
+  const labels: Record<ClientStatus, string> = {
+    ACTIVE: 'Клиент активирован.',
+    PAUSED: 'Клиент заблокирован.',
+    ARCHIVED: 'Клиент отправлен в архив.',
   };
   return labels[status];
 }

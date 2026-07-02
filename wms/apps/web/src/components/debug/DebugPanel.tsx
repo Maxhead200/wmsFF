@@ -1,4 +1,5 @@
 import {
+  Archive,
   Building2,
   CheckCircle2,
   Database,
@@ -170,6 +171,7 @@ export function DebugPanel({ session, onOpenWorkspace }: DebugPanelProps) {
   const [roleCodes, setRoleCodes] = useState<string[]>([]);
   const [tsdCode, setTsdCode] = useState('');
   const [pendingUserOverrideReasons, setPendingUserOverrideReasons] = useState<string[] | null>(null);
+  const [pendingArchiveClient, setPendingArchiveClient] = useState<ClientSummary | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setLoading] = useState(false);
@@ -293,6 +295,29 @@ export function DebugPanel({ session, onOpenWorkspace }: DebugPanelProps) {
     } catch (caught) {
       setError(errorMessage(caught));
     } finally {
+      setSavingClient(false);
+    }
+  }
+
+  async function archiveClientConfirmed() {
+    if (!pendingArchiveClient) {
+      return;
+    }
+
+    setSavingClient(true);
+    setError('');
+    setMessage('');
+    try {
+      const archived = await updateClientStatus(session.accessToken, pendingArchiveClient.id, 'ARCHIVED');
+      setClients((current) => current.map((client) => (client.id === archived.id ? archived : client)));
+      if (archived.id === selectedClientId) {
+        setClientDraft(clientToDraft(archived));
+      }
+      setMessage('Клиент отправлен в архив.');
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setPendingArchiveClient(null);
       setSavingClient(false);
     }
   }
@@ -601,6 +626,15 @@ export function DebugPanel({ session, onOpenWorkspace }: DebugPanelProps) {
                 <Save size={16} aria-hidden="true" />
                 <span>{isSavingClient ? 'Сохранение' : 'Сохранить клиента'}</span>
               </button>
+              <button
+                className="primary-button debug-secondary"
+                type="button"
+                onClick={() => selectedClient && setPendingArchiveClient(selectedClient)}
+                disabled={!selectedClient || selectedClient.status === 'ARCHIVED' || isSavingClient}
+              >
+                <Archive size={16} aria-hidden="true" />
+                <span>В архив</span>
+              </button>
             </div>
           </div>
         </div>
@@ -754,6 +788,18 @@ export function DebugPanel({ session, onOpenWorkspace }: DebugPanelProps) {
             setPendingUserOverrideReasons(null);
             void saveUserConfirmed();
           }}
+        />
+      ) : null}
+
+      {pendingArchiveClient ? (
+        <ConfirmDialog
+          title="Отправить клиента в архив"
+          message="Клиент останется в базе, но будет помечен архивным и убран из рабочего контура."
+          details={[`${pendingArchiveClient.code} · ${pendingArchiveClient.name}`]}
+          confirmLabel="В архив"
+          isBusy={isSavingClient}
+          onCancel={() => setPendingArchiveClient(null)}
+          onConfirm={() => void archiveClientConfirmed()}
         />
       ) : null}
     </section>

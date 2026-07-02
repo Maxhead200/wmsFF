@@ -304,6 +304,14 @@ export function DebugPanel({ session, onOpenWorkspace }: DebugPanelProps) {
       return;
     }
 
+    const overrideReasons = userOverrideReasons(userDraft);
+    if (
+      overrideReasons.length > 0 &&
+      !window.confirm(`Вы уверены, что хотите сохранить пользователя с обходом ограничений?\n\n${overrideReasons.join('\n')}`)
+    ) {
+      return;
+    }
+
     setSavingUser(true);
     setError('');
     setMessage('');
@@ -822,6 +830,33 @@ function filterUsers(users: UserSummary[], search: string) {
       .filter(Boolean)
       .some((value) => String(value).toLocaleLowerCase('ru-RU').includes(query)),
   );
+}
+
+function userOverrideReasons(user: UserDraft) {
+  const reasons: string[] = [];
+  const login = user.email.trim();
+  const name = user.name.trim();
+  const password = user.password.trim();
+
+  if (!login) {
+    reasons.push('Логин / email пустой.');
+  } else if (!isLikelyEmail(login)) {
+    reasons.push('Логин указан не в формате email.');
+  }
+
+  if (!name) {
+    reasons.push('Имя пользователя пустое.');
+  }
+
+  if (password && password.length < 10) {
+    reasons.push('Новый пароль короче обычного требования 10 символов.');
+  }
+
+  return reasons;
+}
+
+function isLikelyEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
 function clientKindLabel(kind: ClientKind) {

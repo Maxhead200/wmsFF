@@ -97,6 +97,14 @@ export function UserCreateForm({ session }: UserCreateFormProps) {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const overrideReasons = userOverrideReasons(form);
+    if (
+      overrideReasons.length > 0 &&
+      !window.confirm(`Вы уверены, что хотите создать пользователя с обходом ограничений?\n\n${overrideReasons.join('\n')}`)
+    ) {
+      return;
+    }
+
     setSubmitting(true);
     setError('');
     setCreatedUser(null);
@@ -125,10 +133,10 @@ export function UserCreateForm({ session }: UserCreateFormProps) {
     <form className="access-form" onSubmit={submit}>
       <div className="access-fields">
         <label>
-          <span>Почта</span>
+          <span>Логин / email</span>
           <input
-            inputMode="email"
-            type="email"
+            inputMode="text"
+            type="text"
             value={form.email}
             onChange={(event) => setForm({ ...form, email: event.target.value })}
             required
@@ -141,7 +149,6 @@ export function UserCreateForm({ session }: UserCreateFormProps) {
         <label>
           <span>Пароль</span>
           <input
-            minLength={10}
             type="password"
             value={form.password}
             onChange={(event) => setForm({ ...form, password: event.target.value })}
@@ -193,4 +200,31 @@ export function UserCreateForm({ session }: UserCreateFormProps) {
       ) : null}
     </form>
   );
+}
+
+function userOverrideReasons(form: typeof emptyUserForm) {
+  const reasons: string[] = [];
+  const login = form.email.trim();
+  const name = form.name.trim();
+  const password = form.password.trim();
+
+  if (!login) {
+    reasons.push('Логин / email пустой.');
+  } else if (!isLikelyEmail(login)) {
+    reasons.push('Логин указан не в формате email.');
+  }
+
+  if (!name) {
+    reasons.push('Имя пользователя пустое.');
+  }
+
+  if (password && password.length < 10) {
+    reasons.push('Пароль короче обычного требования 10 символов.');
+  }
+
+  return reasons;
+}
+
+function isLikelyEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }

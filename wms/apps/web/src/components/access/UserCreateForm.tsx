@@ -9,6 +9,7 @@ import {
   type RoleSummary,
   type UserSummary,
 } from '../../lib/api';
+import { ConfirmDialog } from '../common/ConfirmDialog';
 import { AccessResultCard } from './AccessResultCard';
 import { ClientScopePicker, scopeMapToCreatePayload, type ScopeMap } from './ClientScopePicker';
 
@@ -30,6 +31,7 @@ export function UserCreateForm({ session }: UserCreateFormProps) {
   const [scopeMode, setScopeMode] = useState<'all' | 'limited'>('all');
   const [scopeMap, setScopeMap] = useState<ScopeMap>({});
   const [createdUser, setCreatedUser] = useState<UserSummary | null>(null);
+  const [overrideReasons, setOverrideReasons] = useState<string[] | null>(null);
   const [error, setError] = useState('');
   const [isSubmitting, setSubmitting] = useState(false);
   const [isLoading, setLoading] = useState(false);
@@ -97,14 +99,16 @@ export function UserCreateForm({ session }: UserCreateFormProps) {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const overrideReasons = userOverrideReasons(form);
-    if (
-      overrideReasons.length > 0 &&
-      !window.confirm(`Вы уверены, что хотите создать пользователя с обходом ограничений?\n\n${overrideReasons.join('\n')}`)
-    ) {
+    const reasons = userOverrideReasons(form);
+    if (reasons.length > 0) {
+      setOverrideReasons(reasons);
       return;
     }
 
+    await createUserFromForm();
+  }
+
+  async function createUserFromForm() {
     setSubmitting(true);
     setError('');
     setCreatedUser(null);
@@ -196,6 +200,21 @@ export function UserCreateForm({ session }: UserCreateFormProps) {
         <AccessResultCard
           title="Пользователь создан"
           lines={[`${createdUser.name} · ${createdUser.email}`, selectedRoleLabel || 'роль не выбрана']}
+        />
+      ) : null}
+
+      {overrideReasons ? (
+        <ConfirmDialog
+          title="Подтвердить обход ограничений"
+          message="Пользователь будет создан с данными, которые обычно система не пропускает автоматически."
+          details={overrideReasons}
+          confirmLabel="Создать"
+          isBusy={isSubmitting}
+          onCancel={() => setOverrideReasons(null)}
+          onConfirm={() => {
+            setOverrideReasons(null);
+            void createUserFromForm();
+          }}
         />
       ) : null}
     </form>

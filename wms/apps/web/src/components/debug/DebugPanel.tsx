@@ -30,6 +30,7 @@ import {
   type UserSummary,
 } from '../../lib/api';
 import type { WorkspaceId } from '../../lib/workspaces';
+import { ConfirmDialog } from '../common/ConfirmDialog';
 import './debug.css';
 
 type DebugPanelProps = {
@@ -168,6 +169,7 @@ export function DebugPanel({ session, onOpenWorkspace }: DebugPanelProps) {
   const [userDraft, setUserDraft] = useState<UserDraft>(emptyUserDraft);
   const [roleCodes, setRoleCodes] = useState<string[]>([]);
   const [tsdCode, setTsdCode] = useState('');
+  const [pendingUserOverrideReasons, setPendingUserOverrideReasons] = useState<string[] | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setLoading] = useState(false);
@@ -304,11 +306,17 @@ export function DebugPanel({ session, onOpenWorkspace }: DebugPanelProps) {
       return;
     }
 
-    const overrideReasons = userOverrideReasons(userDraft);
-    if (
-      overrideReasons.length > 0 &&
-      !window.confirm(`Вы уверены, что хотите сохранить пользователя с обходом ограничений?\n\n${overrideReasons.join('\n')}`)
-    ) {
+    const reasons = userOverrideReasons(userDraft);
+    if (reasons.length > 0) {
+      setPendingUserOverrideReasons(reasons);
+      return;
+    }
+
+    await saveUserConfirmed();
+  }
+
+  async function saveUserConfirmed() {
+    if (!selectedUser) {
       return;
     }
 
@@ -732,6 +740,21 @@ export function DebugPanel({ session, onOpenWorkspace }: DebugPanelProps) {
             </button>
           ))}
         </div>
+      ) : null}
+
+      {pendingUserOverrideReasons ? (
+        <ConfirmDialog
+          title="Подтвердить обход ограничений"
+          message="Пользователь будет сохранён с данными, которые обычно система не пропускает автоматически."
+          details={pendingUserOverrideReasons}
+          confirmLabel="Сохранить"
+          isBusy={isSavingUser}
+          onCancel={() => setPendingUserOverrideReasons(null)}
+          onConfirm={() => {
+            setPendingUserOverrideReasons(null);
+            void saveUserConfirmed();
+          }}
+        />
       ) : null}
     </section>
   );

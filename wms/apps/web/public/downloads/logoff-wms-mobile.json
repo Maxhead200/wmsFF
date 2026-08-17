@@ -1,0 +1,8 @@
+{
+  "versionCode": 15,
+  "versionName": "0.3.10",
+  "minimumVersion": "0.1.0",
+  "mandatory": false,
+  "apkUrl": "/downloads/logoff-wms-mobile.apk",
+  "releaseNotes": "В FBS добавлен отдельный раздел «Отменённые заказы». Отмены продавца, покупателя и перевозчика больше не смешиваются с завершёнными заказами в архиве."
+}

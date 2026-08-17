@@ -1,0 +1,29 @@
+export type AuthUser = {
+  id: string;
+  email: string;
+  name: string;
+  isDemo?: boolean;
+  analyticsEnabled?: boolean;
+  roleCodes: string[];
+  permissionCodes: string[];
+  clientScopeMode: 'ALL' | 'LIMITED';
+  clientIds: string[];
+  writableClientIds: string[];
+  printerGroups?: UserPrinterGroupScope[];
+  deviceId?: string;
+  deviceCode?: string;
+};
+
+export type UserPrinterGroupScope = {
+  groupCode: string;
+  canPrint: boolean;
+  canManage: boolean;
+};
+
+export type TokenPayload = {
+  sub: string;
+  deviceId?: string;
+  deviceCode?: string;
+  iat: number;
+  exp: number;
+};

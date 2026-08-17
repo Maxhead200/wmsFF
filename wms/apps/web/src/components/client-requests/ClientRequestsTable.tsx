@@ -1,0 +1,553 @@
+import { Activity, AlertTriangle, Boxes, CheckCircle2, ClipboardList, Edit3, FileDown, FileSpreadsheet, FileText, FileUp, PackageCheck, RefreshCw, Search, Send, Truck, Undo2, XCircle } from 'lucide-react';
+import {
+  type ClientRequestFileSummary,
+  type ClientRequestStatus,
+  type ClientRequestSummary,
+} from '../../lib/api';
+import {
+  requestPriorityLabel,
+  requestStatusLabel,
+  requestStatusOptions,
+  requestStatusTone,
+  requestTypeLabel,
+} from './clientRequestMeta';
+
+type ClientRequestsTableProps = {
+  items: ClientRequestSummary[];
+  canChangeStatus: boolean;
+  canPickOutbound: boolean;
+  canCancelRequests: boolean;
+  canEditAnyRequest: boolean;
+  canRefreshPickInstruction: boolean;
+  refreshingInstructionId?: string | null;
+  onStatusChange: (requestId: string, status: ClientRequestStatus) => void;
+  onCancelRequest: (request: ClientRequestSummary) => void;
+  onEditRequest: (request: ClientRequestSummary) => void;
+  onOpenDocument?: (request: ClientRequestSummary) => void;
+  onDownloadRequestItems?: (request: ClientRequestSummary) => void;
+  onDownloadOriginalFile?: (request: ClientRequestSummary, file: ClientRequestFileSummary) => void;
+  onOpenOnlineExecution?: (request: ClientRequestSummary) => void;
+  onSelectManualBoxes?: (request: ClientRequestSummary) => void;
+  onOpenFbsBoxSearch?: (request: ClientRequestSummary) => void;
+  onOpenPickInstruction?: (request: ClientRequestSummary) => void;
+  onRefreshPickInstruction?: (request: ClientRequestSummary) => void;
+  onDownloadPickInstruction?: (request: ClientRequestSummary) => void;
+  onDownloadWbProducts?: (request: ClientRequestSummary) => void;
+  onDownloadWbPackages?: (request: ClientRequestSummary) => void;
+  onUploadManualInstruction?: (request: ClientRequestSummary) => void;
+  onEmergencyPackedXlsx?: (request: ClientRequestSummary) => void;
+  onRollbackEmergencyClose?: (request: ClientRequestSummary) => void;
+  onPickOutbound: (request: ClientRequestSummary) => void;
+  onPackageOutbound: (request: ClientRequestSummary) => void;
+  onShipOutbound: (request: ClientRequestSummary) => void;
+};
+
+const dateFormatter = new Intl.DateTimeFormat('ru-RU', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+});
+
+export function ClientRequestsTable({
+  items,
+  canChangeStatus,
+  canPickOutbound,
+  canCancelRequests,
+  canEditAnyRequest,
+  canRefreshPickInstruction,
+  refreshingInstructionId,
+  onStatusChange,
+  onCancelRequest,
+  onEditRequest,
+  onOpenDocument,
+  onDownloadRequestItems,
+  onDownloadOriginalFile,
+  onOpenOnlineExecution,
+  onSelectManualBoxes,
+  onOpenFbsBoxSearch,
+  onOpenPickInstruction,
+  onRefreshPickInstruction,
+  onDownloadPickInstruction,
+  onDownloadWbProducts,
+  onDownloadWbPackages,
+  onUploadManualInstruction,
+  onEmergencyPackedXlsx,
+  onRollbackEmergencyClose,
+  onPickOutbound,
+  onPackageOutbound,
+  onShipOutbound,
+}: ClientRequestsTableProps) {
+  return (
+    <div className="client-request-table-wrap">
+      <table className="data-table client-request-table">
+        <thead>
+          <tr>
+            <th className="client-request-table__request-heading">Заявка</th>
+            <th className="client-request-table__client-heading">Клиент</th>
+            <th className="client-request-table__composition-heading">Состав</th>
+            <th className="client-request-table__due-heading">Срок</th>
+            <th className="client-request-table__status-heading">Статус</th>
+            {canPickOutbound ? <th className="client-request-table__warehouse-heading">Склад</th> : null}
+            {canCancelRequests ? <th className="client-request-table__actions-heading">Действия</th> : null}
+            {canChangeStatus ? <th className="client-request-table__process-heading">Процесс</th> : null}
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((request) => {
+            const originalFile = findOriginalRequestFile(request);
+            const emergencyClosed = isEmergencyClosedRequest(request);
+
+            return (
+            <tr
+              className={`client-request-row client-request-row--${requestStatusTone(request.status)}`}
+              key={request.id}
+            >
+              <td className="client-request-table__request-cell" data-label="Заявка">
+                <span className="client-request-number">№{formatRequestNumber(request.number)}</span>
+                {onOpenDocument ? (
+                  <button
+                    className="client-request-title client-request-title--button"
+                    type="button"
+                    onClick={() => onOpenDocument(request)}
+                    title={`Открыть заявку: ${request.title}`}
+                    aria-label={`Открыть заявку ${request.title}`}
+                  >
+                    {request.title}
+                  </button>
+                ) : (
+                  <strong className="client-request-title" title={request.title}>{request.title}</strong>
+                )}
+                <span className="client-request-list-meta">
+                  {requestTypeLabel(request.type)} · {requestPriorityLabel(request.priority)}
+                </span>
+                <span className="client-request-list-meta">Город: {request.destinationCity ?? '-'}</span>
+                {request.comment ? (
+                  <span className="client-request-list-comment" title={request.comment}>{request.comment}</span>
+                ) : null}
+              </td>
+              <td className="client-request-table__client-cell" data-label="Клиент">
+                <strong>{request.client.code}</strong>
+                <span>{request.client.name}</span>
+              </td>
+              <td className="client-request-table__composition-cell" data-label="Состав">
+                <span className="client-request-items-count">{itemsCountSummary(request)}</span>
+                <span className="client-request-items-preview">{itemsSummary(request)}</span>
+                {request.packages.length ? (
+                  <span className="request-package-summary">{packagesSummary(request)}</span>
+                ) : null}
+                {onOpenDocument ? (
+                  <button
+                    className="document-open-button"
+                    type="button"
+                    onClick={() => onOpenDocument(request)}
+                    title="Открыть состав заявки"
+                  >
+                    <FileText size={15} aria-hidden="true" />
+                    <span>Состав</span>
+                  </button>
+                ) : null}
+                {onDownloadRequestItems ? (
+                  <button
+                    className="document-open-button document-open-button--source"
+                    type="button"
+                    onClick={() => onDownloadRequestItems(request)}
+                    title="Скачать состав заявки в Excel"
+                  >
+                    <FileSpreadsheet size={15} aria-hidden="true" />
+                    <span>Состав XLSX</span>
+                  </button>
+                ) : null}
+                {onDownloadOriginalFile && originalFile ? (
+                  <button
+                    className="document-open-button document-open-button--source"
+                    type="button"
+                    onClick={() => onDownloadOriginalFile(request, originalFile)}
+                    title={`Скачать первоначальный файл клиента: ${originalFile.fileName}`}
+                  >
+                    <FileDown size={15} aria-hidden="true" />
+                    <span>Файл клиента</span>
+                  </button>
+                ) : null}
+                {onOpenOnlineExecution && request.type === 'OUTBOUND' ? (
+                  <button
+                    className="document-open-button document-open-button--online"
+                    type="button"
+                    onClick={() => onOpenOnlineExecution(request)}
+                    title="Онлайн-выполнение заявки"
+                  >
+                    <Activity size={15} aria-hidden="true" />
+                    <span>Онлайн</span>
+                  </button>
+                ) : null}
+              </td>
+              <td className="client-request-table__due-cell" data-label="Срок">{formatDate(request.desiredDate)}</td>
+              <td className="client-request-table__status-cell" data-label="Статус">
+                <span className={`status status--${requestStatusTone(request.status)}`}>
+                  {emergencyClosed ? 'Аварийно упакована' : requestStatusLabel(request.status)}
+                </span>
+                {request.managerComment ? (
+                  <span className="client-request-status-comment" title={request.managerComment}>
+                    {request.managerComment}
+                  </span>
+                ) : null}
+              </td>
+              {canPickOutbound ? (
+                <td className="client-request-table__warehouse-cell" data-label="Склад">
+                  {canShowWarehouseActions(request) ? (
+                    <div className="client-request-actions">
+                       {onOpenFbsBoxSearch && isFbsRequest(request) ? (
+                         <button
+                           className="client-request-action-button client-request-action-button--fbs-box-search"
+                           type="button"
+                           onClick={() => onOpenFbsBoxSearch(request)}
+                           title="Показать короба и номера FBS-заказов, товар которых в них хранится"
+                         >
+                           <Search size={15} aria-hidden="true" />
+                           <span>Найти короба FBS</span>
+                         </button>
+                       ) : null}
+                       {onSelectManualBoxes && canSelectManualBoxes(request) ? (
+                         <button
+                           className="client-request-action-button client-request-action-button--box-selection"
+                           type="button"
+                           onClick={() => onSelectManualBoxes(request)}
+                           title="Выбрать короба, из которых будет списан товар"
+                         >
+                           <Boxes size={15} aria-hidden="true" />
+                           <span>Выбрать короба</span>
+                         </button>
+                       ) : null}
+                       {onOpenPickInstruction && request.type === 'OUTBOUND' ? (
+                        <button
+                          className="client-request-action-button client-request-action-button--instruction"
+                          type="button"
+                          onClick={() => onOpenPickInstruction(request)}
+                          title="Открыть складскую инструкцию"
+                        >
+                          <ClipboardList size={15} aria-hidden="true" />
+                          <span>Инструкция</span>
+                        </button>
+                      ) : null}
+                      {onRefreshPickInstruction && canRefreshPickInstruction && request.type === 'OUTBOUND' ? (
+                        <button
+                          className="client-request-action-button client-request-action-button--refresh-instruction"
+                          type="button"
+                          onClick={() => onRefreshPickInstruction(request)}
+                          disabled={refreshingInstructionId === request.id}
+                          title="Обновить складскую инструкцию"
+                        >
+                          <RefreshCw size={15} aria-hidden="true" />
+                          <span>{refreshingInstructionId === request.id ? 'Обновляю' : 'Обновить инструкцию'}</span>
+                        </button>
+                      ) : null}
+                      {onDownloadPickInstruction && request.type === 'OUTBOUND' ? (
+                        <button
+                          className="client-request-action-button client-request-action-button--xlsx"
+                          type="button"
+                          onClick={() => onDownloadPickInstruction(request)}
+                          title={isFbsRequest(request)
+                            ? 'Скачать лист подбора с QR/ШК, полученными из Wildberries'
+                            : 'Скачать Excel-инструкцию сборки'}
+                        >
+                          <FileDown size={15} aria-hidden="true" />
+                          <span>{isFbsRequest(request) ? 'Лист подбора' : 'Инструкция Excel'}</span>
+                        </button>
+                      ) : null}
+                      {canPickRequest(request) ? (
+                        <button
+                          className="client-request-action-button client-request-action-button--pick"
+                          type="button"
+                          onClick={() => onPickOutbound(request)}
+                          title="Собрать заявку"
+                        >
+                          <PackageCheck size={15} aria-hidden="true" />
+                          <span>Собрать</span>
+                        </button>
+                      ) : null}
+                      {canPackageRequest(request) ? (
+                        <button
+                          className="client-request-action-button client-request-action-button--pack"
+                          type="button"
+                          onClick={() => onPackageOutbound(request)}
+                          title="Упаковать заявку"
+                        >
+                          <Send size={15} aria-hidden="true" />
+                          <span>Упаковать</span>
+                        </button>
+                      ) : null}
+                      {canShipRequest(request) ? (
+                        <button
+                          className="client-request-action-button client-request-action-button--ship"
+                          type="button"
+                          onClick={() => onShipOutbound(request)}
+                          title="Закрыть отгрузку"
+                        >
+                          <Truck size={15} aria-hidden="true" />
+                          <span>Отгрузить</span>
+                        </button>
+                      ) : null}
+                      {canDownloadMarketplaceTemplates(request) ? (
+                        <>
+                          <button
+                            className="client-request-action-button client-request-action-button--xlsx"
+                            type="button"
+                            onClick={() => onDownloadWbProducts?.(request)}
+                            title="Скачать файл товаров для загрузки в WB"
+                          >
+                            <FileSpreadsheet size={15} aria-hidden="true" />
+                            <span>WB товары</span>
+                          </button>
+                          <button
+                            className="client-request-action-button client-request-action-button--xlsx"
+                            type="button"
+                            onClick={() => onDownloadWbPackages?.(request)}
+                            title="Скачать файл упаковки для загрузки в WB"
+                          >
+                            <FileSpreadsheet size={15} aria-hidden="true" />
+                            <span>WB упаковка</span>
+                          </button>
+                        </>
+                      ) : null}
+                      {onUploadManualInstruction && canUploadManualInstruction(request) ? (
+                        <button
+                          className="client-request-action-button client-request-action-button--manual-instruction"
+                          type="button"
+                          onClick={() => onUploadManualInstruction(request)}
+                          title="Загрузить свою складскую инструкцию и перестроить план заявки"
+                        >
+                          <FileUp size={15} aria-hidden="true" />
+                          <span>Своя инструкция</span>
+                        </button>
+                      ) : null}
+                      {onRollbackEmergencyClose && emergencyClosed ? (
+                        <button
+                          className="client-request-action-button client-request-action-button--emergency-rollback"
+                          type="button"
+                          onClick={() => onRollbackEmergencyClose(request)}
+                          title="Отменить аварийное закрытие и восстановить остатки"
+                        >
+                          <Undo2 size={15} aria-hidden="true" />
+                          <span>Отмена аварийного закрытия</span>
+                        </button>
+                      ) : onEmergencyPackedXlsx && canEmergencyPackRequest(request) ? (
+                        <button
+                          className="client-request-action-button client-request-action-button--emergency"
+                          type="button"
+                          onClick={() => onEmergencyPackedXlsx(request)}
+                          title="Аварийно упаковать заявку по Excel со списком коробов"
+                        >
+                          <AlertTriangle size={15} aria-hidden="true" />
+                          <span>Короба XLSX</span>
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : (
+                    '-'
+                  )}
+                </td>
+              ) : null}
+              {canCancelRequests ? (
+                <td className="client-request-table__actions-cell" data-label="Действия">
+                  <div className="client-request-actions client-request-actions--main">
+                  {canEditRequest(request, canEditAnyRequest) ? (
+                    <button
+                      className="client-request-action-button client-request-action-button--edit"
+                      type="button"
+                      onClick={() => onEditRequest(request)}
+                      title="Редактировать заявку"
+                    >
+                      <Edit3 size={15} aria-hidden="true" />
+                      <span>Редактировать</span>
+                    </button>
+                  ) : null}
+                  {canCancelRequest(request) ? (
+                    <button
+                      className="client-request-action-button client-request-action-button--cancel"
+                      type="button"
+                      onClick={() => onCancelRequest(request)}
+                      title="Отменить заявку"
+                    >
+                      <XCircle size={15} aria-hidden="true" />
+                      <span>Отменить</span>
+                    </button>
+                  ) : (
+                    canEditRequest(request, canEditAnyRequest) ? null : '-'
+                  )}
+                  </div>
+                </td>
+              ) : null}
+              {canChangeStatus ? (
+                <td className="client-request-table__process-cell" data-label="Процесс">
+                  <label className="client-request-status-select">
+                    <CheckCircle2 size={15} aria-hidden="true" />
+                    <select
+                      aria-label={`Статус заявки ${request.title}`}
+                      title="Изменить статус заявки"
+                      value={request.status}
+                      onChange={(event) => onStatusChange(request.id, event.target.value as ClientRequestStatus)}
+                    >
+                      {requestStatusOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </td>
+              ) : null}
+            </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function canPickRequest(request: ClientRequestSummary) {
+  return request.type === 'OUTBOUND' && ['SUBMITTED', 'IN_REVIEW', 'APPROVED'].includes(request.status);
+}
+
+function canPackageRequest(request: ClientRequestSummary) {
+  return request.type === 'OUTBOUND' && request.status === 'IN_WORK';
+}
+
+function canShipRequest(request: ClientRequestSummary) {
+  return request.type === 'OUTBOUND' && request.status === 'PACKED';
+}
+
+function canRunFulfillment(request: ClientRequestSummary) {
+  return canPickRequest(request) || canPackageRequest(request) || canShipRequest(request);
+}
+
+function canShowWarehouseActions(request: ClientRequestSummary) {
+  return request.type === 'OUTBOUND' || canSelectManualBoxes(request) || canRunFulfillment(request);
+}
+
+function canCancelRequest(request: ClientRequestSummary) {
+  return request.type === 'OUTBOUND' && ['SUBMITTED', 'IN_REVIEW', 'APPROVED'].includes(request.status);
+}
+
+function isFbsRequest(request: ClientRequestSummary) {
+  return request.title.trim().toLocaleUpperCase('ru-RU').startsWith('FBS')
+    || request.comment?.toLocaleLowerCase('ru-RU').includes('создано из fbs-заказов:') === true;
+}
+
+function canSelectManualBoxes(request: ClientRequestSummary) {
+  return (
+    (request.type === 'OUTBOUND' || request.type === 'DELIVERY') &&
+    request.items.length > 0 &&
+    ['SUBMITTED', 'IN_REVIEW', 'APPROVED', 'IN_WORK'].includes(request.status) &&
+    !request.comment?.toLocaleLowerCase('ru-RU').includes('создано из excel:')
+  );
+}
+
+function formatRequestNumber(value: number) {
+  return String(value).padStart(6, '0');
+}
+
+function canDownloadMarketplaceTemplates(request: ClientRequestSummary) {
+  return (
+    request.type === 'OUTBOUND' &&
+    ['PACKED', 'DONE'].includes(request.status) &&
+    request.packages.length > 0
+  );
+}
+
+function canEmergencyPackRequest(request: ClientRequestSummary) {
+  return request.type === 'OUTBOUND' && !['DONE', 'CANCELLED', 'REJECTED'].includes(request.status);
+}
+
+function isEmergencyClosedRequest(request: ClientRequestSummary) {
+  if (request.type !== 'OUTBOUND' || request.status !== 'PACKED') {
+    return false;
+  }
+  return request.packages.some((packagePlace) => packagePlace.comment === 'Фактический короб из аварийного Excel');
+}
+
+function findOriginalRequestFile(request: ClientRequestSummary) {
+  const requestCreatedAt = Date.parse(request.createdAt);
+  const creatorId = request.createdBy?.id;
+  const sourceWindowMs = 5 * 60 * 1000;
+  const sourceFileName = request.comment
+    ?.match(/Создано из Excel:\s*(.+?\.(?:xlsx|xlsm|xls))(?=\.\s*Позиций:|$)/i)?.[1]
+    ?.trim()
+    .toLocaleLowerCase('ru-RU');
+  const workbooks = [...request.files]
+    .filter((file) => /\.(xlsx|xlsm|xls)$/i.test(file.fileName)
+      || file.mimeType.includes('spreadsheet')
+      || file.mimeType.includes('excel'))
+    .sort((left, right) => Date.parse(left.createdAt) - Date.parse(right.createdAt));
+
+  if (sourceFileName) {
+    const matchingName = workbooks.find(
+      (file) => file.fileName.trim().toLocaleLowerCase('ru-RU') === sourceFileName,
+    );
+    if (matchingName) {
+      return matchingName;
+    }
+  }
+
+  return workbooks
+    .filter((file) => {
+      const uploadedByCreator = !creatorId || file.uploadedByUserId === creatorId;
+      const fileCreatedAt = Date.parse(file.createdAt);
+      const uploadedWithRequest = Number.isFinite(requestCreatedAt)
+        && Number.isFinite(fileCreatedAt)
+        && Math.abs(fileCreatedAt - requestCreatedAt) <= sourceWindowMs;
+
+      return uploadedByCreator && uploadedWithRequest;
+    })
+    [0] ?? null;
+}
+
+function canUploadManualInstruction(request: ClientRequestSummary) {
+  return request.type === 'OUTBOUND' && !['DONE', 'CANCELLED', 'REJECTED'].includes(request.status);
+}
+
+function canEditRequest(request: ClientRequestSummary, canEditAnyRequest: boolean) {
+  return canEditAnyRequest || ['SUBMITTED', 'IN_REVIEW', 'APPROVED'].includes(request.status);
+}
+
+function itemsSummary(request: ClientRequestSummary) {
+  if (request.items.length === 0) {
+    return '-';
+  }
+
+  const previewItems = request.items.slice(0, 4);
+  const restCount = request.items.length - previewItems.length;
+  const preview = previewItems
+    .map((item) => {
+      const itemName = item.sku?.internalSku ?? item.name ?? item.barcode ?? 'позиция';
+      return `${itemName} x ${item.quantity}`;
+    })
+    .join(', ');
+
+  return restCount > 0 ? `${preview} · еще ${restCount}` : preview;
+}
+
+function itemsCountSummary(request: ClientRequestSummary) {
+  if (request.items.length === 0) {
+    return '0 позиций';
+  }
+
+  const totalQuantity = request.items.reduce((sum, item) => sum + item.quantity, 0);
+  return `${request.items.length} позиций · ${totalQuantity} шт.`;
+}
+
+function packagesSummary(request: ClientRequestSummary) {
+  const totalQuantity = request.packages.reduce(
+    (sum, packagePlace) => sum + packagePlace.items.reduce((itemSum, item) => itemSum + item.quantity, 0),
+    0,
+  );
+  const codes = request.packages.map((packagePlace) => packagePlace.packageCode).join(', ');
+  return `Места: ${codes} · ${totalQuantity} шт.`;
+}
+
+function formatDate(value: string | null) {
+  if (!value) {
+    return '-';
+  }
+
+  return dateFormatter.format(new Date(value));
+}

@@ -1,0 +1,19 @@
+{
+  "name": "@logoff/wms",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.15.0",
+  "description": "WMS LOGOFF monorepo: API, web, Android TSD and infrastructure.",
+  "scripts": {
+    "dev:api": "pnpm --filter @logoff/wms-api dev",
+    "dev:web": "pnpm --filter @logoff/wms-web dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "prisma:generate": "pnpm --filter @logoff/wms-api prisma:generate"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  }
+}

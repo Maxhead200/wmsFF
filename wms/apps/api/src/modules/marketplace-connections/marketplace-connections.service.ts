@@ -13295,7 +13295,7 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
     );
     const syncProductMarkToPacking = async () => {
       if (!task.kiz) return;
-      // FIX: the exact scanned KIZ follows the balance from AVAILABLE to PACKING.
+      // FIX: the exact scanned KIZ has physically left the source box.
       await tx.productMark.updateMany({
         where: {
           clientId: task.clientId,
@@ -13305,7 +13305,7 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
         },
         data: {
           status: StockStatus.PACKING,
-          boxId: task.boxId,
+          boxId: null,
         },
       });
     };
@@ -13348,8 +13348,10 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
     const balanceWarehouseId = requireFbsBalanceWarehouseId(
       availableBalances[0]?.warehouseId ?? box?.warehouseId ?? requestWarehouseId,
     );
-    const targetBoxId = box?.id ?? null;
-    const targetPalletId = box?.palletId ?? availableBalances[0]?.palletId ?? null;
+    // FIX: PACKING is an internal outbound reserve, not stock still lying in
+    // the source box. Keep the source only in task/movement history.
+    const targetBoxId = null;
+    const targetPalletId = null;
     let shiftedFromAvailable = 0;
 
     for (const balance of availableBalances) {
@@ -13509,14 +13511,13 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
     const warehouseId = requireFbsBalanceWarehouseId(
       reservationMovements[0]?.warehouseId,
     );
-    const boxId = reservationMovements[0]?.boxId ?? null;
-    const palletId = reservationMovements[0]?.palletId ?? null;
+    const reservationBoxId = reservationMovements[0]?.boxId ?? null;
     const balances = await tx.stockBalance.findMany({
       where: {
         warehouseId,
         clientId: task.clientId,
         skuId: task.skuId,
-        boxId,
+        boxId: reservationBoxId,
         status: { in: [StockStatus.PACKING, StockStatus.SHIPPING] },
         quantity: { gt: 0 },
       },
@@ -13540,7 +13541,7 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
           warehouseId,
           clientId: task.clientId,
           skuId: task.skuId,
-          boxId,
+          boxId: reservationBoxId,
           palletId: balance.palletId,
           type: MovementType.RETURN,
           status: balance.status,
@@ -13561,8 +13562,10 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
       warehouseId,
       clientId: task.clientId,
       skuId: task.skuId,
-      boxId,
-      palletId,
+      // FIX: a cancelled pick never reappears inside its old box. A physical
+      // return is placed later by a new receipt into its actual new box.
+      boxId: null,
+      palletId: null,
       status: StockStatus.AVAILABLE,
     });
     await tx.stockBalance.upsert({
@@ -13573,8 +13576,8 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
         warehouseId,
         clientId: task.clientId,
         skuId: task.skuId,
-        boxId,
-        palletId,
+        boxId: null,
+        palletId: null,
         status: StockStatus.AVAILABLE,
         quantity: reservedQuantity,
       },
@@ -13584,8 +13587,8 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
         warehouseId,
         clientId: task.clientId,
         skuId: task.skuId,
-        boxId,
-        palletId,
+        boxId: null,
+        palletId: null,
         type: MovementType.RETURN,
         status: StockStatus.AVAILABLE,
         quantity: reservedQuantity,
@@ -13605,7 +13608,7 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
         },
         data: {
           status: StockStatus.AVAILABLE,
-          boxId,
+          boxId: null,
         },
       });
     }

@@ -2187,11 +2187,18 @@ export class StockOperationsService {
         where: {
           clientId: request.clientId,
           skuId: { in: selectedSkuIds },
-          boxId: { in: selectedBoxIds },
           status: { in: [StockStatus.SHIPPING, StockStatus.PACKING, StockStatus.AVAILABLE] },
           quantity: { gt: 0 },
           warehouseId,
-          box: this.warehouseScopedBoxWhere(warehouseId),
+          OR: [
+            {
+              boxId: { in: selectedBoxIds },
+              box: this.warehouseScopedBoxWhere(warehouseId),
+            },
+            // FIX: physically picked FBS units wait in a boxless PACKING
+            // reserve and must not be taken from the source box twice.
+            { boxId: null, status: StockStatus.PACKING },
+          ],
         },
       }),
       tx.box.findMany({
@@ -2219,8 +2226,16 @@ export class StockOperationsService {
     const boxById = new Map(boxes.map((box) => [box.id, box]));
     const inProcessBalanceBySelection = new Map<string, number>();
     const availableBalancesBySelection = new Map<string, StockBalance[]>();
+    const boxlessPackingBalancesBySku = new Map<string, StockBalance[]>();
     for (const balance of balances) {
-      if (!balance.boxId) continue;
+      if (!balance.boxId) {
+        if (balance.status === StockStatus.PACKING) {
+          const boxless = boxlessPackingBalancesBySku.get(balance.skuId) ?? [];
+          boxless.push(balance);
+          boxlessPackingBalancesBySku.set(balance.skuId, boxless);
+        }
+        continue;
+      }
       const key = `${balance.skuId}:${balance.boxId}`;
       if (balance.status === StockStatus.AVAILABLE) {
         const available = availableBalancesBySelection.get(key) ?? [];
@@ -2244,8 +2259,8 @@ export class StockOperationsService {
 
       const balanceKey = `${selection.skuId}:${selection.boxId}`;
       const inProcessPool = unassignedInProcessBySelection.get(balanceKey) ?? 0;
-      const alreadyReserved = Math.min(selection.quantity, inProcessPool);
-      unassignedInProcessBySelection.set(balanceKey, inProcessPool - alreadyReserved);
+      const reservedInSourceBox = Math.min(selection.quantity, inProcessPool);
+      unassignedInProcessBySelection.set(balanceKey, inProcessPool - reservedInSourceBox);
       const completedAt = completedAtBySelection.get(
         `${selection.requestItemId}:${selection.skuId}:${selection.boxId}`,
       );
@@ -2259,15 +2274,75 @@ export class StockOperationsService {
               !isFbsRelabelInventoryAdjustment(movement),
           ),
       );
-      const shortage = Math.max(0, selection.quantity - alreadyReserved);
-      if (shortage === 0) continue;
-
       const box = boxById.get(selection.boxId);
       if (!box) {
         throw new BadRequestException(
           `Короб ${selection.box.code} собранной FBS-заявки больше не найден в WMS.`,
         );
       }
+
+      // FIX: move only the internal boxless reserve into the closing
+      // transaction. The source box receives no persistent stock: the
+      // temporary SHIPPING row is consumed below before the transaction ends.
+      let shiftedFromBoxlessPacking = 0;
+      for (const balance of boxlessPackingBalancesBySku.get(selection.skuId) ?? []) {
+        if (
+          shiftedFromBoxlessPacking >= selection.quantity - reservedInSourceBox ||
+          balance.quantity <= 0
+        ) continue;
+        const quantity = Math.min(
+          balance.quantity,
+          selection.quantity - reservedInSourceBox - shiftedFromBoxlessPacking,
+        );
+        await this.decrementSourceBalance(tx, balance, quantity);
+        balance.quantity -= quantity;
+        shiftedFromBoxlessPacking += quantity;
+        await tx.stockMovement.create({
+          data: {
+            warehouseId: this.requireBalanceWarehouseId(balance.warehouseId ?? box.warehouseId),
+            clientId: request.clientId,
+            skuId: selection.skuId,
+            boxId: null,
+            palletId: null,
+            type: MovementType.PACK,
+            status: StockStatus.PACKING,
+            quantity: -quantity,
+            sourceDocument: request.id,
+            idempotencyKey: `${baseKey}:fbs-boxless:${selection.id}:${balance.id}:out`,
+            comment: `Бескоробный резерв собранного FBS подготовлен к закрытию заявки.`,
+          },
+        });
+        await this.incrementTargetBalance(tx, {
+          warehouseId: this.requireBalanceWarehouseId(box.warehouseId ?? balance.warehouseId),
+          clientId: request.clientId,
+          skuId: selection.skuId,
+          boxId: selection.boxId,
+          palletId: box.palletId,
+          status: StockStatus.SHIPPING,
+          quantity,
+        });
+        await tx.stockMovement.create({
+          data: {
+            warehouseId: this.requireBalanceWarehouseId(box.warehouseId ?? balance.warehouseId),
+            clientId: request.clientId,
+            skuId: selection.skuId,
+            boxId: selection.boxId,
+            palletId: box.palletId,
+            type: MovementType.PACK,
+            status: StockStatus.SHIPPING,
+            quantity,
+            sourceDocument: request.id,
+            idempotencyKey: `${baseKey}:fbs-boxless:${selection.id}:${balance.id}:in`,
+            comment: `Бескоробный резерв собранного FBS передан в отгрузку.`,
+          },
+        });
+      }
+
+      const shortage = Math.max(
+        0,
+        selection.quantity - reservedInSourceBox - shiftedFromBoxlessPacking,
+      );
+      if (shortage === 0) continue;
 
       // Сканирование ТСД — физический факт отбора. До закрытия заявки переносим
       // эту единицу из AVAILABLE в SHIPPING, а не проверяем её повторно как

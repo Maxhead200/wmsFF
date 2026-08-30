@@ -955,6 +955,126 @@ describe('StockOperationsService', () => {
     );
   });
 
+  // TEST: a completed FBS pick already removed from its source box must be
+  // consumed from the boxless PACKING reserve without decrementing that box again.
+  it('закрывает бескоробный резерв FBS без повторного списания исходного короба', async () => {
+    const sourceAvailable = {
+      id: 'available-source',
+      balanceKey: 'client-1:sku-1:box-1:no-pallet:AVAILABLE',
+      warehouseId: 'warehouse-1',
+      clientId: 'client-1',
+      skuId: 'sku-1',
+      boxId: 'box-1',
+      palletId: null,
+      status: 'AVAILABLE',
+      quantity: 9,
+      updatedAt: new Date('2026-08-30T08:00:00.000Z'),
+    };
+    const boxlessPacking = {
+      id: 'packing-boxless',
+      balanceKey: 'client-1:sku-1:no-box:no-pallet:PACKING',
+      warehouseId: 'warehouse-1',
+      clientId: 'client-1',
+      skuId: 'sku-1',
+      boxId: null,
+      palletId: null,
+      status: 'PACKING',
+      quantity: 1,
+      updatedAt: new Date('2026-08-30T08:01:00.000Z'),
+    };
+    const tx = {
+      fbsTsdAssembly: {
+        findMany: vi.fn().mockResolvedValue([{
+          requestItemId: 'item-1',
+          skuId: 'sku-1',
+          boxId: 'box-1',
+          itemCount: 1,
+          completedAt: new Date('2026-08-30T08:01:00.000Z'),
+        }]),
+      },
+      stockBalance: {
+        findMany: vi.fn().mockResolvedValue([sourceAvailable, boxlessPacking]),
+        update: vi.fn().mockImplementation(({ where }: { where: { id: string } }) =>
+          Promise.resolve({ quantity: where.id === 'packing-boxless' ? 0 : 8 }),
+        ),
+        delete: vi.fn().mockResolvedValue({}),
+        upsert: vi.fn().mockResolvedValue({ id: 'shipping-source' }),
+      },
+      box: {
+        findMany: vi.fn().mockResolvedValue([{
+          id: 'box-1',
+          code: 'FFL_LKB1007_113',
+          warehouseId: 'warehouse-1',
+          palletId: null,
+        }]),
+      },
+      stockMovement: {
+        findMany: vi.fn().mockResolvedValue([]),
+        create: vi.fn().mockResolvedValue({ id: 'movement-1' }),
+      },
+    };
+    const service = new StockOperationsService(
+      {} as never,
+      {} as never,
+      { balanceKey: vi.fn().mockReturnValue('shipping-source-key') } as never,
+    );
+
+    await (service as unknown as {
+      restoreCompletedFbsSelectionShortages: (
+        tx: typeof tx,
+        request: {
+          id: string;
+          clientId: string;
+          items: Array<{ id: string; skuId: string; barcode: null; quantity: number }>;
+        },
+        selections: Array<{
+          id: string;
+          requestItemId: string;
+          skuId: string;
+          boxId: string;
+          quantity: number;
+          box: { code: string };
+        }>,
+        baseKey: string,
+        warehouseId: string,
+      ) => Promise<void>;
+    }).restoreCompletedFbsSelectionShortages(
+      tx,
+      {
+        id: 'request-401',
+        clientId: 'client-1',
+        items: [{ id: 'item-1', skuId: 'sku-1', barcode: null, quantity: 1 }],
+      },
+      [{
+        id: 'selection-1',
+        requestItemId: 'item-1',
+        skuId: 'sku-1',
+        boxId: 'box-1',
+        quantity: 1,
+        box: { code: 'FFL_LKB1007_113' },
+      }],
+      'manual-status-done:request-401',
+      'warehouse-1',
+    );
+
+    expect(tx.stockBalance.delete).toHaveBeenCalledWith({ where: { id: 'packing-boxless' } });
+    expect(tx.stockBalance.update).not.toHaveBeenCalledWith({
+      where: { id: 'available-source' },
+      data: { quantity: { decrement: 1 } },
+    });
+    expect(tx.stockMovement.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          boxId: null,
+          status: 'PACKING',
+          quantity: -1,
+          idempotencyKey:
+            'manual-status-done:request-401:fbs-boxless:selection-1:packing-boxless:out',
+        }),
+      }),
+    );
+  });
+
   it('закрывает проблемную позицию по подтверждённому физическому коробу и восстанавливает только недостающую часть', async () => {
     const existingBalance = {
       id: 'balance-1',

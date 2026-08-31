@@ -1,7 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthUser } from '../src/modules/auth/auth.types';
-import { StockOperationsService } from '../src/modules/stock/stock-operations.service';
+import { StockOperationsService, validateBoxWeight } from '../src/modules/stock/stock-operations.service';
 
 describe('StockOperationsService', () => {
   const service = new StockOperationsService({} as never, {} as never, {} as never);
@@ -15,6 +15,33 @@ describe('StockOperationsService', () => {
 
   it('не разрешает переносить больше доступного остатка', () => {
     expect(() => service.planTransferQuantities(2, 0, 3)).toThrow(BadRequestException);
+  });
+
+  // TEST: расчётный вес больше 25 кг фиксируется предупреждением, но не блокирует закрытие.
+  it('не блокирует короб по расчётному весу больше 25 кг', () => {
+    expect(
+      validateBoxWeight(
+        'PKG-82a6140b-1',
+        { packageType: 'BOX' },
+        [{ quantity: 26, skuWeightGrams: 1_000 }],
+      ),
+    ).toMatchObject({
+      calculatedWeightGrams: 26_000,
+      warnings: [
+        {
+          code: 'BOX_CALCULATED_WEIGHT_OVER_LIMIT',
+          limitGrams: 25_000,
+        },
+      ],
+    });
+
+    expect(() =>
+      validateBoxWeight(
+        'PKG-MEASURED-1',
+        { packageType: 'BOX', weightGrams: 26_000 },
+        [],
+      ),
+    ).toThrow('Вес короба PKG-MEASURED-1 превышает 25 кг.');
   });
 
   it('создает отрицательную корректировку инвентаризации через ledger', async () => {

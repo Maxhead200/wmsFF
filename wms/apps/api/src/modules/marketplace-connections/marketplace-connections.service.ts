@@ -13520,6 +13520,34 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
       });
     }
     await syncProductMarkToPacking();
+
+    // FIX: the physical FBS pick may remove the last factual unit from its
+    // source box. Archive that box in the same transaction and atomically
+    // remove its pallet-sort placement; historical SHIPPING marks do not
+    // represent stock that is still physically inside the box.
+    if (shiftedFromAvailable > 0 && box?.id) {
+      const [remainingBalances, remainingMarks] = await Promise.all([
+        tx.stockBalance.count({
+          where: { boxId: box.id, quantity: { gt: 0 } },
+        }),
+        tx.productMark.count({
+          where: {
+            boxId: box.id,
+            status: { not: StockStatus.SHIPPING },
+          },
+        }),
+      ]);
+      if (remainingBalances === 0 && remainingMarks === 0) {
+        await tx.box.update({
+          where: { id: box.id },
+          data: { status: 'archived', palletId: null, zoneId: null },
+        });
+        await this.archivedEmptyBoxDetach?.detachIfArchivedAndEmpty(
+          { boxId: box.id, reason: 'fbs-completed-pick' },
+          tx,
+        );
+      }
+    }
   }
 
   private async reserveAcceptedWildberriesStock(task: FbsTsdAssemblyRecord) {

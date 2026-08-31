@@ -10095,6 +10095,10 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
       remoteKizValues: string[];
       alreadyAttached: boolean;
     } | null = null;
+    // FIX: the product barcode already scanned into this task identifies the
+    // physical unit in the worker's hands. Keep the task leased and replace a
+    // stale WB KIZ only after the normal confirm-status preflight succeeds.
+    let replacedRemoteKizValues: string[] = [];
     if (
       !emergencyAssembly &&
       (!task.marketplace || task.marketplace === MarketplaceType.WILDBERRIES)
@@ -10121,20 +10125,6 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
       );
       if (
         !wbKizPreflight.alreadyAttached &&
-        wbKizPreflight.remoteKizValues.length > 0
-      ) {
-        const message = await this.parkFbsTsdOrderAfterWbKizConflict(
-          task,
-          kiz,
-          wbKizPreflight.supplierStatus,
-          wbKizPreflight.wbStatus,
-          'у заказа уже указан другой КИЗ',
-          user,
-        );
-        throw new BadRequestException(message);
-      }
-      if (
-        !wbKizPreflight.alreadyAttached &&
         wbKizPreflight.supplierStatus !== 'confirm'
       ) {
         const message = await this.parkFbsTsdOrderAfterWbKizConflict(
@@ -10146,6 +10136,12 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
           user,
         );
         throw new BadRequestException(message);
+      }
+      if (
+        !wbKizPreflight.alreadyAttached &&
+        wbKizPreflight.remoteKizValues.length > 0
+      ) {
+        replacedRemoteKizValues = [...wbKizPreflight.remoteKizValues];
       }
     }
 
@@ -10365,8 +10361,40 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
     }
 
     if (!wbKizPreflight.alreadyAttached) {
+      let staleRemoteKizDeleted = false;
+      const restoreStaleRemoteKiz = async () => {
+        if (!staleRemoteKizDeleted || replacedRemoteKizValues.length === 0) return;
+        try {
+          await marketplaceJsonOnce(
+            `https://marketplace-api.wildberries.ru/api/v3/orders/${numericWbOrderId(task.orderId)}/meta/sgtin`,
+            {
+              method: 'PUT',
+              headers: wbHeaders(wbConnection.apiKey),
+              body: JSON.stringify({ sgtins: replacedRemoteKizValues }),
+              signal: AbortSignal.timeout(FBS_TSD_WB_READ_TIMEOUT_MS),
+            },
+          );
+        } catch (restoreCaught) {
+          this.logger.error(
+            `Could not restore stale WB KIZ after failed replacement for order ${task.orderId}: ${marketplaceErrorMessage(restoreCaught)}`,
+          );
+        }
+      };
       try {
         task = await this.assertFbsTsdLeaseVersion(task, user);
+        if (replacedRemoteKizValues.length > 0) {
+          // FIX: use the same WB metadata replacement contract as SOS WB, but
+          // only for an ordinarily picked, still-confirmed order.
+          await marketplaceJsonOnce(
+            `https://marketplace-api.wildberries.ru/api/v3/orders/${numericWbOrderId(task.orderId)}/meta?key=sgtin`,
+            {
+              method: 'DELETE',
+              headers: wbHeaders(wbConnection.apiKey),
+              signal: AbortSignal.timeout(FBS_TSD_WB_READ_TIMEOUT_MS),
+            },
+          );
+          staleRemoteKizDeleted = true;
+        }
         await marketplaceJsonOnce(
           `https://marketplace-api.wildberries.ru/api/v3/orders/${numericWbOrderId(task.orderId)}/meta/sgtin`,
           {
@@ -10400,6 +10428,7 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
           }
 
           if (!refreshed.alreadyAttached) {
+            await restoreStaleRemoteKiz();
             await rollbackHistoricalMarkRegistration();
             const reason = refreshed.supplierStatus === 'confirm'
               ? 'Wildberries отклонил КИЗ (FailedToUpdateMeta), хотя заказ ещё имеет статус confirm'
@@ -10417,6 +10446,7 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
           // WB мог принять запрос, но вернуть 409 после гонки статусов. Если тот же
           // КИЗ уже прикреплён к этому заказу, операция считается идемпотентно успешной.
         } else {
+          await restoreStaleRemoteKiz();
           await rollbackHistoricalMarkRegistration();
           task = await this.updateFbsTsdUnderLease(
             task,
@@ -10438,13 +10468,23 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
       { kiz, wbMetaStatus: 'ACCEPTED', errorMessage: null },
     );
     await this.recordAcceptedFbsKizScan(updated, kiz, user);
+    if (replacedRemoteKizValues.length > 0) {
+      await this.recordReplacedWildberriesKizAfterProductPick(
+        updated,
+        replacedRemoteKizValues,
+        kiz,
+        user,
+      );
+    }
     // FIX: after box + barcode + accepted KIZ, remove the unit from sellable
     // stock immediately instead of waiting for the whole request to close.
     await this.reserveAcceptedWildberriesStock(updated);
     return this.formatFbsTsdAssembly(
       updated,
       user,
-      boxCorrection?.mode === 'RELINKED'
+      replacedRemoteKizValues.length > 0
+        ? 'КИЗ принят Wildberries: прежний КИЗ заменён на фактически отсканированный. Подтвердите сборку заказа.'
+        : boxCorrection?.mode === 'RELINKED'
         ? `КИЗ принят Wildberries и перепривязан к фактической единице в коробе ${task.boxCode}. Количество товара не изменялось. Подтвердите сборку заказа.`
         : boxCorrection
         ? `КИЗ принят Wildberries. Товар перемещён из короба ${mark?.box?.code ?? 'без номера'} в ${task.boxCode}. Подтвердите сборку заказа.`
@@ -12411,6 +12451,40 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+  }
+
+  // FIX: keep a separate audit trail for an automatic WB metadata replacement.
+  private async recordReplacedWildberriesKizAfterProductPick(
+    task: FbsTsdAssemblyRecord,
+    previousKizValues: string[],
+    scannedKiz: string,
+    user: AuthUser,
+  ) {
+    try {
+      await this.prisma.auditLog.create({
+        data: {
+          userId: user.id,
+          action: 'FBS_WB_KIZ_REPLACED_AFTER_PRODUCT_PICK',
+          entity: 'FbsTsdAssembly',
+          entityId: task.id,
+          payload: cleanJson({
+            clientId: task.clientId,
+            requestId: task.requestId,
+            orderId: task.orderId,
+            previousKiz: previousKizValues.map(printableFbsKiz),
+            scannedKiz: printableFbsKiz(scannedKiz),
+            boxCode: task.boxCode ?? FBS_TSD_NO_BOX_CODE,
+            deviceCode: task.deviceCode,
+            workerName: task.workerName ?? user.name,
+            replacedAt: new Date().toISOString(),
+          }),
+        },
+      });
+    } catch (caught) {
+      this.logger.warn(
+        `Could not write replaced WB KIZ audit for task ${task.id}: ${caught instanceof Error ? caught.message : 'unknown error'}`,
+      );
+    }
   }
 
   private async recordAcceptedFbsKizScan(task: FbsTsdAssemblyRecord, kiz: string, user: AuthUser) {

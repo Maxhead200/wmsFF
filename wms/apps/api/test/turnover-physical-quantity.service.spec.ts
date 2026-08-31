@@ -55,5 +55,10 @@ describe('TurnoverService physical stock presentation', () => {
       physicalQuantity: 4,
       processingQuantity: 2,
     });
+    expect(report.totals).toMatchObject({
+      currentQuantity: 6,
+      physicalQuantity: 4,
+      processingQuantity: 2,
+    });
   });
 });

@@ -327,7 +327,9 @@ export function TurnoverPanel({ session }: { session: AuthSession }) {
     if (!selectedReportItem) {
       return;
     }
-    const sourceBoxCode = selectedReportItem.currentCells.find((cell) => cell.quantity > 0)?.boxCode ?? '';
+    const sourceBoxCode = selectedReportItem.currentCells.find(
+      (cell) => cell.quantity > 0 && isPhysicalTurnoverCell(cell),
+    )?.boxCode ?? '';
     setActiveTile('actions');
     setActionForm({
       action,
@@ -620,7 +622,7 @@ export function TurnoverPanel({ session }: { session: AuthSession }) {
 
       <section className="turnover-summary-tiles" aria-label="Сводка товарооборота">
         <TurnoverSummaryTile label="SKU в выборке" value={formatNumber(totals?.skuCount ?? 0)} icon={<Archive size={18} aria-hidden="true" />} tone="neutral" />
-        <TurnoverSummaryTile label="Остаток сейчас" value={`${formatNumber(totals?.currentQuantity ?? 0)} шт`} icon={<History size={18} aria-hidden="true" />} tone="stock" />
+        <TurnoverSummaryTile label="Физически сейчас" value={`${formatNumber(totals?.physicalQuantity ?? 0)} шт`} icon={<History size={18} aria-hidden="true" />} tone="stock" />
         <TurnoverSummaryTile label="Принято за период" value={`${formatNumber(totals?.receivedQuantity ?? 0)} шт`} icon={<PackagePlus size={18} aria-hidden="true" />} tone="receipt" />
         <TurnoverSummaryTile label="Отгружено за период" value={`${formatNumber(totals?.shippedQuantity ?? 0)} шт`} icon={<ArrowRightLeft size={18} aria-hidden="true" />} tone="shipment" />
         <TurnoverSummaryTile label="Списано за период" value={`${formatNumber(totals?.writtenOffQuantity ?? 0)} шт`} icon={<Trash2 size={18} aria-hidden="true" />} tone="writeoff" />
@@ -640,11 +642,16 @@ export function TurnoverPanel({ session }: { session: AuthSession }) {
             <div className="turnover-quick-tool__product">
               <span>{selectedReportItem.primaryBarcode ?? 'ШК'}</span>
               <strong>{selectedReportItem.name}</strong>
-              <small>{selectedReportItem.internalSku} · на остатке {formatNumber(selectedReportItem.currentQuantity)} шт</small>
+              <small>
+                {selectedReportItem.internalSku} · физически {formatNumber(selectedReportItem.physicalQuantity)} шт
+                {selectedReportItem.processingQuantity > 0
+                  ? ` · уже отобрано ${formatNumber(selectedReportItem.processingQuantity)} шт`
+                  : ''}
+              </small>
             </div>
             <div className="turnover-quick-tool__locations">
-              {selectedReportItem.currentCells.length === 0 ? <span className="turnover-quick-tool__empty">На складе нет доступного остатка.</span> : null}
-              {selectedReportItem.currentCells.map((cell) => (
+              {physicalTurnoverCells(selectedReportItem).length === 0 ? <span className="turnover-quick-tool__empty">В коробах нет физического остатка.</span> : null}
+              {physicalTurnoverCells(selectedReportItem).map((cell) => (
                 <button type="button" key={`${cell.boxId ?? cell.boxCode}-${cell.status}-${cell.palletSortCode ?? ''}`} onClick={() => void loadBoxDetails(cell.boxCode)}>
                   <strong>{cell.boxCode}</strong>
                   <span>{storageZoneLabel(cell)} · {cell.palletSortCode ?? cell.palletCode ?? 'без палет-сорта'}</span>
@@ -684,7 +691,7 @@ export function TurnoverPanel({ session }: { session: AuthSession }) {
           icon={<History size={22} aria-hidden="true" />}
           title="Товаро-движение"
           text="Приемка, ячейки, КИЗ, перемещения, заявки и списание."
-          value={totals ? `${formatNumber(totals.currentQuantity)} шт` : '0 шт'}
+          value={totals ? `${formatNumber(totals.physicalQuantity)} шт физически` : '0 шт'}
           tone="stock"
           onClick={() => setActiveTile('movement')}
         />
@@ -1261,7 +1268,7 @@ function MovementSection({
                 <th>Клиент</th>
                 <th>Товар</th>
                 <th>ШК</th>
-                <th>Остаток</th>
+                <th>Физически</th>
                 <th>Размещение</th>
                 <th>Принято</th>
                 <th>Отгружено</th>
@@ -1284,16 +1291,19 @@ function MovementSection({
                     <span>{item.internalSku}</span>
                   </td>
                   <td>{item.primaryBarcode ?? 'нет'}</td>
-                  <td>{formatNumber(item.currentQuantity)}</td>
+                  <td>
+                    {formatNumber(item.physicalQuantity)}
+                    {item.processingQuantity > 0 ? <span>Уже отобрано: {formatNumber(item.processingQuantity)}</span> : null}
+                  </td>
                   <td className="turnover-placement-cell">
-                    {item.currentCells.length === 0 ? <span>Нет остатка</span> : null}
-                    {item.currentCells.slice(0, 2).map((cell) => (
+                    {physicalTurnoverCells(item).length === 0 ? <span>Нет физического остатка</span> : null}
+                    {physicalTurnoverCells(item).slice(0, 2).map((cell) => (
                       <span className="turnover-placement-cell__item" key={`${cell.boxId ?? cell.boxCode}-${cell.status}-${cell.palletSortCode ?? ''}`}>
                         <strong>{cell.boxCode}</strong>
                         <small>{placementSummary(cell)}</small>
                       </span>
                     ))}
-                    {item.currentCells.length > 2 ? <small>Ещё размещений: {item.currentCells.length - 2}</small> : null}
+                    {physicalTurnoverCells(item).length > 2 ? <small>Ещё размещений: {physicalTurnoverCells(item).length - 2}</small> : null}
                   </td>
                   <td>{formatNumber(item.receivedQuantity)}</td>
                   <td>{formatNumber(item.shippedQuantity)}</td>
@@ -1318,6 +1328,9 @@ function MovementDetails({
   onOpenDocument: (movement: TurnoverSkuReport['movements'][number]) => void;
   onOpenBox: (boxCode: string) => void;
 }) {
+  const physicalCells = physicalTurnoverCells(item);
+  const processingCells = processingTurnoverCells(item);
+
   return (
     <div className="turnover-details">
       <div className="turnover-details__heading">
@@ -1331,12 +1344,12 @@ function MovementDetails({
 
       <div className="turnover-current-placement">
         <div className="turnover-current-placement__heading">
-          <strong>Текущее размещение</strong>
-          <span>{item.currentCells.length} мест</span>
+          <strong>Физически в коробах</strong>
+          <span>{physicalCells.length} мест · {formatNumber(item.physicalQuantity)} шт</span>
         </div>
         <div className="turnover-cells">
-          {item.currentCells.length === 0 ? <span>На складе сейчас нет остатка.</span> : null}
-          {item.currentCells.map((cell) => (
+          {physicalCells.length === 0 ? <span>В коробах сейчас нет физического остатка.</span> : null}
+          {physicalCells.map((cell) => (
             <button
               className="turnover-cell-card"
               type="button"
@@ -1354,6 +1367,30 @@ function MovementDetails({
           ))}
         </div>
       </div>
+
+      {processingCells.length > 0 ? (
+        <div className="turnover-current-placement">
+          <div className="turnover-current-placement__heading">
+            <strong>Уже отобрано из коробов</strong>
+            <span>{formatNumber(item.processingQuantity)} шт</span>
+          </div>
+          <div className="turnover-cells">
+            {processingCells.map((cell) => (
+              <div
+                className="turnover-cell-card"
+                key={`processing-${cell.boxId ?? cell.boxCode}-${cell.status}`}
+                title="Товар уже забран сборщиком и ожидает завершения заявки"
+              >
+                <strong>{cell.boxCode}</strong>
+                <span className="turnover-cell-card__placement">
+                  <span>Последний короб: <b>{cell.boxCode}</b></span>
+                </span>
+                <small>{formatNumber(cell.quantity)} шт · {stockStatusLabel(cell.status)}</small>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div className="turnover-metrics">
         <Metric label="Первый приход" value={formatDate(item.firstReceiptAt)} />
@@ -1876,7 +1913,7 @@ function buildProductOptions(items: TurnoverSkuReport[], products: TurnoverSugge
     ...items.map((item) => ({
       value: productSearchOptionLabel({ ...item, barcode: item.primaryBarcode }),
       label: productSearchOptionLabel({ ...item, barcode: item.primaryBarcode }),
-      description: `Остаток ${formatNumber(item.currentQuantity)} шт · ${item.article ?? item.internalSku}`,
+      description: `Физически ${formatNumber(item.physicalQuantity)} шт · ${item.article ?? item.internalSku}`,
       data: {
         skuId: item.skuId,
         name: item.name,
@@ -1886,7 +1923,7 @@ function buildProductOptions(items: TurnoverSkuReport[], products: TurnoverSugge
         color: item.color,
         size: item.size,
         barcode: item.primaryBarcode,
-        boxCode: item.currentCells.find((cell) => cell.quantity > 0)?.boxCode ?? item.firstCell,
+        boxCode: item.currentCells.find((cell) => cell.quantity > 0 && isPhysicalTurnoverCell(cell))?.boxCode ?? item.firstCell,
       },
     })),
     ...products.map((product) => ({
@@ -1914,7 +1951,7 @@ function buildBarcodeOptions(items: TurnoverSkuReport[], barcodes: TurnoverSugge
       item.barcodes.map((barcode) => ({
         value: barcode,
         label: barcode,
-        description: `${item.name} · остаток ${formatNumber(item.currentQuantity)} шт`,
+        description: `${item.name} · физически ${formatNumber(item.physicalQuantity)} шт`,
         data: {
           clientId: item.client.id,
           clientName: item.client.name,
@@ -1924,7 +1961,7 @@ function buildBarcodeOptions(items: TurnoverSkuReport[], barcodes: TurnoverSugge
           clientSku: item.clientSku,
           article: item.article,
           barcode,
-          boxCode: item.currentCells.find((cell) => cell.quantity > 0)?.boxCode ?? item.firstCell,
+          boxCode: item.currentCells.find((cell) => cell.quantity > 0 && isPhysicalTurnoverCell(cell))?.boxCode ?? item.firstCell,
         },
       })),
     ),
@@ -2117,6 +2154,19 @@ function stockStatusLabel(status: string) {
   };
 
   return labels[status] ?? status;
+}
+
+// FIX: PACKING/SHIPPING are accounting states after the picker has removed goods from a box.
+function isPhysicalTurnoverCell(cell: TurnoverSkuReport['currentCells'][number]) {
+  return cell.status !== 'PACKING' && cell.status !== 'SHIPPING';
+}
+
+function physicalTurnoverCells(item: TurnoverSkuReport) {
+  return item.currentCells.filter(isPhysicalTurnoverCell);
+}
+
+function processingTurnoverCells(item: TurnoverSkuReport) {
+  return item.currentCells.filter((cell) => !isPhysicalTurnoverCell(cell));
 }
 
 function storageZoneLabel(cell: TurnoverSkuReport['currentCells'][number]) {

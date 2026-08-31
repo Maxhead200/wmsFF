@@ -451,11 +451,21 @@ export class TurnoverService {
       (acc, item) => ({
         skuCount: acc.skuCount + 1,
         currentQuantity: acc.currentQuantity + item.currentQuantity,
+        physicalQuantity: acc.physicalQuantity + item.physicalQuantity,
+        processingQuantity: acc.processingQuantity + item.processingQuantity,
         receivedQuantity: acc.receivedQuantity + item.receivedQuantity,
         shippedQuantity: acc.shippedQuantity + item.shippedQuantity,
         writtenOffQuantity: acc.writtenOffQuantity + item.writtenOffQuantity,
       }),
-      { skuCount: 0, currentQuantity: 0, receivedQuantity: 0, shippedQuantity: 0, writtenOffQuantity: 0 },
+      {
+        skuCount: 0,
+        currentQuantity: 0,
+        physicalQuantity: 0,
+        processingQuantity: 0,
+        receivedQuantity: 0,
+        shippedQuantity: 0,
+        writtenOffQuantity: 0,
+      },
     );
 
     return {
@@ -1859,6 +1869,11 @@ export class TurnoverService {
     const latestNegative =
       [...sku.movements].reverse().find((movement) => movement.quantity < 0 && movement.type !== MovementType.PICK) ?? null;
     const currentQuantity = sku.balances.reduce((sum, balance) => sum + balance.quantity, 0);
+    // FIX: PACKING/SHIPPING remain in accounting until request closure, but are no longer physically in the box.
+    const processingQuantity = sku.balances
+      .filter((balance) => balance.status === StockStatus.PACKING || balance.status === StockStatus.SHIPPING)
+      .reduce((sum, balance) => sum + balance.quantity, 0);
+    const physicalQuantity = currentQuantity - processingQuantity;
     const receivedQuantity = sku.movements.filter(isReceiptMovement).reduce((sum, movement) => sum + movement.quantity, 0);
     const shippedQuantity = sku.movements
       .filter((movement) => movement.type === MovementType.SHIP && movement.quantity < 0)
@@ -1891,6 +1906,8 @@ export class TurnoverService {
       shippedQuantity,
       writtenOffQuantity,
       currentQuantity,
+      physicalQuantity,
+      processingQuantity,
       currentCells: sku.balances.map((balance) => {
         const storagePlacement = balance.box?.storagePlacement
           ?? (balance.boxId ? storagePlacementMap.get(`id:${balance.boxId}`) : null)

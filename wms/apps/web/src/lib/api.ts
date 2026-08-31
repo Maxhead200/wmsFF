@@ -4375,6 +4375,9 @@ export type TurnoverSkuReport = {
   shippedQuantity: number;
   writtenOffQuantity: number;
   currentQuantity: number;
+  // FIX: physical stock excludes PACKING/SHIPPING; processing stock is shown separately.
+  physicalQuantity: number;
+  processingQuantity: number;
   currentCells: Array<{
     boxId: string | null;
     boxCode: string;
@@ -4420,6 +4423,8 @@ export type TurnoverReport = {
   totals: {
     skuCount: number;
     currentQuantity: number;
+    physicalQuantity: number;
+    processingQuantity: number;
     receivedQuantity: number;
     shippedQuantity: number;
     writtenOffQuantity: number;

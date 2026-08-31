@@ -5159,6 +5159,118 @@ describe('MarketplaceConnectionsService', () => {
     });
   });
 
+  // TEST: a product already scanned into the worker's task is the physical unit in hand.
+  // A stale, different WB KIZ must be replaced without parking or releasing that task.
+  it('replaces a stale WB KIZ for an ordinarily picked FBS product without removing the worker task', async () => {
+    const barcode = '4600000000012';
+    const scannedKiz = '010590000000001221PHYSICAL123456';
+    const remoteKiz = '010590000000001221STALEWB123456';
+    const task = {
+      id: 'task-1',
+      requestId: 'request-490',
+      clientId: 'client-1',
+      connectionId: 'connection-1',
+      orderId: '5630810674',
+      skuId: 'sku-1',
+      productName: 'Костюм',
+      requiresKiz: true,
+      status: 'IN_PROGRESS',
+      boxId: null,
+      boxCode: 'БЕЗ КОРОБА',
+      barcode,
+      barcodes: [barcode],
+      kiz: null,
+      wbMetaStatus: 'PENDING',
+      marketplace: MarketplaceType.WILDBERRIES,
+    };
+    const accepted = { ...task, kiz: scannedKiz, wbMetaStatus: 'ACCEPTED' };
+    const update = vi.fn().mockResolvedValue(accepted);
+    const auditCreate = vi.fn().mockResolvedValue({ id: 'audit-1' });
+    const prisma = {
+      productMark: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'mark-1',
+          clientId: 'client-1',
+          skuId: 'sku-1',
+          boxId: null,
+          status: StockStatus.AVAILABLE,
+          box: null,
+          sku: {
+            internalSku: 'SKU-1',
+            article: 'ART-1',
+            name: 'Костюм',
+            color: 'синий',
+            size: 'L',
+          },
+        }),
+      },
+      fbsTsdAssembly: {
+        findMany: vi.fn().mockResolvedValue([]),
+        update,
+      },
+      clientMarketplaceConnection: {
+        findFirst: vi.fn().mockResolvedValue({ apiKey: 'secret-key' }),
+      },
+      auditLog: { create: auditCreate },
+    };
+    const service = new MarketplaceConnectionsService(prisma as never, {} as never);
+    vi.spyOn(service as any, 'loadOwnedFbsTsdAssembly').mockResolvedValue(task);
+    vi.spyOn(service as any, 'findPreviousWildberriesKizUsage').mockResolvedValue(null);
+    vi.spyOn(service as any, 'isFbsEmergencyAssemblyRequest').mockResolvedValue(false);
+    vi.spyOn(service as any, 'loadWildberriesFbsKizPreflight').mockResolvedValue({
+      supplierStatus: 'confirm',
+      wbStatus: 'waiting',
+      remoteKizValues: [remoteKiz],
+      alreadyAttached: false,
+    });
+    const park = vi
+      .spyOn(service as any, 'parkFbsTsdOrderAfterWbKizConflict')
+      .mockResolvedValue('task parked');
+    vi.spyOn(service as any, 'recordAcceptedFbsKizScan').mockResolvedValue(undefined);
+    vi.spyOn(service as any, 'reserveAcceptedWildberriesStock').mockResolvedValue(undefined);
+    vi.spyOn(service as any, 'formatFbsTsdAssembly').mockImplementation(
+      async (updated: unknown, _user: unknown, message: string) => ({ task: updated, message }),
+    );
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 204,
+      json: async () => ({}),
+    } as Response));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      service.scanFbsTsdKiz('task-1', { kiz: scannedKiz }, { id: 'user-1', name: 'Сборщик' } as never),
+    ).resolves.toMatchObject({
+      task: accepted,
+      message: expect.stringContaining('КИЗ принят Wildberries'),
+    });
+
+    expect(park).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      'https://marketplace-api.wildberries.ru/api/v3/orders/5630810674/meta?key=sgtin',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'https://marketplace-api.wildberries.ru/api/v3/orders/5630810674/meta/sgtin',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({ sgtins: [scannedKiz] }),
+      }),
+    );
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 'task-1' },
+      data: { kiz: scannedKiz, wbMetaStatus: 'ACCEPTED', errorMessage: null },
+    });
+    expect(auditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'FBS_WB_KIZ_REPLACED_AFTER_PRODUCT_PICK',
+        entityId: 'task-1',
+      }),
+    });
+  });
+
   it('rejects a box barcode in the FBS KIZ step before changing the order', async () => {
     const task = {
       id: 'task-1',

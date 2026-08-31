@@ -28,7 +28,10 @@ describe('StockOperationsService: объединение коробов', () => 
             clientId: 'client-1',
             code: 'FFL_SOURCE',
             status: 'active',
+            warehouseId: 'warehouse-1',
             palletId: null,
+            zone: { warehouseId: 'warehouse-1' },
+            pallet: null,
             balances: [sourceBalance],
             productMarks: [{ id: 'mark-1', skuId: 'sku-1', status: StockStatus.AVAILABLE }],
           })
@@ -38,6 +41,7 @@ describe('StockOperationsService: объединение коробов', () => 
           clientId: 'client-1',
           code: 'FFL_TARGET',
           status: 'active',
+          warehouseId: 'warehouse-1',
           palletId: null,
         }),
         update: vi.fn().mockResolvedValue({}),
@@ -83,6 +87,8 @@ describe('StockOperationsService: объединение коробов', () => 
         clientScopeMode: 'ALL',
         clientIds: [],
         writableClientIds: [],
+        activeWarehouseId: 'warehouse-1',
+        writableWarehouseIds: ['warehouse-1'],
       },
     );
 
@@ -109,6 +115,133 @@ describe('StockOperationsService: объединение коробов', () => 
     expect(tx.box.update).toHaveBeenCalledWith({
       where: { id: 'box-source' },
       data: { status: 'archived' },
+    });
+  });
+
+  // TEST: уже отобранный товар не должен физически «переезжать» вместе с коробом.
+  it('переносит только физический остаток и не переносит PACKING/SHIPPING', async () => {
+    const availableBalance = {
+      id: 'balance-available',
+      balanceKey: 'source-available',
+      clientId: 'client-1',
+      skuId: 'sku-1',
+      boxId: 'box-source',
+      palletId: null,
+      status: StockStatus.AVAILABLE,
+      quantity: 3,
+    };
+    const packingBalance = {
+      ...availableBalance,
+      id: 'balance-packing',
+      balanceKey: 'source-packing',
+      status: StockStatus.PACKING,
+      quantity: 2,
+    };
+    const tx = {
+      stockMovement: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn()
+          .mockResolvedValueOnce({ id: 'move-out' })
+          .mockResolvedValueOnce({ id: 'move-in' })
+          .mockResolvedValueOnce({ id: 'packing-move-out' })
+          .mockResolvedValueOnce({ id: 'packing-move-in' }),
+      },
+      box: {
+        findUnique: vi.fn()
+          .mockResolvedValueOnce({
+            id: 'box-source',
+            clientId: 'client-1',
+            code: 'FFL_SOURCE',
+            status: 'active',
+            warehouseId: 'warehouse-1',
+            palletId: null,
+            zone: { warehouseId: 'warehouse-1' },
+            pallet: null,
+            // Mock намеренно возвращает оба статуса: сервис обязан защититься и после чтения.
+            balances: [availableBalance, packingBalance],
+            productMarks: [
+              { id: 'mark-available', skuId: 'sku-1', status: StockStatus.AVAILABLE },
+              { id: 'mark-packing', skuId: 'sku-1', status: StockStatus.PACKING },
+            ],
+          })
+          .mockResolvedValueOnce(null),
+        create: vi.fn().mockResolvedValue({
+          id: 'box-target',
+          clientId: 'client-1',
+          code: 'FFL_TARGET',
+          status: 'active',
+          warehouseId: 'warehouse-1',
+          palletId: null,
+        }),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      stockBalance: {
+        update: vi.fn().mockResolvedValue({ ...availableBalance, quantity: 0 }),
+        delete: vi.fn().mockResolvedValue({}),
+        upsert: vi.fn().mockResolvedValue({ id: 'target-balance', quantity: 3 }),
+        count: vi.fn().mockResolvedValue(1),
+      },
+      productMark: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        count: vi.fn().mockResolvedValue(1),
+      },
+    };
+    const prisma = {
+      $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
+    };
+    const service = new StockOperationsService(
+      prisma as never,
+      { requireClientAccess: vi.fn() } as never,
+      { balanceKey: vi.fn().mockReturnValue('target-key') } as never,
+      undefined,
+      undefined,
+      { assertStockMovementsAllowed: vi.fn() } as never,
+    );
+
+    const result = await service.transferWholeBox(
+      {
+        clientId: 'client-1',
+        fromBoxCode: 'FFL_SOURCE',
+        toBoxCode: 'FFL_TARGET',
+        idempotencyKey: 'whole-box-physical-only',
+      },
+      {
+        id: 'worker-1',
+        email: 'worker@example.test',
+        name: 'Сотрудник',
+        roleCodes: ['WAREHOUSE'],
+        permissionCodes: ['stock:read', 'stock:write'],
+        clientScopeMode: 'ALL',
+        clientIds: [],
+        writableClientIds: [],
+        activeWarehouseId: 'warehouse-1',
+        writableWarehouseIds: ['warehouse-1'],
+      },
+    );
+
+    expect(tx.box.findUnique.mock.calls[0]?.[0]).toEqual(expect.objectContaining({
+      include: expect.objectContaining({
+        balances: expect.objectContaining({
+          where: expect.objectContaining({
+            status: { notIn: [StockStatus.PACKING, StockStatus.SHIPPING] },
+          }),
+        }),
+        productMarks: expect.objectContaining({
+          where: { status: { notIn: [StockStatus.PACKING, StockStatus.SHIPPING] } },
+        }),
+      }),
+    }));
+    expect(tx.stockMovement.create).toHaveBeenCalledTimes(2);
+    expect(tx.productMark.updateMany).toHaveBeenCalledTimes(1);
+    expect(tx.productMark.updateMany).toHaveBeenCalledWith({
+      where: { boxId: 'box-source', skuId: 'sku-1', status: StockStatus.AVAILABLE },
+      data: { boxId: 'box-target', stockMovementId: 'move-in' },
+    });
+    expect(result).toMatchObject({
+      lines: 1,
+      quantity: 3,
+      movedMarks: 1,
+      sourceArchived: false,
     });
   });
 });

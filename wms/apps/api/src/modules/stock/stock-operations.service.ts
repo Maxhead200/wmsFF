@@ -32,6 +32,9 @@ import { TransferBetweenBoxesDto } from './dto/transfer-between-boxes.dto';
 import { TransferWholeBoxDto } from './dto/transfer-whole-box.dto';
 import { StockBalancesService } from './stock-balances.service';
 
+// FIX: PACKING/SHIPPING represent goods already removed from the physical box by a picker.
+const NON_PHYSICAL_BOX_STOCK_STATUSES: StockStatus[] = [StockStatus.PACKING, StockStatus.SHIPPING];
+
 const allocationBoxSelect = {
   code: true,
   warehouseId: true,
@@ -621,10 +624,17 @@ export class StockOperationsService {
           zone: { select: { warehouseId: true } },
           pallet: { select: { zone: { select: { warehouseId: true } } } },
           balances: {
-            where: { quantity: { gt: 0 }, warehouseId },
+            where: {
+              quantity: { gt: 0 },
+              warehouseId,
+              // FIX: never move already picked/shipping stock during physical box consolidation.
+              status: { notIn: NON_PHYSICAL_BOX_STOCK_STATUSES },
+            },
             orderBy: [{ skuId: 'asc' }, { status: 'asc' }],
           },
           productMarks: {
+            // FIX: KIZ already assigned to picking/shipping must keep its original workflow binding.
+            where: { status: { notIn: NON_PHYSICAL_BOX_STOCK_STATUSES } },
             select: { id: true, skuId: true, status: true },
           },
         },
@@ -633,8 +643,17 @@ export class StockOperationsService {
         throw new NotFoundException(`Исходный короб ${fromBoxCode} не найден в активных остатках.`);
       }
       this.assertBoxWarehouse(warehouseId, sourceBox);
-      if (sourceBox.balances.length === 0) {
-        throw new BadRequestException(`В коробе ${sourceBox.code} нет остатка для перемещения.`);
+      // FIX: defense in depth for transaction mocks and any future query changes.
+      const movableBalances = sourceBox.balances.filter(
+        (balance) => !NON_PHYSICAL_BOX_STOCK_STATUSES.includes(balance.status),
+      );
+      const movableProductMarks = sourceBox.productMarks.filter(
+        (mark) => !NON_PHYSICAL_BOX_STOCK_STATUSES.includes(mark.status),
+      );
+      if (movableBalances.length === 0) {
+        throw new BadRequestException(
+          `В коробе ${sourceBox.code} нет физического остатка для перемещения. Товар в сборке или к отгрузке не переносится.`,
+        );
       }
 
       const existingTarget = await tx.box.findUnique({
@@ -661,8 +680,8 @@ export class StockOperationsService {
           },
         }));
 
-      const balanceKeys = new Set(sourceBox.balances.map((balance) => `${balance.skuId}:${balance.status}`));
-      const orphanMarks = sourceBox.productMarks.filter((mark) => !balanceKeys.has(`${mark.skuId}:${mark.status}`));
+      const balanceKeys = new Set(movableBalances.map((balance) => `${balance.skuId}:${balance.status}`));
+      const orphanMarks = movableProductMarks.filter((mark) => !balanceKeys.has(`${mark.skuId}:${mark.status}`));
       const autoApproveChecks = canAutoApproveStockChecks(user);
       if (orphanMarks.length > 0 && !autoApproveChecks) {
         throw new BadRequestException(
@@ -672,7 +691,7 @@ export class StockOperationsService {
 
       let totalQuantity = 0;
       let movedMarks = 0;
-      for (const [index, balance] of sourceBox.balances.entries()) {
+      for (const [index, balance] of movableBalances.entries()) {
         const quantity = balance.quantity;
         const lineKey = `${dto.idempotencyKey}:${index + 1}:${balance.id}`;
         await this.decrementSourceBalance(tx, balance, quantity);
@@ -777,7 +796,7 @@ export class StockOperationsService {
         fromBox: sourceBox.code,
         toBox: targetBox.code,
         targetCreated: !existingTarget,
-        lines: sourceBox.balances.length,
+        lines: movableBalances.length,
         quantity: totalQuantity,
         movedMarks,
         autoApprovedChecks: orphanMarks.length,

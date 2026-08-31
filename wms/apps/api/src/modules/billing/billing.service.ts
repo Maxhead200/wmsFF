@@ -1936,6 +1936,19 @@ function calculateHistoricalStorageDetails(
   days.forEach((day) => {
     const dayEnd = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), 23, 59, 59, 999));
 
+    // FIX: keep the invoice calculation on the same end-of-day cutoff as the storage overview.
+    while (movementIndex < sorted.length && sorted[movementIndex].createdAt <= dayEnd) {
+      const movement = sorted[movementIndex];
+      if (isHistoricalStorageMovement(movement)) {
+        applyHistoricalStorageMovement(quantities, movement);
+        const volumeLiters = calculateSkuVolumeLiters(movement.sku) || null;
+        if (!volumeLiters || volumeLiters <= 0) {
+          skippedWithoutVolume += 1;
+        }
+      }
+      movementIndex += 1;
+    }
+
     let dayLiters = 0;
     let positions = 0;
     quantities.forEach((state) => {
@@ -1970,17 +1983,6 @@ function calculateHistoricalStorageDetails(
       positions,
     });
 
-    while (movementIndex < sorted.length && sorted[movementIndex].createdAt <= dayEnd) {
-      const movement = sorted[movementIndex];
-      if (isHistoricalStorageMovement(movement)) {
-        applyHistoricalStorageMovement(quantities, movement);
-        const volumeLiters = calculateSkuVolumeLiters(movement.sku) || null;
-        if (!volumeLiters || volumeLiters <= 0) {
-          skippedWithoutVolume += 1;
-        }
-      }
-      movementIndex += 1;
-    }
   });
 
   return {
@@ -2027,7 +2029,8 @@ function applyHistoricalStorageMovement(
   },
 ) {
   const volumeLiters = calculateSkuVolumeLiters(movement.sku) || null;
-  const key = `${movement.skuId}:${movement.status}`;
+  // FIX: status is only a workflow stage; storage is one physical balance per SKU.
+  const key = movement.skuId;
   const current =
     quantities.get(key) ??
     ({

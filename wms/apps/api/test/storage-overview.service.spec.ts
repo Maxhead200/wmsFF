@@ -52,8 +52,8 @@ describe('StorageOverviewService', () => {
     );
 
     expect(overview.daily).toEqual([
-      { date: '2026-06-01', totalLiters: 0, literDays: 0, positions: 0 },
-      { date: '2026-06-02', totalLiters: 20, literDays: 20, positions: 1 },
+      { date: '2026-06-01', totalLiters: 20, literDays: 20, positions: 1 },
+      { date: '2026-06-02', totalLiters: 0, literDays: 0, positions: 0 },
       { date: '2026-06-03', totalLiters: 0, literDays: 0, positions: 0 },
     ]);
     expect(overview.totals).toEqual({
@@ -73,6 +73,58 @@ describe('StorageOverviewService', () => {
         storageCostRub: 10,
       }),
     );
+  });
+
+  // TEST: a correction recorded on the last day must change that day's charge, not leak into the next month.
+  it('applies a final-day inventory correction to the same storage day', async () => {
+    const prisma = {
+      client: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'client-1',
+          code: 'CLIENT',
+          name: 'Client',
+          storageAccountingEnabled: true,
+          storagePriceRubPerLiterDay: '0.5',
+        }),
+      },
+      stockBalance: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      stockMovement: {
+        groupBy: vi
+          .fn()
+          .mockResolvedValueOnce([{ skuId: 'sku-1', _sum: { quantity: 10 } }])
+          .mockResolvedValueOnce([{ skuId: 'sku-1', _min: { createdAt: new Date('2026-05-31T09:00:00.000Z') } }]),
+        findMany: vi.fn().mockResolvedValue([
+          {
+            skuId: 'sku-1',
+            quantity: -4,
+            createdAt: new Date('2026-06-30T12:00:00.000Z'),
+          },
+        ]),
+      },
+      sku: {
+        findMany: vi.fn().mockResolvedValue([sku()]),
+      },
+    };
+    const service = new StorageOverviewService(prisma as never, {
+      requireClientAccess: vi.fn(),
+    } as never);
+
+    const overview = await service.getOverview(
+      {
+        clientId: 'client-1',
+        periodFrom: '2026-06-30',
+        periodTo: '2026-06-30',
+      },
+      {} as never,
+    );
+
+    expect(overview.daily).toEqual([
+      { date: '2026-06-30', totalLiters: 12, literDays: 12, positions: 1 },
+    ]);
+    expect(overview.totals.literDays).toBe(12);
+    expect(overview.totals.storageCostRub).toBe(6);
   });
 
   it('exports daily storage breakdown as xlsx', async () => {

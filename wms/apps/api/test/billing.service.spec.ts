@@ -168,9 +168,9 @@ describe('BillingService', () => {
           clientId: 'client-1',
           serviceId: 'service-storage',
           unit: BillingUnit.LITER_DAY,
-          quantity: 15,
+          quantity: 21,
           unitPriceRub: 0.5,
-          totalRub: 7.5,
+          totalRub: 10.5,
           status: BillingChargeStatus.APPROVED,
           source: BillingChargeSource.STORAGE,
           sourceKey: 'storage:client-1:2026-06-01:2026-06-03',
@@ -178,15 +178,85 @@ describe('BillingService', () => {
           metadata: expect.objectContaining({
             calculationMode: 'LEDGER',
             days: 3,
-            totalLiters: 5,
-            literDays: 15,
+            totalLiters: 7,
+            literDays: 21,
             balancesCount: 2,
             skippedWithoutVolume: 0,
             daily: [
               { date: '2026-06-01', totalLiters: 3, literDays: 3, positions: 1 },
-              { date: '2026-06-02', totalLiters: 3, literDays: 3, positions: 1 },
+              { date: '2026-06-02', totalLiters: 9, literDays: 9, positions: 2 },
               { date: '2026-06-03', totalLiters: 9, literDays: 9, positions: 2 },
             ],
+          }),
+        }),
+      }),
+    );
+  });
+
+  // TEST: storage is one physical SKU balance; a SHIP movement must not remain isolated in another status bucket.
+  it('nets historical storage across statuses of the same SKU', async () => {
+    const prisma = {
+      client: {
+        findUnique: vi.fn().mockResolvedValue({ storageAccountingEnabled: true, storagePriceRubPerLiterDay: '0.5' }),
+      },
+      billingService: {
+        upsert: vi.fn().mockResolvedValue({
+          id: 'service-storage',
+          code: 'STORAGE_LITER_DAY',
+          defaultPriceRub: null,
+        }),
+      },
+      billingCharge: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({ id: 'charge-storage' }),
+      },
+      stockMovement: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            skuId: 'sku-1',
+            type: MovementType.RECEIPT,
+            status: 'AVAILABLE',
+            quantity: 10,
+            createdAt: new Date('2026-05-31T12:00:00.000Z'),
+            sku: { id: 'sku-1', internalSku: 'SKU-1', name: 'Товар', volumeLiters: '1' },
+          },
+          {
+            skuId: 'sku-1',
+            type: MovementType.SHIP,
+            status: 'SHIPPING',
+            quantity: -4,
+            createdAt: new Date('2026-05-31T18:00:00.000Z'),
+            sku: { id: 'sku-1', internalSku: 'SKU-1', name: 'Товар', volumeLiters: '1' },
+          },
+        ]),
+      },
+      stockBalance: {
+        findMany: vi.fn(),
+      },
+    };
+    const service = new BillingService(prisma as never, clientScopes());
+
+    await service.generateStorageCharge(
+      {
+        clientId: 'client-1',
+        periodFrom: '2026-06-01',
+        periodTo: '2026-06-01',
+        unitPriceRub: 0.5,
+        approve: true,
+      },
+      user({ clientIds: ['client-1'], writableClientIds: ['client-1'] }),
+    );
+
+    expect(prisma.billingCharge.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          quantity: 6,
+          totalRub: 3,
+          metadata: expect.objectContaining({
+            calculationMode: 'LEDGER',
+            literDays: 6,
+            balancesCount: 1,
+            daily: [{ date: '2026-06-01', totalLiters: 6, literDays: 6, positions: 1 }],
           }),
         }),
       }),
@@ -214,7 +284,7 @@ describe('BillingService', () => {
     }));
   });
 
-  it('СЃС‡РёС‚Р°РµС‚ С…СЂР°РЅРµРЅРёРµ СЃ РґРЅСЏ РїРѕСЃР»Рµ РїСЂРёРµРјРєРё Рё РґРѕ РґРЅСЏ РѕС‚РіСЂСѓР·РєРё РІРєР»СЋС‡РёС‚РµР»СЊРЅРѕ', async () => {
+  it('считает хранение по остатку на конец каждого дня', async () => {
     const prisma = {
       client: {
         findUnique: vi.fn().mockResolvedValue({ storageAccountingEnabled: true, storagePriceRubPerLiterDay: '0.15' }),
@@ -270,12 +340,12 @@ describe('BillingService', () => {
     const createCall = vi.mocked(prisma.billingCharge.create).mock.calls[0]?.[0] as {
       data: { quantity: number; totalRub: number; metadata: { daily: Array<{ date: string; totalLiters: number }> } };
     };
-    expect(createCall.data.quantity).toBe(2520);
-    expect(createCall.data.totalRub).toBe(378);
+    expect(createCall.data.quantity).toBe(2600);
+    expect(createCall.data.totalRub).toBe(390);
     expect(createCall.data.metadata.daily).toHaveLength(30);
-    expect(createCall.data.metadata.daily[0]).toMatchObject({ date: '2026-07-01', totalLiters: 0 });
+    expect(createCall.data.metadata.daily[0]).toMatchObject({ date: '2026-07-01', totalLiters: 100 });
     expect(createCall.data.metadata.daily[1]).toMatchObject({ date: '2026-07-02', totalLiters: 100 });
-    expect(createCall.data.metadata.daily[10]).toMatchObject({ date: '2026-07-11', totalLiters: 100 });
+    expect(createCall.data.metadata.daily[10]).toMatchObject({ date: '2026-07-11', totalLiters: 80 });
     expect(createCall.data.metadata.daily[11]).toMatchObject({ date: '2026-07-12', totalLiters: 80 });
     expect(createCall.data.metadata.daily[29]).toMatchObject({ date: '2026-07-30', totalLiters: 80 });
   });

@@ -341,6 +341,12 @@ function calculateStorageHistory(
   days.forEach((day) => {
     const dayEnd = endOfUtcDay(day);
 
+    // FIX: the daily charge reflects the physical balance after all movements recorded on that day.
+    while (movementIndex < movements.length && movements[movementIndex].createdAt <= dayEnd) {
+      applyStorageMovement(state, movements[movementIndex], skusById);
+      movementIndex += 1;
+    }
+
     let totalLiters = 0;
     let positions = 0;
     state.forEach((row) => {
@@ -398,10 +404,6 @@ function calculateStorageHistory(
       positions,
     });
 
-    while (movementIndex < movements.length && movements[movementIndex].createdAt <= dayEnd) {
-      applyStorageMovement(state, movements[movementIndex], skusById);
-      movementIndex += 1;
-    }
   });
 
   return { skuTotals, firstReceiptBySku, daily, dailyRows };

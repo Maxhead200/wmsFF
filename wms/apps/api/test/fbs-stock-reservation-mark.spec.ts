@@ -44,8 +44,12 @@ describe('FBS stock reservation ProductMark synchronization', () => {
         delete: vi.fn().mockResolvedValue({}),
         update: vi.fn().mockResolvedValue({}),
         upsert: vi.fn().mockResolvedValue({}),
+        count: vi.fn().mockResolvedValue(1),
       },
-      productMark: { updateMany: productMarkUpdateMany },
+      productMark: {
+        updateMany: productMarkUpdateMany,
+        count: vi.fn().mockResolvedValue(0),
+      },
     };
     const service = new MarketplaceConnectionsService({} as never, {} as never);
 
@@ -77,6 +81,69 @@ describe('FBS stock reservation ProductMark synchronization', () => {
         boxId: null,
       },
     });
+  });
+
+  // TEST: completing the pick of the last physical unit must archive the
+  // source box and remove its pallet-sort placement in the same transaction.
+  it('archives and detaches the source box after its last FBS unit is picked', async () => {
+    const detachIfArchivedAndEmpty = vi.fn().mockResolvedValue({ detached: true });
+    const tx = {
+      stockMovement: {
+        findMany: vi.fn().mockResolvedValue([]),
+        create: vi.fn().mockResolvedValue({ id: 'movement-1' }),
+      },
+      box: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'box-live',
+          code: 'FFL_LKX32708_06',
+          warehouseId: 'warehouse-1',
+          palletId: 'pallet-1',
+        }),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      stockBalance: {
+        findMany: vi.fn().mockResolvedValue([{
+          id: 'balance-available',
+          warehouseId: 'warehouse-1',
+          boxId: 'box-live',
+          palletId: 'pallet-1',
+          quantity: 1,
+        }]),
+        delete: vi.fn().mockResolvedValue({}),
+        update: vi.fn().mockResolvedValue({}),
+        upsert: vi.fn().mockResolvedValue({}),
+        count: vi.fn().mockResolvedValue(0),
+      },
+      productMark: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        count: vi.fn().mockResolvedValue(0),
+      },
+    };
+    const service = new MarketplaceConnectionsService(
+      {} as never,
+      {} as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { detachIfArchivedAndEmpty } as never,
+    );
+
+    await (service as any).reserveCompletedWildberriesStock(
+      tx,
+      task,
+      'warehouse-1',
+    );
+
+    expect(tx.box.update).toHaveBeenCalledWith({
+      where: { id: 'box-live' },
+      data: { status: 'archived', palletId: null, zoneId: null },
+    });
+    expect(detachIfArchivedAndEmpty).toHaveBeenCalledWith(
+      { boxId: 'box-live', reason: 'fbs-completed-pick' },
+      tx,
+    );
   });
 
   // TEST: cancellation must not silently put the physically removed unit back into its old box.

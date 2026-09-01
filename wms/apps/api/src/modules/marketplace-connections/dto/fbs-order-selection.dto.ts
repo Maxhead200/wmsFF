@@ -6,6 +6,8 @@ import {
   IsArray,
   IsBoolean,
   IsEnum,
+  IsISO8601,
+  Matches,
   IsOptional,
   IsString,
   Length,
@@ -56,6 +58,20 @@ export class FbsOrderSelectionDto {
   @IsOptional()
   @IsEnum(FbsDeliveryDestination)
   deliveryDestination?: FbsDeliveryDestination;
+
+  // ADDED: WB derives the destination from the orders, but WMS requires the
+  // operator to confirm it explicitly before the irreversible delivery call.
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d+$/)
+  @Length(1, 20)
+  destinationOfficeId?: string;
+
+  // ADDED: the public WB FBS API does not accept a delivery date; WMS stores
+  // the operator's logistics plan and includes it in the delivery audit.
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  plannedDeliveryDate?: string;
 
   @IsOptional()
   @IsString()

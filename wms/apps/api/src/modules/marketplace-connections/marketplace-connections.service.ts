@@ -19127,6 +19127,32 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
       dto.orders,
       freshResponse,
     );
+    // FIX: WB fixes the destination when the first order enters a supply. The
+    // operator must confirm that exact office and a local logistics date before
+    // WMS makes the irreversible delivery call.
+    const selectedDestinationOfficeId = dto.destinationOfficeId?.trim() ?? '';
+    const plannedDeliveryDate = parseFbsPlannedDeliveryDate(dto.plannedDeliveryDate);
+    if (!selectedDestinationOfficeId || !plannedDeliveryDate) {
+      throw new BadRequestException(
+        'Перед отправкой выберите склад Wildberries и плановую дату доставки.',
+      );
+    }
+    const deliveryOptions = await this.resolveFbsSupplyDeliveryOptions(clientId, orders);
+    if (deliveryOptions.blockers.length > 0) {
+      throw new BadRequestException(deliveryOptions.blockers.join(' '));
+    }
+    if (
+      !deliveryOptions.requiredDestinationOfficeId ||
+      selectedDestinationOfficeId !== deliveryOptions.requiredDestinationOfficeId
+    ) {
+      throw new BadRequestException(
+        `Выбранный склад не совпадает со складом назначения поставки WB. ` +
+          `Обновите окно отправки и выберите склад №${deliveryOptions.requiredDestinationOfficeId ?? '—'}.`,
+      );
+    }
+    const selectedDestinationOffice = deliveryOptions.offices.find(
+      (office) => office.id === selectedDestinationOfficeId,
+    );
     try {
       await this.assertFbsDeliveryReadiness(clientId, response, orders);
     } catch (caught) {
@@ -19266,6 +19292,10 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
                 sentToWbAt,
                 sentToWbByUserId: user.id,
                 sentToWbByName: user.name,
+                // ADDED: operational delivery plan selected by the manager.
+                destinationOfficeId: selectedDestinationOfficeId,
+                destinationOfficeName: selectedDestinationOffice?.name ?? null,
+                plannedDeliveryDate,
               },
             });
             await this.prisma.auditLog.create({
@@ -19280,6 +19310,12 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
                   supplyId: supply.supplyId,
                   sentToWbAt: sentToWbAt.toISOString(),
                   userName: user.name,
+                  destinationOfficeId: selectedDestinationOfficeId,
+                  destinationOfficeName: selectedDestinationOffice?.name ?? null,
+                  plannedDeliveryDate: fbsDateOnly(plannedDeliveryDate),
+                  // The official FBS API derives the office from the supply and
+                  // does not accept a delivery-date field in /deliver.
+                  wbDeliveryDateSubmitted: false,
                 },
               },
             });
@@ -19314,6 +19350,167 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
       }
     }
     return { delivered: delivered.length, failed, recovery, orders: refreshedOrders };
+  }
+
+  async getFbsSupplyDeliveryOptions(dto: FbsOrderSelectionDto, user: AuthUser) {
+    const clientId = dto.clientId.trim();
+    this.clientScopes.requireClientAccess(user, clientId, 'write');
+    // ADDED: use a fresh WB snapshot so the dialog never confirms a stale
+    // supply destination or orders that have already changed status.
+    const freshResponse = await this.refreshFbsOrdersCache(clientId);
+    const { orders } = await this.resolveSelectedFbsOrders(
+      clientId,
+      dto.orders,
+      freshResponse,
+    );
+    const unavailable = orders.filter(
+      (order) =>
+        order.marketplace !== MarketplaceType.WILDBERRIES ||
+        order.supplierStatus !== 'confirm' ||
+        !order.supplyId,
+    );
+    if (unavailable.length > 0) {
+      throw new BadRequestException(
+        `Параметры доставки доступны только для поставок WB со статусом «На сборке». Проверьте: ${unavailable
+          .map((order) => order.id)
+          .join(', ')}.`,
+      );
+    }
+    return this.resolveFbsSupplyDeliveryOptions(clientId, orders);
+  }
+
+  private async resolveFbsSupplyDeliveryOptions(
+    clientId: string,
+    orders: FbsOrderSummary[],
+  ) {
+    const connections = await this.loadSelectedConnections(clientId, orders);
+    const connectionById = new Map(connections.map((connection) => [connection.id, connection]));
+    const supplies = new Map<
+      string,
+      { connectionId: string; supplyId: string; orders: FbsOrderSummary[] }
+    >();
+    for (const order of orders) {
+      if (!order.supplyId) continue;
+      const key = `${order.connectionId}:${order.supplyId}`;
+      const supply = supplies.get(key) ?? {
+        connectionId: order.connectionId,
+        supplyId: order.supplyId,
+        orders: [],
+      };
+      supply.orders.push(order);
+      supplies.set(key, supply);
+    }
+
+    const officesByConnection = new Map<string, FbsWarehouseOffice[]>();
+    await Promise.all(
+      connections.map(async (connection) => {
+        officesByConnection.set(
+          connection.id,
+          await this.fetchWildberriesOffices(connection.apiKey),
+        );
+      }),
+    );
+
+    const blockers: string[] = [];
+    const destinationIds = new Set<string>();
+    const supplyRows = await Promise.all(
+      [...supplies.values()].map(async (supply) => {
+        const connection = connectionById.get(supply.connectionId);
+        if (!connection) {
+          blockers.push(`Подключение WB для поставки ${supply.supplyId} не найдено.`);
+          return null;
+        }
+        const details = await marketplaceJson(
+          `https://marketplace-api.wildberries.ru/api/v3/supplies/${encodeURIComponent(supply.supplyId)}`,
+          { method: 'GET', headers: wbHeaders(connection.apiKey) },
+        );
+        const orderOfficeIds = uniqueStrings(
+          supply.orders.map((order) => order.officeId ?? ''),
+        );
+        if (orderOfficeIds.length > 1) {
+          blockers.push(
+            `В поставке ${supply.supplyId} заказы относятся к разным складам WB: ${orderOfficeIds.join(', ')}.`,
+          );
+        }
+        const wbDestinationOfficeId = textValue(details.destinationOfficeId);
+        const destinationOfficeId = wbDestinationOfficeId || orderOfficeIds[0] || '';
+        if (!destinationOfficeId) {
+          blockers.push(
+            `Wildberries не вернул склад назначения поставки ${supply.supplyId}. Обновите заказы WB и повторите.`,
+          );
+        } else {
+          destinationIds.add(destinationOfficeId);
+        }
+        if (
+          wbDestinationOfficeId &&
+          orderOfficeIds.length === 1 &&
+          wbDestinationOfficeId !== orderOfficeIds[0]
+        ) {
+          blockers.push(
+            `Поставка ${supply.supplyId} направлена на склад WB №${wbDestinationOfficeId}, ` +
+              `а её заказы относятся к складу №${orderOfficeIds[0]}. Отправка остановлена.`,
+          );
+        }
+        const office = (officesByConnection.get(supply.connectionId) ?? []).find(
+          (item) => item.id === destinationOfficeId,
+        );
+        return {
+          connectionId: supply.connectionId,
+          supplyId: supply.supplyId,
+          orderCount: supply.orders.length,
+          itemCount: supply.orders.reduce(
+            (sum, order) => sum + Math.max(1, order.itemCount),
+            0,
+          ),
+          destinationOfficeId: destinationOfficeId || null,
+          destinationOfficeName: office?.name || null,
+        };
+      }),
+    );
+    if (destinationIds.size > 1) {
+      blockers.push(
+        `Выбраны поставки на разные склады WB: ${[...destinationIds].join(', ')}. Передайте их отдельно.`,
+      );
+    }
+
+    const requiredDestinationOfficeId =
+      destinationIds.size === 1 ? [...destinationIds][0] : null;
+    const officeMap = new Map<string, FbsWarehouseOffice>();
+    for (const offices of officesByConnection.values()) {
+      for (const office of offices) officeMap.set(office.id, office);
+    }
+    if (requiredDestinationOfficeId && !officeMap.has(requiredDestinationOfficeId)) {
+      officeMap.set(requiredDestinationOfficeId, {
+        id: requiredDestinationOfficeId,
+        name: `Склад WB №${requiredDestinationOfficeId}`,
+        city: '',
+      });
+    }
+    const today = fbsMoscowDateOnly(new Date());
+    const wbDeliveryDates = uniqueStrings(
+      orders.map((order) => normalizeWbFbsDate(order.deliveryDate)),
+    ).sort();
+    const earliestWbDeliveryDate = wbDeliveryDates[0] ?? null;
+    return {
+      supplies: supplyRows.filter((supply): supply is NonNullable<typeof supply> => Boolean(supply)),
+      offices: [...officeMap.values()]
+        .map((office) => ({
+          ...office,
+          compatible: office.id === requiredDestinationOfficeId,
+        }))
+        .sort(
+          (left, right) =>
+            Number(right.compatible) - Number(left.compatible) ||
+            left.name.localeCompare(right.name, 'ru-RU'),
+        ),
+      requiredDestinationOfficeId,
+      earliestWbDeliveryDate,
+      defaultPlannedDeliveryDate:
+        earliestWbDeliveryDate && earliestWbDeliveryDate >= today
+          ? earliestWbDeliveryDate
+          : today,
+      blockers,
+    };
   }
 
   async changeFbsSuppliesDestination(dto: FbsOrderSelectionDto, user: AuthUser) {
@@ -28083,6 +28280,44 @@ function fbsSupplyPlanKey(marketplace: MarketplaceType, connectionId: string, su
 function fbsSupplyName(clientCode: string, index: number, total: number) {
   const suffix = total > 1 ? ` ${index}-${total}` : '';
   return `LOGOFF ${clientCode} ${fileTimestamp(new Date())}${suffix}`.slice(0, 128);
+}
+
+// ADDED: accept the date-only value produced by the delivery dialog and store
+// it without a timezone-driven day shift.
+function parseFbsPlannedDeliveryDate(value: string | undefined) {
+  const normalized = value?.trim() ?? '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return null;
+  const parsed = new Date(`${normalized}T00:00:00.000Z`);
+  return Number.isNaN(parsed.getTime()) || fbsDateOnly(parsed) !== normalized
+    ? null
+    : parsed;
+}
+
+function fbsDateOnly(value: Date) {
+  return value.toISOString().slice(0, 10);
+}
+
+function fbsMoscowDateOnly(value: Date) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Moscow',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+    .formatToParts(value)
+    .reduce<Record<string, string>>(
+      (result, part) => ({ ...result, [part.type]: part.value }),
+      {},
+    );
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function normalizeWbFbsDate(value: string | null) {
+  const normalized = value?.trim() ?? '';
+  const isoMatch = normalized.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+  const ruMatch = normalized.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  return ruMatch ? `${ruMatch[3]}-${ruMatch[2]}-${ruMatch[1]}` : '';
 }
 
 function fileTimestamp(value: Date) {

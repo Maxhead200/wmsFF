@@ -7206,6 +7206,7 @@ describe('MarketplaceConnectionsService', () => {
     const order = fbsOrder({
       id: '5355000001',
       supplyId: 'WB-GI-1',
+      officeId: '123',
       shipmentPlan: {
         destination: FbsDeliveryDestination.VNUKOVO_SORTING_CENTER,
         itemsPerCargoPlace: FBS_UNLIMITED_CARGO_PLACE_CAPACITY,
@@ -7268,6 +7269,8 @@ describe('MarketplaceConnectionsService', () => {
         {
           clientId: 'client-1',
           orders: [{ connectionId: 'connection-1', id: order.id }],
+          destinationOfficeId: '123',
+          plannedDeliveryDate: '2026-09-02',
         },
         {
           id: 'user-1',
@@ -7288,6 +7291,9 @@ describe('MarketplaceConnectionsService', () => {
         sentToWbAt: expect.any(Date),
         sentToWbByUserId: 'user-1',
         sentToWbByName: 'Иван Петров',
+        destinationOfficeId: '123',
+        destinationOfficeName: 'Склад WB №123',
+        plannedDeliveryDate: new Date('2026-09-02T00:00:00.000Z'),
       },
     });
     expect(prisma.auditLog.create).toHaveBeenCalledWith({
@@ -7301,9 +7307,59 @@ describe('MarketplaceConnectionsService', () => {
           connectionId: 'connection-1',
           supplyId: 'WB-GI-1',
           userName: 'Иван Петров',
+          destinationOfficeId: '123',
+          plannedDeliveryDate: '2026-09-02',
         }),
       }),
     });
+  });
+
+  it('blocks delivery when the selected office differs from the live WB destination', async () => {
+    // TEST: an incompatible office must fail before PATCH /deliver.
+    const order = fbsOrder({ officeId: '123', supplyId: 'WB-GI-1' });
+    const response = {
+      client: { id: 'client-1', code: 'CL-1', name: 'Клиент' },
+      connected: true,
+      connections: [],
+      fetchedAt: '2026-09-01T08:00:00.000Z',
+      deliveryPlan: {
+        destination: FbsDeliveryDestination.VNUKOVO_SORTING_CENTER,
+        itemsPerCargoPlace: FBS_UNLIMITED_CARGO_PLACE_CAPACITY,
+        requiresCargoPlaces: false,
+      },
+      counts: { active: 1, shipped: 0, cancelled: 0, archive: 0, all: 1 },
+      orders: [order],
+    };
+    const service = new MarketplaceConnectionsService(
+      {} as never,
+      { requireClientAccess: vi.fn() } as never,
+    );
+    vi.spyOn(service as any, 'refreshFbsOrdersCache').mockResolvedValue(response);
+    vi.spyOn(service as any, 'resolveSelectedFbsOrders').mockResolvedValue({ response, orders: [order] });
+    vi.spyOn(service as any, 'loadSelectedConnections').mockResolvedValue([
+      { id: 'connection-1', apiKey: 'secret-key' },
+    ]);
+    const fetchMock = vi.fn(async (input: string | URL | Request) => ({
+      ok: true,
+      status: 200,
+      json: async () => String(input).endsWith('/api/v3/offices')
+        ? [{ id: 123, name: 'Коледино', city: 'Подольск' }]
+        : { destinationOfficeId: 123 },
+    } as Response));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      service.deliverFbsSupplies(
+        {
+          clientId: 'client-1',
+          orders: [{ connectionId: 'connection-1', id: order.id }],
+          destinationOfficeId: '456',
+          plannedDeliveryDate: '2026-09-02',
+        },
+        { id: 'user-1', name: 'Менеджер' } as never,
+      ),
+    ).rejects.toThrow('Выбранный склад не совпадает');
+    expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith('/deliver'))).toBe(false);
   });
 
   it('returns only the problematic WB order to rescan and leaves the rest of the request completed', async () => {

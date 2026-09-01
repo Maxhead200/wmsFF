@@ -565,6 +565,14 @@ export class MarketplaceConnectionsController {
     return this.connections.deliverFbsSupplies(dto, user);
   }
 
+  // ADDED: resolve the current WB destination before showing the irreversible
+  // delivery confirmation dialog.
+  @Post('fbs/supplies/delivery-options')
+  @RequirePermissions()
+  getFbsSupplyDeliveryOptions(@Body() dto: FbsOrderSelectionDto, @CurrentUser() user: AuthUser) {
+    return this.connections.getFbsSupplyDeliveryOptions(dto, user);
+  }
+
   @Post('fbs/supplies/change-destination')
   @RequirePermissions()
   changeFbsSuppliesDestination(@Body() dto: FbsOrderSelectionDto, @CurrentUser() user: AuthUser) {

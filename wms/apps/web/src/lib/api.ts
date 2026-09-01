@@ -3587,6 +3587,8 @@ export type FbsOrderSelectionPayload = {
   clientId: string;
   orders: Array<{ connectionId: string; id: string }>;
   deliveryDestination?: FbsDeliveryDestination;
+  destinationOfficeId?: string;
+  plannedDeliveryDate?: string;
   marketplaceWarehouseKey?: string;
   sourceRequestId?: string;
 };
@@ -3600,6 +3602,12 @@ function sanitizeFbsOrderSelectionPayload(
     ...(payload.deliveryDestination === undefined
       ? {}
       : { deliveryDestination: payload.deliveryDestination }),
+    ...(payload.destinationOfficeId === undefined
+      ? {}
+      : { destinationOfficeId: payload.destinationOfficeId }),
+    ...(payload.plannedDeliveryDate === undefined
+      ? {}
+      : { plannedDeliveryDate: payload.plannedDeliveryDate }),
     ...(payload.marketplaceWarehouseKey === undefined
       ? {}
       : { marketplaceWarehouseKey: payload.marketplaceWarehouseKey }),
@@ -3702,6 +3710,27 @@ export type FbsOrderActionResult = {
     cancelledOrders: FbsDeliveryRecoveryItem[];
   };
   orders: ClientFbsOrders;
+};
+
+export type FbsSupplyDeliveryOptions = {
+  supplies: Array<{
+    connectionId: string;
+    supplyId: string;
+    orderCount: number;
+    itemCount: number;
+    destinationOfficeId: string | null;
+    destinationOfficeName: string | null;
+  }>;
+  offices: Array<{
+    id: string;
+    name: string;
+    city: string;
+    compatible: boolean;
+  }>;
+  requiredDestinationOfficeId: string | null;
+  earliestWbDeliveryDate: string | null;
+  defaultPlannedDeliveryDate: string;
+  blockers: string[];
 };
 
 export type FbsDeliveryRecoveryItem = {
@@ -9762,6 +9791,22 @@ export async function deliverFbsSupplies(accessToken: string, payload: FbsOrderS
     accessToken,
     body: sanitizeFbsOrderSelectionPayload(payload),
   });
+}
+
+// ADDED: load the current WB office and the date hint before the irreversible
+// supply delivery request.
+export async function fetchFbsSupplyDeliveryOptions(
+  accessToken: string,
+  payload: FbsOrderSelectionPayload,
+) {
+  return request<FbsSupplyDeliveryOptions>(
+    '/marketplace-connections/fbs/supplies/delivery-options',
+    {
+      method: 'POST',
+      accessToken,
+      body: sanitizeFbsOrderSelectionPayload(payload),
+    },
+  );
 }
 
 export async function changeFbsSuppliesDestination(

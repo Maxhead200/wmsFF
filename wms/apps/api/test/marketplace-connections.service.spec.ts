@@ -7314,6 +7314,169 @@ describe('MarketplaceConnectionsService', () => {
     });
   });
 
+  // TEST: SOS WB must not offer orders that WB has already shipped.
+  it('counts only active WB orders in the SOS request queue', async () => {
+    const prisma = {
+      fbsTsdAssembly: {
+        findMany: vi.fn().mockResolvedValue([
+          { requestId: 'request-1', connectionId: 'connection-1', orderId: 'order-active' },
+          { requestId: 'request-1', connectionId: 'connection-1', orderId: 'order-shipped' },
+        ]),
+      },
+      fbsOrderRequestLink: {
+        findMany: vi.fn().mockResolvedValue([
+          { requestId: 'request-1', connectionId: 'connection-1', orderId: 'order-active' },
+        ]),
+      },
+      clientRequest: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: 'request-1',
+            number: 533,
+            title: 'SOS request',
+            status: ClientRequestStatus.SUBMITTED,
+            client: { id: 'client-1', code: 'CL-1', name: 'Client' },
+          },
+        ]),
+      },
+    };
+    const clientScopes = { resolveClientFilter: vi.fn().mockReturnValue('client-1') };
+    const service = new MarketplaceConnectionsService(prisma as never, clientScopes as never);
+
+    const result = await service.listSosWbRequests({ activeWarehouseId: 'warehouse-1' } as never);
+
+    expect(result.requests).toEqual([
+      expect.objectContaining({ requestId: 'request-1', availableOrders: 1 }),
+    ]);
+  });
+
+  // TEST: a physical product in the operator's hands is enough to claim an
+  // active SOS order even when WMS cannot build a virtual box reservation.
+  it('claims an active SOS order without a free virtual box balance', async () => {
+    const candidate = {
+      id: 'task-1',
+      clientId: 'client-1',
+      requestId: 'request-1',
+      connectionId: 'connection-1',
+      orderId: 'order-1',
+      skuId: 'sku-1',
+      sourceSkuId: null,
+      itemCount: 1,
+      status: 'WAITING_STOCK',
+      reservedBoxId: null,
+      reservedBoxCode: null,
+      barcodes: ['4600000000001'],
+      createdAt: new Date('2026-09-01T10:00:00.000Z'),
+    };
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const prisma = {
+      fbsTsdAssembly: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        findMany: vi.fn().mockResolvedValue([candidate]),
+        updateMany,
+        findUnique: vi.fn().mockResolvedValue({
+          ...candidate,
+          status: 'IN_PROGRESS',
+          barcode: '4600000000001',
+          reservedBoxCode: '__NO_BOX__',
+        }),
+      },
+      clientRequest: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: 'request-1',
+            number: 533,
+            warehouseId: 'warehouse-1',
+            client: { storesWithoutBoxes: false },
+          },
+        ]),
+      },
+      fbsOrderRequestLink: {
+        findMany: vi.fn().mockResolvedValue([
+          { requestId: 'request-1', connectionId: 'connection-1', orderId: 'order-1' },
+        ]),
+      },
+      stockBalance: { findMany: vi.fn().mockResolvedValue([]) },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    };
+    const clientScopes = { resolveClientFilter: vi.fn().mockReturnValue('client-1') };
+    const service = new MarketplaceConnectionsService(prisma as never, clientScopes as never);
+    vi.spyOn(service as any, 'withFbsTsdAssignmentLock').mockImplementation(
+      async (_key: string, work: () => Promise<unknown>) => work(),
+    );
+    vi.spyOn(service as any, 'fbsTsdReservationRows').mockResolvedValue([]);
+    vi.spyOn(service as any, 'sosWbClaimResponse').mockResolvedValue({ matched: true });
+
+    await expect(
+      service.claimSosWbOrder(
+        { requestId: 'request-1', barcode: '4600000000001', deviceCode: 'device-1' },
+        { id: 'user-1', name: 'Worker', activeWarehouseId: 'warehouse-1' } as never,
+      ),
+    ).resolves.toEqual({ matched: true });
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          reservedBoxId: null,
+          reservedBoxCode: '__NO_BOX__',
+        }),
+      }),
+    );
+  });
+
+  // TEST: stale WB metadata is not evidence that another employee took an order.
+  it('does not blame another employee when the matching SOS order is no longer active in WB', async () => {
+    const candidate = {
+      id: 'task-stale',
+      clientId: 'client-1',
+      requestId: 'request-1',
+      connectionId: 'connection-1',
+      orderId: 'order-shipped',
+      skuId: 'sku-1',
+      sourceSkuId: null,
+      itemCount: 1,
+      status: 'WAITING_STOCK',
+      reservedBoxId: null,
+      reservedBoxCode: null,
+      barcodes: ['4600000000002'],
+      createdAt: new Date('2026-09-01T10:00:00.000Z'),
+    };
+    const prisma = {
+      fbsTsdAssembly: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        findMany: vi.fn().mockResolvedValue([candidate]),
+      },
+      clientRequest: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: 'request-1',
+            number: 525,
+            warehouseId: 'warehouse-1',
+            client: { storesWithoutBoxes: false },
+          },
+        ]),
+      },
+      fbsOrderRequestLink: { findMany: vi.fn().mockResolvedValue([]) },
+    };
+    const clientScopes = { resolveClientFilter: vi.fn().mockReturnValue('client-1') };
+    const service = new MarketplaceConnectionsService(prisma as never, clientScopes as never);
+    vi.spyOn(service as any, 'withFbsTsdAssignmentLock').mockImplementation(
+      async (_key: string, work: () => Promise<unknown>) => work(),
+    );
+
+    const result = await service.claimSosWbOrder(
+      { requestId: 'request-1', barcode: '4600000000002', deviceCode: 'device-1' },
+      { id: 'user-1', name: 'Worker', activeWarehouseId: 'warehouse-1' } as never,
+    );
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        matched: false,
+        message: expect.stringContaining('уже не активен'),
+      }),
+    );
+    expect(result.message).not.toContain('другой сотрудник');
+  });
+
   // TEST: a client may store stock in several WMS branches while its WB
   // cabinet still has one configured execution branch. Such a client must not
   // disappear from FBS when an order has no request or reservation yet.

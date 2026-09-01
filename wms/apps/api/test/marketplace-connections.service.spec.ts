@@ -7314,6 +7314,45 @@ describe('MarketplaceConnectionsService', () => {
     });
   });
 
+  // TEST: a client may store stock in several WMS branches while its WB
+  // cabinet still has one configured execution branch. Such a client must not
+  // disappear from FBS when an order has no request or reservation yet.
+  it('uses the configured FBS execution branch for an unassigned order of a multi-branch client', async () => {
+    const prisma = {
+      clientMarketplaceConnection: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: 'connection-1',
+            fbsExecutionWarehouseId: 'warehouse-moscow',
+          },
+        ]),
+      },
+      warehouseClient: {
+        findMany: vi.fn().mockResolvedValue([
+          { warehouseId: 'warehouse-moscow' },
+          { warehouseId: 'warehouse-noginsk' },
+        ]),
+      },
+    };
+    const service = new MarketplaceConnectionsService(prisma as never, {} as never);
+
+    await expect(
+      (service as any).resolveFbsShipmentWarehouseId('client-1', [
+        fbsOrder({ connectionId: 'connection-1', request: null, reservation: null }),
+      ]),
+    ).resolves.toBe('warehouse-moscow');
+
+    expect(prisma.clientMarketplaceConnection.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          clientId: 'client-1',
+          id: { in: ['connection-1'] },
+          isActive: true,
+        }),
+      }),
+    );
+  });
+
   it('blocks delivery when the selected office differs from the live WB destination', async () => {
     // TEST: an incompatible office must fail before PATCH /deliver.
     const order = fbsOrder({ officeId: '123', supplyId: 'WB-GI-1' });

@@ -17,10 +17,9 @@ describe('StorageOverviewService', () => {
         findMany: vi.fn().mockResolvedValue([]),
       },
       stockMovement: {
-        groupBy: vi
-          .fn()
-          .mockResolvedValueOnce([])
-          .mockResolvedValueOnce([{ skuId: 'sku-1', _min: { createdAt: new Date('2026-06-01T09:00:00.000Z') } }]),
+        groupBy: vi.fn().mockResolvedValue([
+          { skuId: 'sku-1', _min: { createdAt: new Date('2026-06-01T09:00:00.000Z') } },
+        ]),
         findMany: vi.fn().mockResolvedValue([
           {
             skuId: 'sku-1',
@@ -90,10 +89,9 @@ describe('StorageOverviewService', () => {
         findMany: vi.fn().mockResolvedValue([]),
       },
       stockMovement: {
-        groupBy: vi
-          .fn()
-          .mockResolvedValueOnce([])
-          .mockResolvedValueOnce([{ skuId: 'sku-1', _min: { createdAt: new Date('2026-06-01T09:00:00.000Z') } }]),
+        groupBy: vi.fn().mockResolvedValue([
+          { skuId: 'sku-1', _min: { createdAt: new Date('2026-06-01T09:00:00.000Z') } },
+        ]),
         findMany: vi.fn().mockResolvedValue([
           {
             skuId: 'sku-1',
@@ -175,6 +173,96 @@ describe('StorageOverviewService', () => {
     expect(prisma.stockMovement.findMany).not.toHaveBeenCalled();
     expect(prisma.stockMovement.groupBy).not.toHaveBeenCalled();
     expect(prisma.sku.findMany).not.toHaveBeenCalled();
+  });
+
+  // TEST: расход по заявке должен уменьшить хранение датой создания заявки,
+  // а PACKING/SHIPPING не должны повторно попадать в текущий остаток.
+  it('uses request creation date for storage write-off and counts only AVAILABLE balances', async () => {
+    const prisma = {
+      client: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'client-1',
+          code: 'CLIENT',
+          name: 'Client',
+          storageAccountingEnabled: true,
+          storagePriceRubPerLiterDay: '0.5',
+        }),
+      },
+      stockBalance: {
+        findMany: vi.fn().mockResolvedValue([
+          { skuId: 'sku-1', quantity: 9529, box: { code: 'BOX-1' }, pallet: null },
+        ]),
+      },
+      stockMovement: {
+        groupBy: vi.fn().mockResolvedValue([
+          { skuId: 'sku-1', _min: { createdAt: new Date('2026-08-29T09:00:00.000Z') } },
+        ]),
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: 'movement-receipt',
+            skuId: 'sku-1',
+            type: 'RECEIPT',
+            status: 'AVAILABLE',
+            quantity: 10095,
+            sourceDocument: null,
+            createdAt: new Date('2026-08-29T09:00:00.000Z'),
+          },
+          {
+            id: 'movement-pick',
+            skuId: 'sku-1',
+            type: 'PICK',
+            status: 'AVAILABLE',
+            quantity: -614,
+            sourceDocument: 'request-1',
+            createdAt: new Date('2026-08-31T18:00:00.000Z'),
+          },
+          {
+            id: 'movement-same-day-return',
+            skuId: 'sku-1',
+            type: 'RETURN',
+            status: 'AVAILABLE',
+            quantity: 48,
+            sourceDocument: null,
+            createdAt: new Date('2026-08-31T20:00:00.000Z'),
+          },
+        ]),
+      },
+      clientRequest: {
+        findMany: vi.fn().mockResolvedValue([
+          { id: 'request-1', createdAt: new Date('2026-08-30T10:00:00.000Z') },
+        ]),
+      },
+      sku: {
+        findMany: vi.fn().mockResolvedValue([sku()]),
+      },
+    };
+    const service = new StorageOverviewService(prisma as never, {
+      requireClientAccess: vi.fn(),
+    } as never);
+
+    const overview = await service.getOverview(
+      {
+        clientId: 'client-1',
+        periodFrom: '2026-08-31',
+        periodTo: '2026-08-31',
+      },
+      {} as never,
+      { includeDailyRows: true },
+    );
+
+    expect(prisma.stockBalance.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ status: 'AVAILABLE' }) }),
+    );
+    expect(prisma.clientRequest.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: { in: ['request-1'] }, clientId: 'client-1' } }),
+    );
+    expect(overview.totals.quantity).toBe(9529);
+    expect(overview.daily).toEqual([
+      { date: '2026-08-31', totalLiters: 18962, literDays: 18962, positions: 1 },
+    ]);
+    expect(overview.dailyRows).toEqual([
+      expect.objectContaining({ date: '2026-08-31', skuId: 'sku-1', quantity: 9481 }),
+    ]);
   });
 });
 

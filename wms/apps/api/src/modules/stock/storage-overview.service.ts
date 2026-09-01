@@ -35,6 +35,16 @@ const storageBalanceSelect = {
   pallet: { select: { code: true } },
 } satisfies Prisma.StockBalanceSelect;
 
+const storageMovementSelect = {
+  id: true,
+  skuId: true,
+  type: true,
+  status: true,
+  quantity: true,
+  sourceDocument: true,
+  createdAt: true,
+} satisfies Prisma.StockMovementSelect;
+
 @Injectable()
 export class StorageOverviewService {
   constructor(
@@ -69,31 +79,23 @@ export class StorageOverviewService {
       return emptyStorageOverview(client, period.periodFrom, period.periodTo, tariff);
     }
 
-    const periodStart = startOfUtcDay(period.periodFrom);
     const relevantMovementWhere = storageRelevantMovementWhere(query.clientId);
-    const [balances, openingBalances, movements, firstReceipts] = await Promise.all([
+    const [balances, movements, firstReceipts] = await Promise.all([
       this.prisma.stockBalance.findMany({
         where: {
           clientId: query.clientId,
           quantity: { gt: 0 },
-          status: { in: [StockStatus.AVAILABLE, StockStatus.PACKING, StockStatus.SHIPPING] },
+          // FIX: хранение начисляется только на доступный складской остаток.
+          status: StockStatus.AVAILABLE,
         },
         select: storageBalanceSelect,
-      }),
-      this.prisma.stockMovement.groupBy({
-        by: ['skuId'],
-        where: {
-          ...relevantMovementWhere,
-          createdAt: { lt: periodStart },
-        },
-        _sum: { quantity: true },
       }),
       this.prisma.stockMovement.findMany({
         where: {
           ...relevantMovementWhere,
-          createdAt: { gte: periodStart, lte: period.periodTo },
+          createdAt: { lte: period.periodTo },
         },
-        select: { skuId: true, quantity: true, createdAt: true },
+        select: storageMovementSelect,
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       }),
       this.prisma.stockMovement.groupBy({
@@ -102,16 +104,28 @@ export class StorageOverviewService {
           clientId: query.clientId,
           createdAt: { lte: period.periodTo },
           quantity: { gt: 0 },
+          status: StockStatus.AVAILABLE,
           type: { notIn: [MovementType.PICK, MovementType.PACK, MovementType.MOVE, MovementType.SHIP] },
         },
         _min: { createdAt: true },
       }),
     ]);
 
+    const requestIds = storageRequestIds(movements);
+    const requestDates = requestIds.length
+      ? await this.prisma.clientRequest.findMany({
+          where: { id: { in: requestIds }, clientId: query.clientId },
+          select: { id: true, createdAt: true },
+        })
+      : [];
+    const requestCreatedAtById = new Map(requestDates.map((request) => [request.id, request.createdAt]));
+    const historicalMovements = movements.map((movement) =>
+      storageMovementWithEffectiveDate(movement, requestCreatedAtById),
+    );
+
     const skuIds = new Set<string>();
     balances.forEach((row) => skuIds.add(row.skuId));
-    openingBalances.forEach((row) => skuIds.add(row.skuId));
-    movements.forEach((row) => skuIds.add(row.skuId));
+    historicalMovements.forEach((row) => skuIds.add(row.skuId));
     const skus = skuIds.size
       ? await this.prisma.sku.findMany({
           where: { clientId: query.clientId, id: { in: [...skuIds] } },
@@ -122,8 +136,7 @@ export class StorageOverviewService {
 
     const currentBySku = groupCurrentStorage(balances, skusById);
     const history = calculateStorageHistory(
-      openingBalances,
-      movements,
+      historicalMovements,
       firstReceipts,
       skusById,
       period.periodFrom,
@@ -218,8 +231,11 @@ export class StorageOverviewService {
 
 type StorageSku = Prisma.SkuGetPayload<{ select: typeof storageSkuSelect }>;
 type StorageBalanceForOverview = Prisma.StockBalanceGetPayload<{ select: typeof storageBalanceSelect }>;
-type StorageMovementForOverview = Pick<Prisma.StockMovementGetPayload<object>, 'skuId' | 'quantity' | 'createdAt'>;
-type StorageOpeningBalance = { skuId: string; _sum: { quantity: number | null } };
+type StorageMovementForOverview = Prisma.StockMovementGetPayload<{ select: typeof storageMovementSelect }>;
+type StorageMovementForHistory = StorageMovementForOverview & {
+  effectiveAt: Date;
+  applyBeforeSnapshot: boolean;
+};
 type StorageFirstReceipt = { skuId: string; _min: { createdAt: Date | null } };
 
 function emptyStorageOverview(
@@ -309,8 +325,7 @@ function groupCurrentStorage(balances: StorageBalanceForOverview[], skusById: Ma
 }
 
 function calculateStorageHistory(
-  openingBalances: StorageOpeningBalance[],
-  movements: StorageMovementForOverview[],
+  movements: StorageMovementForHistory[],
   firstReceipts: StorageFirstReceipt[],
   skusById: Map<string, StorageSku>,
   periodFrom: Date,
@@ -327,19 +342,24 @@ function calculateStorageHistory(
   const daily: Array<{ date: string; totalLiters: number; literDays: number; positions: number }> = [];
   const dailyRows: StorageOverviewDailyRow[] = [];
   const days = listPeriodDays(periodFrom, periodTo);
-
-  openingBalances.forEach((opening) => {
-    const sku = skusById.get(opening.skuId);
-    if (!sku) {
-      return;
-    }
-    state.set(opening.skuId, storageStateFromSku(sku, opening._sum.quantity ?? 0));
-  });
-
-  let movementIndex = 0;
+  const periodStart = startOfUtcDay(periodFrom);
+  const beforeSnapshot = movements
+    .filter((movement) => movement.applyBeforeSnapshot)
+    .sort(compareStorageMovements);
+  const afterSnapshot = movements
+    .filter((movement) => !movement.applyBeforeSnapshot)
+    .sort(compareStorageMovements);
+  let beforeIndex = applyOpeningStorageMovements(beforeSnapshot, state, skusById, periodStart);
+  let afterIndex = applyOpeningStorageMovements(afterSnapshot, state, skusById, periodStart);
 
   days.forEach((day) => {
     const dayEnd = endOfUtcDay(day);
+
+    // FIX: исходящий товар исключается в дату создания заявки, до снимка хранения за этот день.
+    while (beforeIndex < beforeSnapshot.length && beforeSnapshot[beforeIndex].effectiveAt <= dayEnd) {
+      applyStorageMovement(state, beforeSnapshot[beforeIndex], skusById);
+      beforeIndex += 1;
+    }
 
     let totalLiters = 0;
     let positions = 0;
@@ -398,9 +418,9 @@ function calculateStorageHistory(
       positions,
     });
 
-    while (movementIndex < movements.length && movements[movementIndex].createdAt <= dayEnd) {
-      applyStorageMovement(state, movements[movementIndex], skusById);
-      movementIndex += 1;
+    while (afterIndex < afterSnapshot.length && afterSnapshot[afterIndex].effectiveAt <= dayEnd) {
+      applyStorageMovement(state, afterSnapshot[afterIndex], skusById);
+      afterIndex += 1;
     }
   });
 
@@ -409,7 +429,7 @@ function calculateStorageHistory(
 
 function applyStorageMovement(
   state: Map<string, StorageState>,
-  movement: StorageMovementForOverview,
+  movement: StorageMovementForHistory,
   skusById: Map<string, StorageSku>,
 ) {
   const sku = skusById.get(movement.skuId);
@@ -421,6 +441,60 @@ function applyStorageMovement(
   current.quantity += movement.quantity;
   current.volumeLiters = volumeLiters || current.volumeLiters;
   state.set(movement.skuId, current);
+}
+
+function applyOpeningStorageMovements(
+  movements: StorageMovementForHistory[],
+  state: Map<string, StorageState>,
+  skusById: Map<string, StorageSku>,
+  periodStart: Date,
+) {
+  let index = 0;
+  while (index < movements.length && movements[index].effectiveAt < periodStart) {
+    applyStorageMovement(state, movements[index], skusById);
+    index += 1;
+  }
+  return index;
+}
+
+function compareStorageMovements(left: StorageMovementForHistory, right: StorageMovementForHistory) {
+  return left.effectiveAt.getTime() - right.effectiveAt.getTime() || left.id.localeCompare(right.id);
+}
+
+function storageRequestIds(movements: StorageMovementForOverview[]) {
+  return [
+    ...new Set(
+      movements
+        .filter(isRequestDatedStorageWriteOff)
+        .map((movement) => movement.sourceDocument)
+        .filter((requestId): requestId is string => Boolean(requestId)),
+    ),
+  ];
+}
+
+function storageMovementWithEffectiveDate(
+  movement: StorageMovementForOverview,
+  requestCreatedAtById: Map<string, Date>,
+): StorageMovementForHistory {
+  const requestCreatedAt = movement.sourceDocument
+    ? requestCreatedAtById.get(movement.sourceDocument)
+    : undefined;
+  const applyBeforeSnapshot = Boolean(requestCreatedAt) && isRequestDatedStorageWriteOff(movement);
+
+  return {
+    ...movement,
+    // FIX: дата списания хранения — дата создания заявки, а не дата позднего пика/отгрузки.
+    effectiveAt: applyBeforeSnapshot ? requestCreatedAt! : movement.createdAt,
+    applyBeforeSnapshot,
+  };
+}
+
+function isRequestDatedStorageWriteOff(movement: StorageMovementForOverview) {
+  return (
+    movement.quantity < 0 &&
+    (movement.type === MovementType.PICK || movement.type === MovementType.SHIP) &&
+    Boolean(movement.sourceDocument)
+  );
 }
 
 function storageStateFromSku(sku: StorageSku, quantity: number): StorageState {
@@ -501,16 +575,10 @@ type StorageOverviewDailyRow = {
 function storageRelevantMovementWhere(clientId: string): Prisma.StockMovementWhereInput {
   return {
     clientId,
-    OR: [
-      {
-        type: { notIn: [MovementType.PICK, MovementType.PACK, MovementType.MOVE, MovementType.SHIP] },
-        quantity: { not: 0 },
-      },
-      {
-        type: MovementType.SHIP,
-        quantity: { lt: 0 },
-      },
-    ],
+    // FIX: PACKING/SHIPPING — уже снятый с хранения исходящий товар.
+    status: StockStatus.AVAILABLE,
+    quantity: { not: 0 },
+    type: { not: MovementType.MOVE },
   };
 }
 

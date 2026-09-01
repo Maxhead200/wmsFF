@@ -10,6 +10,7 @@ import {
   ClientNotificationEvent,
   MovementType,
   Prisma,
+  StockStatus,
 } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
@@ -964,13 +965,19 @@ export class BillingService {
     const movements = await this.prisma.stockMovement.findMany({
       where: {
         clientId: dto.clientId,
+        // FIX: хранение считается только по физически доступному остатку.
+        status: StockStatus.AVAILABLE,
+        quantity: { not: 0 },
+        type: { not: MovementType.MOVE },
         createdAt: { lte: periodTo },
       },
       select: {
+        id: true,
         skuId: true,
         type: true,
         status: true,
         quantity: true,
+        sourceDocument: true,
         createdAt: true,
         sku: {
           select: {
@@ -986,6 +993,17 @@ export class BillingService {
       },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     });
+    const requestIds = storageBillingRequestIds(movements);
+    const requestDates = requestIds.length
+      ? await this.prisma.clientRequest.findMany({
+          where: { id: { in: requestIds }, clientId: dto.clientId },
+          select: { id: true, createdAt: true },
+        })
+      : [];
+    const requestCreatedAtById = new Map(requestDates.map((request) => [request.id, request.createdAt]));
+    const historicalMovements = movements.map((movement) =>
+      storageBillingMovementWithEffectiveDate(movement, requestCreatedAtById),
+    );
 
     const balances =
       movements.length === 0
@@ -1017,8 +1035,8 @@ export class BillingService {
     }
 
     const details =
-      movements.length > 0
-        ? calculateHistoricalStorageDetails(movements, periodFrom, periodTo)
+      historicalMovements.length > 0
+        ? calculateHistoricalStorageDetails(historicalMovements, periodFrom, periodTo)
         : calculateStorageDetails(balances, countInclusiveDays(periodFrom, periodTo));
 
     if (details.literDays <= 0) {
@@ -4267,46 +4285,43 @@ function calculateStorageDetails(
 }
 
 function calculateHistoricalStorageDetails(
-  movements: Array<{
-    skuId: string;
-    type: MovementType;
-    status: string;
-    quantity: number;
-    createdAt: Date;
-    sku: {
-      id: string;
-      internalSku: string;
-      name: string;
-    } & StorageSkuVolumeSource;
-  }>,
+  movements: HistoricalStorageMovement[],
   periodFrom: Date,
   periodTo: Date,
 ) {
-  const sorted = [...movements].sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
+  const beforeSnapshot = movements
+    .filter((movement) => movement.applyBeforeSnapshot)
+    .sort(compareHistoricalStorageMovements);
+  const afterSnapshot = movements
+    .filter((movement) => !movement.applyBeforeSnapshot)
+    .sort(compareHistoricalStorageMovements);
   const quantities = new Map<string, HistoricalBalanceState>();
   const skuTotals = new Map<string, HistoricalSkuTotal>();
   const daily: Array<{ date: string; totalLiters: number; literDays: number; positions: number }> = [];
-  let movementIndex = 0;
   let skippedWithoutVolume = 0;
   let literDays = 0;
   let totalLitersSum = 0;
   const days = listPeriodDays(periodFrom, periodTo);
   const periodStart = new Date(Date.UTC(periodFrom.getUTCFullYear(), periodFrom.getUTCMonth(), periodFrom.getUTCDate()));
 
-  while (movementIndex < sorted.length && sorted[movementIndex].createdAt < periodStart) {
-    const movement = sorted[movementIndex];
-    if (isHistoricalStorageMovement(movement)) {
-      applyHistoricalStorageMovement(quantities, movement);
-      const volumeLiters = calculateSkuVolumeLiters(movement.sku) || null;
-      if (!volumeLiters || volumeLiters <= 0) {
-        skippedWithoutVolume += 1;
-      }
-    }
-    movementIndex += 1;
-  }
+  const beforeOpening = applyHistoricalOpeningMovements(beforeSnapshot, quantities, periodStart);
+  const afterOpening = applyHistoricalOpeningMovements(afterSnapshot, quantities, periodStart);
+  let beforeIndex = beforeOpening.nextIndex;
+  let afterIndex = afterOpening.nextIndex;
+  skippedWithoutVolume += beforeOpening.skippedWithoutVolume + afterOpening.skippedWithoutVolume;
 
   days.forEach((day) => {
     const dayEnd = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), 23, 59, 59, 999));
+
+    // FIX: заявочный расход снимается до дневного снимка в дату создания заявки.
+    while (beforeIndex < beforeSnapshot.length && beforeSnapshot[beforeIndex].effectiveAt <= dayEnd) {
+      const movement = beforeSnapshot[beforeIndex];
+      applyHistoricalStorageMovement(quantities, movement);
+      if (calculateSkuVolumeLiters(movement.sku) <= 0) {
+        skippedWithoutVolume += 1;
+      }
+      beforeIndex += 1;
+    }
 
     let dayLiters = 0;
     let positions = 0;
@@ -4342,16 +4357,13 @@ function calculateHistoricalStorageDetails(
       positions,
     });
 
-    while (movementIndex < sorted.length && sorted[movementIndex].createdAt <= dayEnd) {
-      const movement = sorted[movementIndex];
-      if (isHistoricalStorageMovement(movement)) {
-        applyHistoricalStorageMovement(quantities, movement);
-        const volumeLiters = calculateSkuVolumeLiters(movement.sku) || null;
-        if (!volumeLiters || volumeLiters <= 0) {
-          skippedWithoutVolume += 1;
-        }
+    while (afterIndex < afterSnapshot.length && afterSnapshot[afterIndex].effectiveAt <= dayEnd) {
+      const movement = afterSnapshot[afterIndex];
+      applyHistoricalStorageMovement(quantities, movement);
+      if (calculateSkuVolumeLiters(movement.sku) <= 0) {
+        skippedWithoutVolume += 1;
       }
-      movementIndex += 1;
+      afterIndex += 1;
     }
   });
 
@@ -4376,14 +4388,62 @@ function calculateHistoricalStorageDetails(
   };
 }
 
-function isHistoricalStorageMovement(movement: { type: MovementType; quantity: number }) {
-  if (movement.type === MovementType.PICK || movement.type === MovementType.PACK || movement.type === MovementType.MOVE) {
-    return false;
+function applyHistoricalOpeningMovements(
+  movements: HistoricalStorageMovement[],
+  quantities: Map<string, HistoricalBalanceState>,
+  periodStart: Date,
+) {
+  let nextIndex = 0;
+  let skippedWithoutVolume = 0;
+  while (nextIndex < movements.length && movements[nextIndex].effectiveAt < periodStart) {
+    const movement = movements[nextIndex];
+    applyHistoricalStorageMovement(quantities, movement);
+    if (calculateSkuVolumeLiters(movement.sku) <= 0) {
+      skippedWithoutVolume += 1;
+    }
+    nextIndex += 1;
   }
-  if (movement.type === MovementType.SHIP) {
-    return movement.quantity < 0;
-  }
-  return movement.quantity !== 0;
+  return { nextIndex, skippedWithoutVolume };
+}
+
+function compareHistoricalStorageMovements(left: HistoricalStorageMovement, right: HistoricalStorageMovement) {
+  return left.effectiveAt.getTime() - right.effectiveAt.getTime() || left.id.localeCompare(right.id);
+}
+
+function storageBillingRequestIds(movements: StorageBillingMovement[]) {
+  return [
+    ...new Set(
+      movements
+        .filter(isRequestDatedStorageBillingWriteOff)
+        .map((movement) => movement.sourceDocument)
+        .filter((requestId): requestId is string => Boolean(requestId)),
+    ),
+  ];
+}
+
+function storageBillingMovementWithEffectiveDate(
+  movement: StorageBillingMovement,
+  requestCreatedAtById: Map<string, Date>,
+): HistoricalStorageMovement {
+  const requestCreatedAt = movement.sourceDocument
+    ? requestCreatedAtById.get(movement.sourceDocument)
+    : undefined;
+  const applyBeforeSnapshot = Boolean(requestCreatedAt) && isRequestDatedStorageBillingWriteOff(movement);
+
+  return {
+    ...movement,
+    // FIX: дата списания для хранения берётся из заявки.
+    effectiveAt: applyBeforeSnapshot ? requestCreatedAt! : movement.createdAt,
+    applyBeforeSnapshot,
+  };
+}
+
+function isRequestDatedStorageBillingWriteOff(movement: StorageBillingMovement) {
+  return (
+    movement.quantity < 0 &&
+    (movement.type === MovementType.PICK || movement.type === MovementType.SHIP) &&
+    Boolean(movement.sourceDocument)
+  );
 }
 
 function applyHistoricalStorageMovement(
@@ -4422,6 +4482,26 @@ type HistoricalBalanceState = {
   name: string;
   volumeLiters: number | null;
   quantity: number;
+};
+
+type StorageBillingMovement = {
+  id: string;
+  skuId: string;
+  type: MovementType;
+  status: string;
+  quantity: number;
+  sourceDocument: string | null;
+  createdAt: Date;
+  sku: {
+    id: string;
+    internalSku: string;
+    name: string;
+  } & StorageSkuVolumeSource;
+};
+
+type HistoricalStorageMovement = StorageBillingMovement & {
+  effectiveAt: Date;
+  applyBeforeSnapshot: boolean;
 };
 
 type HistoricalSkuTotal = {

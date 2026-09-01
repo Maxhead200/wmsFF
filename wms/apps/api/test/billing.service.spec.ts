@@ -325,6 +325,89 @@ describe('BillingService', () => {
     expect(createCall.data.metadata.daily[29]).toMatchObject({ date: '2026-07-30', totalLiters: 80 });
   });
 
+  // TEST: списание хранения происходит в дату создания заявки, даже если пик выполнен позже.
+  it('backdates AVAILABLE pick write-off to the client request creation date', async () => {
+    const prisma = {
+      client: {
+        findUnique: vi.fn().mockResolvedValue({ storageAccountingEnabled: true, storagePriceRubPerLiterDay: '1' }),
+      },
+      clientRequest: {
+        findMany: vi.fn().mockResolvedValue([
+          { id: 'request-1', createdAt: new Date('2026-07-05T10:00:00.000Z') },
+        ]),
+      },
+      billingService: {
+        upsert: vi.fn().mockResolvedValue({
+          id: 'service-storage',
+          code: 'STORAGE_LITER_DAY',
+          defaultPriceRub: null,
+        }),
+      },
+      billingCharge: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({ id: 'charge-storage' }),
+      },
+      stockMovement: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: 'movement-receipt',
+            skuId: 'sku-1',
+            type: MovementType.RECEIPT,
+            status: 'AVAILABLE',
+            quantity: 100,
+            sourceDocument: null,
+            createdAt: new Date('2026-07-01T09:00:00.000Z'),
+            sku: { id: 'sku-1', internalSku: 'SKU-1', name: 'Товар', volumeLiters: '1' },
+          },
+          {
+            id: 'movement-pick',
+            skuId: 'sku-1',
+            type: MovementType.PICK,
+            status: 'AVAILABLE',
+            quantity: -20,
+            sourceDocument: 'request-1',
+            createdAt: new Date('2026-07-11T18:00:00.000Z'),
+            sku: { id: 'sku-1', internalSku: 'SKU-1', name: 'Товар', volumeLiters: '1' },
+          },
+        ]),
+      },
+      stockBalance: {
+        findMany: vi.fn(),
+      },
+    };
+    const service = new BillingService(prisma as never, clientScopes());
+
+    await service.generateStorageCharge(
+      {
+        clientId: 'client-1',
+        periodFrom: '2026-07-01',
+        periodTo: '2026-07-12',
+        unitPriceRub: 1,
+        approve: true,
+      },
+      user({ clientIds: ['client-1'], writableClientIds: ['client-1'] }),
+    );
+
+    expect(prisma.clientRequest.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: { in: ['request-1'] }, clientId: 'client-1' } }),
+    );
+    expect(prisma.billingCharge.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          quantity: 940,
+          totalRub: 940,
+          metadata: expect.objectContaining({
+            daily: expect.arrayContaining([
+              { date: '2026-07-04', totalLiters: 100, literDays: 100, positions: 1 },
+              { date: '2026-07-05', totalLiters: 80, literDays: 80, positions: 1 },
+              { date: '2026-07-11', totalLiters: 80, literDays: 80, positions: 1 },
+            ]),
+          }),
+        }),
+      }),
+    );
+  });
+
   it('does not create storage charge when storage accounting is disabled', async () => {
     const prisma = {
       client: {

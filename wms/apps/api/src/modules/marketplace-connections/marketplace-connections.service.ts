@@ -1544,6 +1544,35 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
       return warehouseIds[0];
     }
 
+    // FIX: a client may have stock in several WMS branches. Orders without a
+    // request/reservation still belong to the execution branch configured on
+    // their marketplace connection and must not make the whole FBS feed fail.
+    const connectionIds = uniqueStrings(orders.map((order) => order.connectionId));
+    if (
+      connectionIds.length > 0 &&
+      typeof this.prisma.clientMarketplaceConnection?.findMany === 'function'
+    ) {
+      const connections = await this.prisma.clientMarketplaceConnection.findMany({
+        where: {
+          id: { in: connectionIds },
+          clientId,
+          isActive: true,
+        },
+        select: { fbsExecutionWarehouseId: true },
+      });
+      const configuredWarehouseIds = uniqueStrings(
+        connections.map((connection) => connection.fbsExecutionWarehouseId ?? ''),
+      );
+      if (configuredWarehouseIds.length > 1) {
+        throw new BadRequestException(
+          'В одной FBS-поставке обнаружены подключения разных филиалов. Счёт не создан.',
+        );
+      }
+      if (configuredWarehouseIds.length === 1) {
+        return configuredWarehouseIds[0];
+      }
+    }
+
     const activeLinks = await this.prisma.warehouseClient.findMany({
       where: {
         clientId,

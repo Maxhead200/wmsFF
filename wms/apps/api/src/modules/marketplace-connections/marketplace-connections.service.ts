@@ -11086,11 +11086,34 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
         relabelRequired: false,
         status: { in: [FBS_TSD_RESERVED_STATUS, FBS_TSD_WAITING_STOCK_STATUS, 'RELEASED'] },
       },
-      select: { requestId: true },
+      select: { requestId: true, connectionId: true, orderId: true },
     });
-    const requestIds = uniqueStrings(tasks.map((task) => task.requestId));
+    const taskRequestIds = uniqueStrings(tasks.map((task) => task.requestId));
+    // FIX: the SOS request list must use the same WB eligibility rule as the
+    // claim operation. Otherwise shipped orders remain visible but can never
+    // be claimed after the employee scans the physical product.
+    const links = taskRequestIds.length
+      ? await this.prisma.fbsOrderRequestLink.findMany({
+          where: {
+            requestId: { in: taskRequestIds },
+            marketplace: MarketplaceType.WILDBERRIES,
+            syncStatus: FBS_REQUEST_LINK_ACTIVE,
+            lastCategory: 'active',
+          },
+          select: { requestId: true, connectionId: true, orderId: true },
+        })
+      : [];
+    const activeLinkKeys = new Set(
+      links.map((link) => `${link.requestId}:${link.connectionId}:${link.orderId}`),
+    );
+    const activeTasks = tasks.filter((task) =>
+      activeLinkKeys.has(`${task.requestId}:${task.connectionId}:${task.orderId}`),
+    );
+    const requestIds = uniqueStrings(activeTasks.map((task) => task.requestId));
     const availableByRequest = new Map<string, number>();
-    tasks.forEach((task) => availableByRequest.set(task.requestId, (availableByRequest.get(task.requestId) ?? 0) + 1));
+    activeTasks.forEach((task) =>
+      availableByRequest.set(task.requestId, (availableByRequest.get(task.requestId) ?? 0) + 1),
+    );
     if (!requestIds.length) return { requests: [] };
     const requests = await this.prisma.clientRequest.findMany({
       where: {
@@ -11228,6 +11251,7 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
           left.createdAt.getTime() - right.createdAt.getTime(),
         );
 
+      let claimRaceDetected = false;
       for (const candidate of eligible) {
         const request = requestById.get(candidate.requestId);
         if (!request) continue;
@@ -11302,9 +11326,16 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
           const selected = [...quantityByBox.entries()]
             .filter(([, value]) => value.quantity >= Math.max(1, candidate.itemCount))
             .sort((left, right) => left[1].quantity - right[1].quantity || left[1].code.localeCompare(right[1].code, 'ru-RU'))[0];
-          if (!selected) continue;
-          virtualBoxId = selected[0];
-          virtualBoxCode = selected[1].code;
+          if (selected) {
+            virtualBoxId = selected[0];
+            virtualBoxCode = selected[1].code;
+          } else {
+            // FIX: SOS starts from a physical product already held by the
+            // employee. A missing virtual reserve must not reject that scan;
+            // the source remains pending until the KIZ/closing reconciliation.
+            virtualBoxId = null;
+            virtualBoxCode = FBS_TSD_NO_BOX_CODE;
+          }
         } else if (!virtualBoxId && request.client.storesWithoutBoxes) {
           const stockSkuId = candidate.sourceSkuId ?? candidate.skuId;
           const [available, reservations] = await Promise.all([
@@ -11355,7 +11386,10 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
             errorMessage: null,
           },
         });
-        if (claimed.count !== 1) continue;
+        if (claimed.count !== 1) {
+          claimRaceDetected = true;
+          continue;
+        }
         const task = await this.prisma.fbsTsdAssembly.findUnique({ where: { id: candidate.id } });
         if (!task) continue;
         await this.prisma.auditLog.create({
@@ -11381,7 +11415,9 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
         color: 'RED',
         message: scannedSourceBox
           ? `В коробе ${scannedSourceBox.code} нет свободной единицы этого товара для активных заказов. Отсканируйте следующий ШК или выберите другой короб.`
-          : 'Подходящий заказ только что забрал другой сотрудник. Отсканируйте ШК ещё раз.',
+          : claimRaceDetected
+            ? 'Подходящий заказ действительно был назначен другому сотруднику. Обновите очередь SOS.'
+            : 'Подходящий заказ по этому ШК уже не активен в Wildberries или исключён из выбранной заявки. Обновите список SOS.',
       };
     });
   }

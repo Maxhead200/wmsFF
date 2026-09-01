@@ -7378,7 +7378,7 @@ describe('MarketplaceConnectionsService', () => {
           ...candidate,
           status: 'IN_PROGRESS',
           barcode: '4600000000001',
-          reservedBoxCode: '__NO_BOX__',
+          reservedBoxCode: 'БЕЗ КОРОБА',
         }),
       },
       clientRequest: {
@@ -7417,7 +7417,7 @@ describe('MarketplaceConnectionsService', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           reservedBoxId: null,
-          reservedBoxCode: '__NO_BOX__',
+          reservedBoxCode: 'БЕЗ КОРОБА',
         }),
       }),
     );

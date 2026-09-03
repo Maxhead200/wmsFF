@@ -11089,29 +11089,29 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
       select: { requestId: true, connectionId: true, orderId: true },
     });
     const taskRequestIds = uniqueStrings(tasks.map((task) => task.requestId));
-    // FIX: the SOS request list must use the same WB eligibility rule as the
-    // claim operation. Otherwise shipped orders remain visible but can never
-    // be claimed after the employee scans the physical product.
+    // FIX: SOS is also the local recovery path for a physical item that was
+    // not finished before WB moved the order to shipped. Removed/cancelled
+    // links remain excluded, but an unfinished shipped task must stay visible.
     const links = taskRequestIds.length
       ? await this.prisma.fbsOrderRequestLink.findMany({
           where: {
             requestId: { in: taskRequestIds },
             marketplace: MarketplaceType.WILDBERRIES,
             syncStatus: FBS_REQUEST_LINK_ACTIVE,
-            lastCategory: 'active',
+            lastCategory: { in: ['active', 'shipped'] },
           },
           select: { requestId: true, connectionId: true, orderId: true },
         })
       : [];
-    const activeLinkKeys = new Set(
+    const eligibleLinkKeys = new Set(
       links.map((link) => `${link.requestId}:${link.connectionId}:${link.orderId}`),
     );
-    const activeTasks = tasks.filter((task) =>
-      activeLinkKeys.has(`${task.requestId}:${task.connectionId}:${task.orderId}`),
+    const eligibleTasks = tasks.filter((task) =>
+      eligibleLinkKeys.has(`${task.requestId}:${task.connectionId}:${task.orderId}`),
     );
-    const requestIds = uniqueStrings(activeTasks.map((task) => task.requestId));
+    const requestIds = uniqueStrings(eligibleTasks.map((task) => task.requestId));
     const availableByRequest = new Map<string, number>();
-    activeTasks.forEach((task) =>
+    eligibleTasks.forEach((task) =>
       availableByRequest.set(task.requestId, (availableByRequest.get(task.requestId) ?? 0) + 1),
     );
     if (!requestIds.length) return { requests: [] };
@@ -11236,16 +11236,18 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
             requestId: { in: requestIds },
             marketplace: MarketplaceType.WILDBERRIES,
             syncStatus: FBS_REQUEST_LINK_ACTIVE,
-            lastCategory: 'active',
+            // FIX: a shipped WB order may still be physically unfinished in
+            // WMS; SOS completes that local fact without reopening WB.
+            lastCategory: { in: ['active', 'shipped'] },
           },
           select: { requestId: true, connectionId: true, orderId: true },
         }),
       ]);
       const requestById = new Map(requests.map((request) => [request.id, request]));
-      const activeLinkKeys = new Set(links.map((link) => `${link.requestId}:${link.connectionId}:${link.orderId}`));
+      const eligibleLinkKeys = new Set(links.map((link) => `${link.requestId}:${link.connectionId}:${link.orderId}`));
       const eligible = barcodeCandidates
         .filter((task) => requestById.has(task.requestId))
-        .filter((task) => activeLinkKeys.has(`${task.requestId}:${task.connectionId}:${task.orderId}`))
+        .filter((task) => eligibleLinkKeys.has(`${task.requestId}:${task.connectionId}:${task.orderId}`))
         .sort((left, right) =>
           (requestById.get(right.requestId)?.number ?? 0) - (requestById.get(left.requestId)?.number ?? 0) ||
           left.createdAt.getTime() - right.createdAt.getTime(),
@@ -11514,59 +11516,85 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
     });
     if (duplicate) throw new BadRequestException(`Этот КИЗ уже привязан к заказу №${duplicate.orderId}.`);
 
-    const connection = await this.prisma.clientMarketplaceConnection.findFirst({
+    const requestLink = await this.prisma.fbsOrderRequestLink.findUnique({
       where: {
-        id: task.connectionId,
-        clientId: task.clientId,
-        marketplace: MarketplaceType.WILDBERRIES,
-        isActive: true,
-      },
-      select: { apiKey: true },
-    });
-    if (!connection) throw new BadRequestException('Подключение Wildberries отключено.');
-    const preflight = await this.loadWildberriesFbsKizPreflight(connection.apiKey, task.orderId, kiz);
-    let replacedRemoteKizValues: string[] = [];
-    if (!preflight.alreadyAttached && preflight.remoteKizValues.length > 0) {
-      if (payload.confirmReplace !== true) {
-        return {
-          completed: false,
-          color: 'RED',
-          conflict: 'REMOTE_KIZ',
-          canReplace: true,
-          taskId: task.id,
-          requestId: task.requestId,
+        marketplace_connectionId_orderId: {
+          marketplace: MarketplaceType.WILDBERRIES,
+          connectionId: task.connectionId,
           orderId: task.orderId,
-          scannedKiz: printableFbsKiz(kiz),
-          remoteKiz: preflight.remoteKizValues.map(printableFbsKiz),
-          message: 'В Wildberries у заказа уже записан другой КИЗ. Проверьте старую маркировку и нажмите «Заменить КИЗ в WB», если перед вами другая физическая единица.',
-        };
-      }
-      if (preflight.supplierStatus !== 'confirm') {
-        throw new BadRequestException(`Нельзя заменить КИЗ: заказ WB имеет статус ${preflight.supplierStatus || 'неизвестно'}, нужен confirm.`);
-      }
-      await marketplaceJsonOnce(
-        `https://marketplace-api.wildberries.ru/api/v3/orders/${numericWbOrderId(task.orderId)}/meta?key=sgtin`,
-        {
-          method: 'DELETE',
-          headers: wbHeaders(connection.apiKey),
-          signal: AbortSignal.timeout(FBS_TSD_WB_READ_TIMEOUT_MS),
         },
-      );
-      replacedRemoteKizValues = [...preflight.remoteKizValues];
-    }
-    if (!preflight.alreadyAttached && preflight.supplierStatus !== 'confirm') {
-      throw new BadRequestException(`Wildberries не разрешает запись КИЗ: заказ имеет статус ${preflight.supplierStatus || 'неизвестно'}, нужен confirm.`);
-    }
-    if (!preflight.alreadyAttached) {
-      await marketplaceJsonOnce(
-        `https://marketplace-api.wildberries.ru/api/v3/orders/${numericWbOrderId(task.orderId)}/meta/sgtin`,
-        {
-          method: 'PUT',
-          headers: wbHeaders(connection.apiKey),
-          body: JSON.stringify({ sgtins: [kiz] }),
-          signal: AbortSignal.timeout(FBS_TSD_WB_READ_TIMEOUT_MS),
+      },
+      select: {
+        requestId: true,
+        syncStatus: true,
+        lastCategory: true,
+        lastSupplierStatus: true,
+      },
+    });
+    // FIX: WB rejects metadata changes after shipment. The SOS scan is still
+    // an authoritative physical WMS fact, so record it locally and never send
+    // a mutation to the already completed external order.
+    const localOnlyRecovery = Boolean(
+      requestLink &&
+      requestLink.requestId === task.requestId &&
+      requestLink.syncStatus === FBS_REQUEST_LINK_ACTIVE &&
+      (requestLink.lastCategory === 'shipped' || requestLink.lastSupplierStatus === 'complete'),
+    );
+    let replacedRemoteKizValues: string[] = [];
+    if (!localOnlyRecovery) {
+      const connection = await this.prisma.clientMarketplaceConnection.findFirst({
+        where: {
+          id: task.connectionId,
+          clientId: task.clientId,
+          marketplace: MarketplaceType.WILDBERRIES,
+          isActive: true,
         },
-      );
+        select: { apiKey: true },
+      });
+      if (!connection) throw new BadRequestException('Подключение Wildberries отключено.');
+      const preflight = await this.loadWildberriesFbsKizPreflight(connection.apiKey, task.orderId, kiz);
+      if (!preflight.alreadyAttached && preflight.remoteKizValues.length > 0) {
+        if (payload.confirmReplace !== true) {
+          return {
+            completed: false,
+            color: 'RED',
+            conflict: 'REMOTE_KIZ',
+            canReplace: true,
+            taskId: task.id,
+            requestId: task.requestId,
+            orderId: task.orderId,
+            scannedKiz: printableFbsKiz(kiz),
+            remoteKiz: preflight.remoteKizValues.map(printableFbsKiz),
+            message: 'В Wildberries у заказа уже записан другой КИЗ. Проверьте старую маркировку и нажмите «Заменить КИЗ в WB», если перед вами другая физическая единица.',
+          };
+        }
+        if (preflight.supplierStatus !== 'confirm') {
+          throw new BadRequestException(`Нельзя заменить КИЗ: заказ WB имеет статус ${preflight.supplierStatus || 'неизвестно'}, нужен confirm.`);
+        }
+        await marketplaceJsonOnce(
+          `https://marketplace-api.wildberries.ru/api/v3/orders/${numericWbOrderId(task.orderId)}/meta?key=sgtin`,
+          {
+            method: 'DELETE',
+            headers: wbHeaders(connection.apiKey),
+            signal: AbortSignal.timeout(FBS_TSD_WB_READ_TIMEOUT_MS),
+          },
+        );
+        replacedRemoteKizValues = [...preflight.remoteKizValues];
+      }
+      if (!preflight.alreadyAttached && preflight.supplierStatus !== 'confirm') {
+        throw new BadRequestException(`Wildberries не разрешает запись КИЗ: заказ имеет статус ${preflight.supplierStatus || 'неизвестно'}, нужен confirm.`);
+      }
+      if (!preflight.alreadyAttached) {
+        await marketplaceJsonOnce(
+          `https://marketplace-api.wildberries.ru/api/v3/orders/${numericWbOrderId(task.orderId)}/meta/sgtin`,
+          {
+            method: 'PUT',
+            headers: wbHeaders(connection.apiKey),
+            body: JSON.stringify({ sgtins: [kiz] }),
+            signal: AbortSignal.timeout(FBS_TSD_WB_READ_TIMEOUT_MS),
+          },
+        );
+      }
     }
 
     const completed = await this.prisma.$transaction(async (tx) => {
@@ -11623,6 +11651,7 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
             kiz: printableFbsKiz(kiz),
             sourceBoxCode: hasPhysicalSourceBox ? fresh.boxCode : null,
             sourceMode: hasPhysicalSourceBox ? 'BOX_AND_PRODUCT' : 'AUTO_VIRTUAL_RESERVE',
+            wbMutationPerformed: !localOnlyRecovery,
             deviceCode,
             workerName: user.name,
           }),
@@ -11666,9 +11695,13 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
       sourceBoxPending: !hasPhysicalSourceBox,
       sourceBoxCode: hasPhysicalSourceBox ? completed.boxCode : null,
       completionSource: 'SOS_WB',
-      message: hasPhysicalSourceBox
-        ? `Готово. КИЗ записан в Wildberries. Заказ №${completed.orderId} собран из короба ${completed.boxCode}. Сделано SOS.`
-        : `Готово. КИЗ записан в Wildberries. Заказ №${completed.orderId} собран; короб будет указан при закрытии заявки. Сделано SOS.`,
+      message: localOnlyRecovery
+        ? hasPhysicalSourceBox
+          ? `Готово. КИЗ принят локально в WMS, заказ №${completed.orderId} собран из короба ${completed.boxCode}. Wildberries не изменялся.`
+          : `Готово. КИЗ принят локально в WMS, заказ №${completed.orderId} собран; короб будет указан при закрытии заявки. Wildberries не изменялся.`
+        : hasPhysicalSourceBox
+          ? `Готово. КИЗ записан в Wildberries. Заказ №${completed.orderId} собран из короба ${completed.boxCode}. Сделано SOS.`
+          : `Готово. КИЗ записан в Wildberries. Заказ №${completed.orderId} собран; короб будет указан при закрытии заявки. Сделано SOS.`,
     };
   }
 

@@ -7314,8 +7314,9 @@ describe('MarketplaceConnectionsService', () => {
     });
   });
 
-  // TEST: SOS WB must not offer orders that WB has already shipped.
-  it('counts only active WB orders in the SOS request queue', async () => {
+  // TEST: a request like #521 must keep its physically unfinished shipped
+  // orders visible in SOS while cancelled/removed orders stay excluded.
+  it('counts active and shipped unfinished WB orders in the SOS request queue', async () => {
     const prisma = {
       fbsTsdAssembly: {
         findMany: vi.fn().mockResolvedValue([
@@ -7326,6 +7327,7 @@ describe('MarketplaceConnectionsService', () => {
       fbsOrderRequestLink: {
         findMany: vi.fn().mockResolvedValue([
           { requestId: 'request-1', connectionId: 'connection-1', orderId: 'order-active' },
+          { requestId: 'request-1', connectionId: 'connection-1', orderId: 'order-shipped' },
         ]),
       },
       clientRequest: {
@@ -7346,8 +7348,16 @@ describe('MarketplaceConnectionsService', () => {
     const result = await service.listSosWbRequests({ activeWarehouseId: 'warehouse-1' } as never);
 
     expect(result.requests).toEqual([
-      expect.objectContaining({ requestId: 'request-1', availableOrders: 1 }),
+      expect.objectContaining({ requestId: 'request-1', availableOrders: 2 }),
     ]);
+    expect(prisma.fbsOrderRequestLink.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          syncStatus: 'ACTIVE',
+          lastCategory: { in: ['active', 'shipped'] },
+        }),
+      }),
+    );
   });
 
   // TEST: a physical product in the operator's hands is enough to claim an
@@ -7423,8 +7433,9 @@ describe('MarketplaceConnectionsService', () => {
     );
   });
 
-  // TEST: stale WB metadata is not evidence that another employee took an order.
-  it('does not blame another employee when the matching SOS order is no longer active in WB', async () => {
+  // TEST: a cancelled/removed WB order is not evidence that another employee
+  // took the physical item.
+  it('does not blame another employee when the matching SOS order was cancelled in WB', async () => {
     const candidate = {
       id: 'task-stale',
       clientId: 'client-1',
@@ -7475,6 +7486,173 @@ describe('MarketplaceConnectionsService', () => {
       }),
     );
     expect(result.message).not.toContain('другой сотрудник');
+  });
+
+  // TEST: a physically unfinished shipped order remains claimable in SOS so
+  // the employee can finish request #521 without reopening completed orders.
+  it('claims a shipped unfinished SOS order for local recovery', async () => {
+    const candidate = {
+      id: 'task-shipped',
+      clientId: 'client-1',
+      requestId: 'request-521',
+      connectionId: 'connection-1',
+      orderId: '5638175960',
+      skuId: 'sku-1',
+      sourceSkuId: null,
+      itemCount: 1,
+      status: 'WAITING_STOCK',
+      reservedBoxId: null,
+      reservedBoxCode: null,
+      barcodes: ['4600000000521'],
+      createdAt: new Date('2026-09-01T10:00:00.000Z'),
+    };
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const prisma = {
+      fbsTsdAssembly: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        findMany: vi.fn().mockResolvedValue([candidate]),
+        updateMany,
+        findUnique: vi.fn().mockResolvedValue({ ...candidate, status: 'IN_PROGRESS' }),
+      },
+      clientRequest: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: 'request-521',
+            number: 521,
+            warehouseId: 'warehouse-1',
+            client: { storesWithoutBoxes: false },
+          },
+        ]),
+      },
+      fbsOrderRequestLink: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            requestId: 'request-521',
+            connectionId: 'connection-1',
+            orderId: '5638175960',
+          },
+        ]),
+      },
+      stockBalance: { findMany: vi.fn().mockResolvedValue([]) },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    };
+    const clientScopes = { resolveClientFilter: vi.fn().mockReturnValue('client-1') };
+    const service = new MarketplaceConnectionsService(prisma as never, clientScopes as never);
+    vi.spyOn(service as any, 'withFbsTsdAssignmentLock').mockImplementation(
+      async (_key: string, work: () => Promise<unknown>) => work(),
+    );
+    vi.spyOn(service as any, 'fbsTsdReservationRows').mockResolvedValue([]);
+    vi.spyOn(service as any, 'sosWbClaimResponse').mockResolvedValue({ matched: true });
+
+    await expect(
+      service.claimSosWbOrder(
+        { requestId: 'request-521', barcode: '4600000000521', deviceCode: 'device-1' },
+        { id: 'user-1', name: 'Worker', activeWarehouseId: 'warehouse-1' } as never,
+      ),
+    ).resolves.toEqual({ matched: true });
+    expect(prisma.fbsOrderRequestLink.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          syncStatus: 'ACTIVE',
+          lastCategory: { in: ['active', 'shipped'] },
+        }),
+      }),
+    );
+    expect(updateMany).toHaveBeenCalledOnce();
+  });
+
+  // TEST: WB no longer accepts KIZ metadata for shipped/complete orders; SOS
+  // must record the physical KIZ locally and must not call the WB API.
+  it('accepts a KIZ locally for a shipped SOS order without mutating Wildberries', async () => {
+    const kiz = '010590000000052121LOCALRECOVERY521';
+    const task = {
+      id: 'task-shipped',
+      clientId: 'client-1',
+      requestId: 'request-521',
+      connectionId: 'connection-1',
+      orderId: '5638175960',
+      skuId: 'sku-1',
+      productName: 'Костюм',
+      article: 'ART-521',
+      itemCount: 1,
+      requiresKiz: true,
+      status: 'IN_PROGRESS',
+      workerUserId: 'user-1',
+      workerName: 'Worker',
+      deviceCode: 'SOS-WB:DEVICE-1',
+      boxId: 'box-1',
+      boxCode: 'FFL_TEST_521',
+      reservedBoxId: 'box-1',
+      reservedBoxCode: 'FFL_TEST_521',
+      barcode: '4600000000521',
+      barcodes: ['4600000000521'],
+      kiz: null,
+      wbMetaStatus: 'PENDING',
+      completedAt: null,
+    };
+    const completed = { ...task, status: 'COMPLETED', kiz, wbMetaStatus: 'ACCEPTED' };
+    const tx = {
+      fbsTsdAssembly: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        findUnique: vi.fn().mockResolvedValue(completed),
+      },
+      clientRequestEvent: { create: vi.fn().mockResolvedValue({ id: 'event-1' }) },
+      auditLog: { create: vi.fn().mockResolvedValue({ id: 'audit-1' }) },
+    };
+    const prisma = {
+      fbsTsdAssembly: {
+        findUnique: vi.fn().mockResolvedValue(task),
+        findFirst: vi.fn().mockResolvedValue(null),
+      },
+      productMark: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'mark-1',
+          clientId: 'client-1',
+          skuId: 'sku-1',
+          boxId: 'box-1',
+          status: StockStatus.AVAILABLE,
+          sourceDocument: null,
+          box: { code: 'FFL_TEST_521' },
+          sku: { name: 'Костюм' },
+        }),
+      },
+      fbsOrderRequestLink: {
+        findUnique: vi.fn().mockResolvedValue({
+          requestId: 'request-521',
+          syncStatus: 'ACTIVE',
+          lastCategory: 'shipped',
+          lastSupplierStatus: 'complete',
+        }),
+      },
+      clientMarketplaceConnection: { findFirst: vi.fn() },
+      clientRequest: { findUnique: vi.fn().mockResolvedValue({ number: 521 }) },
+      $transaction: vi.fn(async (callback: (value: typeof tx) => unknown) => callback(tx)),
+    };
+    const clientScopes = { requireClientAccess: vi.fn() };
+    const service = new MarketplaceConnectionsService(prisma as never, clientScopes as never);
+    vi.spyOn(service as any, 'findPreviousWildberriesKizUsage').mockResolvedValue(null);
+    vi.spyOn(service as any, 'recordAcceptedFbsKizScan').mockResolvedValue(undefined);
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      service.acceptSosWbKiz(
+        'task-shipped',
+        { kiz, deviceCode: 'device-1' },
+        { id: 'user-1', name: 'Worker' } as never,
+      ),
+    ).resolves.toMatchObject({
+      completed: true,
+      requestNumber: 521,
+      message: expect.stringContaining('Wildberries не изменялся'),
+    });
+    expect(prisma.clientMarketplaceConnection.findFirst).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(tx.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        payload: expect.objectContaining({ wbMutationPerformed: false }),
+      }),
+    });
   });
 
   // TEST: a client may store stock in several WMS branches while its WB

@@ -8,6 +8,7 @@ import { OnlineReceiptPanel } from './OnlineReceiptPanel';
 import { GoodsArrivalPanel } from './GoodsArrivalPanel';
 import { ReceiptBatchesPanel } from './ReceiptBatchesPanel';
 import { PickWavePanel } from './PickWavePanel';
+import { WaveOverviewPanel, ourWaveOverviewEnabled } from './WaveOverviewPanel';
 import { BoxIntegrityPanel } from './BoxIntegrityPanel';
 import { ShipmentHistoryPanel } from './ShipmentHistoryPanel';
 import './warehouse.css';
@@ -19,6 +20,7 @@ type WarehouseOpsPanelProps = {
 };
 
 type WarehouseTopic =
+  | 'waves'
   | 'statistics'
   | 'online-receipts'
   | 'arrivals'
@@ -47,6 +49,7 @@ export function WarehouseOpsPanel({ onOpenCatalog, session }: WarehouseOpsPanelP
         </button>
       ) : null}
       {activeTopic === 'statistics' ? <OperationsStatisticsPanel session={session} /> : null}
+      {activeTopic === 'waves' && ourWaveOverviewEnabled(window.location.hostname) ? <WaveOverviewPanel session={session} /> : null}
 
       {activeTopic === 'online-receipts' ? <section className="warehouse-panel warehouse-panel--online-receipts" aria-label="Онлайн приемка">
         <div className="section-heading warehouse-panel__heading">
@@ -120,7 +123,8 @@ export function WarehouseOpsPanel({ onOpenCatalog, session }: WarehouseOpsPanelP
         </div>
 
         <BoxTransferForm session={session} />
-        <PickWavePanel session={session} />
+        {/* FIX: our read-only rollout must not expose the legacy wave mutation buttons. */}
+        {!ourWaveOverviewEnabled(window.location.hostname) ? <PickWavePanel session={session} /> : null}
       </section> : null}
 
       {activeTopic === 'drafts' ? <section className="warehouse-panel warehouse-panel--drafts" aria-label="Новый товар">
@@ -159,7 +163,7 @@ function WarehouseTopicPicker({ onOpen }: { onOpen: (topic: WarehouseTopic) => v
         <span>Операции открываются отдельно — список не мешает работе.</span>
       </div>
       <div className="warehouse-topic-grid">
-        {topics.map((topic) => (
+        {(ourWaveOverviewEnabled(window.location.hostname) ? [{ id: 'waves' as const, eyebrow: 'Планирование сборки', title: 'Волны сборки', description: 'Заявки FBS и существующие волны. Пока только просмотр.', icon: <PackageSearch size={23} /> }, ...topics] : topics).map((topic) => (
           <button className={`warehouse-topic-tile warehouse-topic-tile--${topic.id}`} key={topic.id} type="button" onClick={() => onOpen(topic.id)}>
             <span className="warehouse-topic-tile__icon">{topic.icon}</span>
             <span className="warehouse-topic-tile__content"><small>{topic.eyebrow}</small><strong>{topic.title}</strong><span>{topic.description}</span></span>

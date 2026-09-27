@@ -13,7 +13,8 @@ import java.io.File
 
 // TEST: protocol v2 sends attendance separately; only an explicit request uploads a photograph.
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [30], application = Application::class)
+// TEST: exercise metadata and photo protocols on older tablet APIs as well.
+@Config(sdk = [26, 29, 30], application = Application::class)
 class ApiTest {
     // TEST: attendance delivery must not upload the photograph or wait for its receipt.
     @Test fun `attendance is acknowledged without automatic photo upload`() {

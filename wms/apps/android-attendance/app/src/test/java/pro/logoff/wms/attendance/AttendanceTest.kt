@@ -18,7 +18,8 @@ import java.util.UUID
 
 // TEST: exercise actual Room transactions and the durable queue, not a mirror of the implementation.
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [30], application = Application::class)
+// TEST: preserve offline shifts, camera retry and retention across supported APIs.
+@Config(sdk = [26, 29, 30], application = Application::class)
 class AttendanceTest {
     private lateinit var db: AttendanceDb
     private lateinit var repo: AttendanceRepository

@@ -14,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -45,6 +46,7 @@ class AutomaticPhotoOperation {
 fun AutomaticPhotoMark(employee: Employee, clockIn: Boolean, onCancel: () -> Unit,
     onSave: suspend (File, Long, Long, String) -> Unit) {
     val context = LocalContext.current
+    val displayView = LocalView.current
     val lifecycle = LocalLifecycleOwner.current
     var granted by remember { mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) }
     var permissionRequested by rememberSaveable { mutableStateOf(false) }
@@ -85,7 +87,8 @@ fun AutomaticPhotoMark(employee: Employee, clockIn: Boolean, onCancel: () -> Uni
                                 .setTargetResolution(android.util.Size(960, 720)).build()
                             try {
                                 provider.bindToLifecycle(lifecycle, CameraSelector.DEFAULT_FRONT_CAMERA, camera)
-                                camera.targetRotation = context.display?.rotation ?: 0
+                                // FIX: View.display works before API 30, unlike Context.display.
+                                camera.targetRotation = displayView.display?.rotation ?: 0
                                 takenAt = System.currentTimeMillis(); elapsed = SystemClock.elapsedRealtime()
                                 val temporary = File(dir, "$id-${UUID.randomUUID()}.part")
                                 suspendCancellableCoroutine<Unit> { continuation ->

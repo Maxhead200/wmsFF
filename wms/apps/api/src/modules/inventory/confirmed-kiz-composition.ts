@@ -1,3 +1,4 @@
+import { resolveConfirmedPhysicalKiz } from './confirmed-kiz-physical-resolution';
 import { physicalKizIdentity, kizIdentityTransferEnabled } from '../../common/kiz-physical-identity';
 import { debitConfirmedKizSource } from './confirmed-kiz-transfer';
 import { ConflictException } from '@nestjs/common';
@@ -119,6 +120,8 @@ export async function confirmInventoryKizComposition(tx: Prisma.TransactionClien
     ? [...new Set([box!.id, ...related.map(mark => mark.boxId).filter((id): id is string => Boolean(id))])].sort()
     : [box!.id];
   for (const boxId of lockBoxes) await tx.$queryRaw(Prisma.sql`SELECT id FROM "Box" WHERE id = ${boxId} FOR UPDATE`);
+  // FIX: resolve administrator-confirmed physical registration before legacy guards.
+  await resolveConfirmedPhysicalKiz(tx, { marks: related, scans, box: box!, auditId: audit.id, startedAt: audit.startedAt }, user);
   for (const scan of scans) {
     const matches = related.filter(mark => identity(mark.value) === scan.identity);
     if (matches.length > 1 || matches.some(mark => mark.clientId !== box!.clientId || mark.skuId !== scan.skuId))

@@ -25,6 +25,16 @@ export type InternalApiDefinition = {
 // ADDED: Explicit registry documents every controller group loaded by AppModule.
 // Keeping it declarative avoids a global interceptor and therefore does not touch normal API traffic.
 export const INTERNAL_API_DEFINITIONS: readonly InternalApiDefinition[] = Object.freeze([
+  // FIX: attendance is independently gated and unrelated to TSD picking/printing.
+  {
+    id: 'attendance-device',
+    name: 'Планшеты учёта времени',
+    prefixes: ['/attendance-device', '/expenses/workforce/attendance'],
+    routeCount: 13,
+    description: 'Отметки прихода/ухода, подключение планшетов и фотографии по запросу администратора.',
+    logic: ['Включается только флагом WMS_ATTENDANCE_DEVICE_ENABLED совместно с ФОТ.', 'Токен ограничен устройством и филиалом; повтор события не создаёт смену.', 'Фото 35 дней хранится на планшете, передаётся по запросу; приём отметок не зависит от фото.', 'Погрузки требуют подтверждения, спорные отметки разбирает администратор.'],
+    dependencies: ['Основная БД', 'ФОТ', 'Токены планшетов'],
+  },
   // FIX: register the read-only warehouse processing-time report.
   {
     id: 'operations-statistics',

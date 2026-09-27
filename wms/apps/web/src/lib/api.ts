@@ -8255,6 +8255,9 @@ export async function fetchExpensePayroll(accessToken: string, filter: { dateFro
 export function payrollRequest<T>(accessToken: string, path: string, method: 'GET' | 'POST' | 'PUT' = 'GET', body?: unknown) {
   return request<T>(`/expenses/workforce${path}`, { accessToken, method, body });
 }
+export function payrollAttendancePhoto(accessToken: string, eventId: string) {
+  return requestBlob(`/expenses/workforce/attendance/events/${encodeURIComponent(eventId)}/photo`, accessToken);
+}
 
 export function payrollImport<T>(accessToken: string, file: File, mapping?: Record<string, string>) {
   const body = new FormData(); body.append('file', file);

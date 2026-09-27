@@ -1,5 +1,5 @@
 import { FormEvent, ReactNode, useEffect, useState } from 'react';
-import { AuthSession, BranchSummary, fetchBranches, payrollDownload, payrollImport, payrollRequest } from '../../lib/api';
+import { AuthSession, BranchSummary, fetchBranches, payrollDownload, payrollImport, payrollRequest, payrollAttendancePhoto } from '../../lib/api';
 import './payroll.css';
 
 type Employee = { id: string; name: string; warehouseId: string; userId?: string | null; picker: boolean; loader: boolean; isActive: boolean; paymentMethod: string; paymentPhone?: string | null; paymentBank?: string | null; rates: Array<{ id: string; kind: string; rateKopecks: number; startsAt: string; endsAt?: string; temporary: boolean }> };
@@ -186,6 +186,7 @@ export function PayrollManagement({ session, legacy, onBack }: { session: AuthSe
         <label>Порядок<select aria-label="Порядок" value={sortDirection} onChange={e => setSortDirection(e.target.value as SortDirection)}><option value="asc">По возрастанию</option><option value="desc">По убыванию</option></select></label></>}
     </div>
     {tab === 'settings' ? <>
+      <PayrollTablets session={session} branches={branches} employees={employees} />
       <details><summary>Перенос исторического табеля</summary><p>Старые часы, суммы и статусы сохраняются без перерасчёта по новым правилам. Сначала проверьте соответствие сотрудников.</p>
         <input type="file" accept=".xlsx" aria-label="Исторический табель" onChange={e => { const file = e.target.files?.[0]; setImportFile(file ?? null); setPreview(null); setMapping({}); if (file) void run(async () => { setPreview(await payrollImport(session.accessToken, file)); return 'Предпросмотр импорта готов'; }); }} />
         {preview && <><p>Строк: {preview.rows.length}. Сумма: {money(preview.totalKopecks)}.</p>{preview.issues.map((s, i) => <p role="alert" key={i}>{s}</p>)}
@@ -273,6 +274,74 @@ export function PayrollManagement({ session, legacy, onBack }: { session: AuthSe
           </td></tr>)}</tbody></table></div>
         {employee ? <form onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget); void run(async () => { await api('/statuses', 'POST', { employeeId: selected, dateFrom: from, dateTo: to, keys: checked, status: f.get('status'), comment: f.get('comment') }); await reloadReport(); }); }}><div className="payroll-fields"><label>Статус выбранных<select name="status">{Object.entries(statuses).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label><label>Комментарий<input name="comment" /></label></div><button disabled={busy || !checked.length}>Применить к {checked.length} строкам</button></form> : <p>Для изменения статуса и личной выгрузки выберите сотрудника.</p>}
       </>}
+    </>}
+  </section>;
+}
+
+type Tablet = { id: string; name: string; warehouseId: string; lastSeenAt: string | null; revokedAt: string | null };
+type TabletEvent = { id: string; employeeId: string; name: string; kind: string; effectiveAt: string; status: string; reason: string; photoStatus: string };
+export const attendancePhotoStatus = (status: string) => ({ NOT_REQUESTED: 'На планшете', PENDING: 'Ожидаем планшет', STORED: 'Фото доступно', EXPIRED: 'Срок хранения истёк', UNAVAILABLE: 'Фото недоступно' }[status] ?? status);
+
+// FIX: separate device administration; no financial data or WMS administrator credentials reach the tablet.
+function PayrollTablets({ session, branches, employees }: { session: AuthSession; branches: BranchSummary[]; employees: Employee[] }) {
+  const [enabled, setEnabled] = useState(false), [open, setOpen] = useState(false), [busy, setBusy] = useState(false);
+  const [devices, setDevices] = useState<Tablet[]>([]), [events, setEvents] = useState<TabletEvent[]>([]);
+  const [warehouse, setWarehouse] = useState(''), [employee, setEmployee] = useState('');
+  const [from, setFrom] = useState(new Date().toISOString().slice(0, 10)), [to, setTo] = useState(new Date().toISOString().slice(0, 10));
+  const [code, setCode] = useState(''), [message, setMessage] = useState(''), [error, setError] = useState('');
+  const [photo, setPhoto] = useState(''), [review, setReview] = useState<TabletEvent | null>(null), [reason, setReason] = useState(''), [corrected, setCorrected] = useState('');
+  const api = <T,>(path: string, method: 'GET' | 'POST' = 'GET', body?: unknown) => payrollRequest<T>(session.accessToken, '/attendance' + path, method, body);
+  useEffect(() => { let live = true; api<{ enabled: boolean }>('/capabilities').then(r => { if (live) setEnabled(r.enabled); }).catch(() => {}); return () => { live = false; }; }, [session.accessToken]);
+  useEffect(() => () => { if (photo) URL.revokeObjectURL(photo); }, [photo]);
+  async function load() {
+    const [d, e] = await Promise.all([api<Tablet[]>('/devices'), api<TabletEvent[]>(`/events?from=${from}&to=${to}${employee ? '&employeeId=' + encodeURIComponent(employee) : ''}`)]);
+    setDevices(d); setEvents(e);
+  }
+  async function run(action: () => Promise<void>, success = '') {
+    setBusy(true); setError(''); setMessage('');
+    try { await action(); setMessage(success); } catch (e) { setError(e instanceof Error ? e.message : 'Не удалось выполнить операцию.'); }
+    finally { setBusy(false); }
+  }
+  if (!enabled) return null;
+  return <section aria-label="Планшеты учёта времени">
+    <button disabled={busy} onClick={() => { setOpen(!open); setPhoto(''); if (!open) void run(load); }}>Планшеты и отметки {open ? '▴' : '▾'}</button>
+    {open && <>
+      <h3>Подключение планшета</h3>
+      <p>На планшете фото хранится 35 дней. В WMS оно поступает только после вашего запроса.</p>
+      {error && <p role="alert">{error}</p>}{message && <p role="status">{message}</p>}
+      <label>Филиал планшета<select disabled={busy} value={warehouse} onChange={e => { setWarehouse(e.target.value); setCode(''); }}><option value="">Выберите филиал</option>{branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
+      <button disabled={busy || !warehouse} onClick={() => void run(async () => {
+        const r = await api<{ code: string; expiresAt: string }>('/codes', 'POST', { warehouseId: warehouse });
+        setCode(`${r.code} · до ${new Date(r.expiresAt).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })} МСК`);
+      }, 'Код подключения создан')}>Выдать одноразовый код</button>
+      {code && <p role="status">{code}</p>}
+      <ul>{devices.map(d => <li key={d.id}>{d.name} · {branches.find(b => b.id === d.warehouseId)?.name ?? 'Филиал'} · {d.revokedAt ? 'Доступ отозван' : d.lastSeenAt ? `Связь ${new Date(d.lastSeenAt).toLocaleString('ru-RU')}` : 'Ещё не подключался'}
+        {!d.revokedAt && <button disabled={busy} onClick={() => void run(async () => { await api(`/devices/${d.id}/revoke`, 'POST'); await load(); }, 'Доступ планшета отозван; локальная очередь сохранена')}>Отключить планшет {d.name}</button>}</li>)}</ul>
+      <h3>Отметки с планшетов</h3>
+      <div className="payroll-fields">
+        <label>Сотрудник планшета<select disabled={busy} value={employee} onChange={e => { setEmployee(e.target.value); setEvents([]); setPhoto(''); setReview(null); }}><option value="">Все сотрудники</option>{employees.map(e => <option value={e.id} key={e.id}>{e.name}</option>)}</select></label>
+        <label>Отметки с<input disabled={busy} type="date" value={from} onChange={e => { setFrom(e.target.value); setEvents([]); setPhoto(''); setReview(null); }} /></label>
+        <label>Отметки по<input disabled={busy} type="date" value={to} onChange={e => { setTo(e.target.value); setEvents([]); setPhoto(''); setReview(null); }} /></label>
+      </div>
+      <button disabled={busy} onClick={() => void run(load)}>Показать / обновить отметки</button>
+      <p>Показано до 500 последних отметок выбранного периода. Для более ранних выберите меньший период.</p>
+      <table><thead><tr><th>Сотрудник</th><th>Дата и время</th><th>Действие</th><th>Состояние</th><th>Фото</th></tr></thead><tbody>{events.map(e => <tr key={e.id}>
+        <td>{e.name}</td><td>{new Date(e.effectiveAt).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })}</td>
+        <td>{({ CLOCK_IN: 'Приход', CLOCK_OUT: 'Уход', HANDLING: 'Погрузка / разгрузка' } as Record<string, string>)[e.kind]}</td>
+        <td>{e.status === 'REVIEW' ? 'На проверке' : 'Обработано'} {e.reason}{e.status === 'REVIEW' && <button disabled={busy} onClick={() => { setReview(e); setReason(''); setCorrected(''); }}>Разобрать отметку</button>}</td>
+        <td>{e.kind !== 'HANDLING' && <>{attendancePhotoStatus(e.photoStatus)}
+          {e.photoStatus === 'NOT_REQUESTED' && <button disabled={busy} onClick={() => void run(async () => { await api(`/events/${e.id}/photo`, 'POST'); await load(); }, 'Запрос фото зарегистрирован. Обновите список после подключения планшета.')}>Запросить фото {e.name}</button>}
+          {e.photoStatus === 'STORED' && <button disabled={busy} onClick={() => void run(async () => { const blob = await payrollAttendancePhoto(session.accessToken, e.id); setPhoto(URL.createObjectURL(blob)); })}>Посмотреть фото {e.name}</button>}
+        </>}</td></tr>)}</tbody></table>
+      {photo && <div><button onClick={() => setPhoto('')}>Закрыть фото</button><img src={photo} alt="Фото отметки сотрудника" style={{ maxWidth: '100%', maxHeight: 480 }} /></div>}
+      {review && <form onSubmit={e => e.preventDefault()}><h4>Проверка отметки · {review.name}</h4>
+        <label>Причина решения<input disabled={busy} value={reason} maxLength={1000} onChange={e => setReason(e.target.value)} /></label>
+        {review.kind !== 'HANDLING' && <label>Исправленное время (МСК, при необходимости)<input disabled={busy} type="datetime-local" value={corrected} onChange={e => setCorrected(e.target.value)} /></label>}
+        {(['ACCEPT', 'DISMISS'] as const).map(action => <button key={action} disabled={busy || !reason.trim()} onClick={() => void run(async () => {
+          await api(`/events/${review.id}/resolve`, 'POST', { action, reason, ...(corrected ? { effectiveAt: `${corrected}:00+03:00` } : {}) }); setReview(null); await load();
+        }, 'Решение сохранено; планшет получит его при синхронизации')}>{action === 'ACCEPT' ? 'Принять отметку' : 'Отклонить без начисления'}</button>)}
+        <button disabled={busy} onClick={() => setReview(null)}>Закрыть проверку</button>
+      </form>}
     </>}
   </section>;
 }

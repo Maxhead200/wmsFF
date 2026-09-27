@@ -116,6 +116,55 @@ model PayrollHistorical {
   @@index([employeeId, workDate])
 }
 
+model AttendanceDevice {
+  id String @id
+  warehouseId String
+  isDemo Boolean @default(false)
+  name String
+  tokenHash String @unique
+  createdById String
+  createdAt DateTime @default(now())
+  lastSeenAt DateTime?
+  revokedAt DateTime?
+}
+model AttendanceCode {
+  hash String @id
+  warehouseId String
+  isDemo Boolean @default(false)
+  createdById String
+  expiresAt DateTime
+  usedAt DateTime?
+}
+model AttendanceEvent {
+  id String @id
+  deviceId String
+  employeeId String
+  warehouseId String
+  isDemo Boolean @default(false)
+  kind String
+  fingerprint String
+  data Json
+  effectiveAt DateTime
+  receivedAt DateTime @default(now())
+  status String
+  reason String
+  result Json
+  acknowledged Boolean @default(false)
+  @@index([deviceId, acknowledged])
+  @@index([warehouseId, receivedAt])
+}
+model AttendancePhotoRequest {
+  id String @id
+  eventId String @unique
+  deviceId String
+  requestedById String
+  requestedAt DateTime @default(now())
+  expiresAt DateTime
+  status String @default("PENDING")
+  photo Bytes?
+  @@index([deviceId, status])
+}
+
 generator client {
   provider = "prisma-client-js"
 }

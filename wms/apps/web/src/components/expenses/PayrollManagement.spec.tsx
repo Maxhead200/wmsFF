@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { PayrollManagement, payrollTimeCells, payrollIntervalCells, payrollPaymentSummary, payrollDate, payrollSortRows, payrollCurrentRates } from './PayrollManagement';
+import { PayrollManagement, payrollTimeCells, payrollIntervalCells, payrollPaymentSummary, payrollDate, payrollSortRows, payrollCurrentRates, attendancePhotoStatus } from './PayrollManagement';
 import type { AuthSession } from '../../lib/api';
 // TEST: no new payroll form is visible before the server explicitly enables it.
 describe('payroll feature isolation', () => {
+  // TEST: a pending/expired request must never be presented as a stored photo.
+  it('distinguishes local photos from requested, stored and expired photographs', () => {
+    expect(attendancePhotoStatus('NOT_REQUESTED')).toBe('На планшете');
+    expect(attendancePhotoStatus('PENDING')).toBe('Ожидаем планшет');
+    expect(attendancePhotoStatus('STORED')).toBe('Фото доступно');
+    expect(attendancePhotoStatus('EXPIRED')).toBe('Срок хранения истёк');
+  });
   // TEST: settings show the current condition, not one from the report period or an expired override.
   it('selects current rates with temporary precedence and an exclusive end boundary', () => {
     const rates = [

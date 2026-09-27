@@ -6,11 +6,14 @@ import { ExpensesController } from './expenses.controller';
 import { ExpensesService } from './expenses.service';
 import { PayrollService } from './payroll.service';
 import { PayrollController } from './payroll.controller';
+import { AttendanceDeviceService } from './attendance-device.service';
+import { AttendanceDeviceController } from './attendance-device.controller';
+import { AttendanceAdminController } from './attendance-admin.controller';
 
 @Module({
   imports: [AuthModule, BillingModule],
-  controllers: [ExpensesController, PayrollController],
-  providers: [ExpensesService, ExpenseAutomationService, PayrollService],
+  controllers: [ExpensesController, PayrollController, AttendanceAdminController, AttendanceDeviceController],
+  providers: [ExpensesService, ExpenseAutomationService, PayrollService, AttendanceDeviceService],
   exports: [ExpensesService, ExpenseAutomationService],
 })
 export class ExpensesModule {}

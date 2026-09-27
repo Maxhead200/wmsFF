@@ -14905,7 +14905,8 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
       if (!releasedReservation && !['COMPLETED', 'RELEASED', FBS_TSD_RETURN_REQUIRED].includes(fresh.status)) {
         this.requireCurrentFbsTsdLease(fresh, user);
       }
-      return validateFbsStockAudit(tx, fresh, sessionId, user.id);
+      // FIX: roles come from the authenticated user, never from the scan payload.
+      return validateFbsStockAudit(tx, fresh, sessionId, user.id, user.roleCodes);
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
 

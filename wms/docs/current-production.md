@@ -1,3 +1,9 @@
+# Published PR339: completed FBO history / 27.09.2026
+
+API `sha256:487a1cb0235e22d037643835be01f9e320243a9f97949d80b2a185afc06368f5`. Historical PACKED units of COMPLETED FBO no longer block an administrator recount; explicit active bindings remain protected. One runtime module changed; all flags, web and APK retained. API2860, web247, TypeScript passed; full current BOX_0222 confirmation with five KIZs verified on the published image and rolled back. No recount required for the saved 18:45 scans. No history/billing mutation. Baseline `2026-09-27-completed-fbo-history`; source parity false. Rollback `logoff-api:before-completed-fbo`.
+
+## Previous release
+
 # Published PR337: administrator physical KIZ confirmation / 27.09.2026
 
 API `sha256:8d84800a7dbc197451799055bb3b0659dd1dd1a0f57b94cbf3e7963c7f8fc921`. Opt-in `WMS_INVENTORY_PHYSICAL_RESOLUTION_ENABLED=true` only on our WMS. Two inventory modules changed; all other runtime files, existing flags, web and APK215 preserved. Confirmed old registration conflicts can be corrected without duplicate destination stock; current assembly and newer-movement guards remain. API2859, web247, TypeScript and two real-data rollback checks passed. Baseline `2026-09-27-admin-physical-kiz`; 544 API files and 413 web files verified. Source parity remains false. Rollback: `logoff-api:before-admin-physical-337`. No migration.

@@ -52,3 +52,5 @@ Latest verified release: PR332, payroll editor, dates and sorting. Baseline `wms
 Latest verified release: PR334, payroll employee card. Baseline `wms/baselines/our-wms/2026-09-26-payroll-card`. Web `sha256:f71d461f6762387b3ef16471e0862daf0bda734e4ee76b530a86e9026007bd64`; API/APK/flags unchanged. Source parity remains false.
 
 Latest verified release PR337 (27.09.2026): administrator physical KIZ resolution. Baseline `wms/baselines/our-wms/2026-09-27-admin-physical-kiz`; API `sha256:8d84800a7dbc197451799055bb3b0659dd1dd1a0f57b94cbf3e7963c7f8fc921`. Two inventory modules changed, WMS_INVENTORY_PHYSICAL_RESOLUTION_ENABLED=true only on our WMS. All other flags, web and APK215 preserved. Source parity remains false.
+
+Latest verified PR339: baseline `wms/baselines/our-wms/2026-09-27-completed-fbo-history`, API `sha256:487a1cb0235e22d037643835be01f9e320243a9f97949d80b2a185afc06368f5`. Completed FBO history no longer blocks physical inventory confirmation. One runtime helper changed; flags/web/APK unchanged.

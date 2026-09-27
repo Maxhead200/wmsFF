@@ -21,3 +21,25 @@ it.each(['disabled', 'worker', 'demo', 'client', 'warehouse', 'newer', 'fbs', 'f
   expect(tx.stockMovement.create).not.toHaveBeenCalled();
   if (kind !== 'race') expect(tx.productMark.updateMany).not.toHaveBeenCalled();
 });
+
+// TEST: a completed FBO keeps PACKED history after releasing activeMarkId.
+it('does not treat request 1221 historical PACKED units as an active pick', async () => {
+  vi.stubEnv('WMS_INVENTORY_PHYSICAL_RESOLUTION_ENABLED', 'true');
+  const value = '0104680992599810215cjsIgrU9t%p=';
+  const mark: any = { id: 'mark', value, clientId: 'client', skuId: 'sku', boxId: null, status: 'SHIPPING', updatedAt: new Date('2026-09-26') };
+  const tx: any = {
+    fbsTsdAssembly: { findFirst: vi.fn(async () => null) },
+    fboAssemblyUnit: { findFirst: vi.fn(async ({ where }: any) => {
+      const historicalMatch = where.OR.find((clause: any) => clause.state);
+      // Simulate the persisted historical PACKED row with a COMPLETED parent.
+      return historicalMatch.assembly?.phase?.not === 'COMPLETED' ? null : { id: 'old-packed' };
+    }) },
+    productMark: { updateMany: vi.fn(async ({ data }: any) => { Object.assign(mark, data); return { count: 1 }; }), findUniqueOrThrow: vi.fn(async () => mark) },
+    auditLog: { create: vi.fn() }, stockMovement: { create: vi.fn() },
+  };
+  await resolveConfirmedPhysicalKiz(tx, { marks: [mark], scans: [{ identity: value, value, skuId: 'sku' }],
+    box: { id: 'box222', clientId: 'client', warehouseId: 'wh' }, auditId: 'audit', startedAt: new Date('2026-09-27') }, { id: 'owner', roleCodes: ['OWNER'] } as any);
+  expect(mark).toMatchObject({ status: 'AVAILABLE', boxId: 'box222' });
+  expect(tx.stockMovement.create).not.toHaveBeenCalled();
+  expect(tx.auditLog.create).toHaveBeenCalledTimes(1);
+});

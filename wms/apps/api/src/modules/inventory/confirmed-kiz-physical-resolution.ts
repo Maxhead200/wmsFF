@@ -32,7 +32,9 @@ export async function resolveConfirmedPhysicalKiz(tx: Prisma.TransactionClient, 
     // atomic return operation; never silently erase another worker's current pick.
     const [fbs, fbo] = await Promise.all([
       tx.fbsTsdAssembly.findFirst({ where: { ...where, status: { notIn: ['COMPLETED', 'WB_ACCOUNTED', 'RELEASED'] } }, select: { id: true } }),
-      tx.fboAssemblyUnit.findFirst({ where: { OR: [{ activeMarkId: mark.id }, { ...where, state: { in: ['PICKED', 'PACKED'] } }] }, select: { id: true } }),
+      tx.fboAssemblyUnit.findFirst({ where: { OR: [{ activeMarkId: mark.id }, { ...where, state: { in: ['PICKED', 'PACKED'] },
+        // FIX: PACKED remains history after FINISH; only an open assembly holds it.
+        assembly: { phase: { not: 'COMPLETED' }, request: { status: { notIn: ['DONE', 'CANCELLED'] } } } }] }, select: { id: true } }),
     ]);
     if (fbs || fbo) fail('КИЗ используется текущей сборкой. Требуется оформить возврат из этой сборки.');
     const previousMark = JSON.parse(JSON.stringify(mark));

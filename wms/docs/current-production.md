@@ -1,3 +1,7 @@
+# Published PR341 (27.09.2026): own ADMIN/OWNER ACCEPT_AS_IS now permits FBS continuation when the privileged picker personally accepted unchanged system stock. API `sha256:dbc95e8faadbb7188e4637a41ef95b55d336977ea1e7f02367f33f455570afc0`; baseline `2026-09-27-admin-accept-audit`. Existing our-WMS flag only; two runtime modules (validator and authenticated-role call-site). Saved BOX294 acceptance passed read-only on candidate and production; WORKER rejected. API2870, web247, TypeScript passed; 97 skipped, dedicated DB suite unavailable. Stock, KIZs, web, APK215 and other containers unchanged. Source parity false. Rollback `logoff-api:before-admin-accept`.
+
+## Previous release
+
 # Published PR339: completed FBO history / 27.09.2026
 
 API `sha256:487a1cb0235e22d037643835be01f9e320243a9f97949d80b2a185afc06368f5`. Historical PACKED units of COMPLETED FBO no longer block an administrator recount; explicit active bindings remain protected. One runtime module changed; all flags, web and APK retained. API2860, web247, TypeScript passed; full current BOX_0222 confirmation with five KIZs verified on the published image and rolled back. No recount required for the saved 18:45 scans. No history/billing mutation. Baseline `2026-09-27-completed-fbo-history`; source parity false. Rollback `logoff-api:before-completed-fbo`.

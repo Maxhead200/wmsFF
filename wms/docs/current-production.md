@@ -1,3 +1,9 @@
+# Published PR343: tablet attendance / 27.09.2026
+
+API `sha256:d67de6f69a8ebd5902a913be8662f67ab0e79b6c8d775dc9987bcf8ea13b8c90`; web `sha256:597d5e296a51dcbf0d353321461255d3c55e4b8de0225f2732afdbfaf955e71b`. FOT settings: device registration, photo requests and disputed marks. Additive Attendance migration; device flag enabled only on our WMS. API2885, web248, Android72 tests passed; 94 API tests skipped and dedicated KIZ DB suite excluded. Candidate registration/shift/photo-request/revocation verified with rollback on server DB; exact deployed hashes and HTTP assets verified. APK215 unchanged; attendance0.2.1 installed by user, camera pending physical verification. Baseline `2026-09-27-attendance343`; source parity remains false.
+
+## Previous release
+
 # Published PR341 (27.09.2026): own ADMIN/OWNER ACCEPT_AS_IS now permits FBS continuation when the privileged picker personally accepted unchanged system stock. API `sha256:dbc95e8faadbb7188e4637a41ef95b55d336977ea1e7f02367f33f455570afc0`; baseline `2026-09-27-admin-accept-audit`. Existing our-WMS flag only; two runtime modules (validator and authenticated-role call-site). Saved BOX294 acceptance passed read-only on candidate and production; WORKER rejected. API2870, web247, TypeScript passed; 97 skipped, dedicated DB suite unavailable. Stock, KIZs, web, APK215 and other containers unchanged. Source parity false. Rollback `logoff-api:before-admin-accept`.
 
 ## Previous release

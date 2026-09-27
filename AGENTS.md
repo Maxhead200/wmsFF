@@ -50,3 +50,10 @@ Latest verified release: PR330, payroll payment summary. Baseline `wms/baselines
 Latest verified release: PR332, payroll editor, dates and sorting. Baseline `wms/baselines/our-wms/2026-09-26-payroll-editor`. Web `sha256:693a0d1f72469302bd77233790260e31de44a9621a9411c19cdf335930342f57`; API export module updated; APK/flags unchanged. Source parity remains false.
 
 Latest verified release: PR334, payroll employee card. Baseline `wms/baselines/our-wms/2026-09-26-payroll-card`. Web `sha256:f71d461f6762387b3ef16471e0862daf0bda734e4ee76b530a86e9026007bd64`; API/APK/flags unchanged. Source parity remains false.
+
+Latest verified release PR337 (27.09.2026): administrator physical KIZ resolution. Baseline `wms/baselines/our-wms/2026-09-27-admin-physical-kiz`; API `sha256:8d84800a7dbc197451799055bb3b0659dd1dd1a0f57b94cbf3e7963c7f8fc921`. Two inventory modules changed, WMS_INVENTORY_PHYSICAL_RESOLUTION_ENABLED=true only on our WMS. All other flags, web and APK215 preserved. Source parity remains false.
+
+Latest verified PR339: baseline `wms/baselines/our-wms/2026-09-27-completed-fbo-history`, API `sha256:487a1cb0235e22d037643835be01f9e320243a9f97949d80b2a185afc06368f5`. Completed FBO history no longer blocks physical inventory confirmation. One runtime helper changed; flags/web/APK unchanged.
+
+
+Published PR341 (27.09.2026): own ADMIN/OWNER ACCEPT_AS_IS now permits FBS continuation when the privileged picker personally accepted unchanged system stock. API `sha256:dbc95e8faadbb7188e4637a41ef95b55d336977ea1e7f02367f33f455570afc0`; baseline `2026-09-27-admin-accept-audit`. Existing our-WMS flag only; two runtime modules (validator and authenticated-role call-site). Saved BOX294 acceptance passed read-only on candidate and production; WORKER rejected. API2870, web247, TypeScript passed; 97 skipped, dedicated DB suite unavailable. Stock, KIZs, web, APK215 and other containers unchanged. Source parity false. Rollback `logoff-api:before-admin-accept`.

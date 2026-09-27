@@ -18,7 +18,7 @@ const identity = (value: string) => kizIdentityTransferEnabled() ? physicalKizId
 
 // FIX: this is a read-only return gate, never a KIZ replacement, WB undo or second stock debit.
 // Quantity-only inventory resolution cannot prove that the physical KIZ composition was repaired.
-export async function validateFbsStockAudit(db: Prisma.TransactionClient, task: FbsTsdAssembly, sessionId: string, userId: string) {
+export async function validateFbsStockAudit(db: Prisma.TransactionClient, task: FbsTsdAssembly, sessionId: string, userId: string, roleCodes: readonly string[] = []) {
   const stop = (message: string): never => { throw new ConflictException({ code: 'FBS_STOCK_AUDIT_PENDING', message }); };
   const session = await db.inventorySession.findUnique({ where: { id: sessionId }, include: {
     boxes: { include: { lines: true } },
@@ -67,7 +67,15 @@ export async function validateFbsStockAudit(db: Prisma.TransactionClient, task: 
   for (const sku of skus) {
     const line = audit.lines.find(row => row.skuId === sku.id);
     const quantity = balances.filter(row => row.skuId === sku.id && row.status === 'AVAILABLE').reduce((n, row) => n + row.quantity, 0);
-    if (quantity !== (line?.countedQuantity ?? 0)) stop('Остаток после пересчёта не совпадает с фактом. Актуализируйте короб с администратором.');
+    // FIX: the privileged picker may explicitly retain their own unchanged system stock.
+    // This accepts the discrepancy, without fabricating scans or changing inventory.
+    const acceptedAsIs = process.env.WMS_INVENTORY_PHYSICAL_RESOLUTION_ENABLED === 'true' &&
+      roleCodes.some(role => role === 'ADMIN' || role === 'OWNER') && activePick && task.workerUserId === userId &&
+      line?.decision === 'KEEP_SYSTEM' && line.decisionComment?.startsWith('[ACCEPT_AS_IS]') &&
+      line.decidedByUserId === userId && line.decidedAt && line.decidedAt >= audit.startedAt &&
+      quantity === line.expectedQuantity && balances.filter(row => row.skuId === sku.id)
+        .every(row => !row.updatedAt || row.updatedAt <= line.decidedAt!);
+    if (!acceptedAsIs && quantity !== (line?.countedQuantity ?? 0)) stop('Остаток после пересчёта не совпадает с фактом. Актуализируйте короб с администратором.');
     if (!sku.needsChestnyZnak || sku.isUnmarked) continue;
     const scans = evidence.map(row => row.payload as Record<string, unknown> | null).filter(row =>
       row?.skuId === sku.id && row.roundStartedAt === audit.startedAt.toISOString() && row.clientId === task.clientId &&
@@ -76,8 +84,9 @@ export async function validateFbsStockAudit(db: Prisma.TransactionClient, task: 
     const registered = marks.filter(row => row.skuId === sku.id);
     // Missing KIZs are allowed only for the existing quantity-only imported-stock gap.
     // An absent old KIZ is never retired or overwritten by this gate.
-    if (scanned.has('') || scanned.size !== quantity || registered.some(row => row.clientId !== task.clientId ||
-        row.status !== 'AVAILABLE' || !scanned.has(identity(row.value))) ||
+    if ((!acceptedAsIs && (scanned.has('') || scanned.size !== quantity)) || registered.some(row => row.clientId !== task.clientId ||
+        row.status !== 'AVAILABLE' || !identity(row.value) || (!acceptedAsIs && !scanned.has(identity(row.value)))) ||
+        (acceptedAsIs && registered.length > quantity) ||
         new Set(registered.map(row => identity(row.value))).size !== registered.length) {
       stop('Количество проверено, но состав КИЗ не подтверждён. Администратору нужно разобрать привязки КИЗ; сборка остаётся на проверке.');
     }

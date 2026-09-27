@@ -1,3 +1,19 @@
+# Published PR341 (27.09.2026): own ADMIN/OWNER ACCEPT_AS_IS now permits FBS continuation when the privileged picker personally accepted unchanged system stock. API `sha256:dbc95e8faadbb7188e4637a41ef95b55d336977ea1e7f02367f33f455570afc0`; baseline `2026-09-27-admin-accept-audit`. Existing our-WMS flag only; two runtime modules (validator and authenticated-role call-site). Saved BOX294 acceptance passed read-only on candidate and production; WORKER rejected. API2870, web247, TypeScript passed; 97 skipped, dedicated DB suite unavailable. Stock, KIZs, web, APK215 and other containers unchanged. Source parity false. Rollback `logoff-api:before-admin-accept`.
+
+## Previous release
+
+# Published PR339: completed FBO history / 27.09.2026
+
+API `sha256:487a1cb0235e22d037643835be01f9e320243a9f97949d80b2a185afc06368f5`. Historical PACKED units of COMPLETED FBO no longer block an administrator recount; explicit active bindings remain protected. One runtime module changed; all flags, web and APK retained. API2860, web247, TypeScript passed; full current BOX_0222 confirmation with five KIZs verified on the published image and rolled back. No recount required for the saved 18:45 scans. No history/billing mutation. Baseline `2026-09-27-completed-fbo-history`; source parity false. Rollback `logoff-api:before-completed-fbo`.
+
+## Previous release
+
+# Published PR337: administrator physical KIZ confirmation / 27.09.2026
+
+API `sha256:8d84800a7dbc197451799055bb3b0659dd1dd1a0f57b94cbf3e7963c7f8fc921`. Opt-in `WMS_INVENTORY_PHYSICAL_RESOLUTION_ENABLED=true` only on our WMS. Two inventory modules changed; all other runtime files, existing flags, web and APK215 preserved. Confirmed old registration conflicts can be corrected without duplicate destination stock; current assembly and newer-movement guards remain. API2859, web247, TypeScript and two real-data rollback checks passed. Baseline `2026-09-27-admin-physical-kiz`; 544 API files and 413 web files verified. Source parity remains false. Rollback: `logoff-api:before-admin-physical-337`. No migration.
+
+## Previous release
+
 # Published PR334: payroll employee card / 26.09.2026
 
 API unchanged: `sha256:91f592f9ea0420cecefd508b0c3bf64c9ffc1385d35070fe3d601a3832896cd6`. Web: `sha256:f71d461f6762387b3ef16471e0862daf0bda734e4ee76b530a86e9026007bd64`.

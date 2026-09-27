@@ -216,3 +216,33 @@ describe('physical KIZ audit return gate', () => {
     expect(f.balances[0].quantity).toBe(0);
   });
 });
+
+// TEST: an administrator picking personally can explicitly retain the existing stock.
+describe('administrator accepts own FBS audit as is', () => {
+  function fixture() {
+    vi.stubEnv('WMS_INVENTORY_PHYSICAL_RESOLUTION_ENABLED', 'true');
+    const f = auditFixture();
+    f.audit.status = 'RESOLVED';
+    Object.assign(f.audit.lines[0], { countedQuantity: 0, expectedQuantity: 1, difference: -1,
+      decisionComment: '[ACCEPT_AS_IS]', decidedByUserId: 'worker',
+      decidedAt: new Date('2026-09-14T00:01:00Z') });
+    f.evidence.length = 0;
+    return { ...f, call: (roles = ['ADMIN']) => validateFbsStockAudit(f.db as any, f.task, 'session', 'worker', roles) };
+  }
+  it.each(['ADMIN', 'OWNER'])('allows explicit own acceptance for %s without changing stock', async role => {
+    const f = fixture(); const before = structuredClone({ marks: f.marks, balances: f.balances });
+    await expect(f.call([role])).resolves.toMatchObject({ ready: true });
+    expect({ marks: f.marks, balances: f.balances }).toEqual(before);
+  });
+  it.each(['worker', 'other-decider', 'disabled', 'changed-stock', 'new-movement', 'implicit', 'blocked-mark', 'foreign-mark'])('rejects %s', async kind => {
+    const f = fixture();
+    if (kind === 'other-decider') Object.assign(f.audit.lines[0], { decidedByUserId: 'other' });
+    if (kind === 'disabled') vi.stubEnv('WMS_INVENTORY_PHYSICAL_RESOLUTION_ENABLED', 'false');
+    if (kind === 'changed-stock') f.balances[0].quantity = 2;
+    if (kind === 'new-movement') Object.assign(f.balances[0], { updatedAt: new Date('2026-09-14T00:02:00Z') });
+    if (kind === 'implicit') Object.assign(f.audit.lines[0], { decisionComment: null });
+    if (kind === 'blocked-mark') f.marks[0].status = 'BLOCKED';
+    if (kind === 'foreign-mark') f.marks[0].clientId = 'other';
+    await expect(f.call(kind === 'worker' ? ['WORKER'] : ['ADMIN'])).rejects.toThrow();
+  });
+});

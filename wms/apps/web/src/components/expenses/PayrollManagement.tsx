@@ -18,6 +18,11 @@ const iso = (s: string) => `${s}:00+03:00`;
 export const payrollDate = (value: string) => value.replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$3.$2.$1');
 type SortKey = 'date' | 'name' | 'bank';
 type SortDirection = 'asc' | 'desc';
+type EmployeeStatusFilter = 'all' | 'active' | 'inactive';
+// FIX: filter current staff status without deleting access to archived timesheets.
+export function payrollFilterEmployees<T extends { isActive: boolean }>(people: T[], status: EmployeeStatusFilter): T[] {
+  return people.filter(p => status === 'all' || p.isActive === (status === 'active'));
+}
 export function payrollSortRows<T extends { employeeId: string; date: string; key: string }>(rows: T[],
   people: Array<Pick<Employee, 'id' | 'name' | 'paymentMethod' | 'paymentBank'>>, key: SortKey, direction: SortDirection) {
   const lookup = new Map(people.map(p => [p.id, p]));
@@ -79,6 +84,7 @@ export function PayrollManagement({ session, legacy, onBack }: { session: AuthSe
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [branches, setBranches] = useState<BranchSummary[]>([]);
   const [selected, setSelected] = useState('');
+  const [employeeStatus, setEmployeeStatus] = useState<EmployeeStatusFilter>('all');
   const [tab, setTab] = useState('work');
   const [settingsSelected, setSettingsSelected] = useState('');
   const [cardMode, setCardMode] = useState<'view' | 'edit' | 'new'>('view');
@@ -101,6 +107,7 @@ export function PayrollManagement({ session, legacy, onBack }: { session: AuthSe
   const [manualOpen, setManualOpen] = useState(false);
   const [historyEdit, setHistoryEdit] = useState<Row | null>(null);
   const [shiftDraft, setShiftDraft] = useState({ start: '', end: '' });
+  const reportEmployees = payrollFilterEmployees(employees, employeeStatus);
   useEffect(() => { setManualOpen(false); setHistoryEdit(null); }, [tab]);
   const employee = employees.find(e => e.id === (tab === 'settings' ? settingsSelected : selected));
   useEffect(() => {
@@ -133,10 +140,14 @@ export function PayrollManagement({ session, legacy, onBack }: { session: AuthSe
     setReport(null); setChecked([]);
     setShifts([]);
     if (!enabled || !selected || tab === 'settings') return;
+    if (selected !== '__all' && !reportEmployees.some(p => p.id === selected)) {
+      setSelected('__all'); setManualOpen(false); setHistoryEdit(null); setShiftEdit('');
+      return;
+    }
     let live = true;
     if (selected === '__all') {
-      Promise.all(employees.map(p => api<Report>(`/employees/${encodeURIComponent(p.id)}/report?from=${from}&to=${to}`))).then(reports => {
-        if (live) setReport({ rows: reports.flatMap(r => r.rows), issues: reports.flatMap((r, i) => r.issues.map(s => `${employees[i].name}: ${s}`)), totals: { amountKopecks: reports.reduce((s, r) => s + r.totals.amountKopecks, 0), paidKopecks: reports.reduce((s, r) => s + r.totals.paidKopecks, 0) } });
+      Promise.all(reportEmployees.map(p => api<Report>(`/employees/${encodeURIComponent(p.id)}/report?from=${from}&to=${to}`))).then(reports => {
+        if (live) setReport({ rows: reports.flatMap(r => r.rows), issues: reports.flatMap((r, i) => r.issues.map(s => `${reportEmployees[i].name}: ${s}`)), totals: { amountKopecks: reports.reduce((s, r) => s + r.totals.amountKopecks, 0), paidKopecks: reports.reduce((s, r) => s + r.totals.paidKopecks, 0) } });
       }).catch(e => { if (live) setError(e.message); });
       return () => { live = false; };
     }
@@ -144,7 +155,12 @@ export function PayrollManagement({ session, legacy, onBack }: { session: AuthSe
       .then(r => { if (live) setReport(r); }).catch(e => { if (live) setError(e.message); });
     api<typeof shifts>(`/employees/${encodeURIComponent(selected)}/shifts`).then(r => { if (live) setShifts(r); }).catch(e => { if (live) setError(e.message); });
     return () => { live = false; };
-  }, [selected, from, to, enabled, employees, tab]);
+  }, [selected, from, to, enabled, employees, tab, employeeStatus]);
+  // FIX: clear old report/actions immediately, including an employee hidden by the new filter.
+  function changeEmployeeStatus(status: EmployeeStatusFilter) {
+    setEmployeeStatus(status); setReport(null); setChecked([]); setShifts([]);
+    selectEmployee('__all');
+  }
   // FIX: changing the selected employee atomically replaces every draft field; never merge two cards.
   function selectEmployee(id: string) {
     if (tab === 'settings') { setSettingsSelected(id); setCardMode('view'); } else setSelected(id);
@@ -155,8 +171,8 @@ export function PayrollManagement({ session, legacy, onBack }: { session: AuthSe
   }
   async function reloadReport() {
     if (selected === '__all') {
-      const reports = await Promise.all(employees.map(p => api<Report>(`/employees/${encodeURIComponent(p.id)}/report?from=${from}&to=${to}`)));
-      setReport({ rows: reports.flatMap(r => r.rows), issues: reports.flatMap((r, i) => r.issues.map(s => `${employees[i].name}: ${s}`)), totals: { amountKopecks: reports.reduce((s, r) => s + r.totals.amountKopecks, 0), paidKopecks: reports.reduce((s, r) => s + r.totals.paidKopecks, 0) } });
+      const reports = await Promise.all(reportEmployees.map(p => api<Report>(`/employees/${encodeURIComponent(p.id)}/report?from=${from}&to=${to}`)));
+      setReport({ rows: reports.flatMap(r => r.rows), issues: reports.flatMap((r, i) => r.issues.map(s => `${reportEmployees[i].name}: ${s}`)), totals: { amountKopecks: reports.reduce((s, r) => s + r.totals.amountKopecks, 0), paidKopecks: reports.reduce((s, r) => s + r.totals.paidKopecks, 0) } });
     } else if (selected) { setReport(await api<Report>(`/employees/${encodeURIComponent(selected)}/report?from=${from}&to=${to}`)); setShifts(await api<typeof shifts>(`/employees/${selected}/shifts`)); }
     setChecked([]);
   }
@@ -171,7 +187,7 @@ export function PayrollManagement({ session, legacy, onBack }: { session: AuthSe
   }
   if (!enabled) return <>{error && <p role="alert">{error}</p>}{legacy}</>;
   const visibleRows = payrollSortRows(report?.rows.filter(r => tab === 'handling' ? r.kind === 'PALLET' : r.kind !== 'PALLET') ?? [], employees, sortKey, sortDirection);
-  const paymentSummary = payrollSortRows(payrollPaymentSummary(employees, visibleRows, selected).map(p => ({ ...p, employeeId: p.id, key: p.id,
+  const paymentSummary = payrollSortRows(payrollPaymentSummary(reportEmployees, visibleRows, selected).map(p => ({ ...p, employeeId: p.id, key: p.id,
     date: visibleRows.filter(r => r.employeeId === p.id).map(r => r.date).sort()[0] ?? '9999-12-31' })), employees, sortKey, sortDirection);
   return <section className="payroll-management">
     <header className="payroll-heading">{onBack && <button type="button" onClick={onBack}>← К расходам</button>}<h2>ФОТ</h2></header>
@@ -179,7 +195,8 @@ export function PayrollManagement({ session, legacy, onBack }: { session: AuthSe
       <button key={value} className={tab === value ? 'is-active' : ''} onClick={() => { setTab(value); setChecked([]); }}>{label}</button>)}</nav>
     {error && <p role="alert" className="panel-message panel-message--error">{error}</p>}{message && <p role="status">{message}</p>}
     <div className="payroll-fields">
-      <label>Сотрудник<select disabled={busy} value={tab === 'settings' ? settingsSelected : selected} onChange={e => selectEmployee(e.target.value)}><option value="">Выберите сотрудника</option>{tab !== 'settings' && <option value="__all">Все доступные сотрудники</option>}{employees.map(e => <option key={e.id} value={e.id}>{e.name}{e.isActive ? '' : ' · архив'}</option>)}</select></label>
+      {tab !== 'settings' && <label>Статус сотрудников<select disabled={busy} value={employeeStatus} onChange={e => changeEmployeeStatus(e.target.value as EmployeeStatusFilter)}><option value="all">Все</option><option value="active">Активные</option><option value="inactive">Неактивные</option></select></label>}
+      <label>Сотрудник<select disabled={busy} value={tab === 'settings' ? settingsSelected : selected} onChange={e => selectEmployee(e.target.value)}><option value="">Выберите сотрудника</option>{tab !== 'settings' && <option value="__all">Все сотрудники по фильтру</option>}{(tab === 'settings' ? employees : reportEmployees).map(e => <option key={e.id} value={e.id}>{e.name}{e.isActive ? '' : ' · архив'}</option>)}</select></label>
       {tab !== 'settings' && <><label>С даты<input type="date" value={from} onChange={e => setFrom(e.target.value)} /></label>
       <label>По дату<input type="date" value={to} onChange={e => setTo(e.target.value)} /></label></>}
       {tab !== 'settings' && <><label>Сортировать по<select aria-label="Сортировать по" value={sortKey} onChange={e => setSortKey(e.target.value as SortKey)}><option value="date">Дате</option><option value="name">Имени</option><option value="bank">Банку</option></select></label>

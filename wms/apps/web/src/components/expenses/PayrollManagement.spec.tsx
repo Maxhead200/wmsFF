@@ -1,9 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { PayrollManagement, payrollTimeCells, payrollIntervalCells, payrollPaymentSummary, payrollDate, payrollSortRows, payrollCurrentRates, attendancePhotoStatus } from './PayrollManagement';
+import { PayrollManagement, payrollTimeCells, payrollIntervalCells, payrollPaymentSummary, payrollDate, payrollSortRows, payrollCurrentRates, attendancePhotoStatus, payrollFilterEmployees } from './PayrollManagement';
 import type { AuthSession } from '../../lib/api';
 // TEST: no new payroll form is visible before the server explicitly enables it.
 describe('payroll feature isolation', () => {
+  // TEST: archived staff must not enter active-only totals, but remain available in historical reports.
+  it('filters active and inactive employees without losing historical payroll', () => {
+    const people = [{ id: 'active', name: 'Активный', isActive: true, paymentMethod: 'CASH' },
+      { id: 'old', name: 'Архивный', isActive: false, paymentMethod: 'CASH' }];
+    const rows = [{ employeeId: 'active', amountKopecks: 10000, status: 'UNPAID' },
+      { employeeId: 'old', amountKopecks: 90000, status: 'PAID' }];
+    expect(payrollFilterEmployees(people, 'active').map(e => e.id)).toEqual(['active']);
+    expect(payrollFilterEmployees(people, 'inactive').map(e => e.id)).toEqual(['old']);
+    expect(payrollPaymentSummary(payrollFilterEmployees(people, 'active'), rows, '__all').reduce((n, p) => n + p.amountKopecks, 0)).toBe(10000);
+    expect(payrollPaymentSummary(payrollFilterEmployees(people, 'all'), rows, '__all').reduce((n, p) => n + p.amountKopecks, 0)).toBe(100000);
+    expect(payrollFilterEmployees([], 'active')).toEqual([]);
+    expect(people).toHaveLength(2);
+  });
   // TEST: a pending/expired request must never be presented as a stored photo.
   it('distinguishes local photos from requested, stored and expired photographs', () => {
     expect(attendancePhotoStatus('NOT_REQUESTED')).toBe('На планшете');

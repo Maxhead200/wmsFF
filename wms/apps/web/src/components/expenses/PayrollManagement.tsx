@@ -3,7 +3,7 @@ import { AuthSession, BranchSummary, fetchBranches, payrollDownload, payrollImpo
 import './payroll.css';
 
 type Employee = { id: string; name: string; warehouseId: string; userId?: string | null; picker: boolean; loader: boolean; isActive: boolean; paymentMethod: string; paymentPhone?: string | null; paymentBank?: string | null; rates: Array<{ id: string; kind: string; rateKopecks: number; startsAt: string; endsAt?: string; temporary: boolean }> };
-type Row = { key: string; employeeId: string; date: string; kind: string; amountKopecks: number; status: string; units?: number; workedMs?: number; lunchMs?: number; detail: { id?: string; status?: string; palletCount?: number; start?: number; end?: number; rate?: number; shifts?: Array<{ id: string; start: string; end: string }>; segments?: Array<{ start: string; end: string; rateKopecks: number }> } };
+type Row = { key: string; employeeId: string; date: string; kind: string; amountKopecks: number; status: string; units?: number; workedMs?: number; lunchMs?: number; detail: { id?: string; status?: string; warehouseId?: string; startsAt?: string; operation?: string; shares?: Array<{ employeeId: string }>; palletCount?: number; start?: number; end?: number; rate?: number; shifts?: Array<{ id: string; start: string; end: string }>; segments?: Array<{ start: string; end: string; rateKopecks: number }> } };
 type Report = { rows: Row[]; issues: string[]; totals: { amountKopecks: number; paidKopecks: number } };
 const money = (n: number) => (n / 100).toLocaleString('ru-RU', { style: 'currency', currency: 'RUB' });
 const statuses: Record<string, string> = { UNPAID: 'Не оплачено', REVIEW: 'На проверке', PAID: 'Оплачено' };
@@ -287,12 +287,64 @@ export function PayrollManagement({ session, legacy, onBack }: { session: AuthSe
           <td>{money(r.amountKopecks)}</td><td>{statuses[r.status]}</td>
           <td>{r.kind === 'HISTORY' && <button type="button" disabled={busy} onClick={() => editRow(r)}>Редактировать</button>}
             {r.detail.shifts?.map((s, i) => <button key={s.id} type="button" disabled={busy} onClick={() => editRow(r, s)}>Редактировать{r.detail.shifts!.length > 1 ? ` ${i + 1}` : ''}</button>)}
-            {r.kind === 'PALLET' && r.detail.status === 'REVIEW' && <button disabled={busy} onClick={() => void run(async () => { await api(`/handling/${r.detail.id}/confirm`, 'POST'); await reloadReport(); })}>Подтвердить работу</button>}
+            {r.kind === 'PALLET' && r.detail.status === 'REVIEW' && <HandlingReview row={r} employees={employees} busy={busy} api={api} run={run} reload={reloadReport} />}
           </td></tr>)}</tbody></table></div>
         {employee ? <form onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget); void run(async () => { await api('/statuses', 'POST', { employeeId: selected, dateFrom: from, dateTo: to, keys: checked, status: f.get('status'), comment: f.get('comment') }); await reloadReport(); }); }}><div className="payroll-fields"><label>Статус выбранных<select name="status">{Object.entries(statuses).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label><label>Комментарий<input name="comment" /></label></div><button disabled={busy || !checked.length}>Применить к {checked.length} строкам</button></form> : <p>Для изменения статуса и личной выгрузки выберите сотрудника.</p>}
       </>}
     </>}
   </section>;
+}
+
+// FIX: operation-specific tariff is submitted only on confirmation, never saved as a personal rate.
+export function payrollOperationTariff(value: string): number | undefined {
+  if (!value.trim()) return undefined;
+  if (!/^\d+(?:[.,]\d{1,2})?$/.test(value.trim())) throw new Error('Введите тариф в рублях, не более двух знаков после запятой.');
+  const kopecks = Math.round(Number(value.trim().replace(',', '.')) * 100);
+  if (!Number.isSafeInteger(kopecks) || kopecks > 2147483647) throw new Error('Тариф слишком велик.');
+  return kopecks;
+}
+function HandlingReview({ row, employees, busy, api, run, reload }: { row: Row; employees: Employee[]; busy: boolean;
+  api: (path: string, method: 'POST' | 'PUT', body?: unknown) => Promise<unknown>;
+  run: (action: () => Promise<void>, success: string) => Promise<void>; reload: () => Promise<void> }) {
+  const [tariff, setTariff] = useState('');
+  const [mode, setMode] = useState('');
+  const [error, setError] = useState('');
+  const detail = row.detail;
+  const members = detail.shares?.map(s => s.employeeId) ?? [row.employeeId];
+  const act = (action: () => Promise<void>, success: string) => void run(async () => {
+    setError('');
+    try { await action(); await reload(); setMode(''); }
+    catch (e) { setError(e instanceof Error ? e.message : 'Не удалось сохранить работу'); throw e; }
+  }, success);
+  const localStart = detail.startsAt ? new Date(Date.parse(detail.startsAt) + 3 * 3600000).toISOString().slice(0, 16) : '';
+  return <div>
+    <label>Разовый тариф, ₽ за паллету<input aria-label="Разовый тариф за паллету" inputMode="decimal" disabled={busy} value={tariff} placeholder="По ставкам участников" onChange={e => setTariff(e.target.value)} /></label>
+    <p>Тариф на всю работу делится поровну между {members.length} участниками. Пусто — ставки участников на начало работы.</p>
+    <button disabled={busy} onClick={() => act(async () => { const rateKopecks = payrollOperationTariff(tariff); await api(`/handling/${detail.id}/confirm`, 'POST', rateKopecks === undefined ? {} : { rateKopecks }); }, 'Работа подтверждена')}>Подтвердить работу</button>
+    <button disabled={busy} onClick={() => setMode('edit')}>Редактировать</button>
+    <button disabled={busy} onClick={() => setMode('cancel')}>Отменить запись</button>
+    {error && <p role="alert">{error}</p>}
+    {mode && <form key={`${detail.id}:${mode}`} onSubmit={e => {
+      e.preventDefault(); const f = new FormData(e.currentTarget);
+      act(async () => {
+        const reason = String(f.get('reason') ?? '').trim();
+        if (!reason) throw new Error('Укажите причину.');
+        if (mode === 'cancel') await api(`/handling/${detail.id}/cancel`, 'POST', { reason });
+        else await api(`/handling/${detail.id}`, 'PUT', { warehouseId: detail.warehouseId, startsAt: iso(String(f.get('start'))),
+          operation: f.get('operation'), palletCount: Number(f.get('pallets')), employeeIds: f.getAll('member'), reason });
+      }, mode === 'cancel' ? 'Запись отменена, история сохранена' : 'Работа изменена');
+    }}>
+      {mode === 'edit' && <>
+        <label>Начало, МСК<input name="start" type="datetime-local" defaultValue={localStart} required /></label>
+        <label>Работа<select name="operation" defaultValue={detail.operation}><option value="LOAD">Погрузка</option><option value="UNLOAD">Разгрузка</option></select></label>
+        <label>Паллет<input name="pallets" type="number" min="0.0001" step="0.0001" defaultValue={detail.palletCount} required /></label>
+        <fieldset><legend>Участники</legend>{employees.filter(p => p.warehouseId === detail.warehouseId && (p.isActive || members.includes(p.id))).map(p => <label key={p.id}><input type="checkbox" name="member" value={p.id} defaultChecked={members.includes(p.id)} />{p.name}</label>)}</fieldset>
+      </>}
+      <label>Причина<input name="reason" required maxLength={1000} /></label>
+      <button disabled={busy}>{mode === 'cancel' ? 'Подтвердить отмену записи' : 'Сохранить изменения'}</button>
+      <button type="button" disabled={busy} onClick={() => setMode('')}>Закрыть</button>
+    </form>}
+  </div>;
 }
 
 type Tablet = { id: string; name: string; warehouseId: string; lastSeenAt: string | null; revokedAt: string | null };

@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { PayrollManagement, payrollTimeCells, payrollIntervalCells, payrollPaymentSummary, payrollDate, payrollSortRows, payrollCurrentRates, attendancePhotoStatus, payrollFilterEmployees } from './PayrollManagement';
+import { PayrollManagement, payrollTimeCells, payrollIntervalCells, payrollPaymentSummary, payrollDate, payrollSortRows, payrollCurrentRates, attendancePhotoStatus, payrollFilterEmployees, payrollOperationTariff } from './PayrollManagement';
 import type { AuthSession } from '../../lib/api';
 // TEST: no new payroll form is visible before the server explicitly enables it.
 describe('payroll feature isolation', () => {
+  // TEST: explicit rouble values must never be mistaken for kopecks or silently rounded.
+  it('parses a one-off pallet tariff and keeps an empty field as personal-rate fallback', () => {
+    expect(payrollOperationTariff('500')).toBe(50000);
+    expect(payrollOperationTariff(' 500,25 ')).toBe(50025);
+    expect(payrollOperationTariff('')).toBeUndefined();
+    for (const value of ['-1', '1.001', 'abc', '1e5', '99999999999']) expect(() => payrollOperationTariff(value)).toThrow();
+  });
   // TEST: archived staff must not enter active-only totals, but remain available in historical reports.
   it('filters active and inactive employees without losing historical payroll', () => {
     const people = [{ id: 'active', name: 'Активный', isActive: true, paymentMethod: 'CASH' },

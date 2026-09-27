@@ -45,6 +45,14 @@ export class PayrollHandlingDto {
   @IsString() @MaxLength(1000) reason!: string;
 }
 
+// FIX: an explicit operation tariff is separate from the employee's permanent conditions.
+export class PayrollHandlingConfirmDto {
+  @IsOptional() @IsInt() @Min(0) rateKopecks?: number;
+}
+export class PayrollHandlingCancelDto {
+  @IsString() @MaxLength(1000) reason!: string;
+}
+
 export class PayrollStatusDto {
   @IsString() employeeId!: string;
   @IsString() dateFrom!: string;

@@ -20,6 +20,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.TextStyle
 import kotlinx.coroutines.*
 import java.time.Instant
 import java.time.ZoneId
@@ -35,7 +37,17 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or WindowManager.LayoutParams.FLAG_SECURE)
         setContent {
-            MaterialTheme(colorScheme = lightColorScheme(primary = Color(0xFFB81830), secondary = Color(0xFF202B43))) {
+            // FIX: warehouse tablet typography remains readable without changing attendance or camera flows.
+            MaterialTheme(colorScheme = lightColorScheme(primary = Color(0xFF173B63), onPrimary = Color.White,
+                secondary = Color(0xFF202B43), background = Color(0xFFF1F3F5), surface = Color.White,
+                onSurface = Color(0xFF17212D), onSurfaceVariant = Color(0xFF374151)),
+                typography = Typography(
+                    headlineSmall = TextStyle(fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.Bold),
+                    titleLarge = TextStyle(fontSize = 38.sp, lineHeight = 46.sp, fontWeight = FontWeight.Bold),
+                    bodyLarge = TextStyle(fontSize = 24.sp, lineHeight = 30.sp),
+                    bodyMedium = TextStyle(fontSize = 22.sp, lineHeight = 28.sp),
+                    bodySmall = TextStyle(fontSize = 18.sp, lineHeight = 24.sp),
+                    labelLarge = TextStyle(fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.SemiBold))) {
                 Surface(Modifier.fillMaxSize()) { AttendanceScreen(application as AttendanceApp) }
             }
         }
@@ -170,19 +182,20 @@ fun AttendanceScreen(app: AttendanceApp) {
             if (employees.isEmpty()) Text("Список сотрудников появится после подключения к API планшетов WMS.", Modifier.padding(vertical = 16.dp))
             LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.weight(1f)) {
                 items(employees.filter { it.active && it.warehouseId == d.warehouseId && it.name.contains(query, true) }, key = { it.id }) { person ->
-                    Card(Modifier.fillMaxWidth()) {
+                    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                         Column(Modifier.padding(16.dp)) {
-                            TextButton(enabled = !marking, onClick = { selected = person.id }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
-                                Text(person.name + if (person.distinguishing.isNotBlank()) " · ${person.distinguishing}" else "", style = MaterialTheme.typography.titleLarge)
+                            TextButton(enabled = !marking, onClick = { selected = person.id }, modifier = Modifier.fillMaxWidth().heightIn(min = 96.dp)) {
+                                Text(person.name + if (person.distinguishing.isNotBlank()) " · ${person.distinguishing}" else "", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
                             }
+                            val open = projectedOpen(person, events)
+                            Text(open?.let { "На смене с ${clockText(it)}" } ?: "Смена не открыта",
+                                color = if (open != null) Color(0xFF21622B) else Color(0xFF374151), fontWeight = FontWeight.Bold)
                             if (person.id == selected) {
-                                val open = projectedOpen(person, events)
-                                Text(open?.let { "На смене с ${clockText(it)}" } ?: "Смена не открыта")
                                 Text("При отметке выполняется фотофиксация. Фото хранится на планшете 35 дней.", style = MaterialTheme.typography.bodySmall)
-                                Button(enabled = !marking, onClick = { screen = if (open == null) "clockIn" else "clockOut" }, modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp)) {
+                                Button(enabled = !marking, onClick = { screen = if (open == null) "clockIn" else "clockOut" }, modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp)) {
                                     Text(if (open == null) "Начать смену" else "Закончить смену")
                                 }
-                                if (person.loader) OutlinedButton(enabled = !marking, onClick = { screen = "handling" }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) { Text("Добавить погрузку / разгрузку") }
+                                if (person.loader) OutlinedButton(enabled = !marking, onClick = { screen = "handling" }, modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp)) { Text("Добавить погрузку / разгрузку") }
                             }
                         }
                     }

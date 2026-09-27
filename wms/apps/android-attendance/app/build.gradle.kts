@@ -12,8 +12,8 @@ android {
         // FIX: allow older Android-compatible tablets; java.time requires API 26.
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.2.1-pilot"
+        versionCode = 4
+        versionName = "0.2.2-pilot"
         buildConfigField("String", "API_URL", "\"https://wms.logoff.pro/api/v1/attendance-device/\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

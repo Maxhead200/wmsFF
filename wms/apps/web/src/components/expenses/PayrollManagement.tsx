@@ -3,7 +3,7 @@ import { AuthSession, BranchSummary, fetchBranches, payrollDownload, payrollImpo
 import './payroll.css';
 
 type Employee = { id: string; name: string; warehouseId: string; userId?: string | null; picker: boolean; loader: boolean; isActive: boolean; paymentMethod: string; paymentPhone?: string | null; paymentBank?: string | null; rates: Array<{ id: string; kind: string; rateKopecks: number; startsAt: string; endsAt?: string; temporary: boolean }> };
-type Row = { key: string; employeeId: string; date: string; kind: string; amountKopecks: number; status: string; units?: number; workedMs?: number; lunchMs?: number; detail: { id?: string; status?: string; palletCount?: number; start?: number; end?: number; rate?: number; shifts?: Array<{ id: string; start: string; end: string }>; segments?: Array<{ start: string; end: string; rateKopecks: number }> } };
+type Row = { key: string; employeeId: string; date: string; kind: string; amountKopecks: number; status: string; units?: number; workedMs?: number; lunchMs?: number; detail: { id?: string; status?: string; warehouseId?: string; startsAt?: string; operation?: string; shares?: Array<{ employeeId: string }>; palletCount?: number; start?: number; end?: number; rate?: number; shifts?: Array<{ id: string; start: string; end: string }>; segments?: Array<{ start: string; end: string; rateKopecks: number }> } };
 type Report = { rows: Row[]; issues: string[]; totals: { amountKopecks: number; paidKopecks: number } };
 const money = (n: number) => (n / 100).toLocaleString('ru-RU', { style: 'currency', currency: 'RUB' });
 const statuses: Record<string, string> = { UNPAID: 'Не оплачено', REVIEW: 'На проверке', PAID: 'Оплачено' };
@@ -18,6 +18,11 @@ const iso = (s: string) => `${s}:00+03:00`;
 export const payrollDate = (value: string) => value.replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$3.$2.$1');
 type SortKey = 'date' | 'name' | 'bank';
 type SortDirection = 'asc' | 'desc';
+type EmployeeStatusFilter = 'all' | 'active' | 'inactive';
+// FIX: filter current staff status without deleting access to archived timesheets.
+export function payrollFilterEmployees<T extends { isActive: boolean }>(people: T[], status: EmployeeStatusFilter): T[] {
+  return people.filter(p => status === 'all' || p.isActive === (status === 'active'));
+}
 export function payrollSortRows<T extends { employeeId: string; date: string; key: string }>(rows: T[],
   people: Array<Pick<Employee, 'id' | 'name' | 'paymentMethod' | 'paymentBank'>>, key: SortKey, direction: SortDirection) {
   const lookup = new Map(people.map(p => [p.id, p]));
@@ -79,6 +84,7 @@ export function PayrollManagement({ session, legacy, onBack }: { session: AuthSe
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [branches, setBranches] = useState<BranchSummary[]>([]);
   const [selected, setSelected] = useState('');
+  const [employeeStatus, setEmployeeStatus] = useState<EmployeeStatusFilter>('all');
   const [tab, setTab] = useState('work');
   const [settingsSelected, setSettingsSelected] = useState('');
   const [cardMode, setCardMode] = useState<'view' | 'edit' | 'new'>('view');
@@ -101,6 +107,7 @@ export function PayrollManagement({ session, legacy, onBack }: { session: AuthSe
   const [manualOpen, setManualOpen] = useState(false);
   const [historyEdit, setHistoryEdit] = useState<Row | null>(null);
   const [shiftDraft, setShiftDraft] = useState({ start: '', end: '' });
+  const reportEmployees = payrollFilterEmployees(employees, employeeStatus);
   useEffect(() => { setManualOpen(false); setHistoryEdit(null); }, [tab]);
   const employee = employees.find(e => e.id === (tab === 'settings' ? settingsSelected : selected));
   useEffect(() => {
@@ -133,10 +140,14 @@ export function PayrollManagement({ session, legacy, onBack }: { session: AuthSe
     setReport(null); setChecked([]);
     setShifts([]);
     if (!enabled || !selected || tab === 'settings') return;
+    if (selected !== '__all' && !reportEmployees.some(p => p.id === selected)) {
+      setSelected('__all'); setManualOpen(false); setHistoryEdit(null); setShiftEdit('');
+      return;
+    }
     let live = true;
     if (selected === '__all') {
-      Promise.all(employees.map(p => api<Report>(`/employees/${encodeURIComponent(p.id)}/report?from=${from}&to=${to}`))).then(reports => {
-        if (live) setReport({ rows: reports.flatMap(r => r.rows), issues: reports.flatMap((r, i) => r.issues.map(s => `${employees[i].name}: ${s}`)), totals: { amountKopecks: reports.reduce((s, r) => s + r.totals.amountKopecks, 0), paidKopecks: reports.reduce((s, r) => s + r.totals.paidKopecks, 0) } });
+      Promise.all(reportEmployees.map(p => api<Report>(`/employees/${encodeURIComponent(p.id)}/report?from=${from}&to=${to}`))).then(reports => {
+        if (live) setReport({ rows: reports.flatMap(r => r.rows), issues: reports.flatMap((r, i) => r.issues.map(s => `${reportEmployees[i].name}: ${s}`)), totals: { amountKopecks: reports.reduce((s, r) => s + r.totals.amountKopecks, 0), paidKopecks: reports.reduce((s, r) => s + r.totals.paidKopecks, 0) } });
       }).catch(e => { if (live) setError(e.message); });
       return () => { live = false; };
     }
@@ -144,7 +155,12 @@ export function PayrollManagement({ session, legacy, onBack }: { session: AuthSe
       .then(r => { if (live) setReport(r); }).catch(e => { if (live) setError(e.message); });
     api<typeof shifts>(`/employees/${encodeURIComponent(selected)}/shifts`).then(r => { if (live) setShifts(r); }).catch(e => { if (live) setError(e.message); });
     return () => { live = false; };
-  }, [selected, from, to, enabled, employees, tab]);
+  }, [selected, from, to, enabled, employees, tab, employeeStatus]);
+  // FIX: clear old report/actions immediately, including an employee hidden by the new filter.
+  function changeEmployeeStatus(status: EmployeeStatusFilter) {
+    setEmployeeStatus(status); setReport(null); setChecked([]); setShifts([]);
+    selectEmployee('__all');
+  }
   // FIX: changing the selected employee atomically replaces every draft field; never merge two cards.
   function selectEmployee(id: string) {
     if (tab === 'settings') { setSettingsSelected(id); setCardMode('view'); } else setSelected(id);
@@ -155,8 +171,8 @@ export function PayrollManagement({ session, legacy, onBack }: { session: AuthSe
   }
   async function reloadReport() {
     if (selected === '__all') {
-      const reports = await Promise.all(employees.map(p => api<Report>(`/employees/${encodeURIComponent(p.id)}/report?from=${from}&to=${to}`)));
-      setReport({ rows: reports.flatMap(r => r.rows), issues: reports.flatMap((r, i) => r.issues.map(s => `${employees[i].name}: ${s}`)), totals: { amountKopecks: reports.reduce((s, r) => s + r.totals.amountKopecks, 0), paidKopecks: reports.reduce((s, r) => s + r.totals.paidKopecks, 0) } });
+      const reports = await Promise.all(reportEmployees.map(p => api<Report>(`/employees/${encodeURIComponent(p.id)}/report?from=${from}&to=${to}`)));
+      setReport({ rows: reports.flatMap(r => r.rows), issues: reports.flatMap((r, i) => r.issues.map(s => `${reportEmployees[i].name}: ${s}`)), totals: { amountKopecks: reports.reduce((s, r) => s + r.totals.amountKopecks, 0), paidKopecks: reports.reduce((s, r) => s + r.totals.paidKopecks, 0) } });
     } else if (selected) { setReport(await api<Report>(`/employees/${encodeURIComponent(selected)}/report?from=${from}&to=${to}`)); setShifts(await api<typeof shifts>(`/employees/${selected}/shifts`)); }
     setChecked([]);
   }
@@ -171,7 +187,7 @@ export function PayrollManagement({ session, legacy, onBack }: { session: AuthSe
   }
   if (!enabled) return <>{error && <p role="alert">{error}</p>}{legacy}</>;
   const visibleRows = payrollSortRows(report?.rows.filter(r => tab === 'handling' ? r.kind === 'PALLET' : r.kind !== 'PALLET') ?? [], employees, sortKey, sortDirection);
-  const paymentSummary = payrollSortRows(payrollPaymentSummary(employees, visibleRows, selected).map(p => ({ ...p, employeeId: p.id, key: p.id,
+  const paymentSummary = payrollSortRows(payrollPaymentSummary(reportEmployees, visibleRows, selected).map(p => ({ ...p, employeeId: p.id, key: p.id,
     date: visibleRows.filter(r => r.employeeId === p.id).map(r => r.date).sort()[0] ?? '9999-12-31' })), employees, sortKey, sortDirection);
   return <section className="payroll-management">
     <header className="payroll-heading">{onBack && <button type="button" onClick={onBack}>← К расходам</button>}<h2>ФОТ</h2></header>
@@ -179,7 +195,8 @@ export function PayrollManagement({ session, legacy, onBack }: { session: AuthSe
       <button key={value} className={tab === value ? 'is-active' : ''} onClick={() => { setTab(value); setChecked([]); }}>{label}</button>)}</nav>
     {error && <p role="alert" className="panel-message panel-message--error">{error}</p>}{message && <p role="status">{message}</p>}
     <div className="payroll-fields">
-      <label>Сотрудник<select disabled={busy} value={tab === 'settings' ? settingsSelected : selected} onChange={e => selectEmployee(e.target.value)}><option value="">Выберите сотрудника</option>{tab !== 'settings' && <option value="__all">Все доступные сотрудники</option>}{employees.map(e => <option key={e.id} value={e.id}>{e.name}{e.isActive ? '' : ' · архив'}</option>)}</select></label>
+      {tab !== 'settings' && <label>Статус сотрудников<select disabled={busy} value={employeeStatus} onChange={e => changeEmployeeStatus(e.target.value as EmployeeStatusFilter)}><option value="all">Все</option><option value="active">Активные</option><option value="inactive">Неактивные</option></select></label>}
+      <label>Сотрудник<select disabled={busy} value={tab === 'settings' ? settingsSelected : selected} onChange={e => selectEmployee(e.target.value)}><option value="">Выберите сотрудника</option>{tab !== 'settings' && <option value="__all">Все сотрудники по фильтру</option>}{(tab === 'settings' ? employees : reportEmployees).map(e => <option key={e.id} value={e.id}>{e.name}{e.isActive ? '' : ' · архив'}</option>)}</select></label>
       {tab !== 'settings' && <><label>С даты<input type="date" value={from} onChange={e => setFrom(e.target.value)} /></label>
       <label>По дату<input type="date" value={to} onChange={e => setTo(e.target.value)} /></label></>}
       {tab !== 'settings' && <><label>Сортировать по<select aria-label="Сортировать по" value={sortKey} onChange={e => setSortKey(e.target.value as SortKey)}><option value="date">Дате</option><option value="name">Имени</option><option value="bank">Банку</option></select></label>
@@ -270,12 +287,64 @@ export function PayrollManagement({ session, legacy, onBack }: { session: AuthSe
           <td>{money(r.amountKopecks)}</td><td>{statuses[r.status]}</td>
           <td>{r.kind === 'HISTORY' && <button type="button" disabled={busy} onClick={() => editRow(r)}>Редактировать</button>}
             {r.detail.shifts?.map((s, i) => <button key={s.id} type="button" disabled={busy} onClick={() => editRow(r, s)}>Редактировать{r.detail.shifts!.length > 1 ? ` ${i + 1}` : ''}</button>)}
-            {r.kind === 'PALLET' && r.detail.status === 'REVIEW' && <button disabled={busy} onClick={() => void run(async () => { await api(`/handling/${r.detail.id}/confirm`, 'POST'); await reloadReport(); })}>Подтвердить работу</button>}
+            {r.kind === 'PALLET' && r.detail.status === 'REVIEW' && <HandlingReview row={r} employees={employees} busy={busy} api={api} run={run} reload={reloadReport} />}
           </td></tr>)}</tbody></table></div>
         {employee ? <form onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget); void run(async () => { await api('/statuses', 'POST', { employeeId: selected, dateFrom: from, dateTo: to, keys: checked, status: f.get('status'), comment: f.get('comment') }); await reloadReport(); }); }}><div className="payroll-fields"><label>Статус выбранных<select name="status">{Object.entries(statuses).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label><label>Комментарий<input name="comment" /></label></div><button disabled={busy || !checked.length}>Применить к {checked.length} строкам</button></form> : <p>Для изменения статуса и личной выгрузки выберите сотрудника.</p>}
       </>}
     </>}
   </section>;
+}
+
+// FIX: operation-specific tariff is submitted only on confirmation, never saved as a personal rate.
+export function payrollOperationTariff(value: string): number | undefined {
+  if (!value.trim()) return undefined;
+  if (!/^\d+(?:[.,]\d{1,2})?$/.test(value.trim())) throw new Error('Введите тариф в рублях, не более двух знаков после запятой.');
+  const kopecks = Math.round(Number(value.trim().replace(',', '.')) * 100);
+  if (!Number.isSafeInteger(kopecks) || kopecks > 2147483647) throw new Error('Тариф слишком велик.');
+  return kopecks;
+}
+function HandlingReview({ row, employees, busy, api, run, reload }: { row: Row; employees: Employee[]; busy: boolean;
+  api: (path: string, method: 'POST' | 'PUT', body?: unknown) => Promise<unknown>;
+  run: (action: () => Promise<void>, success: string) => Promise<void>; reload: () => Promise<void> }) {
+  const [tariff, setTariff] = useState('');
+  const [mode, setMode] = useState('');
+  const [error, setError] = useState('');
+  const detail = row.detail;
+  const members = detail.shares?.map(s => s.employeeId) ?? [row.employeeId];
+  const act = (action: () => Promise<void>, success: string) => void run(async () => {
+    setError('');
+    try { await action(); await reload(); setMode(''); }
+    catch (e) { setError(e instanceof Error ? e.message : 'Не удалось сохранить работу'); throw e; }
+  }, success);
+  const localStart = detail.startsAt ? new Date(Date.parse(detail.startsAt) + 3 * 3600000).toISOString().slice(0, 16) : '';
+  return <div>
+    <label>Разовый тариф, ₽ за паллету<input aria-label="Разовый тариф за паллету" inputMode="decimal" disabled={busy} value={tariff} placeholder="По ставкам участников" onChange={e => setTariff(e.target.value)} /></label>
+    <p>Тариф на всю работу делится поровну между {members.length} участниками. Пусто — ставки участников на начало работы.</p>
+    <button disabled={busy} onClick={() => act(async () => { const rateKopecks = payrollOperationTariff(tariff); await api(`/handling/${detail.id}/confirm`, 'POST', rateKopecks === undefined ? {} : { rateKopecks }); }, 'Работа подтверждена')}>Подтвердить работу</button>
+    <button disabled={busy} onClick={() => setMode('edit')}>Редактировать</button>
+    <button disabled={busy} onClick={() => setMode('cancel')}>Отменить запись</button>
+    {error && <p role="alert">{error}</p>}
+    {mode && <form key={`${detail.id}:${mode}`} onSubmit={e => {
+      e.preventDefault(); const f = new FormData(e.currentTarget);
+      act(async () => {
+        const reason = String(f.get('reason') ?? '').trim();
+        if (!reason) throw new Error('Укажите причину.');
+        if (mode === 'cancel') await api(`/handling/${detail.id}/cancel`, 'POST', { reason });
+        else await api(`/handling/${detail.id}`, 'PUT', { warehouseId: detail.warehouseId, startsAt: iso(String(f.get('start'))),
+          operation: f.get('operation'), palletCount: Number(f.get('pallets')), employeeIds: f.getAll('member'), reason });
+      }, mode === 'cancel' ? 'Запись отменена, история сохранена' : 'Работа изменена');
+    }}>
+      {mode === 'edit' && <>
+        <label>Начало, МСК<input name="start" type="datetime-local" defaultValue={localStart} required /></label>
+        <label>Работа<select name="operation" defaultValue={detail.operation}><option value="LOAD">Погрузка</option><option value="UNLOAD">Разгрузка</option></select></label>
+        <label>Паллет<input name="pallets" type="number" min="0.0001" step="0.0001" defaultValue={detail.palletCount} required /></label>
+        <fieldset><legend>Участники</legend>{employees.filter(p => p.warehouseId === detail.warehouseId && (p.isActive || members.includes(p.id))).map(p => <label key={p.id}><input type="checkbox" name="member" value={p.id} defaultChecked={members.includes(p.id)} />{p.name}</label>)}</fieldset>
+      </>}
+      <label>Причина<input name="reason" required maxLength={1000} /></label>
+      <button disabled={busy}>{mode === 'cancel' ? 'Подтвердить отмену записи' : 'Сохранить изменения'}</button>
+      <button type="button" disabled={busy} onClick={() => setMode('')}>Закрыть</button>
+    </form>}
+  </div>;
 }
 
 type Tablet = { id: string; name: string; warehouseId: string; lastSeenAt: string | null; revokedAt: string | null };

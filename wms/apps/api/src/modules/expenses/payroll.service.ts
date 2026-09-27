@@ -172,16 +172,52 @@ export class PayrollService {
       palletCount: dto.palletCount, reason: dto.reason, createdById: user.id, shares: { create: dto.employeeIds.map(employeeId => ({ employeeId })) } } });
   }
 
-  async confirmHandling(id: string, user: AuthUser) {
+  // FIX: review operations can be corrected or cancelled, never silently removed from audit history.
+  async changeHandling(id: string, dto: PayrollHandlingDto | { reason: string }, user: AuthUser, cancel = false) {
     this.scope(user, true);
+    if (!dto.reason.trim()) throw new BadRequestException('Укажите причину изменения.');
+    return this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM "PayrollHandling" WHERE id = ${id} FOR UPDATE`;
+      const row = await tx.payrollHandling.findUnique({ where: { id }, include: { shares: true } });
+      if (!row) throw new NotFoundException('Работа не найдена.');
+      for (const share of row.shares) await this.employee(share.employeeId, user, true);
+      if (row.status !== 'REVIEW') throw new BadRequestException('Изменять можно только неподтверждённую работу.');
+      let data: Prisma.PayrollHandlingUpdateInput = { status: 'CANCELLED' };
+      if (!cancel) {
+        const edit = dto as PayrollHandlingDto;
+        if (edit.warehouseId !== row.warehouseId) throw new BadRequestException('Нельзя менять филиал работы.');
+        for (const employeeId of edit.employeeIds) {
+          const employee = await this.employee(employeeId, user, true);
+          if (employee.warehouseId !== row.warehouseId) throw new BadRequestException('Участники должны относиться к выбранному филиалу.');
+        }
+        data = { startsAt: this.timestamp(edit.startsAt), operation: edit.operation, palletCount: edit.palletCount,
+          reason: edit.reason, shares: { deleteMany: {}, create: edit.employeeIds.map(employeeId => ({ employeeId })) } };
+      }
+      const updated = await tx.payrollHandling.update({ where: { id }, data });
+      await tx.payrollAudit.create({ data: { warehouseId: row.warehouseId, actorId: user.id, entityId: id,
+        action: cancel ? 'HANDLING_CANCELLED' : 'HANDLING_UPDATED',
+        details: JSON.parse(JSON.stringify({ before: row, after: updated, reason: dto.reason })) } });
+      return updated;
+    });
+  }
+
+  async confirmHandling(id: string, user: AuthUser, rateKopecks?: number) {
+    this.scope(user, true);
+    if (rateKopecks !== undefined && (!Number.isSafeInteger(rateKopecks) || rateKopecks < 0 || rateKopecks > 2147483647)) throw new BadRequestException('Укажите корректный тариф за паллету.');
     return this.prisma.$transaction(async tx => {
       await tx.$queryRaw`SELECT id FROM "PayrollHandling" WHERE id = ${id} FOR UPDATE`;
       const row = await tx.payrollHandling.findUnique({ where: { id }, include: { shares: { include: { employee: { include: { rates: true } } } } } });
       if (!row) throw new NotFoundException('Работа не найдена.');
       for (const share of row.shares) await this.employee(share.employeeId, user, true);
       if (row.status === 'CONFIRMED') return row;
+      if (row.status !== 'REVIEW') throw new BadRequestException('Отменённую работу нельзя подтвердить.');
+      if (rateKopecks === undefined) for (const share of row.shares) {
+        try { payrollRateAt(share.employee.rates.filter(r => r.kind === 'PALLET').map(r => ({ from: r.startsAt.toISOString(), to: r.endsAt?.toISOString(), kopecks: r.rateKopecks, temporary: r.temporary })), row.startsAt.toISOString()); }
+        catch { throw new BadRequestException(`Нет действующего тарифа за паллету: ${share.employee.name}. Введите разовый тариф рядом с работой или настройте ставку сотрудника.`); }
+      }
       const result = calculateHandling(row.startsAt.toISOString(), Number(row.palletCount), row.shares.map(s => ({ employeeId: s.employeeId,
-        rates: s.employee.rates.filter(r => r.kind === 'PALLET').map(r => ({ from: r.startsAt.toISOString(), to: r.endsAt?.toISOString(), kopecks: r.rateKopecks, temporary: r.temporary })) })));
+        rates: rateKopecks !== undefined ? [{ from: row.startsAt.toISOString(), kopecks: rateKopecks }] : s.employee.rates.filter(r => r.kind === 'PALLET').map(r => ({ from: r.startsAt.toISOString(), to: r.endsAt?.toISOString(), kopecks: r.rateKopecks, temporary: r.temporary })) })));
+      if (result.participants.some(p => p.amountKopecks > 2147483647)) throw new BadRequestException('Сумма слишком велика.');
       for (const p of result.participants) await tx.payrollHandlingShare.update({ where: { operationId_employeeId: { operationId: id, employeeId: p.employeeId } }, data: { amountKopecks: p.amountKopecks } });
       await tx.payrollAudit.create({ data: { warehouseId: row.warehouseId, actorId: user.id, entityId: id, action: 'HANDLING_CONFIRMED', details: result } });
       return tx.payrollHandling.update({ where: { id }, data: { status: 'CONFIRMED', confirmedAt: new Date(), confirmedById: user.id } });
@@ -203,7 +239,7 @@ export class PayrollService {
     const [rates, shifts, shares, settlements, history] = await Promise.all([
       this.prisma.payrollCondition.findMany({ where: { employeeId } }),
       this.prisma.payrollShift.findMany({ where: { employeeId, workDate: { gte: from, lte: to } }, orderBy: { startsAt: 'asc' } }),
-      this.prisma.payrollHandlingShare.findMany({ where: { employeeId, operation: { startsAt: { gte: period.start, lt: period.end } } }, include: { operation: true } }),
+      this.prisma.payrollHandlingShare.findMany({ where: { employeeId, operation: { startsAt: { gte: period.start, lt: period.end } } }, include: { operation: { include: { shares: { select: { employeeId: true } } } } } }),
       this.prisma.payrollSettlement.findMany({ where: { employeeId, workDate: { gte: from, lte: to } } }),
       this.prisma.payrollHistorical.findMany({ where: { employeeId, workDate: { gte: from, lte: to } } }),
     ]);
@@ -253,6 +289,7 @@ export class PayrollService {
     }
     for (const share of shares) {
       const op = share.operation;
+      if (op.status === 'CANCELLED') continue;
       rows.push({ key: `HANDLING:${op.id}:${employeeId}`, employeeId, date: workDate(op.startsAt.toISOString()), kind: 'PALLET',
         amountKopecks: share.amountKopecks ?? 0, status: op.status === 'CONFIRMED' ? 'UNPAID' : 'REVIEW', detail: { ...op, palletCount: Number(op.palletCount) } });
     }

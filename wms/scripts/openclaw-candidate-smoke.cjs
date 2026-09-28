@@ -1,0 +1,25 @@
+// TEST: execute the exact candidate with its published Nest and Prisma dependencies.
+require('reflect-metadata');
+const assert=require('node:assert/strict');
+const {WmsOpenClawService}=require('/app/apps/api/dist/modules/wms-ai/wms-openclaw.service');
+const {WmsAiController}=require('/app/apps/api/dist/modules/wms-ai/wms-ai.controller');
+const {WmsAiModule}=require('/app/apps/api/dist/modules/wms-ai/wms-ai.module');
+const {AdministrationController}=require('/app/apps/api/dist/modules/administration/administration.controller');
+process.env.WMS_OPENCLAW_ENABLED='true';process.env.WMS_OPENCLAW_ACCESS='administrators';
+const service=new WmsOpenClawService({});
+const base={id:'candidate-smoke',clientScopeMode:'ALL',permissionCodes:[],roleCodes:[],activeWarehouseId:'candidate-warehouse'};
+assert.equal(service.status({...base,administrationEnabled:true}).allowed,true);
+assert.equal(service.status({...base,permissionCodes:['system:admin']}).allowed,true);
+assert.equal(service.status({...base,roleCodes:['CLIENT'],permissionCodes:['system:admin']}).allowed,false);
+assert.equal(service.status({...base,isDemo:true,administrationEnabled:true}).allowed,false);
+assert.equal(service.status(base).allowed,false);
+const controller=new WmsAiController({},service);
+assert.throws(()=>controller.chat({message:'probe'},base),/заменён/);
+assert.throws(()=>controller.learn({},base),/OpenClaw/);
+const admin=new AdministrationController();
+assert.throws(()=>admin.assistantPreview({prompt:'probe'},base),/OpenClaw/);
+assert.throws(()=>admin.assistantApply({},base),/OpenClaw/);
+assert.ok(Reflect.getMetadata('providers',WmsAiModule).includes(WmsOpenClawService));
+process.env.WMS_OPENCLAW_ENABLED='false';
+assert.equal(service.status({...base,administrationEnabled:true}).enabled,false);
+console.log(JSON.stringify({candidateRuntime:true,owner:true,administrator:true,clientDenied:true,demoDenied:true,legacyBlocked:true,disabledFlagPreserved:true}));

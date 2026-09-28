@@ -33,6 +33,7 @@ import { PalletSortingPanel } from './components/inventory/PalletSortingPanel';
 import { KizIssuesPanel } from './components/kiz/KizIssuesPanel';
 import { SpaceServiceShelf } from './components/layout/SpaceServiceShelf';
 import { SpaceTopNav } from './components/layout/SpaceTopNav';
+import { installSpiritTileTilt } from './components/layout/spiritTileTilt';
 import { WmsAiPanel } from './components/wms-ai/WmsAiPanel';
 import { LogisticsQuotePanel } from './components/logistics/LogisticsQuotePanel';
 import { OwnCompaniesPanel } from './components/own-companies/OwnCompaniesPanel';
@@ -199,6 +200,12 @@ export function App() {
       window.localStorage.setItem(uiThemeStorageKey(session.user.id), uiTheme);
     }
   }, [session?.user.id, uiTheme]);
+
+  // FIX: only Spirit opts into cursor tilt; cleanup on theme change/unmount.
+  useEffect(() => {
+    if (uiTheme !== 'spirit') return undefined;
+    return installSpiritTileTilt();
+  }, [uiTheme]);
 
   useEffect(() => {
     setUiTheme(session ? loadUiTheme(session.user) : 'classic');

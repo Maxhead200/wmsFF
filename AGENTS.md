@@ -73,3 +73,6 @@ Latest verified release PR364: baseline `wms/baselines/our-wms/2026-09-28-cabine
 
 
 Latest verified web release PR374: baseline `2026-09-28-la-panthera`. Web sha256:5cee65f8c9b91255ee1beb174ef3c232942dfa51559d22c8e457181da47ca570; API sha256:d503835845d4684bb5388552dc9304aa4cfd61e71b40bb3f1b393247bc8a9b2c unchanged. la_panthera opt-in theme and bundled Inter. APK216/sold WMS unchanged; source parity false.
+
+
+Latest verified web release PR377: baseline `2026-09-28-la-panthera-contrast`. Web sha256:e0c20c3932d110e206e3e7c85748f2dcca61193029e542d6657ad1765258f20d; API sha256:a83204a8bb4819193a11ba7ba8a3b462c960ef772fc9d659c88a122dfd531f62 unchanged. la_panthera opt-in theme and bundled Inter. APK216/sold WMS unchanged; source parity false.

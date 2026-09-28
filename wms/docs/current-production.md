@@ -1,3 +1,12 @@
+# Published PR377: la_panthera / 28.09.2026
+
+PR377: la_panthera web contrast correction across 17 representative screens, larger dashboard/FBS labels, saturated icons and dark gradients. API PR375, APK216, settings and other containers preserved. 281 web and 2891 API tests passed, 113 skipped; dedicated KIZ DB suite excluded. Browser contrast/isolation/print and runtime graph/font checks passed. Source parity false; runtime CSS overlay only. Rollback logoff-web:before-la-panthera-contrast.
+
+Web `sha256:e0c20c3932d110e206e3e7c85748f2dcca61193029e542d6657ad1765258f20d`; API `sha256:a83204a8bb4819193a11ba7ba8a3b462c960ef772fc9d659c88a122dfd531f62`.
+Baseline `2026-09-28-la-panthera-contrast`.
+
+## Previous release
+
 # Published PR375: archive empty FBO boxes / 28.09.2026
 
 API `sha256:a83204a8bb4819193a11ba7ba8a3b462c960ef772fc9d659c88a122dfd531f62`. Two-module overlay on PR372; web/APK216, configuration, other containers and previous flags preserved. `WMS_FBO_EMPTY_BOX_ARCHIVE_ENABLED=true` only for our WMS. After individual FBO picking and shipment history capture, genuinely empty active boxes are archived and detached from pallet-sort in the same transaction. Permanent boxes, nonzero balances, marks and active bindings remain protected. Default/sold behavior unchanged.

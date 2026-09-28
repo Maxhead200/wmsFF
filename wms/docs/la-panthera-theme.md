@@ -8,4 +8,4 @@ Files: App.tsx (option and union), main.tsx (stylesheet import), components/layo
 
 Validation: browser checks actual shared CSS plus new theme for isolation, dark controls/dialogs, focus, screen-only styles and font readability; layout-changing CSS declarations are rejected. Fixture is a component sample, not an authenticated full-screen production test. Existing narrow-screen layout is retained. TypeScript and web tests run locally. Source/runtime parity is still false; publication requires a fresh runtime capture and surgical web delta, never a full local build over production.
 
-Branch: feature/la-panthera-theme. Proposed PR target: feature/wb-print-check. Not published.
+Branch: feature/la-panthera-theme. Proposed PR target: feature/wb-print-check. Published through PR374 on our WMS; web only.

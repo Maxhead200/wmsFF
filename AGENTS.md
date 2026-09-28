@@ -70,3 +70,6 @@ Latest verified release PR358: baseline `wms/baselines/our-wms/2026-09-28-client
 
 
 Latest verified release PR364: baseline `wms/baselines/our-wms/2026-09-28-cabinet-fast`; API `sha256:2c5e58b7d57ac148e1bb8e6068c305b52679210eba74a68f8d2401da8a6a5ea2`, web `sha256:ebd933aef735ee17d2721121a939c715797c14c7e958fbdd7f1abff9f9cc358c`. Cabinet-only compact responses and expanded product display settings at the top. Existing flags and APK216 unchanged; sold WMS untouched; source parity false.
+
+
+Latest verified web release PR374: baseline `2026-09-28-la-panthera`. Web sha256:5cee65f8c9b91255ee1beb174ef3c232942dfa51559d22c8e457181da47ca570; API sha256:d503835845d4684bb5388552dc9304aa4cfd61e71b40bb3f1b393247bc8a9b2c unchanged. la_panthera opt-in theme and bundled Inter. APK216/sold WMS unchanged; source parity false.

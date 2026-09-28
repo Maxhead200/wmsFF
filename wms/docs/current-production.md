@@ -1,3 +1,12 @@
+# Published PR374: la_panthera / 28.09.2026
+
+PR374: opt-in la_panthera web theme with self-hosted Inter (SIL OFL), graphite panels and violet accents. Existing section layout retained. Android, printing, Excel, API image and other containers unchanged. Full web274 tests, TypeScript and actual runtime graph/browser/font loading passed. Public index, entry, CSS, WOFF2 and license hashes verified. Source parity false; source-reference remains historical. API runtime captured from verified PR372 snapshot. Rollback: logoff-web:before-la-panthera.
+
+Web `sha256:5cee65f8c9b91255ee1beb174ef3c232942dfa51559d22c8e457181da47ca570`; API `sha256:d503835845d4684bb5388552dc9304aa4cfd61e71b40bb3f1b393247bc8a9b2c`.
+Baseline `2026-09-28-la-panthera`.
+
+## Previous release
+
 # Published PR372: bounded FBS assignment retries / 28.09.2026
 
 API `sha256:d503835845d4684bb5388552dc9304aa4cfd61e71b40bb3f1b393247bc8a9b2c`. One-method overlay on live OpenClaw image51484e2; all other runtime files preserved. `WMS_FBS_ASSIGNMENT_BUSY_GUARD_ENABLED=true` only for our WMS. Busy employee/device requests return Conflict without releasing the active lock or accumulating retries. The original operation is not forcibly cancelled; its historical hang remains unproven. API restart during publication cleared in-memory pending requests.

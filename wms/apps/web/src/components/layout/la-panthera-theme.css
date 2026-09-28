@@ -275,3 +275,37 @@
  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .branch-card :is(small, p) { color: #c9cad6; }
  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .branch-card__menu:hover { background: #3a2b24; color: #ffc49d; }
 }
+
+/* FIX: readable Today dashboard with saturated icons and matching dark gradients. */
+@media screen {
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.modern-dashboard__queue > button, .modern-dashboard__quick > button) { background: linear-gradient(110deg, #191a1e, #202c43); color: #f3f3f6; border-color: #454650; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .modern-dashboard__queue > button:has(.is-danger) { background: linear-gradient(110deg, #191a1e, #37212a); }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.modern-dashboard__queue-icon, .modern-dashboard__quick > button > span) { background: #2563eb; color: #ffffff; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .modern-dashboard__queue-icon.is-danger { background: #dc1425; color: #ffffff; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .modern-dashboard__metric-icon { color: #ffffff; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .modern-dashboard__metric-icon--blue { background: #2563eb; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .modern-dashboard__metric-icon--green { background: #117d59; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .modern-dashboard__metric-icon--orange { background: #a65d08; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .modern-dashboard__metric-icon--violet { background: #7934df; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .modern-dashboard__metric-icon--teal { background: #087b86; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.modern-dashboard__metrics strong, .modern-dashboard__branches dd) { color: #f3f3f6; font-size: 22px; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.modern-dashboard__queue strong, .modern-dashboard__quick strong, .modern-dashboard__branches article strong) { color: #f3f3f6; font-size: 16px; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.modern-dashboard__metrics small, .modern-dashboard__metrics article > div > span, .modern-dashboard__queue small, .modern-dashboard__quick small, .modern-dashboard__branches dt, .modern-dashboard__branches article > div:first-child span) { color: #c9cad6; font-size: 14px; line-height: 1.5; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.modern-dashboard__branch, .modern-dashboard__panel > header > span) { background: #292a34; color: #e5deff; border-color: #50515e; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.modern-dashboard__branch-status, .modern-dashboard__queue-status) { background: #193c2c; color: #9feac1; font-size: 13px; border-color: #438967; }
+}
+
+/* FIX: larger FBS menu labels and saturated white-on-colour icons. */
+@media screen {
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-tile--red .fbs-tile__icon { background: #dc1425; color: #ffffff; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-tile--green .fbs-tile__icon { background: #117d59; color: #ffffff; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-tile--amber .fbs-tile__icon { background: #a65d08; color: #ffffff; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-tile--slate .fbs-tile__icon { background: #52667f; color: #ffffff; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-tile--violet .fbs-tile__icon { background: #7934df; color: #ffffff; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-tile--blue .fbs-tile__icon { background: #2563eb; color: #ffffff; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-tile__content strong { font-size: 16px; line-height: 1.4; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-tile__content small { font-size: 14px; line-height: 1.5; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-tile__open { padding-bottom: 54px; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-tile__clients button span { font-size: 14px; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-tile__clients-title { font-size: 12px; }
+}

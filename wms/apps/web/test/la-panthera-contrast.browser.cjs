@@ -5,6 +5,8 @@ const { chromium } = require('C:/Users/La_pa/.cache/codex-runtimes/codex-primary
 const root = path.resolve(__dirname, '../src');
 const output = process.env.THEME_TEST_OUTPUT || 'D:/WMSFF/_Kof/work/la-panthera-contrast-release';
 const fixtures = [
+  // TEST: dashboard rows, metrics, icons and branch details.
+  ['dashboard', '<section class="modern-dashboard"><section class="modern-dashboard__metrics"><article><span class="modern-dashboard__metric-icon modern-dashboard__metric-icon--blue">□</span><div><span>Рабочие модули</span><strong>37</strong><small>доступно</small></div></article></section><section class="modern-dashboard__panel"><header><h2>Сегодня</h2><span>5</span></header><div class="modern-dashboard__quick"><button><span>□</span><div><strong>Биллинг</strong><small>Услуги и счета</small></div></button></div><div class="modern-dashboard__queue"><button><span class="modern-dashboard__queue-icon is-danger">□</span><span><strong>КИЗ</strong><small>135 проблем</small></span><span class="modern-dashboard__queue-status">Проверить</span></button></div><div class="modern-dashboard__branches"><article><div><strong>Москва</strong><span>ФФ Москва</span></div><span class="modern-dashboard__branch-status">Выбран</span><dl><div><dt>Клиенты</dt><dd>42</dd></div></dl></article></div></section></section>'],
   // TEST: branch icon surfaces and captions.
   ['branches', '<article class="branch-card"><div class="branch-card__head"><span>□</span><div><strong>Москва</strong><small>MSK · ФФ Москва</small></div><em>Активный</em></div><p>Адрес пока не указан</p><div class="branch-card__metrics"><span><b>15841</b><small>товаров</small></span></div></article>'],
   // TEST: payroll actions, filters and summary stay readable with a compact border.
@@ -72,6 +74,10 @@ const fixtures = [
     // TEST: user-specified theme, account and brand colours.
     for (const selector of ['.ui-theme-switcher select', '.workspace-user > div > strong']) assert.equal(await page.locator(selector).evaluate(e=>getComputedStyle(e).color), 'rgb(248, 0, 0)');
     assert.equal(await page.locator('.app-sidebar__brand strong').evaluate(e=>getComputedStyle(e).color), 'rgb(248, 0, 0)');
+    // TEST: larger FBS descriptions leave room above the absolute counter.
+    assert.equal(await page.locator('.fbs-tile__content small').first().evaluate(e=>getComputedStyle(e).fontSize), '14px');
+    assert.equal(await page.locator('.fbs-tile__icon').first().evaluate(e=>getComputedStyle(e).color), 'rgb(255, 255, 255)');
+    assert(await page.locator('.fbs-tile__open').first().evaluate(e=>e.querySelector('small').getBoundingClientRect().bottom <= e.querySelector('.fbs-tile__count').getBoundingClientRect().top));
     const product = page.locator('.tsd-feed__current-item strong');
     assert.equal(await product.evaluate(e => getComputedStyle(e).whiteSpace), 'normal');
     assert(await product.evaluate(e => e.clientHeight > parseFloat(getComputedStyle(e).lineHeight)), 'Full product name wraps');
@@ -82,6 +88,6 @@ const fixtures = [
     await page.evaluate(() => { for (const el of document.querySelector('.workspace-content').children) el.style.display = 'block'; });
     await page.emulateMedia({media: 'print'});
     assert.equal(await product.evaluate(e => getComputedStyle(e).whiteSpace), 'nowrap', 'Theme must not modify printing');
-    console.log('PASS: 16 operational views, real feature CSS, >=4.5:1 contrast, dark panels, full product name, theme isolation and print exclusion');
+    console.log('PASS: 17 operational views, real feature CSS, >=4.5:1 contrast, dark panels, full product name, theme isolation and print exclusion');
   } finally { await browser.close(); }
 })().catch(e => {console.error(e); process.exitCode = 1;});

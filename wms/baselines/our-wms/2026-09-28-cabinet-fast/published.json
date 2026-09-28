@@ -1,0 +1,12 @@
+{
+  "published": true,
+  "at": 1790615090.0456934,
+  "apiImage": "sha256:2c5e58b7d57ac148e1bb8e6068c305b52679210eba74a68f8d2401da8a6a5ea2",
+  "webImage": "sha256:ebd933aef735ee17d2721121a939c715797c14c7e958fbdd7f1abff9f9cc358c",
+  "previousApi": "sha256:09a4f4cc84a4ad1bb08279f8c2c236ab679accf7f1a50131c8e990647cd10cfb",
+  "previousWeb": "sha256:732bee71bf36fb3c59ef9070f49867b377d1bae70526cb077f14b4456bcd8b14",
+  "health": true,
+  "otherContainersUnchanged": true,
+  "flagsUnchanged": true,
+  "apk216Unchanged": true
+}

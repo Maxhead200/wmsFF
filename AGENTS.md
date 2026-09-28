@@ -67,3 +67,6 @@ Latest verified release PR356: baseline `wms/baselines/our-wms/2026-09-28-invent
 
 
 Latest verified release PR358: baseline `wms/baselines/our-wms/2026-09-28-client-display`; API `sha256:09a4f4cc84a4ad1bb08279f8c2c236ab679accf7f1a50131c8e990647cd10cfb`, web `sha256:d204e622e626f793f63d733fa9efea41e701f3f77d2e10a506f8c8a138c83d59`. Client product display for assembly/packing, APK216. Existing flags preserved; new display flag true only on our WMS; sold WMS untouched; source parity false.
+
+
+Latest verified release PR364: baseline `wms/baselines/our-wms/2026-09-28-cabinet-fast`; API `sha256:2c5e58b7d57ac148e1bb8e6068c305b52679210eba74a68f8d2401da8a6a5ea2`, web `sha256:ebd933aef735ee17d2721121a939c715797c14c7e958fbdd7f1abff9f9cc358c`. Cabinet-only compact responses and expanded product display settings at the top. Existing flags and APK216 unchanged; sold WMS untouched; source parity false.

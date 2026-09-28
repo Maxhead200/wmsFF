@@ -15,3 +15,5 @@ API2872 passed/113 skipped, web271 passed, TypeScript API/web. Браузерн�
 Артефакты: D:/WMSFF/_Kof/work/cabinet-fast-release. Скрипты patches/browser в scripts/cabinet-fast-release. Публикация — через PR в feature/wb-print-check.
 
 Published on our WMS through PR364. Verified baseline: `2026-09-28-cabinet-fast`.
+
+Post-deploy authenticated HTTP checks returned 200 for cabinet balances, invoices and product-display settings. Under concurrent API CPU load (about400% across cores), balances still took24.5–27.9s, invoices2.2–3.1s, settings46–921ms. The same-snapshot service measurements above isolate payload changes and are not end-to-end production load times. Residual server contention remains; no stock synchronization jobs were disabled.

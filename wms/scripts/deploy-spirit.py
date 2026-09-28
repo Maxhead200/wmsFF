@@ -1,5 +1,5 @@
 """FIX: deploy only our web Spirit theme; keep all previous assets."""
-import fcntl, hashlib, json, pathlib, subprocess, time, urllib.request
+import fcntl, hashlib, json, pathlib, subprocess, time, urllib.request, shutil
 ROOT=pathlib.Path('/opt/logoff-wms-releases/spirit-20260928')
 BASE='sha256:a0d4dec5f81901fee35ffa90533051b2610fd5c6a53e39deed1062b4e439df86'
 API='sha256:9a3ec430469e30afeb1620b1a75852815976eba477325d5c06fcb9778313a9a9'
@@ -34,7 +34,12 @@ def main():
         if sha((ROOT/'build/index.html').read_bytes())!=proof['indexAfterSha']: raise RuntimeError('Uploaded index mismatch')
         added={'/usr/share/nginx/html/assets/'+n:d for n,d in files.items()}
         (ROOT/'before.json').write_text(json.dumps(before))
-        (ROOT/'Dockerfile').write_text('FROM '+BASE+'\nCOPY build/index.html /usr/share/nginx/html/index.html\n'+''.join('COPY build/'+n+' /usr/share/nginx/html/assets/'+n+'\n' for n in files))
+        # FIX: one overlay layer avoids Docker's mount-options/layer limit.
+        payload=ROOT/'payload'
+        (payload/'assets').mkdir(parents=True,exist_ok=False)
+        shutil.copyfile(ROOT/'build/index.html',payload/'index.html')
+        for n in files: shutil.copyfile(ROOT/'build'/n,payload/'assets'/n)
+        (ROOT/'Dockerfile').write_text('FROM '+BASE+'\nCOPY payload/ /usr/share/nginx/html/\n')
         subprocess.run(['docker','build','--network','none','-t',TAG,str(ROOT)],check=True)
         cid=run('docker','create','--network','none',TAG)
         try:

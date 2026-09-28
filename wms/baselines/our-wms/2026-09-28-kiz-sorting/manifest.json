@@ -1839,9 +1839,9 @@
     "runtimeTestsPassed": 30,
     "sourceParityVerified": false,
     "pending": [
-      "Deployment",
       "Physical scan",
       "Dedicated DB suite"
-    ]
+    ],
+    "productionProofVerified": true
   }
 }

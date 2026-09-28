@@ -3,13 +3,23 @@ import { tileTilt, installSpiritTileTilt } from './spiritTileTilt';
 
 // TEST: the corner beneath the pointer rises, with bounded readable rotation.
 describe('Spirit cursor tilt', () => {
-  it('is neutral in the centre and raises the pointed corners', () => {
+  it('raises all corners in the centre, then only the pointed corner', () => {
     const rect = { left: 10, top: 20, width: 200, height: 100 };
-    expect(tileTilt(rect, 110, 70)).toEqual({ x: 0, y: 0 });
-    expect(tileTilt(rect, 10, 20)).toEqual({ x: -4, y: 4 });
-    expect(tileTilt(rect, 210, 120)).toEqual({ x: 4, y: -4 });
-    expect(tileTilt(rect, 900, -900)).toEqual({ x: -4, y: -4 });
-    expect(tileTilt({ ...rect, width: 0 }, 20, 30)).toEqual({ x: 0, y: 0 });
+    const centre = tileTilt(rect, 110, 70);
+    expect(centre).toEqual({ x: 0, y: 0, z: 6 });
+    const corners = [[-1,-1],[1,-1],[1,1],[-1,1]];
+    for (const [selected, [px,py]] of corners.entries()) {
+      const tilt = tileTilt(rect, 110 + px*100, 70 + py*50);
+      // TEST: exact CSS translateZ -> rotateX -> rotateY corner heights.
+      const rx=tilt.x*Math.PI/180, ry=tilt.y*Math.PI/180;
+      const heights=corners.map(([x,y])=>tilt.z-x*100*Math.sin(ry)*Math.cos(rx)+y*50*Math.sin(rx));
+      expect(heights[selected]).toBeGreaterThan(centre.z);
+      heights.forEach((height,i)=>{if(i!==selected)expect(height).toBeLessThan(0);});
+      expect(Math.abs(tilt.x)).toBeLessThan(12);
+      expect(Math.abs(tilt.y)).toBeLessThan(12);
+    }
+    expect(tileTilt(rect, 900, -900)).toEqual(tileTilt(rect, 210, 20));
+    expect(tileTilt({ ...rect, width: 0 }, 20, 30)).toEqual({ x: 0, y: 0, z: 0 });
   });
   it('does not install pointer listeners when motion or hover is unavailable', () => {
     let listeners = 0;
@@ -38,10 +48,11 @@ describe('Spirit cursor tilt', () => {
     handlers.get('pointermove')!(event); handlers.get('pointermove')!(event);
     expect(frames).toBe(1);
     (callback as unknown as () => void)();
-    expect(props.get('--spirit-tilt-x')).toBe('-4.00deg');
-    expect(props.get('--spirit-tilt-y')).toBe('-4.00deg');
+    expect(Number.parseFloat(props.get('--spirit-tilt-x')!)).toBeLessThan(-4);
+    expect(Number.parseFloat(props.get('--spirit-tilt-y')!)).toBeLessThan(-4);
+    expect(props.get('--spirit-tilt-z')).toBe('-2.50px');
     handlers.get('pointerout')!({ relatedTarget: tile });
-    expect(props.size).toBe(2);
+    expect(props.size).toBe(3);
     handlers.get('pointerout')!({ relatedTarget: null });
     expect(props.size).toBe(0);
     spirit = false; handlers.get('pointermove')!(event); expect(frames).toBe(1);

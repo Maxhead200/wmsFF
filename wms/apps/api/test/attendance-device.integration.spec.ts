@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AttendanceDeviceService, ATTENDANCE_RETENTION } from '../src/modules/expenses/attendance-device.service';
+import { PayrollService } from '../src/modules/expenses/payroll.service';
 import type { AuthUser } from '../src/modules/auth/auth.types';
 
 const url = process.env.ATTENDANCE_TEST_DATABASE_URL;
@@ -128,6 +129,30 @@ describe.skipIf(!url).sequential('tablet attendance PostgreSQL', () => {
     const person = randomUUID(); await db.payrollEmployee.create({ data: { id: person, name: 'Offline', warehouseId } });
     const m = mark('CLOCK_IN', Date.now() - ATTENDANCE_RETENTION - 1000, first, person);
     expect((await send(m)).status).toBe('ACCEPTED'); expect((await service.requestPhoto(user, m.eventId)).status).toBe('EXPIRED');
+  });
+  // TEST: employee and initial tariffs are one atomic write; invalid tariffs leave no orphan card.
+  it('creates an employee with hourly and pallet rates together', async () => {
+    const payroll = new PayrollService(db as never);
+    const dto = { name: 'Initial rates test', warehouseId, picker: true, loader: true, isActive: true, paymentMethod: 'CASH',
+      initialConditions: [{ kind: 'HOURLY', rateKopecks: 35000, startsAt: '2026-09-28T00:00:00+03:00' }, { kind: 'PALLET', rateKopecks: 50000, startsAt: '2026-09-28T00:00:00+03:00' }] };
+    const employee = await payroll.saveEmployee(undefined, dto, user);
+    expect(await db.payrollCondition.findMany({ where: { employeeId: employee.id }, orderBy: { kind: 'asc' } })).toMatchObject([
+      { kind: 'HOURLY', rateKopecks: 35000, temporary: false }, { kind: 'PALLET', rateKopecks: 50000, temporary: false }]);
+    await expect(payroll.saveEmployee(undefined, { ...dto, name: 'Invalid initial tariff', initialConditions: [{ ...dto.initialConditions[0], rateKopecks: -1 }] }, user)).rejects.toThrow('тариф');
+    expect(await db.payrollEmployee.count({ where: { warehouseId, name: 'Invalid initial tariff' } })).toBe(0);
+    await expect(payroll.saveEmployee(employee.id, dto, user)).rejects.toThrow('условия оплаты');
+  });
+  // TEST: admin cancellation clears tablet state without replay resurrecting the cancelled arrival.
+  it('keeps cancelled tablet arrivals out of state and overlap checks', async () => {
+    const person = randomUUID(); await db.payrollEmployee.create({ data: { id: person, name: 'Cancelled arrival', warehouseId } });
+    const m = mark('CLOCK_IN', Date.now() - 120000, first, person);
+    expect((await send(m)).status).toBe('ACCEPTED');
+    const payroll = new PayrollService(db as never);
+    await payroll.cancelShift(person, m.eventId, 'Test cancellation', user);
+    expect((await service.state(auth())).employees.find(e => e.id === person)?.openSinceMs).toBeNull();
+    await send(m);
+    expect((await service.state(auth())).employees.find(e => e.id === person)?.openSinceMs).toBeNull();
+    expect((await send(mark('CLOCK_IN', Date.now() - 60000, first, person))).status).toBe('ACCEPTED');
   });
   it('denies revoked devices and keeps the new module disabled on sold WMS', async () => {
     await service.revoke(user, second.deviceId);

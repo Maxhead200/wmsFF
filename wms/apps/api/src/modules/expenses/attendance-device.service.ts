@@ -102,7 +102,7 @@ export class AttendanceDeviceService implements OnModuleInit, OnModuleDestroy {
     return d;
   }
   private async employeeState(tx: Tx, e: PayrollEmployee) {
-    const shift = await tx.payrollShift.findFirst({ where: { employeeId: e.id, endsAt: null }, orderBy: { startsAt: 'desc' } });
+    const shift = await tx.payrollShift.findFirst({ where: { employeeId: e.id, cancelledAt: null, endsAt: null }, orderBy: { startsAt: 'desc' } });
     const seq = await tx.$queryRaw<Array<{ revision: bigint }>>`SELECT nextval('"AttendanceRevision"') AS revision`;
     return { id: e.id, name: e.name, warehouseId: e.warehouseId, loader: e.loader, active: e.isActive, distinguishing: '',
       openSinceMs: shift?.startsAt.getTime() ?? null, revision: Number(seq[0].revision) };
@@ -171,14 +171,14 @@ export class AttendanceDeviceService implements OnModuleInit, OnModuleDestroy {
         shares: { create: members.map(member => ({ employeeId: member.id })) } } });
       return '';
     }
-    const open = await tx.payrollShift.findFirst({ where: { employeeId: e.id, endsAt: null } });
+    const open = await tx.payrollShift.findFirst({ where: { employeeId: e.id, cancelledAt: null, endsAt: null } });
     if (m.kind === 'CLOCK_IN' && open) return 'Смена уже открыта.';
     if (m.kind === 'CLOCK_OUT' && (!open || at <= open.startsAt)) return 'Нет подходящего открытого прихода.';
     const day = open?.workDate ?? workDate(at.toISOString());
     if (await tx.payrollHistorical.findFirst({ where: { employeeId: e.id, workDate: day } })) return 'День уже импортирован из табеля.';
     if (await tx.payrollSettlement.findFirst({ where: { employeeId: e.id, workDate: day, status: 'PAID', key: { startsWith: 'WORK:' } } })) return 'День уже оплачен.';
     const start = open?.startsAt ?? at;
-    if (await tx.payrollShift.findFirst({ where: { employeeId: e.id, ...(open ? { id: { not: open.id } } : {}), startsAt: { lt: m.kind === 'CLOCK_OUT' ? at : new Date('9999-01-01') }, OR: [{ endsAt: null }, { endsAt: { gt: start } }] } })) return 'Пересечение с существующей сменой.';
+    if (await tx.payrollShift.findFirst({ where: { employeeId: e.id, cancelledAt: null, ...(open ? { id: { not: open.id } } : {}), startsAt: { lt: m.kind === 'CLOCK_OUT' ? at : new Date('9999-01-01') }, OR: [{ endsAt: null }, { endsAt: { gt: start } }] } })) return 'Пересечение с существующей сменой.';
     if (open) await tx.payrollShift.update({ where: { id: open.id }, data: { endsAt: at, endPhoto: m.eventId, version: { increment: 1 } } });
     else await tx.payrollShift.create({ data: { id: m.eventId, employeeId: e.id, startsAt: at, workDate: day, source: 'TABLET', startPhoto: m.eventId, createdById: `device:${d.id}` } });
     return '';

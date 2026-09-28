@@ -42,7 +42,7 @@ export function workDate(start: string, timezone = 'Europe/Moscow'): string {
 }
 
 // FIX: aggregate a complete start-date group before applying lunch once.
-export function calculateWorkDay(intervals: WorkInterval[], rates: PayrollRate[], timezone = 'Europe/Moscow') {
+export function calculateWorkDay(intervals: WorkInterval[], rates: PayrollRate[], timezone = 'Europe/Moscow', lunchMinutes?: number | null) {
   if (!intervals.length) throw new Error('Work intervals required');
   const date = workDate(intervals[0].start, timezone);
   const rows = intervals.map(i => ({ start: instant(i.start), end: instant(i.end), date: workDate(i.start, timezone) }))
@@ -62,7 +62,9 @@ export function calculateWorkDay(intervals: WorkInterval[], rates: PayrollRate[]
     }
   }
   const workedMs = segments.reduce((sum, s) => sum + s.workedMs, 0);
-  const lunchMs = workedMs > 6 * HOUR ? HOUR : 0;
+  // FIX: null restores the automatic rule; explicit zero is a valid exception.
+  if (lunchMinutes != null && (!Number.isSafeInteger(lunchMinutes) || lunchMinutes < 0 || lunchMinutes * 60000 > workedMs)) throw new Error('Invalid lunch');
+  const lunchMs = lunchMinutes == null ? (workedMs > 6 * HOUR ? HOUR : 0) : lunchMinutes * 60000;
   const paidMs = workedMs - lunchMs;
   // Proportional lunch; keep precision until the final monetary total.
   const detail = segments.map(s => ({ ...s, paidMs: s.workedMs * paidMs / workedMs }));

@@ -57,6 +57,28 @@ describe.skipIf(!url).sequential('payroll PostgreSQL transactions', () => {
     expect(await db.payrollHandling.findUnique({ where: { id: cancelled.id } })).toMatchObject({ status: 'CANCELLED' });
     expect(await db.payrollAudit.count({ where: { entityId: cancelled.id, action: 'HANDLING_CANCELLED' } })).toBe(1);
   });
+  // TEST: corrections persist daily lunch once; deletion retains evidence and cannot change paid days.
+  it('corrects and cancels shifts without duplicate lunch or lost history', async () => {
+    const dto = { startsAt: '2026-10-01T09:00:00+03:00', endsAt: '2026-10-01T13:00:00+03:00', reason: 'first visit' };
+    const first = await service.addShift(employeeId, dto, user);
+    const second = await service.addShift(employeeId, { ...dto, startsAt: '2026-10-01T14:00:00+03:00', endsAt: '2026-10-01T18:00:00+03:00' }, user);
+    await service.updateShift(employeeId, first.id, { ...dto, lunchMinutes: 30 }, user);
+    let report = await service.report(employeeId, '2026-10-01', '2026-10-01', user);
+    expect(report.rows[0].lunchMs).toBe(1800000);
+    await service.cancelShift(employeeId, second.id, 'test duplicate', user);
+    await service.cancelShift(employeeId, second.id, 'retry', user);
+    expect((await db.payrollShift.findUniqueOrThrow({ where: { id: second.id } })).cancelledAt).not.toBeNull();
+    expect(await db.payrollAudit.count({ where: { entityId: second.id, action: 'SHIFT_CANCELLED' } })).toBe(1);
+    expect((await service.shifts(employeeId, user)).some(s => s.id === second.id)).toBe(false);
+    report = await service.report(employeeId, '2026-10-01', '2026-10-01', user);
+    expect(report.rows[0].workedMs).toBe(4 * 3600000);
+    expect(report.rows[0].lunchMs).toBe(1800000);
+    await expect(service.updateShift(employeeId, first.id, { ...dto, lunchMinutes: 241 }, user)).rejects.toThrow('Обед');
+    await expect(service.cancelShift(employeeId, first.id, 'foreign', { ...user, warehouseIds: ['foreign'], writableWarehouseIds: ['foreign'] })).rejects.toThrow();
+    await service.setStatus({ employeeId, dateFrom: '2026-10-01', dateTo: '2026-10-01', keys: [report.rows[0].key], status: 'PAID', comment: 'test' }, user);
+    await expect(service.cancelShift(employeeId, first.id, 'paid', user)).rejects.toThrow('оплачен');
+    await expect(service.updateShift(employeeId, first.id, { ...dto, lunchMinutes: 0 }, user)).rejects.toThrow('оплачен');
+  });
   // TEST: simultaneous admin actions must not both succeed or leave payable cancelled work.
   it('serializes confirmation versus cancellation', async () => {
     const op = await service.addHandling({ warehouseId: 'test-branch', startsAt: '2026-09-28T10:00:00+03:00', operation: 'LOAD', palletCount: 1, employeeIds: [employeeId], reason: 'Race test' }, user);

@@ -50,7 +50,15 @@ export class PayrollService {
     if (dto.userId && !await this.prisma.user.findFirst({ where: { id: dto.userId, isDemo: Boolean(user.isDemo), warehouseScopes: { some: { warehouseId: dto.warehouseId } } } })) {
       throw new BadRequestException('Пользователь не относится к филиалу.');
     }
-    const data = { ...dto, name: dto.name.trim(), userId: dto.userId || null, isDemo: Boolean(user.isDemo),
+    const { initialConditions: requestedConditions, ...employeeData } = dto;
+    const initialConditions = requestedConditions ?? [];
+    if (id && initialConditions.length) throw new BadRequestException('Изменяйте ставки через условия оплаты.');
+    if (initialConditions.length > 2 || initialConditions.filter(r => r.kind !== 'PALLET').length > 1 || initialConditions.filter(r => r.kind === 'PALLET').length > 1) throw new BadRequestException('Укажите одну основную ставку и один тариф за паллету.');
+    const initialRates = initialConditions.map(r => {
+      if (!['HOURLY', 'PIECE', 'PALLET'].includes(r.kind) || !Number.isSafeInteger(r.rateKopecks) || r.rateKopecks < 0 || r.rateKopecks > 2147483647 || (r.kind === 'PALLET' && !dto.loader)) throw new BadRequestException('Проверьте первоначальный тариф.');
+      return { kind: r.kind, rateKopecks: r.rateKopecks, startsAt: this.timestamp(r.startsAt), temporary: false, reason: 'Первоначальный тариф при создании сотрудника', createdById: user.id };
+    });
+    const data = { ...employeeData, name: dto.name.trim(), userId: dto.userId || null, isDemo: Boolean(user.isDemo),
       paymentPhone: dto.paymentMethod === 'TRANSFER' ? dto.paymentPhone!.trim() : null,
       paymentBank: dto.paymentMethod === 'TRANSFER' ? dto.paymentBank!.trim() : null };
     return this.prisma.$transaction(async tx => {
@@ -59,8 +67,8 @@ export class PayrollService {
         const previous = await tx.payrollEmployee.findUniqueOrThrow({ where: { id } });
         if (previous.warehouseId !== dto.warehouseId) throw new BadRequestException('Перенос сотрудника между филиалами требует отдельного переноса истории.');
       }
-      const row = id ? await tx.payrollEmployee.update({ where: { id }, data }) : await tx.payrollEmployee.create({ data });
-      await tx.payrollAudit.create({ data: { warehouseId: row.warehouseId, actorId: user.id, entityId: row.id, action: id ? 'EMPLOYEE_UPDATED' : 'EMPLOYEE_CREATED', details: { paymentMethod: row.paymentMethod } } });
+      const row = id ? await tx.payrollEmployee.update({ where: { id }, data }) : await tx.payrollEmployee.create({ data: { ...data, rates: { create: initialRates } } });
+      await tx.payrollAudit.create({ data: { warehouseId: row.warehouseId, actorId: user.id, entityId: row.id, action: id ? 'EMPLOYEE_UPDATED' : 'EMPLOYEE_CREATED', details: { paymentMethod: row.paymentMethod, initialConditions: initialConditions.map(r => ({ ...r })) } } });
       return row;
     });
   }
@@ -99,17 +107,18 @@ export class PayrollService {
         throw new BadRequestException('День уже оплачен. Сначала пересмотрите выплату.');
       }
       if (await tx.payrollHistorical.findFirst({ where: { employeeId, workDate: workDate(dto.startsAt) } })) throw new BadRequestException('День уже перенесён из табеля; новая смена может задвоить начисление.');
-      const overlap = await tx.payrollShift.findFirst({ where: { employeeId, startsAt: { lt: endsAt ?? new Date('9999-01-01') }, OR: [{ endsAt: null }, { endsAt: { gt: startsAt } }] } });
+      const overlap = await tx.payrollShift.findFirst({ where: { employeeId, cancelledAt: null, startsAt: { lt: endsAt ?? new Date('9999-01-01') }, OR: [{ endsAt: null }, { endsAt: { gt: startsAt } }] } });
       if (overlap) throw new BadRequestException('Смена пересекается с существующей.');
       const row = await tx.payrollShift.create({ data: { employeeId, startsAt, endsAt, workDate: workDate(dto.startsAt), source: 'MANUAL', createdById: user.id, reason: dto.reason } });
-      await tx.payrollAudit.create({ data: { warehouseId: employee.warehouseId, actorId: user.id, entityId: row.id, action: 'SHIFT_CREATED', details: { employeeId, reason: dto.reason } } });
+      const lunchCorrection = await this.correctLunch(tx, employeeId, row.workDate, dto.lunchMinutes);
+      await tx.payrollAudit.create({ data: { warehouseId: employee.warehouseId, actorId: user.id, entityId: row.id, action: 'SHIFT_CREATED', details: { employeeId, reason: dto.reason, lunchCorrection } } });
       return row;
     });
   }
 
   async shifts(employeeId: string, user: AuthUser) {
     await this.employee(employeeId, user);
-    return this.prisma.payrollShift.findMany({ where: { employeeId }, orderBy: { startsAt: 'desc' }, take: 1000 });
+    return this.prisma.payrollShift.findMany({ where: { employeeId, cancelledAt: null }, orderBy: { startsAt: 'desc' }, take: 1000 });
   }
 
   async updateShift(employeeId: string, id: string, dto: PayrollShiftDto, user: AuthUser) {
@@ -118,15 +127,49 @@ export class PayrollService {
     if ((endsAt && endsAt <= startsAt) || !dto.reason.trim()) throw new BadRequestException('Проверьте время и причину.');
     return this.prisma.$transaction(async tx => {
       await tx.$queryRaw`SELECT id FROM "PayrollEmployee" WHERE id = ${employeeId} FOR UPDATE`;
-      const previous = await tx.payrollShift.findFirst({ where: { id, employeeId } });
+      const previous = await tx.payrollShift.findFirst({ where: { id, employeeId, cancelledAt: null } });
       if (!previous) throw new NotFoundException('Смена не найдена.');
       const date = workDate(dto.startsAt);
       if (await tx.payrollHistorical.findFirst({ where: { employeeId, workDate: date } })) throw new BadRequestException('День уже перенесён из табеля.');
       if (await tx.payrollSettlement.findFirst({ where: { employeeId, workDate: { in: [date, previous.workDate] }, status: 'PAID', key: { startsWith: 'WORK:' } } })) throw new BadRequestException('День уже оплачен. Сначала пересмотрите выплату.');
-      if (await tx.payrollShift.findFirst({ where: { employeeId, id: { not: id }, startsAt: { lt: endsAt ?? new Date('9999-01-01') }, OR: [{ endsAt: null }, { endsAt: { gt: startsAt } }] } })) throw new BadRequestException('Смены пересекаются.');
+      if (await tx.payrollShift.findFirst({ where: { employeeId, cancelledAt: null, id: { not: id }, startsAt: { lt: endsAt ?? new Date('9999-01-01') }, OR: [{ endsAt: null }, { endsAt: { gt: startsAt } }] } })) throw new BadRequestException('Смены пересекаются.');
       const row = await tx.payrollShift.update({ where: { id }, data: { startsAt, endsAt, workDate: date, reason: dto.reason, version: { increment: 1 } } });
-      await tx.payrollAudit.create({ data: { warehouseId: employee.warehouseId, actorId: user.id, entityId: id, action: 'SHIFT_UPDATED', details: { before: { start: previous.startsAt.toISOString(), end: previous.endsAt?.toISOString() ?? null }, after: { start: startsAt.toISOString(), end: endsAt?.toISOString() ?? null }, reason: dto.reason } } });
+      const lunchCorrections = [await this.correctLunch(tx, employeeId, date, dto.lunchMinutes)];
+      if (previous.workDate !== date) lunchCorrections.push(await this.correctLunch(tx, employeeId, previous.workDate, undefined));
+      await tx.payrollAudit.create({ data: { warehouseId: employee.warehouseId, actorId: user.id, entityId: id, action: 'SHIFT_UPDATED', details: { lunchCorrections, before: { start: previous.startsAt.toISOString(), end: previous.endsAt?.toISOString() ?? null }, after: { start: startsAt.toISOString(), end: endsAt?.toISOString() ?? null, lunchMinutes: dto.lunchMinutes ?? null }, reason: dto.reason } } });
       return row;
+    });
+  }
+
+  // FIX: validate the aggregate under the employee lock, including removal/moving of a visit.
+  private async correctLunch(tx: Prisma.TransactionClient, employeeId: string, date: string, requested: number | null | undefined) {
+    const key = { employeeId, workDate: date };
+    const previous = await tx.payrollWorkDay.findUnique({ where: { employeeId_workDate: key } });
+    const lunch = requested === undefined ? previous?.lunchMinutes ?? null : requested;
+    if (lunch != null && (!Number.isSafeInteger(lunch) || lunch < 0)) throw new BadRequestException('Укажите корректное время обеда.');
+    const shifts = await tx.payrollShift.findMany({ where: { ...key, cancelledAt: null } });
+    if (!shifts.length) { await tx.payrollWorkDay.deleteMany({ where: key }); return { date, before: previous?.lunchMinutes ?? null, after: null }; }
+    if (lunch != null && !shifts.some(s => !s.endsAt) && lunch * 60000 > shifts.reduce((n, s) => n + s.endsAt!.getTime() - s.startsAt.getTime(), 0)) {
+      throw new BadRequestException('Обед превышает рабочее время за день. Сначала исправьте обед.');
+    }
+    if (requested !== undefined) await tx.payrollWorkDay.upsert({ where: { employeeId_workDate: key }, create: { ...key, lunchMinutes: lunch }, update: { lunchMinutes: lunch } });
+    return { date, before: previous?.lunchMinutes ?? null, after: lunch };
+  }
+
+  // FIX: cancellation retains original timestamps/photos and is serialized with tablet marks/payments.
+  async cancelShift(employeeId: string, id: string, reason: string, user: AuthUser) {
+    const employee = await this.employee(employeeId, user, true);
+    if (!reason.trim()) throw new BadRequestException('Укажите причину удаления.');
+    return this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM "PayrollEmployee" WHERE id = ${employeeId} FOR UPDATE`;
+      const row = await tx.payrollShift.findFirst({ where: { id, employeeId } });
+      if (!row) throw new NotFoundException('Смена не найдена.');
+      if (row.cancelledAt) return row;
+      if (await tx.payrollSettlement.findFirst({ where: { employeeId, workDate: row.workDate, status: 'PAID', key: { startsWith: 'WORK:' } } })) throw new BadRequestException('День уже оплачен. Сначала пересмотрите выплату.');
+      const updated = await tx.payrollShift.update({ where: { id }, data: { cancelledAt: new Date(), reason, version: { increment: 1 } } });
+      const lunchCorrection = await this.correctLunch(tx, employeeId, row.workDate, undefined);
+      await tx.payrollAudit.create({ data: { warehouseId: employee.warehouseId, actorId: user.id, entityId: id, action: 'SHIFT_CANCELLED', details: JSON.parse(JSON.stringify({ before: row, reason, lunchCorrection })) } });
+      return updated;
     });
   }
 
@@ -236,12 +279,13 @@ export class PayrollService {
   async report(employeeId: string, from: string, to: string, user: AuthUser) {
     const employee = await this.employee(employeeId, user);
     const period = this.period(from, to);
-    const [rates, shifts, shares, settlements, history] = await Promise.all([
+    const [rates, shifts, shares, settlements, history, workDays] = await Promise.all([
       this.prisma.payrollCondition.findMany({ where: { employeeId } }),
-      this.prisma.payrollShift.findMany({ where: { employeeId, workDate: { gte: from, lte: to } }, orderBy: { startsAt: 'asc' } }),
+      this.prisma.payrollShift.findMany({ where: { employeeId, cancelledAt: null, workDate: { gte: from, lte: to } }, orderBy: { startsAt: 'asc' } }),
       this.prisma.payrollHandlingShare.findMany({ where: { employeeId, operation: { startsAt: { gte: period.start, lt: period.end } } }, include: { operation: { include: { shares: { select: { employeeId: true } } } } } }),
       this.prisma.payrollSettlement.findMany({ where: { employeeId, workDate: { gte: from, lte: to } } }),
       this.prisma.payrollHistorical.findMany({ where: { employeeId, workDate: { gte: from, lte: to } } }),
+      this.prisma.payrollWorkDay.findMany({ where: { employeeId, workDate: { gte: from, lte: to } } }),
     ]);
     const schedule = (kind: string) => rates.filter(r => r.kind === kind).map(r => ({ from: r.startsAt.toISOString(), to: r.endsAt?.toISOString(), kopecks: r.rateKopecks, temporary: r.temporary }));
     const rows: PayrollRow[] = [], issues: string[] = [];
@@ -256,9 +300,9 @@ export class PayrollService {
         if (rates.some(r => r.kind === 'PIECE' && day.some(s => r.startsAt < s.endsAt! && (!r.endsAt || r.endsAt > s.startsAt)))) {
           issues.push(`${date}: тип оплаты менялся внутри смены; требуется проверка`); continue;
         }
-        const calculated = calculateWorkDay(day.map(s => ({ start: s.startsAt.toISOString(), end: s.endsAt!.toISOString() })), schedule('HOURLY'));
+        const calculated = calculateWorkDay(day.map(s => ({ start: s.startsAt.toISOString(), end: s.endsAt!.toISOString() })), schedule('HOURLY'), 'Europe/Moscow', workDays.find(d => d.workDate === date)?.lunchMinutes);
         rows.push({ key: `WORK:${employeeId}:${date}`, employeeId, date, kind: 'HOURLY', amountKopecks: calculated.amountKopecks,
-          workedMs: calculated.workedMs, lunchMs: calculated.lunchMs, status: 'UNPAID', detail: { ...calculated, shifts: day.map(s => ({ id: s.id, start: s.startsAt.toISOString(), end: s.endsAt!.toISOString() })) } });
+          workedMs: calculated.workedMs, lunchMs: calculated.lunchMs, status: 'UNPAID', detail: { ...calculated, lunchOverride: workDays.find(d => d.workDate === date)?.lunchMinutes ?? null, shifts: day.map(s => ({ id: s.id, start: s.startsAt.toISOString(), end: s.endsAt!.toISOString() })) } });
       } catch (e) { issues.push(`${date}: проверьте ставки и интервалы смены`); }
     }
     if (employee.userId) {

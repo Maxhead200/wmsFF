@@ -1,9 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { PayrollManagement, payrollTimeCells, payrollIntervalCells, payrollPaymentSummary, payrollDate, payrollSortRows, payrollCurrentRates, attendancePhotoStatus, payrollFilterEmployees, payrollOperationTariff } from './PayrollManagement';
+import { PayrollManagement, payrollTimeCells, payrollIntervalCells, payrollPaymentSummary, payrollDate, payrollSortRows, payrollCurrentRates, attendancePhotoStatus, payrollFilterEmployees, payrollOperationTariff, payrollLocalTime, payrollEditedTime, payrollInitialConditions } from './PayrollManagement';
 import type { AuthSession } from '../../lib/api';
 // TEST: no new payroll form is visible before the server explicitly enables it.
 describe('payroll feature isolation', () => {
+  // TEST: the new card handles zero, hourly/piecework and optional loader tariffs independently.
+  it('builds initial tariffs without inheriting another employee or a hidden loader rate', () => {
+    const f = new FormData(); f.set('initialKind', 'PIECE'); f.set('initialRate', '12.50'); f.set('initialPalletRate', '500'); f.set('initialStart', '2026-09-28T00:00');
+    expect(payrollInitialConditions(f, true)).toEqual([{ kind: 'PIECE', rateKopecks: 1250, startsAt: '2026-09-28T00:00:00+03:00' }, { kind: 'PALLET', rateKopecks: 50000, startsAt: '2026-09-28T00:00:00+03:00' }]);
+    expect(payrollInitialConditions(f, false)).toHaveLength(1);
+    f.set('initialRate', '0'); expect(payrollInitialConditions(f, false)[0].rateKopecks).toBe(0);
+    expect(payrollInitialConditions(new FormData(), true)).toEqual([]);
+  });
+  // TEST: editing only lunch must not silently round the tablet's attendance timestamps.
+  it('preserves unchanged timestamps and converts edited MSK times across midnight', () => {
+    const original = '2026-09-27T19:04:01.302Z';
+    expect(payrollLocalTime(original)).toBe('2026-09-27T22:04:01');
+    expect(payrollEditedTime(payrollLocalTime(original), original)).toBe(original);
+    expect(new Date(payrollEditedTime('2026-09-28T00:10', original)).toISOString()).toBe('2026-09-27T21:10:00.000Z');
+    expect(payrollLocalTime('')).toBe('');
+  });
   // TEST: explicit rouble values must never be mistaken for kopecks or silently rounded.
   it('parses a one-off pallet tariff and keeps an empty field as personal-rate fallback', () => {
     expect(payrollOperationTariff('500')).toBe(50000);

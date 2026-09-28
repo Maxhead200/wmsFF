@@ -29,6 +29,9 @@ export class PayrollController {
   shifts(@Param('id') id: string, @CurrentUser() user: AuthUser) { return this.payroll.shifts(id, user); }
   @Put('employees/:id/shifts/:shiftId') @RequirePermissions('expenses:write')
   updateShift(@Param('id') id: string, @Param('shiftId') shiftId: string, @Body() dto: PayrollShiftDto, @CurrentUser() user: AuthUser) { return this.payroll.updateShift(id, shiftId, dto, user); }
+  // FIX: preserve the cancelled shift in the audit trail.
+  @Post('employees/:id/shifts/:shiftId/cancel') @RequirePermissions('expenses:write')
+  cancelShift(@Param('id') id: string, @Param('shiftId') shiftId: string, @Body() dto: PayrollHandlingCancelDto, @CurrentUser() user: AuthUser) { return this.payroll.cancelShift(id, shiftId, dto.reason, user); }
   @Get('employees/:id/report') report(@Param('id') id: string, @Query('from') from: string, @Query('to') to: string, @CurrentUser() user: AuthUser) {
     return this.payroll.report(id, from, to, user);
   }

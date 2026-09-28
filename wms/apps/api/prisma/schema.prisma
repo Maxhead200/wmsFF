@@ -15,6 +15,7 @@ model PayrollEmployee {
   updatedAt      DateTime @updatedAt
   rates          PayrollCondition[]
   shifts         PayrollShift[]
+  workDays       PayrollWorkDay[]
   handlingShares PayrollHandlingShare[]
   @@index([warehouseId, isDemo, isActive])
 }
@@ -43,6 +44,7 @@ model PayrollShift {
   source       String
   startPhoto   String?
   endPhoto     String?
+  cancelledAt  DateTime? // FIX: retained for audited cancellations.
   createdById  String
   reason       String?
   version      Int @default(1)
@@ -50,6 +52,15 @@ model PayrollShift {
   updatedAt    DateTime @updatedAt
   employee     PayrollEmployee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
   @@index([employeeId, workDate])
+}
+
+// FIX: lunch belongs to the whole start-date group, not to an individual visit.
+model PayrollWorkDay {
+  employeeId   String
+  workDate     String
+  lunchMinutes Int?
+  employee     PayrollEmployee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  @@id([employeeId, workDate])
 }
 
 model PayrollHandling {

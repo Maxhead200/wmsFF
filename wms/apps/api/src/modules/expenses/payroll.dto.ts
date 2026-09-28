@@ -1,4 +1,12 @@
-import { ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsIn, IsInt, IsISO8601, IsNumber, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsIn, IsInt, IsISO8601, IsNumber, IsOptional, IsString, MaxLength, Min, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+
+// FIX: initial rates are validated and committed with the new employee.
+export class PayrollInitialConditionDto {
+  @IsIn(['HOURLY', 'PIECE', 'PALLET']) kind!: string;
+  @IsInt() @Min(0) rateKopecks!: number;
+  @IsISO8601() startsAt!: string;
+}
 
 export class PayrollEmployeeDto {
   @IsString() @MaxLength(200) name!: string;
@@ -11,6 +19,8 @@ export class PayrollEmployeeDto {
   @IsIn(['CASH', 'TRANSFER', 'UNSPECIFIED']) paymentMethod!: string;
   @IsOptional() @IsString() @MaxLength(32) paymentPhone?: string;
   @IsOptional() @IsString() @MaxLength(200) paymentBank?: string;
+  @IsOptional() @IsArray() @ArrayMaxSize(2) @ValidateNested({ each: true }) @Type(() => PayrollInitialConditionDto)
+  initialConditions?: PayrollInitialConditionDto[];
 }
 
 export class PayrollConditionDto {
@@ -26,6 +36,8 @@ export class PayrollShiftDto {
   @IsISO8601() startsAt!: string;
   @IsOptional() @IsISO8601() endsAt?: string;
   @IsString() @MaxLength(1000) reason!: string;
+  // FIX: one override per day; omitted preserves it, null restores automatic lunch.
+  @IsOptional() @IsInt() @Min(0) lunchMinutes?: number | null;
 }
 
 export class PayrollHistoryEditDto {

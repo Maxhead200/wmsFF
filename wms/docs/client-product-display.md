@@ -1,7 +1,7 @@
 # Настройка описания товара при сборке и упаковке
 
 Подготовлено локально 28.09.2026 в `feature/client-product-display` от `c59e7b45`.
-Целевая ветка PR — `feature/wb-print-check`. Пока не опубликовано.
+PR358 слит в `feature/wb-print-check` и опубликован на нашей ВМС. ТСД — APK216.
 
 Перед работой сверены сайт https://wms.logoff.pro, работающие образы и паспорт PR356:
 
@@ -70,3 +70,7 @@
 ## Кандидат выпуска PR358
 
 Повторно сверены точные runtime-хеши PR356. Подготовлены шесть файлов API, точечные изменения четырёх веб-модулей с согласованным переименованием 29 модулей и APK216. Проверены подпись APK (совпадает с 215), DEX и неизменность остальных серверных файлов. Runtime и браузерные проверки кандидата прошли. Повторные API2868/web266/Android220 — passed, API113 skipped. Первый повторный вызов Vitest из корня ошибочно захватил неподходящие standalone-скрипты; штатный запуск из apps/api прошёл целиком.
+
+## Публикация
+
+Published PR358: per-client selection of name, article, barcode, size and color in assembly/packing WMS and Android TSD. Default behavior retained until explicitly configured. WMS_CLIENT_PRODUCT_DISPLAY_ENABLED=true only on our WMS. SystemSetting storage, no migration or preference writes during release. Raw scanner fields, cached plans, print labels and Excel unchanged. API2868/web266/Android220 passed; API113 skipped. Runtime and browser graph checks passed; APK216 signature matches215 and DEX checks passed. Public assets/APK, exact API/web hashes, settings read and unauthenticated HTTP401 verified. Sold WMS and other containers untouched. Source parity remains false; source reference historical. Physical TSD interaction pending.

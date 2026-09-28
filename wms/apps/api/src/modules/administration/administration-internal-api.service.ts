@@ -122,8 +122,8 @@ export const INTERNAL_API_DEFINITIONS: readonly InternalApiDefinition[] = Object
   {
     id: 'clients',
     name: 'Клиенты',
-    prefixes: ['/clients'],
-    routeCount: 8,
+    prefixes: ['/clients', '/clients/:clientId/product-display'],
+    routeCount: 10, // FIX: read/save per-client assembly presentation settings.
     description: 'Карточки клиентов, реквизиты и правила складского обслуживания.',
     logic: ['Хранит юридические и контактные данные.', 'Настраивает режимы остатков и хранения.', 'Связывает клиента с менеджером и собственной компанией.'],
     dependencies: ['Основная БД'],

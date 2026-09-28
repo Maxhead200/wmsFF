@@ -73,6 +73,7 @@ import {
 import { clientStatusLabel, formatCabinetMoney, formatCabinetNumber } from './clientCabinetFormat';
 import { ClientRequestTimelineModal } from './ClientRequestTimelineModal';
 import { ClientBranchStockTiles } from './ClientBranchStockTiles';
+import { ClientProductDisplaySettings } from './ClientProductDisplaySettings';
 
 type CabinetData = {
   clients: ClientSummary[];
@@ -811,6 +812,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
               onSave={() => void saveClientEdit()}
             />
           ) : null}
+          {canManageClients && <ClientProductDisplaySettings key={view.client.id} accessToken={session.accessToken} clientId={view.client.id} />}
           {canManageMarketplaceApi ? (
             <ClientMarketplaceConnections accessToken={session.accessToken} client={view.client} />
           ) : null}

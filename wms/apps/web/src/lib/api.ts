@@ -7187,6 +7187,14 @@ export type AdministrationPhantomStock = {
   }>;
 };
 
+export type ProductDisplayField = 'name' | 'article' | 'barcode' | 'size' | 'color';
+export type ProductDisplaySettings = { clientId: string; fields: ProductDisplayField[] | null };
+export function fetchProductDisplay(accessToken: string, clientId: string) {
+  return request<ProductDisplaySettings>(`/clients/${encodeURIComponent(clientId)}/product-display`, { accessToken });
+}
+export function saveProductDisplay(accessToken: string, clientId: string, fields: ProductDisplayField[] | null) {
+  return request<ProductDisplaySettings>(`/clients/${encodeURIComponent(clientId)}/product-display`, { accessToken, method: 'PUT', body: { fields } });
+}
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? '/api/v1';
 
 export async function login(payload: LoginPayload) {

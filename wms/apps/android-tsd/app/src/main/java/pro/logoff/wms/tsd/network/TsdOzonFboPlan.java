@@ -58,6 +58,7 @@ public class TsdOzonFboPlan {
     }
 
     public static class PlanItem {
+        public String productDisplayText;
         public String offerId;
         public String ozonSku;
         public String productName;

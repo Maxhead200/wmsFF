@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
+import { assemblyProductLabel } from '../../lib/assemblyProductDisplay';
 import { CheckCircle2, Download, Monitor, Printer, RotateCcw, ScanLine, ShieldCheck, Smartphone, Trash2 } from 'lucide-react';
 import { orderAssemblyPrintHtml } from './orderAssemblyLabels';
 import {
@@ -106,7 +107,7 @@ export function OrderAssemblyPanel({ session }: { session: AuthSession }) {
     </section>
     <form onSubmit={submit}><label htmlFor="order-kiz">Сканируйте КИЗ</label><div className="order-assembly__printer"><span>Принтер</span><select value={printer} onChange={(e) => { setPrinter(e.target.value); localStorage.setItem('web-order-printer', e.target.value); }}><option>XP-365B</option><option>TSC TE-200</option><option>NIIMBOT B1</option><option>DETONGER P2</option></select></div><input id="order-kiz" ref={input} autoFocus autoComplete="off" value={code} onChange={(e) => setCode(e.target.value.replace(/[\r\n]+$/g, ''))} placeholder="Курсор уже здесь — пикните QR товара" disabled={busy}/><button disabled={busy || !code.trim()}><Printer />{busy ? 'Обрабатываю…' : 'Найти и напечатать'}</button></form>
     <div className={`order-assembly__status ${message.includes('Выдано') ? 'is-ok' : ''}`}><ShieldCheck /><b>{message}</b></div>
-    {last && <article><CheckCircle2 /><div><small>ПОСЛЕДНИЙ СТИКЕР</small><h3>Заказ №{last.orderId}</h3><p>{last.productName}{last.article ? ` · ${last.article}` : ''}</p><span>Короб: {last.boxCode || 'без короба'}</span></div></article>}
+    {last && <article><CheckCircle2 /><div><small>ПОСЛЕДНИЙ СТИКЕР</small><h3>Заказ №{last.orderId}</h3><p>{assemblyProductLabel(last, [last.productName, last.article].filter(Boolean).join(' · '))}</p><span>Короб: {last.boxCode || 'без короба'}</span></div></article>}
     <p className="order-assembly__rule">Повтор КИЗ и повтор стикера блокируются сервером на всех компьютерах.</p>
     <section className="order-assembly__history">
       {/* FIX: search does not print automatically; the existing row action performs the reprint. */}

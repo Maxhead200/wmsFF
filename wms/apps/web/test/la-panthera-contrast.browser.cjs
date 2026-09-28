@@ -5,6 +5,8 @@ const { chromium } = require('C:/Users/La_pa/.cache/codex-runtimes/codex-primary
 const root = path.resolve(__dirname, '../src');
 const output = process.env.THEME_TEST_OUTPUT || 'D:/WMSFF/_Kof/work/la-panthera-contrast-release';
 const fixtures = [
+  // TEST: supply group translucent badges/buttons must remain legible on graphite.
+  ['shipment-groups', `<table class="fbs-table">${['','fbs-table__shipment-group--nested','fbs-table__date-group'].map(mode=>`<tbody class="fbs-table__shipment-group ${mode}"><tr class="fbs-table__shipment-heading"><td><div class="fbs-table__shipment-heading-content"><div><button class="fbs-table__shipment-toggle">›</button><strong>Одна поставка FBS</strong><b class="fbs-table__shipment-warehouse">Склад WB: мой склад Казань</b><span>Поставка WB-GI-284381315 · заявка WMS №001477</span></div><div class="fbs-table__shipment-actions"><button>Выбрать группу</button><button disabled>ШК заказов</button><button>Передать WB</button></div></div></td></tr></tbody>`).join('')}</table>`],
   // TEST: payroll editor has inline white background and stretched grid tracks.
   ['payroll-dialog', '<section class="payroll-management"><form role="dialog" style="background:white;min-height:650px"><h3>Редактировать приход и уход</h3><div class="payroll-fields"><label>Начало, МСК<input type="datetime-local" value="2026-09-28T10:00"></label><label>Комментарий<input value="Исправление"></label></div><button>Сохранить</button><button type="button">Отмена</button></form></section>'],
   // TEST: expense overview must not retain legacy white surfaces.
@@ -116,6 +118,6 @@ const fixtures = [
     await page.evaluate(() => { for (const el of document.querySelector('.workspace-content').children) el.style.display = 'block'; });
     await page.emulateMedia({media: 'print'});
     assert.equal(await product.evaluate(e => getComputedStyle(e).whiteSpace), 'nowrap', 'Theme must not modify printing');
-    console.log('PASS: 26 operational views, real feature CSS, >=4.5:1 contrast, dark panels, full product name, theme isolation and print exclusion');
+    console.log('PASS: 27 operational views, real feature CSS, >=4.5:1 contrast, dark panels, full product name, theme isolation and print exclusion');
   } finally { await browser.close(); }
 })().catch(e => {console.error(e); process.exitCode = 1;});

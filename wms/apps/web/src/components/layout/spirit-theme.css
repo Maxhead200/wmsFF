@@ -1,59 +1,59 @@
 /* FIX: Spirit is opt-in. No marketing, TSD or other theme selectors. */
 :root[data-ui-variant='spirit'] {
-  color-scheme: light;
-  --ink: #203127;
-  --muted: #3d4c42;
-  --line: #b9d2c1;
-  --surface: #fcfefc;
-  --bg: #dcefe1;
-  /* FIX: soft green canvas, with dark text and nearly-white data surfaces. */
-  --spirit-canvas: linear-gradient(135deg, #ffffff 0%, #f0faf3 42%, #dcefe1 100%);
-  --ok: #28654b;
-  --danger: #a53d38;
-  --plan: #276344;
-  --work: #805b26;
-  --red: #276344;
-  --red-dark: #204f37;
-  --modern-topbar: #f0faf3;
-  --modern-sidebar: #f0faf3;
-  --modern-sidebar-hover: #cfe8d7;
-  --modern-canvas: #f0faf3;
-  --modern-panel: #fcfefc;
-  --modern-line: #b9d2c1;
-  --modern-line-soft: #e1eee5;
-  --modern-red: #a53d38;
-  --modern-blue: #365e49;
-  --modern-green: #28654b;
-  --modern-orange: #805b26;
-  --modern-violet: #276344;
-  --modern-teal: #28654b;
-  --spirit-tile-shadow: inset 0 1px 0 rgb(255 255 255 / 0.95), inset 0 -2px 0 rgb(49 89 63 / 0.10), 0 3px 0 #b3cfbd, 0 7px 12px rgb(31 65 44 / 0.16);
+  color-scheme: dark;
+  --ink: #f2f3f5;
+  --muted: #c5c9d0;
+  --line: #454950;
+  --surface: #202328;
+  --bg: #282b30;
+  /* FIX: black-to-graphite canvas with light text and layered dark surfaces. */
+  --spirit-canvas: linear-gradient(135deg, #101113 0%, #191b1f 42%, #282b30 100%);
+  --ok: #8fd6b0;
+  --danger: #ffaaa6;
+  --plan: #c9ced7;
+  --work: #e8c58b;
+  --red: #c9ced7;
+  --red-dark: #edf0f5;
+  --modern-topbar: #191b1f;
+  --modern-sidebar: #191b1f;
+  --modern-sidebar-hover: #30343a;
+  --modern-canvas: #191b1f;
+  --modern-panel: #202328;
+  --modern-line: #454950;
+  --modern-line-soft: #34383f;
+  --modern-red: #ffaaa6;
+  --modern-blue: #bfcddd;
+  --modern-green: #8fd6b0;
+  --modern-orange: #e8c58b;
+  --modern-violet: #c9ced7;
+  --modern-teal: #8fd6b0;
+  --spirit-tile-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12), inset 0 -2px 0 rgb(0 0 0 / 0.35), 0 3px 0 #0c0d0f, 0 7px 12px rgb(0 0 0 / 0.40);
 }
 :root[data-ui-variant='spirit'] body { background: var(--bg); color: var(--ink); }
-/* FIX: light green surfaces and charcoal text, including controls nested inside tables. */
-.app-layout[data-ui-variant='spirit'] .app-sidebar { background: linear-gradient(180deg, #ffffff 0%, #dcefe1 100%); border-right: 1px solid var(--line); }
-.app-layout[data-ui-variant='spirit'] .app-sidebar :is(a, button, strong, span, small) { color: #3b4e42; }
-.app-layout[data-ui-variant='spirit'] .app-sidebar__nav button.active { color: #204f37; background: #cfe8d7; box-shadow: inset 3px 0 #276344; }
-.app-layout[data-ui-variant='spirit'] .app-sidebar__nav button:hover { background: #cfe8d7; }
-.app-layout[data-ui-variant='spirit'] .workspace-header { background: #f0faf3; color: var(--ink); }
+/* FIX: graphite surfaces and light text, including controls nested inside tables. */
+.app-layout[data-ui-variant='spirit'] .app-sidebar { background: linear-gradient(180deg, #101113 0%, #282b30 100%); border-right: 1px solid var(--line); }
+.app-layout[data-ui-variant='spirit'] .app-sidebar :is(a, button, strong, span, small) { color: #c5c9d0; }
+.app-layout[data-ui-variant='spirit'] .app-sidebar__nav button.active { color: #edf0f5; background: #30343a; box-shadow: inset 3px 0 #c9ced7; }
+.app-layout[data-ui-variant='spirit'] .app-sidebar__nav button:hover { background: #30343a; }
+.app-layout[data-ui-variant='spirit'] .workspace-header { background: #191b1f; color: var(--ink); }
 .app-layout[data-ui-variant='spirit'] :is(.workspace-header__title h1, .workspace-user strong) { color: var(--ink); }
 .app-layout[data-ui-variant='spirit'] .modern-dashboard__heading h1 { font-family: Georgia, 'Times New Roman', serif; font-weight: 500; }
 .app-layout[data-ui-variant='spirit'] :is(.workspace-tile, .warehouse-topic-tile, .fbs-marketplace-card,.fbs-tile, .metric-tile, .module-card, .access-topic-tile, .admin-tech-tile, .billing-invoice-kind-tile, .billing-topic-tile, .directory-topic-tile, .fbs-warehouse-tile, .print-topic-tile, .turnover-summary-tile, .turnover-tile) { background: var(--surface); color: var(--ink); border-color: var(--line); border-radius: 12px; }
-.app-layout[data-ui-variant='spirit'] .client-request-table :is(button, .document-open-button) { background: #f1f8f3; color: #33473a; border-color: #b9ccbf; font-weight: 600; box-shadow: none; }
+.app-layout[data-ui-variant='spirit'] .client-request-table :is(button, .document-open-button) { background: #2c3036; color: #eef0f4; border-color: #555b65; font-weight: 600; box-shadow: none; }
 .app-layout[data-ui-variant='spirit'] .client-request-table td button :is(span, strong, small),
 .app-layout[data-ui-variant='spirit'] .client-request-table td .client-request-action-button span { color: inherit; font-weight: inherit; }
-.app-layout[data-ui-variant='spirit'] .client-request-table button:hover:not(:disabled) { background: #dcece1; border-color: #86aa93; }
-.app-layout[data-ui-variant='spirit'] .client-request-table button:disabled { background: #e5ebe7; color: #626e66; opacity: 1; border-style: dashed; cursor: not-allowed; }
-.app-layout[data-ui-variant='spirit'] .client-request-table :is(.client-request-action-button--cancel, .client-request-action-button--emergency-rollback) { color: #a53d38; background: #f7e8e3; border-color: #d9b0a8; }
-.app-layout[data-ui-variant='spirit'] :is(.client-request-number, .client-request-wb-supplies, .client-request-items-count, .client-request-fbs-completion) { color: #354c3d; background: #e2efe6; border-color: #b9d1c1; border-radius: 7px; }
-.app-layout[data-ui-variant='spirit'] .client-request-table td :is(.client-request-items-count, .client-request-fbs-completion) { color: #354c3d; }
+.app-layout[data-ui-variant='spirit'] .client-request-table button:hover:not(:disabled) { background: #3a4048; border-color: #828b99; }
+.app-layout[data-ui-variant='spirit'] .client-request-table button:disabled { background: #282c31; color: #a5acb6; opacity: 1; border-style: dashed; cursor: not-allowed; }
+.app-layout[data-ui-variant='spirit'] .client-request-table :is(.client-request-action-button--cancel, .client-request-action-button--emergency-rollback) { color: #ffaaa6; background: #40282b; border-color: #805052; }
+.app-layout[data-ui-variant='spirit'] :is(.client-request-number, .client-request-wb-supplies, .client-request-items-count, .client-request-fbs-completion) { color: #e1e5eb; background: #30353c; border-color: #535c68; border-radius: 7px; }
+.app-layout[data-ui-variant='spirit'] .client-request-table td :is(.client-request-items-count, .client-request-fbs-completion) { color: #e1e5eb; }
 .app-layout[data-ui-variant='spirit'] .client-request-table td :is(.client-request-list-meta, .client-request-items-preview, .client-request-table__client-cell > span) { color: var(--muted); }
-.app-layout[data-ui-variant='spirit'] :is(.client-request-title, .client-request-number__accent, .client-request-wb-supplies strong) { font-weight: 650; color: #25372c; }
+.app-layout[data-ui-variant='spirit'] :is(.client-request-title, .client-request-number__accent, .client-request-wb-supplies strong) { font-weight: 650; color: #f2f3f5; }
 /* FIX: uniform centre lift blends into corner tilt; table rows remain still. */
 @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
   .app-layout[data-ui-variant='spirit'] :is(.workspace-tile, .warehouse-topic-tile, .fbs-marketplace-card,.fbs-tile, .metric-tile, .module-card, .access-topic-tile, .admin-tech-tile, .billing-invoice-kind-tile, .billing-topic-tile, .directory-topic-tile, .fbs-warehouse-tile, .print-topic-tile, .turnover-summary-tile, .turnover-tile, .modern-dashboard__metrics article, .modern-dashboard__quick button) { transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease; }
-  .app-layout[data-ui-variant='spirit'] :is(.workspace-tile, .warehouse-topic-tile, .fbs-marketplace-card,.fbs-tile, .metric-tile, .module-card, .access-topic-tile, .admin-tech-tile, .billing-invoice-kind-tile, .billing-topic-tile, .directory-topic-tile, .fbs-warehouse-tile, .print-topic-tile, .turnover-summary-tile, .turnover-tile, .modern-dashboard__metrics article, .modern-dashboard__quick button):hover:not(:disabled) { transform: perspective(700px) translateZ(var(--spirit-tilt-z, 0px)) rotateX(var(--spirit-tilt-x, 0deg)) rotateY(var(--spirit-tilt-y, 0deg)); box-shadow: var(--spirit-tile-shadow); border-color: #719c80; }
-  .app-layout[data-ui-variant='spirit'] :is(.workspace-tile, .warehouse-topic-tile, .fbs-marketplace-card,.fbs-tile, .metric-tile, .module-card, .access-topic-tile, .admin-tech-tile, .billing-invoice-kind-tile, .billing-topic-tile, .directory-topic-tile, .fbs-warehouse-tile, .print-topic-tile, .turnover-summary-tile, .turnover-tile, .modern-dashboard__quick button):active:not(:disabled) { transform: none; box-shadow: inset 0 1px 2px rgb(31 65 44 / 0.10), 0 1px 0 #a4c5b1, 0 3px 6px rgb(31 65 44 / 0.16); }
+  .app-layout[data-ui-variant='spirit'] :is(.workspace-tile, .warehouse-topic-tile, .fbs-marketplace-card,.fbs-tile, .metric-tile, .module-card, .access-topic-tile, .admin-tech-tile, .billing-invoice-kind-tile, .billing-topic-tile, .directory-topic-tile, .fbs-warehouse-tile, .print-topic-tile, .turnover-summary-tile, .turnover-tile, .modern-dashboard__metrics article, .modern-dashboard__quick button):hover:not(:disabled) { transform: perspective(700px) translateZ(var(--spirit-tilt-z, 0px)) rotateX(var(--spirit-tilt-x, 0deg)) rotateY(var(--spirit-tilt-y, 0deg)); box-shadow: var(--spirit-tile-shadow); border-color: #88929f; }
+  .app-layout[data-ui-variant='spirit'] :is(.workspace-tile, .warehouse-topic-tile, .fbs-marketplace-card,.fbs-tile, .metric-tile, .module-card, .access-topic-tile, .admin-tech-tile, .billing-invoice-kind-tile, .billing-topic-tile, .directory-topic-tile, .fbs-warehouse-tile, .print-topic-tile, .turnover-summary-tile, .turnover-tile, .modern-dashboard__quick button):active:not(:disabled) { transform: none; box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.35), 0 1px 0 #15171b, 0 3px 6px rgb(0 0 0 / 0.40); }
 }
 @media (prefers-reduced-motion: reduce), (hover: none), (pointer: coarse) {
   .app-layout[data-ui-variant='spirit'] :is(.workspace-tile, .warehouse-topic-tile, .fbs-marketplace-card,.fbs-tile, .metric-tile, .module-card, .access-topic-tile, .admin-tech-tile, .billing-invoice-kind-tile, .billing-topic-tile, .directory-topic-tile, .fbs-warehouse-tile, .print-topic-tile, .turnover-summary-tile, .turnover-tile, .modern-dashboard__metrics article, .modern-dashboard__quick button) { transition: none; transform: none; }
@@ -74,17 +74,17 @@
 .app-layout[data-ui-variant='spirit'] .modern-dashboard__metrics article { padding: 12px; min-width: 0; }
 .app-layout[data-ui-variant='spirit'] .modern-dashboard__metrics strong { font-size: 26px; font-variant-numeric: tabular-nums; }
 .app-layout[data-ui-variant='spirit'] .modern-dashboard__columns { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; }
-.app-layout[data-ui-variant='spirit'] :is(input, select, textarea, option, .workspace-global-search, .workspace-branch-select, .ui-theme-switcher, .workspace-user, .modern-header-action) { background: #f0faf3; color: var(--ink); border-color: var(--line); }
+.app-layout[data-ui-variant='spirit'] :is(input, select, textarea, option, .workspace-global-search, .workspace-branch-select, .ui-theme-switcher, .workspace-user, .modern-header-action) { background: #191b1f; color: var(--ink); border-color: var(--line); }
 .app-layout[data-ui-variant='spirit'] :is(input, textarea)::placeholder { color: var(--muted); }
-.app-layout[data-ui-variant='spirit'] :is(button, a, input, select, textarea):focus-visible { outline: 2px solid #276344; outline-offset: 2px; }
+.app-layout[data-ui-variant='spirit'] :is(button, a, input, select, textarea):focus-visible { outline: 2px solid #c9ced7; outline-offset: 2px; }
 .app-layout[data-ui-variant='spirit'] :is(button, select, input) { max-width: 100%; }
-.app-layout[data-ui-variant='spirit'] :is(.modern-dashboard__queue-status, .modern-dashboard__branch-status, .analytics-supply-positive, .analytics-dynamic.positive) { color: var(--ok); background: #e6efe7; }
-.app-layout[data-ui-variant='spirit'] :is(.is-danger, .analytics-dynamic.negative) { color: var(--danger); background: #f7e8e3; }
-.app-layout[data-ui-variant='spirit'] :is(.analytics-count, .modern-dashboard__panel > header > span) { color: #276344; background: #e0efe5; }
+.app-layout[data-ui-variant='spirit'] :is(.modern-dashboard__queue-status, .modern-dashboard__branch-status, .analytics-supply-positive, .analytics-dynamic.positive) { color: var(--ok); background: #223b2e; }
+.app-layout[data-ui-variant='spirit'] :is(.is-danger, .analytics-dynamic.negative) { color: var(--danger); background: #40282b; }
+.app-layout[data-ui-variant='spirit'] :is(.analytics-count, .modern-dashboard__panel > header > span) { color: #c9ced7; background: #30353c; }
 .app-layout[data-ui-variant='spirit'] table { color: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums; }
 .app-layout[data-ui-variant='spirit'] :is(th, td) { padding: 7px 10px; border-color: var(--line); background: var(--surface); color: var(--ink); }
-.app-layout[data-ui-variant='spirit'] th { background: #eaf5ee; color: var(--muted); }
-.app-layout[data-ui-variant='spirit'] tbody tr:hover td { background: #eaf5ee; }
+.app-layout[data-ui-variant='spirit'] th { background: #2b3037; color: var(--muted); }
+.app-layout[data-ui-variant='spirit'] tbody tr:hover td { background: #2b3037; }
 .app-layout[data-ui-variant='spirit'] .spirit-chart { height: 240px; width: 100%; min-width: 0; }
 /* Keyboard-accessible exact values and product actions complement Canvas. */
 .app-layout[data-ui-variant='spirit'] .analytics-bars__track { display: none; }
@@ -92,9 +92,9 @@
 .app-layout[data-ui-variant='spirit'] .analytics-bars__label strong { color: var(--ink); }
 /* FIX: visible resting depth; no size, spacing or table layout changes. */
 .app-layout[data-ui-variant='spirit'] :is(.workspace-tile, .warehouse-topic-tile, .fbs-marketplace-card,.fbs-tile, .metric-tile, .module-card, .access-topic-tile, .admin-tech-tile, .billing-invoice-kind-tile, .billing-topic-tile, .directory-topic-tile, .fbs-warehouse-tile, .print-topic-tile, .turnover-summary-tile, .turnover-tile, .modern-dashboard__metrics article, .modern-dashboard__quick button) {
-  background: linear-gradient(160deg, #ffffff 0%, #f0faf3 45%, #cfe8d7 100%);
-  border: 1px solid #9fc4ac;
-  border-top-color: #d7eadd;
+  background: linear-gradient(160deg, #101113 0%, #191b1f 45%, #30343a 100%);
+  border: 1px solid #505762;
+  border-top-color: #68717e;
   border-radius: 12px;
   box-shadow: var(--spirit-tile-shadow);
 }

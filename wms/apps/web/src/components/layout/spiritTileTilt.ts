@@ -34,7 +34,8 @@ export function installSpiritTileTilt(doc: Document = document, win: Window = wi
     if (event.pointerType !== 'mouse' || event.buttons !== 0) { reset(); return; }
     const target = event.target as Element | null;
     const tile = target?.closest?.(TILES) as HTMLElement | null;
-    if (!tile || !tile.closest('.app-layout[data-ui-variant="spirit"]') || tile.matches(':disabled,[aria-disabled="true"]')) { reset(); return; }
+    // FIX: apply to every workspace theme, never the public landing page.
+    if (!tile || !tile.closest('.app-layout') || tile.matches(':disabled,[aria-disabled="true"]')) { reset(); return; }
     if (tile !== active) { reset(); active = tile; bounds = tile.getBoundingClientRect(); }
     point = { x: event.clientX, y: event.clientY };
     if (frame !== null) return;

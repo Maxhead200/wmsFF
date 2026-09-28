@@ -385,23 +385,35 @@
   .fbs-turnkey-card__icon,.turnover-tile__icon
 ) { background: var(--spirit-icon-bg, #24364f); color: var(--spirit-icon-fg, #a9cdff); border-color: var(--spirit-icon-border, #5a7ca7); }
 /* FIX: varied decorative accents; status colours and tile text stay unchanged. */
-:root[data-ui-variant='spirit'] .app-layout :is(.workspace-tile,.admin-tech-tile,.warehouse-topic-tile,.billing-topic-tile,.billing-invoice-kind-tile,.directory-topic-tile,.print-topic-tile,.access-topic-tile,.fbs-marketplace-card,.fbs-tile,.fbs-turnkey-card,.turnover-tile):nth-child(5n + 1) {
+:root[data-ui-variant='spirit'] .app-layout :is(.workspace-tile,.admin-tech-tile,.warehouse-topic-tile,.billing-topic-tile,.billing-invoice-kind-tile,.directory-topic-tile,.print-topic-tile,.access-topic-tile,.fbs-marketplace-card,.fbs-tile,.fbs-turnkey-card,.turnover-tile,.modern-dashboard__quick > button,.modern-dashboard__queue > button):nth-child(5n + 1) {
   --spirit-icon-fg: #a9cdff; --spirit-icon-bg: #24364f; --spirit-icon-border: #5a7ca7;
 }
-:root[data-ui-variant='spirit'] .app-layout :is(.workspace-tile,.admin-tech-tile,.warehouse-topic-tile,.billing-topic-tile,.billing-invoice-kind-tile,.directory-topic-tile,.print-topic-tile,.access-topic-tile,.fbs-marketplace-card,.fbs-tile,.fbs-turnkey-card,.turnover-tile):nth-child(5n + 2) {
+:root[data-ui-variant='spirit'] .app-layout :is(.workspace-tile,.admin-tech-tile,.warehouse-topic-tile,.billing-topic-tile,.billing-invoice-kind-tile,.directory-topic-tile,.print-topic-tile,.access-topic-tile,.fbs-marketplace-card,.fbs-tile,.fbs-turnkey-card,.turnover-tile,.modern-dashboard__quick > button,.modern-dashboard__queue > button):nth-child(5n + 2) {
   --spirit-icon-fg: #a7e7c3; --spirit-icon-bg: #293e34; --spirit-icon-border: #638773;
 }
-:root[data-ui-variant='spirit'] .app-layout :is(.workspace-tile,.admin-tech-tile,.warehouse-topic-tile,.billing-topic-tile,.billing-invoice-kind-tile,.directory-topic-tile,.print-topic-tile,.access-topic-tile,.fbs-marketplace-card,.fbs-tile,.fbs-turnkey-card,.turnover-tile):nth-child(5n + 3) {
+:root[data-ui-variant='spirit'] .app-layout :is(.workspace-tile,.admin-tech-tile,.warehouse-topic-tile,.billing-topic-tile,.billing-invoice-kind-tile,.directory-topic-tile,.print-topic-tile,.access-topic-tile,.fbs-marketplace-card,.fbs-tile,.fbs-turnkey-card,.turnover-tile,.modern-dashboard__quick > button,.modern-dashboard__queue > button):nth-child(5n + 3) {
   --spirit-icon-fg: #d2baff; --spirit-icon-bg: #383049; --spirit-icon-border: #8972ad;
 }
-:root[data-ui-variant='spirit'] .app-layout :is(.workspace-tile,.admin-tech-tile,.warehouse-topic-tile,.billing-topic-tile,.billing-invoice-kind-tile,.directory-topic-tile,.print-topic-tile,.access-topic-tile,.fbs-marketplace-card,.fbs-tile,.fbs-turnkey-card,.turnover-tile):nth-child(5n + 4) {
+:root[data-ui-variant='spirit'] .app-layout :is(.workspace-tile,.admin-tech-tile,.warehouse-topic-tile,.billing-topic-tile,.billing-invoice-kind-tile,.directory-topic-tile,.print-topic-tile,.access-topic-tile,.fbs-marketplace-card,.fbs-tile,.fbs-turnkey-card,.turnover-tile,.modern-dashboard__quick > button,.modern-dashboard__queue > button):nth-child(5n + 4) {
   --spirit-icon-fg: #f4d18e; --spirit-icon-bg: #443821; --spirit-icon-border: #a18a58;
 }
-:root[data-ui-variant='spirit'] .app-layout :is(.workspace-tile,.admin-tech-tile,.warehouse-topic-tile,.billing-topic-tile,.billing-invoice-kind-tile,.directory-topic-tile,.print-topic-tile,.access-topic-tile,.fbs-marketplace-card,.fbs-tile,.fbs-turnkey-card,.turnover-tile):nth-child(5n + 5) {
+:root[data-ui-variant='spirit'] .app-layout :is(.workspace-tile,.admin-tech-tile,.warehouse-topic-tile,.billing-topic-tile,.billing-invoice-kind-tile,.directory-topic-tile,.print-topic-tile,.access-topic-tile,.fbs-marketplace-card,.fbs-tile,.fbs-turnkey-card,.turnover-tile,.modern-dashboard__quick > button,.modern-dashboard__queue > button):nth-child(5n + 5) {
   --spirit-icon-fg: #ffb5ac; --spirit-icon-bg: #482f31; --spirit-icon-border: #aa7272;
 }
 :root[data-ui-variant='spirit'] .app-layout .tsd-monitor :is(.is-online svg,.is-online strong,.tsd-picker-order b) { color: #a7e7c3; }
 :root[data-ui-variant='spirit'] .app-layout .tsd-monitor :is(.is-danger svg,.is-danger strong) { color: #ffb4af; }
+/* FIX: dashboard quick links use unclassed icon spans, not workspace tiles. */
+:root[data-ui-variant='spirit'] .app-layout .modern-dashboard__quick > button > span,
+:root[data-ui-variant='spirit'] .app-layout .modern-dashboard__queue > button > .modern-dashboard__queue-icon {
+  background: var(--spirit-icon-bg, #24364f); color: var(--spirit-icon-fg, #a9cdff);
+}
+:root[data-ui-variant='spirit'] .app-layout .modern-dashboard__queue > button > .modern-dashboard__queue-icon.is-danger,
+:root[data-ui-variant='spirit'] .app-layout .modern-dashboard__queue > button > .modern-dashboard__queue-status.is-danger {
+  background: #482f31; color: #ffb5ac; border-color: #aa7272;
+}
+:root[data-ui-variant='spirit'] .app-layout .modern-dashboard__branches dd { color: #f2f3f5; }
+:root[data-ui-variant='spirit'] .app-layout .modern-dashboard__branches article > div:first-child span,
+:root[data-ui-variant='spirit'] .app-layout .modern-dashboard__branches dt { color: #c5c9d0; }
 @media (max-width: 1100px) {
   .app-layout[data-ui-variant='spirit'] .modern-dashboard__columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

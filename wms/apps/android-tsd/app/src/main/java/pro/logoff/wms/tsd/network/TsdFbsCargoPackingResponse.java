@@ -59,6 +59,7 @@ public class TsdFbsCargoPackingResponse {
     }
 
     public static class Order {
+        public String productDisplayText;
         public String orderId;
         public String requestId;
         public int requestNumber;

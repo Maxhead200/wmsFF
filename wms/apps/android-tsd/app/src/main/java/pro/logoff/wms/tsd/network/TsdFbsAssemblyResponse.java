@@ -128,6 +128,11 @@ public class TsdFbsAssemblyResponse {
     }
 
     public static class Product {
+        public String productDisplayText;
+        // FIX: presentation is independent of the real barcode and relabel source fields.
+        public String displayLabel(String fallback) {
+            return productDisplayText == null ? fallback : productDisplayText;
+        }
         public String id;
         public String name;
         public String article;

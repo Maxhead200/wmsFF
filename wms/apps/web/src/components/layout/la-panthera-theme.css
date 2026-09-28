@@ -11,6 +11,15 @@
   :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] {
     color-scheme: dark;
     --ink: #f3f3f6;
+    --text: #f3f3f6;
+    --text-primary: #f3f3f6;
+    --text-secondary: #c9cad6;
+    --text-soft: #c9cad6;
+    --accent: #c4b5fd;
+    --accent-strong: #d6c9ff;
+    --accent-soft: #2d293a;
+    --border: #50515e;
+    --border-subtle: #414149;
     --muted: #b5b5c2;
     --line: #414149;
     --surface: #191a1e;
@@ -75,4 +84,130 @@
   :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(button, input, select, textarea) { font-family: inherit; }
   :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(td, th, .workspace-tile strong, .workspace-tile small, .app-sidebar__nav button, .primary-button, .secondary-button) { font-size: 14px; line-height: 1.5; }
   :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.workspace-tile small, .modern-dashboard__heading p, .workspace-user span) { color: var(--muted); }
+}
+
+/* FIX: operational views have their own light gradients; replace both image and color.
+   No geometry or DOM changes. Also applies to the portaled online execution dialog. */
+@media screen {
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.client-request-fbs-tails, .online-execution-modal__panel, .online-execution-section, .online-execution-progress, .online-execution-metrics article, .online-execution-search, .online-execution-wms-box, .online-execution-kiz-conflict-list > article, .client-request-status-select, .client-request-wb-supplies, .fbs-route-diff, .balance-review-panel, .balance-review-modal, .balance-review-line, .balance-destination, .fbs-supply-consistency-summary) { background: #202127; color: #f3f3f6; border-color: #50515e; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.client-request-fbs-tails, .online-execution-modal__panel, .online-execution-section, .client-request-wb-supplies, .balance-review-panel, .balance-review-modal, .fbs-supply-consistency-summary) :is(h3, h4, strong, b, label) { color: #f3f3f6; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.client-request-fbs-tails, .online-execution-modal__panel, .online-execution-section, .client-request-wb-supplies) :is(span, small, code) { color: #c9cad6; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.client-request-action-button, .client-request-row-fbs-link, .online-execution-search button, .document-open-button) { background: #292a34; color: #eee9ff; border-color: #666575; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.client-request-action-button, .client-request-row-fbs-link, .document-open-button):hover:not(:disabled) { background: #363044; color: #ffffff; border-color: #b9a2f5; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.client-request-action-button, .client-request-row-fbs-link, .document-open-button) :is(span, strong, small, svg) { color: inherit; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(button:disabled, button[aria-disabled='true']) { opacity: 1; background: #24252c; color: #b9bac6; border-color: #575963; border-style: dashed; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(button:disabled, button[aria-disabled='true']) :is(span, strong, small, svg) { color: inherit; opacity: 1; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.client-request-number, .client-request-items-count, .client-request-fbs-completion, .client-request-source-badge, .online-execution-chip, .online-execution-pill) { background: #2d293a; color: #e7dcff; border-color: #6d617f; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.client-request-number__prefix, .client-request-number__accent, .client-request-table__client-cell strong, .client-request-table__warehouse-cell strong) { color: #ede5ff; opacity: 1; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.client-request-table__request-cell, .client-request-table__client-cell, .client-request-table__warehouse-cell, .client-request-table__composition-cell) :is(strong, b) { color: #f3f3f6; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.client-request-table__request-cell, .client-request-table__client-cell, .client-request-table__warehouse-cell, .client-request-table__composition-cell) :is(span, small) { color: #c9cad6; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.online-execution-empty--done, .online-execution-pill.is-done, .online-execution-chip.is-done, .client-request-fbs-completion--done, .status-badge--success, .badge--success, .status-pill--success, .fbs-supply-consistency-summary.is-ok) { background: #193c2c; color: #9feac1; border-color: #438967; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.online-execution-empty, .online-execution-kiz, .online-execution-section__heading span) { color: #c9cad6; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.client-request-action-button--cancel, .client-request-action-button--emergency-rollback, .online-execution-pill.is-danger, .online-execution-metrics article.is-danger, .fbs-supply-consistency-summary.is-error) { background: #3b242b; color: #ffb3bb; border-color: #985361; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.online-execution-pill.is-sos, .online-execution-metrics article.is-warning, .client-request-action-button--emergency) { background: #3a3021; color: #f6d295; border-color: #9a7b4b; }
+}
+
+/* FIX: feature panels keep their layout while using readable dark surfaces. */
+@media screen {
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.kizc-panel, .integration-api, .logistics-panel) { color: #f3f3f6; --surface: #191a1e; --ink: #f3f3f6; --muted: #c9cad6; --line: #50515e; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.kizc-source, .kizc-tabs, .kizc-sync-panel, .kizc-workbar, .kizc-queue, .kizc-compose > div, .kizc-settings, .kizc-batch-list, .kizc-batch-action, .kizc-price, .kizc-batch-list > button, .integration-api__form, .integration-api__registry, .integration-api__empty, .logistics-panel, .logistics-summary, .logistics-summary-metric, .logistics-summary-row, .quote-metric, .carrier-form, .trip-form, .tsd-messages) { background: #202127; color: #f3f3f6; border-color: #50515e; box-shadow: none; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.kizc-operation-switch, .quote-mode, .readonly-field, .integration-api__scopes label, .integration-api__scope-tags code, .kizc-queue > header > strong, .client-request-city) { background: #292a34; color: #eee9ff; border-color: #666575; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.kizc-panel, .integration-api) :is(h2, h3, h4, strong, legend, label, code, dd) { color: #f3f3f6; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.kizc-panel, .integration-api) :is(p, small, em, dt, .is-optional, .kizc-selection, .kizc-empty, .kizc-price span, .kizc-settings__footer > div, .kizc-batch-list > header span, .kizc-batch-action > header span) { color: #c9cad6; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.kizc-secondary, .kizc-tabs button, .kizc-operation-switch button, .kizc-select-all, .integration-api button, .logistics-summary__toolbar button, .delivery-billing-button) { background: #292a34; color: #eee9ff; border-color: #666575; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.kizc-tabs button.active, .kizc-operation-switch button.active, .kizc-batch-list > button.active, .kizc-select-all:has(input:checked), .integration-api__scopes label.is-selected, .quote-mode button.active) { background: #343044; color: #ede5ff; border-color: #b9a2f5; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.kizc-table code, .kizc-source small, .kizc-source em, .kizc-status) { font-size: 12px; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.kizc-status, .status, .integration-api__credential-title .is-off) { background: #292a34; color: #dedfea; border-color: #666575; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.kizc-status--ready, .kizc-status--applied, .kizc-status--already_applied, .kizc-alert--success, .kizc-settings-section > header > span.is-ready, .integration-api__credential-title .is-on, .integration-api__feedback.is-success, .quote-result, .delivery-quote-button, .status--ready, .status--done) { background: #193c2c; color: #9feac1; border-color: #438967; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.kizc-status--error, .kizc-alert--error, .integration-api__feedback.is-error, .integration-api button.is-danger, .status--cancelled) { background: #3b242b; color: #ffb3bb; border-color: #985361; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.kizc-status--needs_review, .kizc-settings-section > header > span.is-missing, .quote-result--manual, .logistics-route-warning, .status--in-work) { background: #3a3021; color: #f6d295; border-color: #9a7b4b; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.kizc-status--submitted, .kizc-status--in_batch, .status--in-progress, .status--planned) { background: #25314c; color: #b8ceff; border-color: #617cad; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.kizc-hint, .kizc-batch-step p, .kizc-table td small.danger) { color: #ffb3bb; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.kizc-sync-panel__title > svg, .kizc-settings > header svg) { color: #cfbaff; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .tsd-monitor { --monitor-ink: #f3f3f6; --monitor-muted: #c9cad6; --monitor-line: #50515e; --monitor-surface: #191a1e; --monitor-bg: #202127; --accent: #c4b5fd; --accent-strong: #d6c9ff; color: #f3f3f6; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .tsd-monitor :is(strong, .tsd-feed__current-item strong) { color: #f3f3f6; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .tsd-feed__current-item { background: #2d293a; color: #f3f3f6; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .tsd-feed__current-item strong { white-space: normal; overflow: visible; overflow-wrap: anywhere; text-overflow: clip; line-height: 1.5; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.tsd-feed__idle, .tsd-feed__connection.is-online, .tsd-feed__progress-notes b, .tsd-feed__controls button.is-update.is-updated, .tsd-monitor__summary .is-online strong) { color: #9feac1; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.tsd-feed__controls button.is-unlock) { color: #f6d295; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.tsd-feed__controls button.is-update) { color: #b8ceff; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.tsd-feed__controls button.is-danger, .tsd-feed__errors-button.has-errors, .tsd-monitor__error, .tsd-monitor__summary .is-danger strong) { color: #ffb3bb; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(button:disabled, button[aria-disabled="true"]), :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .kizc-select-all:has(input:disabled) { opacity: 1; background: #24252c; color: #b9bac6; border-color: #575963; }
+  @supports (background-clip: text) {
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.kizc-header h2, .integration-api__hero h2, .logistics-panel__heading h2, .online-execution-section__heading h4) { background: linear-gradient(110deg, #f3f3f6, #b8ceff 55%, #d1b7ff); background-clip: text; -webkit-background-clip: text; color: transparent; }
+  }
+}
+
+/* FIX: graphite service tiles and restrained forest-green information panels. */
+@media screen {
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.service-panel, .administration) { color: #f3f3f6; --ink: #f3f3f6; --muted: #c9cad6; --surface: #191a1e; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.service-mobile-app, .service-tile, .service-tabs button, .service-client-selector, .service-section, .service-card, .service-form-card, .service-metric, .admin-section, .admin-metrics article, .admin-card, .admin-tech-intro, .admin-tech-detail-head) { background: #202127; color: #f3f3f6; border-color: #50515e; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.service-panel, .administration) :is(h3, h4, strong, b, label, legend, dd) { color: #f3f3f6; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.service-panel, .administration) :is(p, small, dt, .admin-metrics span, .admin-section__heading span) { color: #c9cad6; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.admin-tabs button, .admin-button--ghost, .admin-button--compact, .service-tabs button.active) { background: #292a34; color: #eee9ff; border-color: #666575; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.admin-card--dark, .admin-card--green, .integration-api__hero, .kizc-header, .service-mobile-app) { background: linear-gradient(120deg, #14231d, #214437); color: #f3f3f6; border-color: #456858; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .order-assembly__apps > .order-assembly__app-tile { background: linear-gradient(120deg, #1b202b, #303447) !important; color: #f3f3f6; border-color: #596477; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .order-assembly__apps > .order-assembly__app-tile.is-green { background: linear-gradient(120deg, #14231d, #214437) !important; border-color: #456858 !important; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .order-assembly__apps > .order-assembly__app-tile:is(.is-red, .is-sos) { background: linear-gradient(120deg, #201e28, #3b242e) !important; border-color: #865968; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .order-assembly__app-tile :is(h3, small) { color: #f3f3f6; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .order-assembly__app-tile p { color: #d4d7e2; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.service-tile, .service-tabs button) span { color: #f3f3f6; }
+}
+
+/* FIX: request composition and FBS operations use the same dark palette. */
+@media screen {
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.fbs-workspace, .fbs-supply-request-tool, .fbs-supply-request-audit, .fbs-order-summary article, .fbs-cost-summary article, .fbs-order-actions, .fbs-workspace__search > span:last-child, .client-request-items-editor, .panel-message) { background: #202127; color: #f3f3f6; border-color: #50515e; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.fbs-workspace, .client-request-items-editor) :is(h2, h3, strong, label > span) { color: #f3f3f6; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.fbs-workspace, .client-request-items-editor) :is(small, p, .fbs-supply-request-tool > small, .fbs-supply-request-audit__header span) { color: #c9cad6; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.fbs-refresh-button, .fbs-order-actions__quick-select button, .client-request-items-editor button) { background: #292a34; color: #eee9ff; border-color: #666575; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.fbs-supply-request-tool__icon, .fbs-supply-request-audit__icon) { background: #2d293a; color: #d1b7ff; }
+}
+
+/* FIX: warehouse search surfaces, including the outer input wrapper. */
+@media screen {
+:root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.warehouse-panel, .warehouse-box-view-toggle, .warehouse-box-search__input) { background: #202127; color: #f3f3f6; border-color: #50515e; }
+:root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .warehouse-box-view-toggle button { background: #292a34; color: #c9cad6; }
+:root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .warehouse-box-view-toggle button.is-active { background: #343044; color: #ede5ff; }
+:root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .warehouse-panel :is(h2, strong, label) { color: #f3f3f6; }
+}
+
+/* FIX: inventory mode cards and inner workbench share dark surfaces. */
+@media screen {
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.inventory-mode, .inventory-workbench, .inventory-session__summary, .inventory-metrics span, .inventory-review-box[open] > .inventory-review-box__summary, .inventory-box-empty) { background: #202127; color: #f3f3f6; border-color: #50515e; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .inventory-mode strong { color: #f3f3f6; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .inventory-mode small { color: #c9cad6; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .inventory-mode svg { color: #c4b5fd; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .inventory-mode--active { background: #343044; border-color: #b9a2f5; }
+}
+
+/* FIX: screen printing controls; label artwork itself remains unchanged. */
+@media screen {
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.print-panel, .print-tabs button, .print-preview, .print-template-card) { background: #202127; color: #f3f3f6; border-color: #50515e; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .print-tabs button.active { background: #343044; color: #ede5ff; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .sku-label-flow__result:has(input[type='checkbox']:checked) { background: #193c2c; color: #f3f3f6; border-color: #71b593; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.print-panel__heading, .print-preview, .sku-label-flow__result) :is(h2, h3, strong) { color: #f3f3f6; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.print-preview, .sku-label-flow__result) :is(small, label) { color: #c9cad6; }
+}
+
+/* FIX: approved slate-blue nested navigation and request actions. */
+@media screen {
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.client-request-action-button:not(:disabled), .client-request-row-fbs-link, .print-tabs button.active, .kizc-tabs button.active, .kizc-operation-switch button.active, .warehouse-box-view-toggle button.is-active, .service-tabs button.active, .admin-tabs button.active) { background: #6a5acd; color: #ffffff; border-color: #a99beb; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.client-request-action-button:not(:disabled), .client-request-row-fbs-link) :is(span, strong, small, svg) { color: #ffffff; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.client-request-action-button:not(:disabled), .client-request-row-fbs-link):hover { background: #5949b8; color: #ffffff; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.client-request-action-button--cancel:not(:disabled), .client-request-action-button--emergency-rollback:not(:disabled)) { background: #3b242b; color: #ffb3bb; border-color: #985361; }
+}
+
+/* FIX: approved blue-violet/magenta accents over graphite; data surfaces stay solid. */
+@media screen {
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .workspace-content { background: linear-gradient(135deg, #181724, #211722 65%, #0f0f11); }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.client-request-action-button:not(:disabled):not(.client-request-action-button--cancel):not(.client-request-action-button--emergency-rollback), .client-request-row-fbs-link, .print-tabs button.active, .kizc-tabs button.active, .kizc-operation-switch button.active, .warehouse-box-view-toggle button.is-active, .service-tabs button.active, .admin-tabs button.active) { background: linear-gradient(110deg, #6a5acd, #ad4bad); color: #ffffff; }
+}
+
+/* FIX: distinct sidebar icon and label colours, without moving navigation. */
+@media screen {
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .app-sidebar__nav button { color: #c0d1ff; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .app-sidebar__nav button :is(span, strong) { color: #c0d1ff; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .app-sidebar__nav button svg { color: #c154c1; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .app-sidebar__nav button.active { background: #302943; color: #ffffff; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .app-sidebar__nav button.active :is(span, strong) { color: #ffffff; }
 }

@@ -9,3 +9,12 @@ Files: App.tsx (option and union), main.tsx (stylesheet import), components/layo
 Validation: browser checks actual shared CSS plus new theme for isolation, dark controls/dialogs, focus, screen-only styles and font readability; layout-changing CSS declarations are rejected. Fixture is a component sample, not an authenticated full-screen production test. Existing narrow-screen layout is retained. TypeScript and web tests run locally. Source/runtime parity is still false; publication requires a fresh runtime capture and surgical web delta, never a full local build over production.
 
 Branch: feature/la-panthera-theme. Proposed PR target: feature/wb-print-check. Published through PR374 on our WMS; web only.
+
+
+## Operational contrast correction
+
+Scope: la_panthera screen CSS only. Requests/online execution, KIZ circulation, logistics, external API, web TSD monitoring, service, administration, order assembly, FBS, warehouse search, inventory and printing controls now use dark surfaces. Product name in monitoring wraps instead of ellipsis. Solid light data text, blue-violet/magenta nested navigation, distinct magenta sidebar icons and light-blue labels; restrained forest-green information panels. #C154C1 is used for icons; its gradient endpoint under small white text is darkened to #AD4BAD to retain at least 4.5:1 contrast. Label artwork and print media remain separate.
+
+Regression: test/la-panthera-contrast.browser.cjs loads actual feature styles after theme CSS, optionally captured runtime styles via RUNTIME_CSS. Twelve representative views, normal/active/disabled controls, dark backgrounds, text contrast, long product wrapping, sidebar colours and print exclusion. Original published CSS fails this test. Fixtures are not an authenticated production UI walkthrough.
+
+Release: CSS + index link only over freshly captured web. Docker's existing 419-layer image hit its mount-path limit; flattened base verified with identical image config and all 3076 filesystem entries (content, links, mode and ownership). Runtime JavaScript, API, APK and deployment settings remain unchanged by this release. Full local web281/API2883 tests pass; 113 API cases skipped, dedicated KIZ database suite excluded as in existing release process.

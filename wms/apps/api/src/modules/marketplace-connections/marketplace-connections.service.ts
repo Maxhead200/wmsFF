@@ -14989,6 +14989,10 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
     key: string,
     operation: () => Promise<T>,
   ): Promise<T> {
+    // FIX: retain the active operation's lock, but never queue abandoned TSD retries behind it.
+    if (process.env.WMS_FBS_ASSIGNMENT_BUSY_GUARD_ENABLED === 'true' && this.fbsTsdAssignmentLocks.has(key)) {
+      throw new ConflictException('Предыдущая операция выдачи задания ещё выполняется. Подождите и повторите открытие заявки. Сканы сохранены.');
+    }
     const previous = this.fbsTsdAssignmentLocks.get(key) ?? Promise.resolve();
     let release!: () => void;
     const gate = new Promise<void>((resolve) => {

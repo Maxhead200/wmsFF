@@ -31,6 +31,7 @@ import {
 } from '../../lib/api';
 import './analytics.css';
 import { useRememberedClientId } from '../../lib/rememberedClient';
+import { SpiritChart } from './SpiritChart';
 
 type AnalyticsPanelProps = { session: AuthSession };
 type LoadStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -52,6 +53,14 @@ const availabilityOptions = [
 ];
 
 export function AnalyticsPanel({ session }: AnalyticsPanelProps) {
+  // FIX: observe only the visual preference; switching themes does not reload data.
+  const [isSpirit, setSpirit] = useState(() => typeof document !== 'undefined' && document.documentElement.dataset.uiVariant === 'spirit');
+  useEffect(() => {
+    const root = document.documentElement;
+    const observer = new MutationObserver(() => setSpirit(root.dataset.uiVariant === 'spirit'));
+    observer.observe(root, { attributes: true, attributeFilter: ['data-ui-variant'] });
+    return () => observer.disconnect();
+  }, []);
   const [clients, setClients] = useState<AnalyticsClientSummary[]>([]);
   const [selectedClientId, setSelectedClientId] = useRememberedClientId(session.user.id);
   const [dashboard, setDashboard] = useState<AnalyticsDashboard | null>(null);
@@ -338,6 +347,7 @@ export function AnalyticsPanel({ session }: AnalyticsPanelProps) {
               <div className="analytics-card__heading">
                 <div><BarChart3 size={18} /><span><strong>Лидеры по заказам</strong><small>Сумма заказов за выбранный период</small></span></div>
               </div>
+              {isSpirit ? <SpiritChart rows={topProducts.map(product => ({ name: product.name, value: product.orderSum }))} onSelect={index => setSelectedProduct(topProducts[index])} /> : null}
               <div className="analytics-bars">
                 {topProducts.map((product, index) => (
                   <button type="button" key={product.nmId} onClick={() => setSelectedProduct(product)}>

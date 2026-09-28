@@ -4,7 +4,7 @@ spec=importlib.util.spec_from_file_location('spirit_deploy',pathlib.Path(__file_
 deploy=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(deploy)
 deploy.ROOT=pathlib.Path('/opt/logoff-wms-releases/spirit-readable-times-20260928')
-deploy.BASE='sha256:5cee65f8c9b91255ee1beb174ef3c232942dfa51559d22c8e457181da47ca570'
+deploy.BASE='sha256:e0c20c3932d110e206e3e7c85748f2dcca61193029e542d6657ad1765258f20d'
 deploy.API='sha256:a83204a8bb4819193a11ba7ba8a3b462c960ef772fc9d659c88a122dfd531f62'
 deploy.TAG='logoff-web:spirit-readable-times-20260928'
 deploy.ROLLBACK='logoff-web:before-spirit-readable-times-20260928'

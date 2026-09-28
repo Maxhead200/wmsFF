@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import type { AuthSession } from '../../lib/api';
-import { fetchOpenClawJob, submitOpenClawJob, OpenClawHttpError, type OpenClawJob } from '../../lib/openclaw-api';
-type Pending = { requestId: string; conversationId: string; message: string };
+import { fetchOpenClawJob, submitOpenClawJob, OpenClawHttpError, openClawPollUncertain, type OpenClawJob } from '../../lib/openclaw-api';
+type Pending = { requestId: string; conversationId: string; message: string; submittedAt: number };
 function stored(key: string): Pending | null {
   try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) as Pending : null; } catch { return null; }
 }
@@ -26,6 +26,10 @@ export function OpenClawPanel({ session, allowed }: { session: AuthSession; allo
         if (!stopped) { setJob(value); setError(''); }
         if (!stopped && value.status === 'RUNNING') timer = setTimeout(() => void poll(), 2000);
       } catch (caught) {
+        if (!stopped && openClawPollUncertain(caught, pending.submittedAt ?? 0)) {
+          setJob({ requestId: pending.requestId, status: 'UNKNOWN', error: 'Не удалось получить результат задания. Проверьте журнал OpenClaw и фактические изменения. Автоматического повторения нет.' });
+          return;
+        }
         if (!stopped) { setError(caught instanceof Error ? caught.message : 'Не удалось проверить задание.'); timer = setTimeout(() => void poll(), 5000); }
       }
     };
@@ -36,7 +40,7 @@ export function OpenClawPanel({ session, allowed }: { session: AuthSession; allo
   async function send(event: FormEvent) {
     event.preventDefault();
     if (pending || submitting || input.trim().length < 2) return;
-    const value = { requestId: crypto.randomUUID(), conversationId, message: input.trim() };
+    const value = { requestId: crypto.randomUUID(), conversationId, message: input.trim(), submittedAt: Date.now() };
     // Persist before POST. Failure to persist must stop the mutation request.
     try { localStorage.setItem(storageKey, JSON.stringify(value)); } catch { setError('Не удалось сохранить идентификатор задания. Разрешите локальное хранение в браузере.'); return; }
     setPending(value); setJob(null); setError(''); setSubmitting(true); setInput('');
@@ -53,7 +57,8 @@ export function OpenClawPanel({ session, allowed }: { session: AuthSession; allo
     if (!pending || job?.status === 'RUNNING' || !job) return;
     if (job.status === 'DONE') setHistory(current => [...current, { question: pending.message, answer: job.answer ?? '' }]);
     // UNKNOWN requires explicit operator reconciliation before clearing the blocker.
-    localStorage.removeItem(storageKey); setPending(null); setJob(null); setError('');
+    try { localStorage.removeItem(storageKey); } catch { setError('Не удалось очистить сохранённое задание. Разрешите локальное хранение.'); return; }
+    setPending(null); setJob(null); setError('');
   }
   if (!allowed) return <div className="wms-ai-panel">OpenClaw доступен владельцу и администраторам WMS.</div>;
   return <div className="wms-ai-panel">

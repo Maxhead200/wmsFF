@@ -1,13 +1,20 @@
 // TEST: browser submits durable IDs without gateway secrets and never replays on network failure.
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fetchOpenClawJob, fetchOpenClawStatus, submitOpenClawJob, OpenClawHttpError } from './openclaw-api';
+import { fetchOpenClawJob, fetchOpenClawStatus, submitOpenClawJob, OpenClawHttpError, openClawPollUncertain } from './openclaw-api';
 afterEach(() => vi.unstubAllGlobals());
 describe('OpenClaw browser protocol', () => {
+  it('waits for delayed acceptance but stops missing-job polling after eleven minutes', () => {
+    const missing = new OpenClawHttpError('Not found', 404);
+    expect(openClawPollUncertain(missing, 100, 100 + 30_000)).toBe(false);
+    expect(openClawPollUncertain(missing, 100, 100 + 12 * 60_000)).toBe(true);
+    expect(openClawPollUncertain(new OpenClawHttpError('Forbidden', 403), 100, 101)).toBe(true);
+    expect(openClawPollUncertain(new Error('temporary network error'), 100, 101)).toBe(false);
+  });
   it('sends the WMS token and job IDs only to the WMS API', async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ status: 'RUNNING', requestId: 'job-id' })));
     vi.stubGlobal('fetch', fetchMock);
     const input = { requestId: 'job-id', conversationId: 'conversation', message: 'Проверь склад' };
-    await submitOpenClawJob('wms-session', input);
+    await submitOpenClawJob('wms-session', { ...input, submittedAt: 123 } as never);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, options] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('/api/v1/wms-ai/openclaw/jobs');

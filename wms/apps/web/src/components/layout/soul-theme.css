@@ -45,4 +45,35 @@
 :root[data-ui-variant='soul'][data-soul-mode='dark'] .soul-control{--soul-accent:#d5baf2;--soul-tint:#413151}
 :root[data-ui-variant='soul'][data-soul-mode='dark'] .soul-group-tabs button[aria-expanded=true]{background:var(--soul-tint);color:var(--soul-accent)}
 @media(max-width:650px){.soul-toolbar{padding:12px;gap:12px}.soul-page{padding:10px}.soul-appearance{font-size:14px}}
+/* FIX: card-mode cells must grow with content, unlike 38px desktop table cells. */
+@media(max-width:1280px){
+ :root[data-ui-variant='soul'] .app-layout .client-request-table tbody td{height:auto;min-height:0;max-height:none;min-width:0;width:auto;overflow-wrap:anywhere;align-self:stretch}
+ :root[data-ui-variant='soul'] .app-layout .client-request-table__select-cell{grid-column:1 / -1;text-align:left!important;display:flex;align-items:center;gap:10px;padding:4px 0!important}
+ :root[data-ui-variant='soul'] .app-layout .client-request-table__select-cell::before{margin:0;white-space:nowrap}
+}
+@media(max-width:900px){
+ :root[data-ui-variant='soul'] .app-layout .workspace-shell{height:auto;min-height:100dvh;grid-template-rows:auto minmax(0,1fr) auto;overflow:visible}
+ :root[data-ui-variant='soul'] .app-layout .workspace-header{position:relative;height:auto;min-height:0;display:flex;flex-direction:column;align-items:stretch;gap:8px;padding:10px}
+ :root[data-ui-variant='soul'] .app-layout .workspace-header__title h1{color:#282d2b}
+ :root[data-ui-variant='soul'] .app-layout .workspace-header__meta{display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;min-width:0;gap:8px}
+ :root[data-ui-variant='soul'] .app-layout :is(.workspace-branch-select,.workspace-global-search,.ui-theme-switcher){min-width:0;max-width:100%;flex:1 1 180px}
+ :root[data-ui-variant='soul'] .app-layout .workspace-branch-select select{width:100%;min-width:0;max-width:100%}
+ :root[data-ui-variant='soul'] .app-layout .modern-header-action{color:#36483e;background:#e5efe9}
+ :root[data-ui-variant='soul'] .app-layout .workspace-content{padding:10px;overflow:visible;min-width:0}
+ :root[data-ui-variant='soul'] .app-layout .workspace-footer{position:static}
+ .soul-page{padding:8px}
+ :root[data-ui-variant='soul'] .soul-page .client-requests-panel{padding:8px;margin-bottom:12px}
+}
+@media(max-width:620px){
+ :root[data-ui-variant='soul'] .app-layout .client-request-table tbody{padding:0}
+ :root[data-ui-variant='soul'] .app-layout .client-request-table tbody tr{display:flex;flex-direction:column;gap:12px;padding:12px;margin-bottom:12px}
+ :root[data-ui-variant='soul'] .app-layout .client-request-table tbody td{flex:none;display:block;grid-column:auto;max-width:100%;font-size:14px;line-height:1.4}
+ :root[data-ui-variant='soul'] .app-layout .client-request-table tbody td::before{font-size:11px;line-height:1.4}
+ :root[data-ui-variant='soul'] .app-layout :is(.client-request-actions,.client-request-actions--main){grid-template-columns:1fr;gap:8px}
+ :root[data-ui-variant='soul'] .app-layout :is(.client-request-actions,.client-request-actions--main)>*{grid-column:auto}
+ :root[data-ui-variant='soul'] .app-layout .client-request-action-button{height:auto;min-height:40px;white-space:normal}
+ :root[data-ui-variant='soul'] .app-layout .client-request-action-button span{white-space:normal;overflow:visible;text-overflow:clip}
+ :root[data-ui-variant='soul'] .app-layout .client-requests-panel__heading-actions{flex-wrap:wrap}
+ :root[data-ui-variant='soul'] .app-layout .client-requests-panel__heading-actions>*{max-width:100%}
+}
 }

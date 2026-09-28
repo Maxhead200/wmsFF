@@ -1,11 +1,11 @@
 /* FIX: Spirit is opt-in. No marketing, TSD or other theme selectors. */
 :root[data-ui-variant='spirit'] {
   color-scheme: light;
-  --ink: #302e2b;
-  --muted: #625d56;
+  --ink: #24211d;
+  --muted: #4b4238;
   --line: #d6cfc4;
-  --surface: #fcfaf6;
-  --bg: #f3efe7;
+  --surface: #fffdf9;
+  --bg: #e9e2d7;
   --ok: #28654b;
   --danger: #a53d38;
   --plan: #995438;
@@ -15,8 +15,8 @@
   --modern-topbar: #ede7dc;
   --modern-sidebar: #ede7dc;
   --modern-sidebar-hover: #e2d8c9;
-  --modern-canvas: #f3efe7;
-  --modern-panel: #fcfaf6;
+  --modern-canvas: #e9e2d7;
+  --modern-panel: #fffdf9;
   --modern-line: #d6cfc4;
   --modern-line-soft: #e7e0d6;
   --modern-red: #a53d38;
@@ -25,6 +25,7 @@
   --modern-orange: #805b26;
   --modern-violet: #995438;
   --modern-teal: #28654b;
+  --spirit-tile-shadow: inset 0 1px 0 rgb(255 255 255 / 0.95), inset 0 -2px 0 rgb(113 83 49 / 0.10), 0 3px 0 #d5c6b2, 0 7px 12px rgb(74 52 31 / 0.16);
 }
 :root[data-ui-variant='spirit'] body { background: var(--bg); color: var(--ink); }
 /* FIX: warm paper surfaces and charcoal text, including controls nested inside tables. */
@@ -32,7 +33,7 @@
 .app-layout[data-ui-variant='spirit'] .app-sidebar :is(a, button, strong, span, small) { color: #514a42; }
 .app-layout[data-ui-variant='spirit'] .app-sidebar__nav button.active { color: #7c402b; background: #e3d5c4; box-shadow: inset 3px 0 #995438; }
 .app-layout[data-ui-variant='spirit'] .app-sidebar__nav button:hover { background: #e3d5c4; }
-.app-layout[data-ui-variant='spirit'] .workspace-header { background: #f3efe7; color: var(--ink); }
+.app-layout[data-ui-variant='spirit'] .workspace-header { background: var(--bg); color: var(--ink); }
 .app-layout[data-ui-variant='spirit'] :is(.workspace-header__title h1, .workspace-user strong) { color: var(--ink); }
 .app-layout[data-ui-variant='spirit'] .modern-dashboard__heading h1 { font-family: Georgia, 'Times New Roman', serif; font-weight: 500; }
 .app-layout[data-ui-variant='spirit'] :is(.workspace-tile, .warehouse-topic-tile, .fbs-tile, .metric-tile, .module-card, .access-topic-tile, .admin-tech-tile, .billing-invoice-kind-tile, .billing-topic-tile, .directory-topic-tile, .fbs-warehouse-tile, .print-topic-tile, .turnover-summary-tile, .turnover-tile) { background: var(--surface); color: var(--ink); border-color: var(--line); border-radius: 12px; }
@@ -44,12 +45,13 @@
 .app-layout[data-ui-variant='spirit'] .client-request-table :is(.client-request-action-button--cancel, .client-request-action-button--emergency-rollback) { color: #a53d38; background: #f7e8e3; border-color: #d9b0a8; }
 .app-layout[data-ui-variant='spirit'] :is(.client-request-number, .client-request-wb-supplies, .client-request-items-count, .client-request-fbs-completion) { color: #514536; background: #eee5d7; border-color: #d5c6b1; border-radius: 7px; }
 .app-layout[data-ui-variant='spirit'] .client-request-table td :is(.client-request-items-count, .client-request-fbs-completion) { color: #514536; }
-.app-layout[data-ui-variant='spirit'] .client-request-table td :is(.client-request-list-meta, .client-request-items-preview, .client-request-table__client-cell > span) { color: #625d56; }
+.app-layout[data-ui-variant='spirit'] .client-request-table td :is(.client-request-list-meta, .client-request-items-preview, .client-request-table__client-cell > span) { color: var(--muted); }
 .app-layout[data-ui-variant='spirit'] :is(.client-request-title, .client-request-number__accent, .client-request-wb-supplies strong) { font-weight: 650; color: #302e2b; }
 /* FIX: transform-only lift; no layout shifts and no animated table rows. */
 @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
   .app-layout[data-ui-variant='spirit'] :is(.workspace-tile, .warehouse-topic-tile, .fbs-tile, .metric-tile, .module-card, .access-topic-tile, .admin-tech-tile, .billing-invoice-kind-tile, .billing-topic-tile, .directory-topic-tile, .fbs-warehouse-tile, .print-topic-tile, .turnover-summary-tile, .turnover-tile, .modern-dashboard__metrics article, .modern-dashboard__quick button) { transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease; }
-  .app-layout[data-ui-variant='spirit'] :is(.workspace-tile, .warehouse-topic-tile, .fbs-tile, .metric-tile, .module-card, .access-topic-tile, .admin-tech-tile, .billing-invoice-kind-tile, .billing-topic-tile, .directory-topic-tile, .fbs-warehouse-tile, .print-topic-tile, .turnover-summary-tile, .turnover-tile, .modern-dashboard__metrics article, .modern-dashboard__quick button):hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 7px 16px rgb(74 52 31 / 0.13); border-color: #b3987d; }
+  .app-layout[data-ui-variant='spirit'] :is(.workspace-tile, .warehouse-topic-tile, .fbs-tile, .metric-tile, .module-card, .access-topic-tile, .admin-tech-tile, .billing-invoice-kind-tile, .billing-topic-tile, .directory-topic-tile, .fbs-warehouse-tile, .print-topic-tile, .turnover-summary-tile, .turnover-tile, .modern-dashboard__metrics article, .modern-dashboard__quick button):hover:not(:disabled) { transform: translateY(-5px); box-shadow: inset 0 1px 0 #fff, 0 4px 0 #c8b59a, 0 13px 20px rgb(74 52 31 / 0.23); border-color: #ad906d; }
+  .app-layout[data-ui-variant='spirit'] :is(.workspace-tile, .warehouse-topic-tile, .fbs-tile, .metric-tile, .module-card, .access-topic-tile, .admin-tech-tile, .billing-invoice-kind-tile, .billing-topic-tile, .directory-topic-tile, .fbs-warehouse-tile, .print-topic-tile, .turnover-summary-tile, .turnover-tile, .modern-dashboard__quick button):active:not(:disabled) { transform: translateY(-1px); box-shadow: inset 0 1px 2px rgb(74 52 31 / 0.10), 0 1px 0 #c8b59a, 0 3px 6px rgb(74 52 31 / 0.16); }
 }
 @media (prefers-reduced-motion: reduce), (hover: none), (pointer: coarse) {
   .app-layout[data-ui-variant='spirit'] :is(.workspace-tile, .warehouse-topic-tile, .fbs-tile, .metric-tile, .module-card, .access-topic-tile, .admin-tech-tile, .billing-invoice-kind-tile, .billing-topic-tile, .directory-topic-tile, .fbs-warehouse-tile, .print-topic-tile, .turnover-summary-tile, .turnover-tile, .modern-dashboard__metrics article, .modern-dashboard__quick button) { transition: none; transform: none; }
@@ -86,6 +88,14 @@
 .app-layout[data-ui-variant='spirit'] .analytics-bars__track { display: none; }
 .app-layout[data-ui-variant='spirit'] .analytics-bars > button { grid-template-columns: 20px minmax(0, 1fr) auto; background: transparent; color: var(--ink); padding: 6px 0; border-color: var(--line); }
 .app-layout[data-ui-variant='spirit'] .analytics-bars__label strong { color: var(--ink); }
+/* FIX: visible resting depth; no size, spacing or table layout changes. */
+.app-layout[data-ui-variant='spirit'] :is(.workspace-tile, .warehouse-topic-tile, .fbs-tile, .metric-tile, .module-card, .access-topic-tile, .admin-tech-tile, .billing-invoice-kind-tile, .billing-topic-tile, .directory-topic-tile, .fbs-warehouse-tile, .print-topic-tile, .turnover-summary-tile, .turnover-tile, .modern-dashboard__metrics article, .modern-dashboard__quick button) {
+  background: linear-gradient(160deg, #fffdf9 0%, #f4ecdf 100%);
+  border: 1px solid #c5b499;
+  border-top-color: #e4d8c6;
+  border-radius: 12px;
+  box-shadow: var(--spirit-tile-shadow);
+}
 @media (max-width: 1100px) {
   .app-layout[data-ui-variant='spirit'] .modern-dashboard__columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

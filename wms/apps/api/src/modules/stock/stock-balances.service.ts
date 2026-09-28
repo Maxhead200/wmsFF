@@ -23,6 +23,11 @@ export class StockBalancesService {
   ) {}
 
   async list(filter: ListStockBalancesDto, user: AuthUser) {
+    // FIX: cabinet reads do not need the repeated marketplace payload for every box.
+    const skuInclude = filter.view === 'cabinet'
+      ? { select: { id: true, internalSku: true, clientSku: true, article: true, name: true,
+          color: true, size: true, barcodes: true } }
+      : { include: { barcodes: true } };
     const search = filter.search?.trim();
     const skuWhere: Prisma.SkuWhereInput | undefined =
       filter.barcode || search
@@ -77,7 +82,7 @@ export class StockBalancesService {
           sku: skuWhere,
         },
         include: {
-          sku: { include: { barcodes: true } },
+          sku: skuInclude,
           warehouse: true,
           box: { include: { warehouse: true } },
           pallet: true,
@@ -187,7 +192,7 @@ export class StockBalancesService {
     const rows = await this.prisma.stockBalance.findMany({
       where,
       include: {
-        sku: { include: { barcodes: true } },
+        sku: skuInclude,
         warehouse: true,
         box: { include: { warehouse: true } },
         pallet: true,

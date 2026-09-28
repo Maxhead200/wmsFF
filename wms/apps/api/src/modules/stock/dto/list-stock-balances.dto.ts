@@ -1,6 +1,10 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsIn, IsOptional, IsString } from 'class-validator';
 
 export class ListStockBalancesDto {
+  @IsOptional()
+  @IsIn(['cabinet'])
+  view?: 'cabinet';
+
   @IsOptional()
   @IsString()
   clientId?: string;

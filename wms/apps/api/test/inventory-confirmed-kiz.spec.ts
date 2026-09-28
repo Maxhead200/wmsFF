@@ -462,3 +462,28 @@ it.each(['ADMIN', 'OWNER'].flatMap(role => ['AVAILABLE', 'BLOCKED', 'SHIPPING'].
   await f.confirm();
   expect(source.quantity).toBe(status === 'AVAILABLE' ? 1 : 2);
 });
+
+// TEST: our dashboard must bound database reads, not discard old rows after expensive validation.
+it('bounds dashboard and KIZ history to seven days while retaining the global movement lock check', async () => {
+  vi.stubEnv('WMS_FBS_KIZ_MANDATORY_AUDIT', 'true');
+  vi.stubEnv('WMS_INVENTORY_PHYSICAL_RESOLUTION_ENABLED', 'true');
+  const f=wmsReviewFixture(); f.db.inventorySession.findMany.mockResolvedValue([]);
+  await f.service.dashboard(f.user, true);
+  for (const [query] of f.db.inventorySession.findMany.mock.calls) {
+    expect(query.where.startedAt.gte).toBeInstanceOf(Date);
+    expect(Date.now()-query.where.startedAt.gte.getTime()).toBeGreaterThanOrEqual(7*86400000);
+    expect(Date.now()-query.where.startedAt.gte.getTime()).toBeLessThan(7*86400000+5000);
+  }
+  expect(f.db.inventorySession.findFirst.mock.calls[0][0].where.startedAt).toBeUndefined();
+});
+it('keeps explicit old session access and disabled installations unrestricted by date', async () => {
+  vi.stubEnv('WMS_FBS_KIZ_MANDATORY_AUDIT','true');
+  vi.stubEnv('WMS_INVENTORY_PHYSICAL_RESOLUTION_ENABLED','true');
+  const f=wmsReviewFixture();f.db.inventorySession.findMany.mockResolvedValue([]);
+  await f.service.pendingKizReviews(f.user,null,'old-session');
+  expect(f.db.inventorySession.findMany.mock.calls[0][0].where).toMatchObject({id:'old-session'});
+  expect(f.db.inventorySession.findMany.mock.calls[0][0].where.startedAt).toBeUndefined();
+  f.db.inventorySession.findMany.mockClear();vi.stubEnv('WMS_INVENTORY_PHYSICAL_RESOLUTION_ENABLED','false');
+  await f.service.dashboard(f.user,true);
+  for(const [query] of f.db.inventorySession.findMany.mock.calls) expect(query.where.startedAt).toBeUndefined();
+});

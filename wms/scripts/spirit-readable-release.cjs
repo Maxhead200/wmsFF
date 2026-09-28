@@ -1,9 +1,9 @@
 // FIX: CSS-only additive release against the current live index, never a stale app build.
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
-const name='spirit-readable-times-20260928.css';
+const name='spirit-cambria-20260928.css';
 const sha=s=>crypto.createHash('sha256').update(s).digest('hex');
 function patch(index){
- const old='/assets/spirit-graphite-20260928.css',next='/assets/'+name;
+ const old='/assets/spirit-readable-times-20260928.css',next='/assets/'+name;
  if(index.split(old).length!==2||index.includes(next))throw Error('Index drift');
  return index.replace(old,next);
 }

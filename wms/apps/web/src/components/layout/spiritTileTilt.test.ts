@@ -30,13 +30,14 @@ describe('Spirit cursor tilt', () => {
     expect(listeners).toBe(0);
     dispose();
   });
-  it('batches mouse movement, ignores other themes and cleans up on exit', () => {
+  it('batches mouse movement in every theme and cleans up outside the workspace', () => {
     const handlers = new Map<string, (event?: unknown) => void>();
     const props = new Map<string, string>();
     let callback: (() => void) | null = null;
     let frames = 0;
-    let spirit = true;
-    const tile = { isConnected: true, closest: () => spirit, matches: () => false,
+    let inWorkspace = true;
+    // TEST: non-Spirit themes must pass the workspace guard as well.
+    const tile = { isConnected: true, closest: (selector: string) => inWorkspace && selector === '.app-layout', matches: () => false,
       contains: (node: unknown) => node === tile,
       getBoundingClientRect: () => ({ left: 0, top: 0, width: 200, height: 100 }),
       style: { setProperty: (key: string, value: string) => props.set(key, value), removeProperty: (key: string) => props.delete(key) } };
@@ -55,8 +56,8 @@ describe('Spirit cursor tilt', () => {
     expect(props.size).toBe(3);
     handlers.get('pointerout')!({ relatedTarget: null });
     expect(props.size).toBe(0);
-    spirit = false; handlers.get('pointermove')!(event); expect(frames).toBe(1);
-    spirit = true; handlers.get('pointermove')!({ ...event, pointerType: 'touch' }); expect(frames).toBe(1);
+    inWorkspace = false; handlers.get('pointermove')!(event); expect(frames).toBe(1);
+    inWorkspace = true; handlers.get('pointermove')!({ ...event, pointerType: 'touch' }); expect(frames).toBe(1);
     handlers.get('pointermove')!(event);
     media.matches = false; handlers.get('media')!();
     expect(callback).toBeNull(); expect(props.size).toBe(0);

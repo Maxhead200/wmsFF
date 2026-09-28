@@ -1,0 +1,78 @@
+/* FIX: opt-in theme inspired by Unitool's graphite surfaces and violet accents.
+   Root scoping includes dialogs rendered in portals, but never other themes. */
+@font-face {
+  font-family: 'La Panthera Inter';
+  src: url('/fonts/inter/InterVariable.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+@media screen {
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] {
+    color-scheme: dark;
+    --ink: #f3f3f6;
+    --muted: #b5b5c2;
+    --line: #414149;
+    --surface: #191a1e;
+    --bg: #0f0f11;
+    --sidebar: #151518;
+    --sidebar-muted: #b5b5c2;
+    --red: #baa5ff;
+    --red-dark: #d3c5ff;
+    --ok: #7bdeb0;
+    --danger: #ff999f;
+    --work: #f4cc84;
+    --plan: #c4b5fd;
+    --modern-topbar: #101013;
+    --modern-sidebar: #151518;
+    --modern-sidebar-hover: #25222f;
+    --modern-canvas: #0f0f11;
+    --modern-panel: #191a1e;
+    --modern-line: #414149;
+    --modern-line-soft: #303037;
+    --modern-red: #ff999f;
+    --modern-blue: #a9bdff;
+    --modern-green: #7bdeb0;
+    --modern-orange: #f4cc84;
+    --modern-violet: #baa5ff;
+    --modern-teal: #79d7d7;
+  }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] body { background: var(--bg); color: var(--ink); }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .app-layout { color: var(--ink); font-family: 'La Panthera Inter', 'Segoe UI', sans-serif; font-size: 15px; line-height: 1.5; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .app-sidebar { background: var(--sidebar); border-right: 1px solid var(--line); }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .app-sidebar :is(a, button, strong, span, small) { color: var(--muted); }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .app-sidebar__nav button { border-radius: 12px; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .app-sidebar__nav button.active { background: #2b233e; color: #e0d5ff; box-shadow: inset 3px 0 #a78bfa; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .app-sidebar__nav button:hover { background: #25222f; color: var(--ink); }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.workspace-header, .workspace-content, .workspace-shell) { background: var(--bg); color: var(--ink); }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.workspace-header__title h1, .modern-dashboard__heading h1) { color: var(--ink); letter-spacing: -.035em; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.workspace-tile, .warehouse-topic-tile, .fbs-tile, .metric-tile, .module-card, .access-topic-tile, .admin-tech-tile, .billing-invoice-kind-tile, .billing-topic-tile, .directory-topic-tile, .fbs-warehouse-tile, .print-topic-tile, .turnover-summary-tile, .turnover-tile, .modern-dashboard__panel, .modern-dashboard__metrics, .analytics-panel, .section-card, .panel) {
+    background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 18px; box-shadow: none;
+  }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.workspace-tile, .warehouse-topic-tile, .fbs-tile, .module-card, .access-topic-tile, .admin-tech-tile, .print-topic-tile):hover:not(:disabled) { background: #222029; border-color: #a78bfa; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.workspace-tile, .module-card, .modern-dashboard__panel, .metric-tile, .fbs-tile) :is(h2, h3, strong) { color: var(--ink); }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.eyebrow, .workspace-tile__icon) { color: #baa5ff; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(input, select, textarea, option, .workspace-global-search, .workspace-branch-select, .ui-theme-switcher, .workspace-user, .modern-header-action) { background: #151518; color: var(--ink); border-color: var(--line); }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(input, textarea)::placeholder { color: #a7a7b5; opacity: 1; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(button, a, input, select, textarea):focus-visible { outline: 2px solid #c4b5fd; outline-offset: 3px; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.secondary-button, .icon-button, .ghost-button, .document-open-button) { background: #222228; color: var(--ink); border-color: #50505a; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .primary-button { background: #baa5ff; color: #171022; border: 1px solid #cdbdff; border-radius: 12px; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .primary-button:hover:not(:disabled) { background: #d3c5ff; color: #171022; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] button:disabled { opacity: .55; cursor: not-allowed; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(table, th, td) { background: var(--surface); color: var(--ink); border-color: var(--line); font-variant-numeric: tabular-nums; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] th { background: #222228; color: #c7c7d2; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] tbody tr:hover td { background: #24212d; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.modal-panel, .modal-content, .billing-invoice-edit-modal__panel, [role='dialog']) { background: #191a1e; color: var(--ink); border-color: var(--line); }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.form-error, .panel-message--error, .is-danger, .analytics-dynamic.negative) { background: #352127; color: #ffb2b7; border-color: #86454f; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.inline-success, .modern-dashboard__queue-status, .analytics-supply-positive, .analytics-dynamic.positive) { background: #19382b; color: #91e8ba; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] a { color: #c4b5fd; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] input[type='checkbox'] { accent-color: #baa5ff; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.workspace-content, .workspace-shell, .modern-dashboard__panel) { min-width: 0; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .workspace-tile small { color: var(--muted); }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .workspace-tile__icon { background: #2b233e; color: #c4b5fd; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .app-sidebar__nav button.active { background: #2b233e; }
+  /* FIX: typography only; existing navigation order, grids and spacing are retained. */
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(button, input, select, textarea) { font-family: inherit; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(td, th, .workspace-tile strong, .workspace-tile small, .app-sidebar__nav button, .primary-button, .secondary-button) { font-size: 14px; line-height: 1.5; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.workspace-tile small, .modern-dashboard__heading p, .workspace-user span) { color: var(--muted); }
+}

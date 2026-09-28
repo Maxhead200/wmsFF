@@ -127,7 +127,7 @@ const workspaceSections = [
 ] as const;
 
 type WorkspaceSection = (typeof workspaceSections)[number]['id'];
-type UiTheme = 'classic' | 'modern' | 'aerospace' | 'obsidian' | 'polar' | 'future3100' | 'space' | 'winx' | 'spirit';
+type UiTheme = 'classic' | 'modern' | 'aerospace' | 'obsidian' | 'polar' | 'future3100' | 'space' | 'winx' | 'spirit' | 'la_panthera';
 type HeaderNotificationItem = {
   id: string;
   title: string;
@@ -147,6 +147,7 @@ const uiThemeOptions: Array<{ value: UiTheme; label: string; personal?: 'winx' }
   { value: 'polar', label: 'Polar Grid' },
   { value: 'future3100', label: 'Future' },
   { value: 'space', label: 'Space' },
+  { value: 'la_panthera', label: 'la_panthera' }, // FIX: explicit opt-in; persisted per user.
   { value: 'spirit', label: 'Spirit' }, // FIX: additive opt-in theme; existing preferences remain intact.
   { value: 'winx', label: 'WingX · Эля', personal: 'winx' },
 ];

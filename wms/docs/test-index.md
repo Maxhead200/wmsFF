@@ -44,3 +44,6 @@ FBS_RUNTIME_ENTRY=<candidate>/modules/marketplace-connections/marketplace-connec
 При каждой правке: тест воспроизводит проблему до исправления → проходит после →
 общие тесты → сверка артефакта → PR → проверка опубликованного контейнера.
 Физический результат на ТСД/принтере отмечать отдельно от автоматических тестов.
+
+
+la_panthera full coverage: web/test/build-la-panthera-coverage.cjs --check (47 component stylesheet inventory), la-panthera-contrast.browser.cjs (26 representative views; optional RUNTIME_CSS), la-panthera-hover.browser.cjs (scale/red gradient, stable neighbour, reduced motion, classic isolation). Browser fixtures do not substitute for an authenticated full-screen walkthrough.

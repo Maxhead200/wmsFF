@@ -26,3 +26,14 @@ Payroll: dark controls, summary border 1px / inset 8px; LOGOFF WMS wordmark #F80
 Branch icons and captions: dark surfaces. Theme/user names: #F80000 by owner request.
 
 Today dashboard: dark rows, saturated icons, matching gradients, 14px descriptions and 22px metrics.
+
+
+## Complete module coverage and navigation hover
+
+47 module stylesheets are scanned by `test/build-la-panthera-coverage.cjs`; generated screen-only literal colour and small-font overrides are scoped to la_panthera. The generated selector manifest is `test/la-panthera-coverage.json`. Hand-tuned rules follow the generated block. Print media, preview artwork and other themes are excluded. Runtime CSS is also loaded in the regression fixtures to catch cascade differences.
+
+26 representative component views cover the reported screens, including expenses, pricing, payroll editor, access, inventory journals, regional analytics and order details. Contrast >=4.5:1, dark surfaces, thin frames, readable typography and print isolation are checked. This is not an authenticated walkthrough of every populated production screen.
+
+Navigation tiles and sidebar buttons scale to 1.02 with a dark red gradient on mouse hover. Transforms preserve neighbouring layout; reduced-motion disables scaling and transitions. Payroll editor inline white background is overridden and grid content stops stretching controls.
+
+New tests: `node test/la-panthera-hover.browser.cjs`; generated coverage validation: `node test/build-la-panthera-coverage.cjs --check`. PR target feature/wb-print-check. Deployment uses fresh production web with only index.html and a versioned la_panthera CSS delta; parallel spirit release is preserved. API, Android, sold WMS and business operations unchanged.

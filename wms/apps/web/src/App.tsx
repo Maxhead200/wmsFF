@@ -958,7 +958,7 @@ function renderWorkspace(
     case 'turnover':
       return <TurnoverPanel session={session} />;
     case 'requests':
-      return <Suspense fallback={<div className="workspace-loading">Загружаю заявки…</div>}><ClientRequestsPanel session={session} onOpenFbsOrders={() => setActiveWorkspaceId('fbs')} focusRequestId={focusedRequestId} onFocusRequestHandled={clearFocusedRequest} /></Suspense>;
+      return <Suspense fallback={<div className="workspace-loading">Загружаю заявки…</div>}><ClientRequestsPanel compactMobile={uiTheme === 'soul'} session={session} onOpenFbsOrders={() => setActiveWorkspaceId('fbs')} focusRequestId={focusedRequestId} onFocusRequestHandled={clearFocusedRequest} /></Suspense>;
     case 'order-assembly':
       return <Suspense fallback={<div className="workspace-loading">Загружаю сборку заказов…</div>}><OrderAssemblyPanel session={session} /></Suspense>;
     case 'contracts':

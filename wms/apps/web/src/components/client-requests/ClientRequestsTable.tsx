@@ -1,4 +1,5 @@
 import { Activity, AlertTriangle, Boxes, CheckCircle2, ClipboardList, Edit3, FileDown, FileSpreadsheet, FileText, FileUp, MapPinned, PackageCheck, RefreshCw, Search, Send, ShieldCheck, Truck, Undo2, XCircle } from 'lucide-react';
+import {useState} from 'react';
 import {
   type ClientRequestFileSummary,
   type ClientRequestStatus,
@@ -14,6 +15,7 @@ import {
 import { isSkuCollectionRequest } from './skuCollectionRow';
 
 type ClientRequestsTableProps = {
+  compactMobile?: boolean;
   items: ClientRequestSummary[];
   selectableRequestIds?: Set<string>;
   selectedRequestIds?: Set<string>;
@@ -68,6 +70,7 @@ const createdAtFormatter = new Intl.DateTimeFormat('ru-RU', {
 });
 
 export function ClientRequestsTable({
+  compactMobile = false,
   items,
   selectableRequestIds = new Set<string>(),
   selectedRequestIds = new Set<string>(),
@@ -106,6 +109,10 @@ export function ClientRequestsTable({
   onPackageOutbound,
   onShipOutbound,
 }: ClientRequestsTableProps) {
+  // FIX: disclosure state only; existing permission checks and callbacks stay intact.
+  const [mobileDetails,setMobileDetails]=useState<Set<string>>(()=>new Set());
+  const [mobileActions,setMobileActions]=useState<Set<string>>(()=>new Set());
+  function toggleMobile(set:typeof setMobileDetails,id:string){set(previous=>{const next=new Set(previous);if(next.has(id))next.delete(id);else next.add(id);return next;});}
   const selectableItems = items.filter((request) =>
     selectableRequestIds.has(request.id),
   );
@@ -179,7 +186,7 @@ export function ClientRequestsTable({
               key={request.id}
               className={`client-request-row client-request-row--${requestStatusTone(request.status)}${
                 deliveryRecovery ? ' client-request-row--fbs-recovery' : ''
-              }${isSkuCollectionRequest(request) ? ' client-request-row--sku-collection' : ''}`}
+              }${isSkuCollectionRequest(request) ? ' client-request-row--sku-collection' : ''}${compactMobile?' request-mobile-compact':''}${mobileDetails.has(request.id)?' request-mobile-details-open':''}${mobileActions.has(request.id)?' request-mobile-actions-open':''}`}
             >
               {showRequestSelection ? (
                 <td
@@ -587,6 +594,10 @@ export function ClientRequestsTable({
                   </label>}
                 </td>
               ) : null}
+              {compactMobile?<td className="client-request-mobile-tools">
+                <button type="button" aria-expanded={mobileDetails.has(request.id)} onClick={()=>toggleMobile(setMobileDetails,request.id)}>Подробнее</button>
+                <button type="button" aria-expanded={mobileActions.has(request.id)} onClick={()=>toggleMobile(setMobileActions,request.id)}>Действия</button>
+              </td>:null}
             </tr>
             );
           })}

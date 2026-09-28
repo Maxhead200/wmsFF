@@ -21,6 +21,13 @@ describe('Spirit warm readable palette', () => {
     expect(css).toContain('.client-request-action-button span');
     expect(css).toContain('color: inherit');
   });
+  // TEST: principal reading text remains high-contrast on both canvas and cards.
+  it('keeps primary and secondary reading text above 7:1', () => {
+    for (const fg of ['ink', 'muted']) for (const bg of ['surface', 'bg']) {
+      const values = [luminance(color(fg)), luminance(color(bg))].sort((a,b)=>b-a);
+      expect((values[0]+.05)/(values[1]+.05), `${fg}/${bg}`).toBeGreaterThanOrEqual(7);
+    }
+  });
   it('lifts tiles only for precise hover and respects reduced motion', () => {
     expect(css).toContain('@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)');
     expect(css).toContain('transform: translateY(-5px)');

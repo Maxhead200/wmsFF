@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 
 const css = readFileSync(new URL('./spirit-theme.css', import.meta.url), 'utf8');
+const tiltSource = readFileSync(new URL('./spiritTileTilt.ts', import.meta.url), 'utf8');
 const color = (name: string) => css.match(new RegExp(`--${name}: (#[a-fA-F0-9]{6})`))![1];
 const luminance = (hex: string) => {
   const values = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
@@ -9,7 +10,14 @@ const luminance = (hex: string) => {
   return values[0] * .2126 + values[1] * .7152 + values[2] * .0722;
 };
 // TEST: reproduces pale labels on light controls; verify every principal text/background pair.
-describe('Spirit warm readable palette', () => {
+describe('Spirit green readable palette', () => {
+  // TEST: WB/Ozon selection cards use a different class from inner FBS tiles.
+  it('includes FBS marketplace cards in pointer handling and all motion states', () => {
+    expect(tiltSource.split('\n')[0]).toContain('.fbs-marketplace-card');
+    for (const rule of css.split('}').filter(rule => rule.includes('.fbs-tile'))) {
+      expect(rule).toContain('.fbs-marketplace-card');
+    }
+  });
   it('uses light native controls and accessible text contrast', () => {
     expect(css).toContain('color-scheme: light');
     for (const fg of ['ink', 'muted', 'ok', 'danger']) {
@@ -41,15 +49,15 @@ describe('Spirit warm readable palette', () => {
     expect(css).toContain('--spirit-tile-shadow:');
     expect(css).toContain('box-shadow: var(--spirit-tile-shadow)');
     expect(css).toContain('inset 0 1px 0 rgb(255 255 255 / 0.95)');
-    expect(css).toContain('linear-gradient(160deg, #ffffff 0%, #fff5eb 45%, #ffdfbd 100%)');
+    expect(css).toContain('linear-gradient(160deg, #ffffff 0%, #f0faf3 45%, #cfe8d7 100%)');
     expect(css).toContain(':active:not(:disabled) { transform: none');
     expect(css).not.toContain('scale(1.');
   });
-  // TEST: orange gradient endpoints retain readable labels, including at their darkest end.
-  it('uses a white-to-orange canvas with readable gradient endpoints', () => {
-    expect(css).toContain('--spirit-canvas: linear-gradient(135deg, #ffffff 0%, #fff5eb 42%, #ffe3c7 100%)');
+  // TEST: green gradient endpoints retain readable labels, including at their darkest end.
+  it('uses a white-to-green canvas with readable gradient endpoints', () => {
+    expect(css).toContain('--spirit-canvas: linear-gradient(135deg, #ffffff 0%, #f0faf3 42%, #dcefe1 100%)');
     expect(css).toContain('background: var(--spirit-canvas)');
-    for (const fg of ['ink', 'muted']) for (const bg of ['#ffffff', '#fff5eb', '#ffe3c7', '#ffdfbd']) {
+    for (const fg of ['ink', 'muted']) for (const bg of ['#ffffff', '#f0faf3', '#dcefe1', '#cfe8d7']) {
       expect((luminance(bg) + .05) / (luminance(color(fg)) + .05)).toBeGreaterThanOrEqual(7);
     }
   });

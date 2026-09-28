@@ -23,8 +23,17 @@ describe('Spirit warm readable palette', () => {
   });
   it('lifts tiles only for precise hover and respects reduced motion', () => {
     expect(css).toContain('@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)');
-    expect(css).toContain('transform: translateY(-3px)');
+    expect(css).toContain('transform: translateY(-5px)');
     expect(css).toContain('@media (prefers-reduced-motion: reduce), (hover: none), (pointer: coarse)');
     expect(css).not.toMatch(/tr:hover[^}]*transform:/);
+  });
+  // TEST: resting tiles must have visible depth, not just a transient hover shadow.
+  it('gives tiles resting elevation and a pressed state without resizing', () => {
+    expect(css).toContain('--spirit-tile-shadow:');
+    expect(css).toContain('box-shadow: var(--spirit-tile-shadow)');
+    expect(css).toContain('inset 0 1px 0 rgb(255 255 255 / 0.95)');
+    expect(css).toContain('linear-gradient(160deg, #fffdf9 0%, #f4ecdf 100%)');
+    expect(css).toContain(':active:not(:disabled) { transform: translateY(-1px)');
+    expect(css).not.toContain('scale(1.');
   });
 });

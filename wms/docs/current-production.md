@@ -1,3 +1,13 @@
+# Published PR372: bounded FBS assignment retries / 28.09.2026
+
+API `sha256:d503835845d4684bb5388552dc9304aa4cfd61e71b40bb3f1b393247bc8a9b2c`. One-method overlay on live OpenClaw image51484e2; all other runtime files preserved. `WMS_FBS_ASSIGNMENT_BUSY_GUARD_ENABLED=true` only for our WMS. Busy employee/device requests return Conflict without releasing the active lock or accumulating retries. The original operation is not forcibly cancelled; its historical hang remains unproven. API restart during publication cleared in-memory pending requests.
+
+Validation: 2907 API tests passed, 113 skipped; dedicated KIZ database suite excluded. TypeScript and actual candidate enabled/disabled, exclusion and recovery tests passed. After publication the device-context request for Marifat returned the correct closed-request response for1508 in107ms. Physical open-request picking remains to be confirmed on TSD. No stock or KIZ changes; web, APK216, configuration and other containers unchanged. Sold WMS untouched. Rollback image51484e2 / tag `logoff-api:before-marifat-assignment-wait`.
+
+Baseline `2026-09-28-fbs-assignment-wait` captures API runtime and records web hashes without a web archive; retain current web independently. Source parity remains false.
+
+## Previous release
+
 # OpenClaw опубликован 28.09.2026
 
 Наша WMS: [PR355](https://github.com/Maxhead2011/wmsFF/pull/355),

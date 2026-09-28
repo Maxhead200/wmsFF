@@ -17,4 +17,6 @@ Scope: la_panthera screen CSS only. Requests/online execution, KIZ circulation, 
 
 Regression: test/la-panthera-contrast.browser.cjs loads actual feature styles after theme CSS, optionally captured runtime styles via RUNTIME_CSS. Thirteen representative views, including contract forms, normal/active/disabled controls, dark backgrounds, text contrast, long product wrapping, sidebar colours and print exclusion. Original published CSS fails this test. Fixtures are not an authenticated production UI walkthrough.
 
-Release: CSS + index link only over freshly captured web. Docker's existing 419-layer image hit its mount-path limit; flattened base verified with identical image config and all 3076 filesystem entries (content, links, mode and ownership). Runtime JavaScript, API, APK and deployment settings remain unchanged by this release. Full local web281/API2883 tests pass; 113 API cases skipped, dedicated KIZ database suite excluded as in existing release process.
+Release: CSS + index link only over freshly captured web. Docker's existing 419-layer image hit its mount-path limit; flattened base verified with identical image config and all 3076 filesystem entries (content, links, mode and ownership). Runtime JavaScript, API, APK and deployment settings remain unchanged by this release. Full local web281/API2883 tests pass; 114 API cases skipped, dedicated KIZ database suite excluded as in existing release process.
+
+FBS entry header and nested menu/client list use dark semantic accents for all six variants. Approved marketplace outer tiles are retained.

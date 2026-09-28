@@ -1,3 +1,13 @@
+# Published PR375: archive empty FBO boxes / 28.09.2026
+
+API `sha256:a83204a8bb4819193a11ba7ba8a3b462c960ef772fc9d659c88a122dfd531f62`. Two-module overlay on PR372; web/APK216, configuration, other containers and previous flags preserved. `WMS_FBO_EMPTY_BOX_ARCHIVE_ENABLED=true` only for our WMS. After individual FBO picking and shipment history capture, genuinely empty active boxes are archived and detached from pallet-sort in the same transaction. Permanent boxes, nonzero balances, marks and active bindings remain protected. Default/sold behavior unchanged.
+
+Validation: API2915 passed,113 skipped; separate KIZ integration suite unavailable. TypeScript passed. Eight regression/guard tests. Actual candidate processed12 PALET_SORT_141 boxes with idempotence, then rolled back; original12 active boxes and placements verified. After publication, these exact12 boxes were archived in a Serializable transaction with fresh scope/stock/mark/task checks and audit records. No stock/KIZ/history mutation. Before-state backup `/opt/logoff-wms-releases/dovoz-relabel-20260917/pallet141-before-archive.json`. Post-commit12 archived and0 placements verified. Runtime hashes/health verified.
+
+Baseline `2026-09-28-fbo-empty-boxes` is API-only with web hash metadata; retain current web independently. Source parity remains false. Rollback image d5038358 / `logoff-api:before-fbo-empty-box-archive`; rolling back code does not undo audited box archival.
+
+## Previous release
+
 # Published PR374: la_panthera / 28.09.2026
 
 PR374: opt-in la_panthera web theme with self-hosted Inter (SIL OFL), graphite panels and violet accents. Existing section layout retained. Android, printing, Excel, API image and other containers unchanged. Full web274 tests, TypeScript and actual runtime graph/browser/font loading passed. Public index, entry, CSS, WOFF2 and license hashes verified. Source parity false; source-reference remains historical. API runtime captured from verified PR372 snapshot. Rollback: logoff-web:before-la-panthera.

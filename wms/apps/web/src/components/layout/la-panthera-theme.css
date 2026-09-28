@@ -224,3 +224,24 @@
  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.contract-status--signed, .contracts-alert--success) { background: #193c2c; color: #9feac1; border-color: #438967; }
  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.contract-card__icon, .contract-check-dialog__icon) { background: #25314c; color: #b8ceff; }
 }
+
+/* FIX: FBS hero and nested clients share the dark marketplace palette. */
+@media screen {
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-tile--red { --fbs-accent: #ffabb6; --fbs-soft: #38232c; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-tile--green { --fbs-accent: #9feac1; --fbs-soft: #19372c; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-tile--amber { --fbs-accent: #f6d295; --fbs-soft: #3a3021; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-tile--slate { --fbs-accent: #c6d4ea; --fbs-soft: #29313f; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-tile--violet { --fbs-accent: #d6baff; --fbs-soft: #312641; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-tile--blue { --fbs-accent: #b8ceff; --fbs-soft: #24314a; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-panel__hero { background: linear-gradient(115deg, #191c28, #2b2238); color: #f3f3f6; border-color: #50515e; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-panel__hero h2 { color: #f3f3f6; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-panel__hero p:last-child { color: #c9cad6; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-panel__scope { background: #312641; color: #d6baff; border-color: #8979b3; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-tile { background: linear-gradient(115deg, #202127, var(--fbs-soft)); border-color: #50515e; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-tile__content strong { color: #f3f3f6; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-tile__content small { color: #c9cad6; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-tile__clients { background: #202127; border-color: #50515e; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-tile__clients button { background: #292a34; color: #f3f3f6; border-color: #50515e; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-tile__clients button:is(:hover, .is-selected) { background: var(--fbs-soft); color: #f3f3f6; border-color: var(--fbs-accent); }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.fbs-tile__clients-title, .fbs-tile__clients-empty) { color: #c9cad6; }
+}

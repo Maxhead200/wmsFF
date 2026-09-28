@@ -220,6 +220,9 @@ export class FboTwoStageService {
                             markId: pick.mark?.id, activeMarkId: pick.mark?.id, kiz: pick.mark?.value, sourceBoxId: source.id, sourceBoxCode: source.code, wholeBox: whole, pickedByUserId: user.id } });
                 }
                 await this.releaseDisplacedRoutes(tx, source.id, source.code, [...new Set(chosen.map(p => p.skuId))]);
+                // FIX: after marks and reservations move, archive the emptied source in this same transaction.
+                if (process.env.WMS_FBO_EMPTY_BOX_ARCHIVE_ENABLED === 'true' && !whole)
+                    await this.stock.archiveEmptyFboBoxes(tx, id, user, [source.id]);
             }
             else if (dto.action === 'FINISH_PICK') {
                 requirePhase('PICKING');

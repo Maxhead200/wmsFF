@@ -5,6 +5,8 @@ const { chromium } = require('C:/Users/La_pa/.cache/codex-runtimes/codex-primary
 const root = path.resolve(__dirname, '../src');
 const output = process.env.THEME_TEST_OUTPUT || 'D:/WMSFF/_Kof/work/la-panthera-contrast-release';
 const fixtures = [
+  // TEST: FBS entry hero and all nested menu accents must remain readable.
+  ['fbs-menu', `<header class="fbs-panel__hero"><h2>Выберите маркетплейс</h2><p>Заказы и инструменты</p><span class="fbs-panel__scope">3 рабочих контура</span></header>${["red","green","amber","slate","violet","blue"].map(accent=>`<div class="fbs-tile fbs-tile--${accent}"><button class="fbs-tile__open"><span class="fbs-tile__icon">□</span><span class="fbs-tile__content"><span class="fbs-tile__number">1</span><strong>Активные заказы FBS</strong><small>Новые заказы, сборка и упаковка</small></span><span class="fbs-tile__count">114</span></button><div class="fbs-tile__clients"><span class="fbs-tile__clients-title">Клиенты с заказами</span><button class="is-selected"><span>ИП Лукин</span><strong>104</strong></button><button><span>ИП Королев</span><strong>2</strong></button></div></div>`).join("")}`],
  ['contracts', '<section class="contracts-panel"><h2>Договоры с клиентами</h2><section class="contract-create-card"><div class="contract-create-card__title"><strong>Создать договор</strong><span>Основная компания</span></div></section><article class="contract-card"><div class="contract-card__identity"><strong>Договор 0002</strong><span>Лукин</span></div><span class="contract-status contract-status--waiting">Ожидает подписи</span><div class="contract-card__meta"><span>Дата: 28.09.2026</span></div><div class="contract-card__actions"><button class="contract-requisites-check-button">Проверить договор</button><button class="contract-archive-button">В архив</button></div></article></section>'],
   ['labels', '<section class="print-panel"><header class="print-panel__heading"><h2>Печать</h2></header><div class="print-tabs"><button class="active">SKU</button><button>Шаблоны</button></div><div class="sku-label-flow__result"><label><input type="checkbox" checked><span><strong>Костюм сливочный</strong><small>L / 46</small></span></label></div><div class="print-preview"><h3>TSPL</h3><small>Команда принтера</small></div></section>'],
   ['inventory', '<section class="inventory"><div class="inventory-mode-grid"><button class="inventory-mode"><span class="inventory-mode__number">01</span><strong>Полная инвентаризация</strong><small>Проверка всех коробов</small></button></div></section>'],
@@ -72,6 +74,6 @@ const fixtures = [
     await page.evaluate(() => { for (const el of document.querySelector('.workspace-content').children) el.style.display = 'block'; });
     await page.emulateMedia({media: 'print'});
     assert.equal(await product.evaluate(e => getComputedStyle(e).whiteSpace), 'nowrap', 'Theme must not modify printing');
-    console.log('PASS: 13 operational views, real feature CSS, >=4.5:1 contrast, dark panels, full product name, theme isolation and print exclusion');
+    console.log('PASS: 14 operational views, real feature CSS, >=4.5:1 contrast, dark panels, full product name, theme isolation and print exclusion');
   } finally { await browser.close(); }
 })().catch(e => {console.error(e); process.exitCode = 1;});

@@ -40,7 +40,7 @@
 .app-layout[data-ui-variant='spirit'] .app-sidebar__nav button:hover { background: #30343a; }
 .app-layout[data-ui-variant='spirit'] .workspace-header { background: #191b1f; color: var(--ink); }
 .app-layout[data-ui-variant='spirit'] :is(.workspace-header__title h1, .workspace-user strong) { color: var(--ink); }
-.app-layout[data-ui-variant='spirit'] .modern-dashboard__heading h1 { font-family: Georgia, 'Times New Roman', serif; font-weight: 500; }
+.app-layout[data-ui-variant='spirit'] .modern-dashboard__heading h1 { font-family: 'Times New Roman', Times, serif; font-weight: 500; }
 .app-layout[data-ui-variant='spirit'] :is(.workspace-tile, .warehouse-topic-tile, .fbs-marketplace-card,.fbs-tile, .metric-tile, .module-card, .access-topic-tile, .admin-tech-tile, .billing-invoice-kind-tile, .billing-topic-tile, .directory-topic-tile, .fbs-warehouse-tile, .print-topic-tile, .turnover-summary-tile, .turnover-tile) { background: var(--surface); color: var(--ink); border-color: var(--line); border-radius: 12px; }
 .app-layout[data-ui-variant='spirit'] .client-request-table :is(button, .document-open-button) { background: #2c3036; color: #eef0f4; border-color: #555b65; font-weight: 600; box-shadow: none; }
 .app-layout[data-ui-variant='spirit'] .client-request-table td button :is(span, strong, small),
@@ -61,7 +61,7 @@
 @media (prefers-reduced-motion: reduce), (hover: none), (pointer: coarse) {
   .app-layout[data-ui-variant='spirit'] :is(.workspace-tile, .warehouse-topic-tile, .fbs-marketplace-card,.fbs-tile, .metric-tile, .module-card, .access-topic-tile, .admin-tech-tile, .billing-invoice-kind-tile, .billing-topic-tile, .directory-topic-tile, .fbs-warehouse-tile, .print-topic-tile, .turnover-summary-tile, .turnover-tile, .modern-dashboard__metrics article, .modern-dashboard__quick button) { transition: none; transform: none; }
 }
-.app-layout[data-ui-variant='spirit'] { font-family: Inter, system-ui, sans-serif; color: var(--ink); }
+.app-layout[data-ui-variant='spirit'] { font-family: 'Times New Roman', Times, serif; color: var(--ink); }
 .app-layout[data-ui-variant='spirit'] :is(.workspace-shell, .workspace-content, .modern-dashboard, .analytics-panel, .analytics-grid, .modern-dashboard__panel, .wave-overview) { min-width: 0; }
 .app-layout[data-ui-variant='spirit'] .workspace-content { padding: 16px; background: var(--spirit-canvas); }
 .app-layout[data-ui-variant='spirit'] :is(.modern-dashboard, .analytics-panel, .analytics-grid, .modern-dashboard__columns, .modern-dashboard__metrics, .wave-overview) { gap: 16px; }
@@ -104,6 +104,29 @@
 /* FIX: component compatibility. Pair foreground/background; root specificity also
    wins when a lazy-loaded module stylesheet arrives after this theme.
    Explicit surfaces only: never recolour document frames, labels or product images. */
+/* FIX: Times New Roman for Spirit UI, including native controls and portal dialogs.
+   Barcode/label canvases and monospaced technical content retain their own fonts. */
+:root[data-ui-variant='spirit'] :is(.app-layout, [role='dialog']),
+:root[data-ui-variant='spirit'] :is(.app-layout, [role='dialog']) :is(h1,h2,h3,h4,h5,h6,button,input,select,textarea,option,table) {
+  font-family: 'Times New Roman', Times, serif;
+}
+/* FIX: analytics recommendations use the same graphite surfaces as adjacent cards.
+   Positive values are text accents, not full-width green bars. */
+:root[data-ui-variant='spirit'] .app-layout .analytics-card,
+:root[data-ui-variant='spirit'] .app-layout .analytics-placement-list > article {
+  background: #202328; color: #f2f3f5; border-color: #454950;
+}
+:root[data-ui-variant='spirit'] .app-layout .analytics-placement-list :is(small,em),
+:root[data-ui-variant='spirit'] .app-layout .analytics-card__heading small { color: #c5c9d0; }
+:root[data-ui-variant='spirit'] .app-layout .analytics-model-note {
+  background: #3a3020; color: #f1d29d; border-color: #7e6945;
+}
+:root[data-ui-variant='spirit'] .app-layout :is(.analytics-supply-positive,.analytics-dynamic.positive) {
+  color: #a7e7c3; background: transparent;
+}
+:root[data-ui-variant='spirit'] .app-layout .analytics-dynamic.negative {
+  color: #ffb4af; background: transparent;
+}
 :root[data-ui-variant='spirit'] .app-layout[data-ui-variant='spirit'] {
   --ink: #f2f3f5; --muted: #c5c9d0; --surface: #202328; --line: #454950;
   --text: #f2f3f5; --text-soft: #c5c9d0; --border-subtle: #454950;

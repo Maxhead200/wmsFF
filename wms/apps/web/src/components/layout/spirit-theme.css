@@ -1,0 +1,89 @@
+/* FIX: Spirit is opt-in. No marketing, TSD or other theme selectors. */
+:root[data-ui-variant='spirit'] {
+  color-scheme: dark;
+  --ink: #edf2fc;
+  --muted: #a6b4ce;
+  --line: #2b3952;
+  --surface: #142039;
+  --bg: #0c1426;
+  --ok: #7de2c3;
+  --danger: #f69bA7;
+  --plan: #b7a9f7;
+  --work: #e7c68b;
+  --red: #b7a9f7;
+  --red-dark: #9580e1;
+  --modern-topbar: #101b30;
+  --modern-sidebar: #101b30;
+  --modern-sidebar-hover: #202e48;
+  --modern-canvas: #0c1426;
+  --modern-panel: #142039;
+  --modern-line: #2b3952;
+  --modern-line-soft: #25324a;
+  --modern-red: #f69ba7;
+  --modern-blue: #9ebfff;
+  --modern-green: #7de2c3;
+  --modern-orange: #e7c68b;
+  --modern-violet: #b7a9f7;
+  --modern-teal: #7de2c3;
+}
+:root[data-ui-variant='spirit'] body { background: var(--bg); color: var(--ink); }
+.app-layout[data-ui-variant='spirit'] { font-family: Inter, system-ui, sans-serif; color: var(--ink); }
+.app-layout[data-ui-variant='spirit'] :is(.workspace-shell, .workspace-content, .modern-dashboard, .analytics-panel, .analytics-grid, .modern-dashboard__panel, .wave-overview) { min-width: 0; }
+.app-layout[data-ui-variant='spirit'] .workspace-content { padding: 16px; background: var(--bg); }
+.app-layout[data-ui-variant='spirit'] :is(.modern-dashboard, .analytics-panel, .analytics-grid, .modern-dashboard__columns, .modern-dashboard__metrics, .wave-overview) { gap: 16px; }
+.app-layout[data-ui-variant='spirit'] :is(.modern-dashboard__panel, .analytics-card, .analytics-hero, .panel, .card, .wave-overview__table-wrap, .wave-overview__card) {
+  border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: none; color: var(--ink);
+}
+.app-layout[data-ui-variant='spirit'] :is(.analytics-card, .analytics-hero) { padding: 16px; }
+.app-layout[data-ui-variant='spirit'] .analytics-hero__glow { display: none; }
+.app-layout[data-ui-variant='spirit'] :is(h1, h2, h3, h4, strong, .analytics-panel, .wave-overview, .workspace-user) { color: var(--ink); }
+.app-layout[data-ui-variant='spirit'] :is(small, dt, .muted, .modern-dashboard__heading > div > span, .modern-dashboard__metrics article div > span, .analytics-card__heading small, .workspace-header__description) { color: var(--muted); }
+.app-layout[data-ui-variant='spirit'] :is(.modern-dashboard__metrics, .modern-dashboard__branches article, .modern-dashboard__quick button, .modern-dashboard__queue button, .analytics-kpi, .analytics-region-list > div, .analytics-placement-list > article) { background: var(--surface); color: var(--ink); border-color: var(--line); box-shadow: none; }
+.app-layout[data-ui-variant='spirit'] .modern-dashboard__metrics { border-radius: 14px; }
+.app-layout[data-ui-variant='spirit'] .modern-dashboard__metrics article { padding: 12px; min-width: 0; }
+.app-layout[data-ui-variant='spirit'] .modern-dashboard__metrics strong { font-size: 26px; font-variant-numeric: tabular-nums; }
+.app-layout[data-ui-variant='spirit'] .modern-dashboard__columns { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; }
+.app-layout[data-ui-variant='spirit'] :is(input, select, textarea, option, .workspace-global-search, .workspace-branch-select, .ui-theme-switcher, .workspace-user, .modern-header-action) { background: #101b30; color: var(--ink); border-color: var(--line); }
+.app-layout[data-ui-variant='spirit'] :is(input, textarea)::placeholder { color: var(--muted); }
+.app-layout[data-ui-variant='spirit'] :is(button, a, input, select, textarea):focus-visible { outline: 2px solid #b7a9f7; outline-offset: 2px; }
+.app-layout[data-ui-variant='spirit'] :is(button, select, input) { max-width: 100%; }
+.app-layout[data-ui-variant='spirit'] :is(.modern-dashboard__queue-status, .modern-dashboard__branch-status, .analytics-supply-positive, .analytics-dynamic.positive) { color: var(--ok); background: #173733; }
+.app-layout[data-ui-variant='spirit'] :is(.is-danger, .analytics-dynamic.negative) { color: var(--danger); background: #392537; }
+.app-layout[data-ui-variant='spirit'] :is(.analytics-count, .modern-dashboard__panel > header > span) { color: #b7a9f7; background: #28243f; }
+.app-layout[data-ui-variant='spirit'] table { color: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums; }
+.app-layout[data-ui-variant='spirit'] :is(th, td) { padding: 7px 10px; border-color: var(--line); background: var(--surface); color: var(--ink); }
+.app-layout[data-ui-variant='spirit'] th { background: #19263e; color: var(--muted); }
+.app-layout[data-ui-variant='spirit'] tbody tr:hover td { background: #1c2a43; }
+.app-layout[data-ui-variant='spirit'] .spirit-chart { height: 240px; width: 100%; min-width: 0; }
+/* Keyboard-accessible exact values and product actions complement Canvas. */
+.app-layout[data-ui-variant='spirit'] .analytics-bars__track { display: none; }
+.app-layout[data-ui-variant='spirit'] .analytics-bars > button { grid-template-columns: 20px minmax(0, 1fr) auto; background: transparent; color: var(--ink); padding: 6px 0; border-color: var(--line); }
+.app-layout[data-ui-variant='spirit'] .analytics-bars__label strong { color: var(--ink); }
+@media (max-width: 1100px) {
+  .app-layout[data-ui-variant='spirit'] .modern-dashboard__columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .app-layout[data-ui-variant='spirit'], .app-layout[data-ui-variant='spirit'].app-layout--sidebar-collapsed { grid-template-columns: minmax(0, 1fr); }
+  .app-layout[data-ui-variant='spirit'] :is(.modern-dashboard__columns, .analytics-grid, .analytics-hero__controls) { grid-template-columns: minmax(0, 1fr); }
+  .app-layout[data-ui-variant='spirit'] .modern-dashboard__metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .app-layout[data-ui-variant='spirit'] :is(.workspace-header, .workspace-header__meta) { flex-wrap: wrap; min-width: 0; }
+  .app-layout[data-ui-variant='spirit'] :is(.analytics-table, .analytics-region-table, table) { min-width: 0; width: 100%; table-layout: fixed; }
+  .app-layout[data-ui-variant='spirit'] :is(th, td) { padding: 7px 4px; overflow-wrap: anywhere; white-space: normal; }
+  .app-layout[data-ui-variant='spirit'] :is(td img, td input, td select) { max-width: 100%; min-width: 0; }
+  .app-layout[data-ui-variant='spirit'] .analytics-placement-list > article { grid-template-columns: minmax(0, 1fr); }
+  .app-layout[data-ui-variant='spirit'] .analytics-product-identity { min-width: 0; flex-wrap: wrap; }
+  .app-layout[data-ui-variant='spirit'] .analytics-product-identity strong { white-space: normal; overflow-wrap: anywhere; }
+  .app-layout[data-ui-variant='spirit'] .analytics-products .analytics-table thead { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; }
+  .app-layout[data-ui-variant='spirit'] .analytics-products .analytics-table :is(tbody, tr) { display: grid; }
+  .app-layout[data-ui-variant='spirit'] .analytics-products .analytics-table tr { grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
+  .app-layout[data-ui-variant='spirit'] .analytics-products .analytics-table td:first-child { grid-column: 1 / -1; }
+  .app-layout[data-ui-variant='spirit'] .analytics-products .analytics-table td::before { display: block; color: var(--muted); font-size: 10px; }
+  .app-layout[data-ui-variant='spirit'] .analytics-products td:nth-child(2)::before { content: 'Статус'; }
+  .app-layout[data-ui-variant='spirit'] .analytics-products td:nth-child(3)::before { content: 'Заказы'; }
+  .app-layout[data-ui-variant='spirit'] .analytics-products td:nth-child(4)::before { content: 'Сумма'; }
+  .app-layout[data-ui-variant='spirit'] .analytics-products td:nth-child(5)::before { content: 'Конверсия'; }
+  .app-layout[data-ui-variant='spirit'] .analytics-products td:nth-child(6)::before { content: 'Выкуп'; }
+  .app-layout[data-ui-variant='spirit'] .analytics-products td:nth-child(7)::before { content: 'WB'; }
+  .app-layout[data-ui-variant='spirit'] .analytics-products td:nth-child(8)::before { content: 'LOGOFF'; }
+  .app-layout[data-ui-variant='spirit'] .analytics-products td:nth-child(9)::before { content: 'Динамика'; }
+}

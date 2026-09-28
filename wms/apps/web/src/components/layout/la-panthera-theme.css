@@ -245,3 +245,33 @@
  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-tile__clients button:is(:hover, .is-selected) { background: var(--fbs-soft); color: #f3f3f6; border-color: var(--fbs-accent); }
  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.fbs-tile__clients-title, .fbs-tile__clients-empty) { color: #c9cad6; }
 }
+
+/* FIX: payroll controls and compact summary border, without changing calculations. */
+@media screen {
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .payroll-management button { background: #292a34; color: #eee9ff; border-color: #666575; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .payroll-management button:disabled { background: #25262d; color: #bfc0cb; border-color: #50515e; opacity: 1; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .payroll-tiles button.is-active { background: #343044; color: #ede5ff; border-color: #b9a2f5; box-shadow: inset 0 -1px #b9a2f5; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.payroll-management form, .payroll-payment-summary) { background: #202127; color: #f3f3f6; border-color: #454650; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .payroll-payment-summary { padding: 8px; border-width: 1px; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.payroll-fields label, .payroll-payment-detail) { color: #c9cad6; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .payroll-table th { background: #25262e; color: #d1d2dc; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .payroll-table :is(th, td) { border-color: #454650; }
+}
+
+/* FIX: requested red wordmark on graphite. */
+@media screen {
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .app-sidebar__brand :is(span, strong, small) { color: #f80000; }
+}
+
+/* FIX: requested theme and user name accent. */
+@media screen {
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.ui-theme-switcher select, .workspace-user > div > strong) { color: #f80000; }
+}
+
+/* FIX: branch icons and metrics avoid pale surfaces. */
+@media screen {
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.branch-card__head > span, .branch-card__head em) { background: #3a2b24; color: #ffc49d; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .branch-card__metrics span { background: #292a34; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .branch-card :is(small, p) { color: #c9cad6; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .branch-card__menu:hover { background: #3a2b24; color: #ffc49d; }
+}

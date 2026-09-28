@@ -5,6 +5,10 @@ const { chromium } = require('C:/Users/La_pa/.cache/codex-runtimes/codex-primary
 const root = path.resolve(__dirname, '../src');
 const output = process.env.THEME_TEST_OUTPUT || 'D:/WMSFF/_Kof/work/la-panthera-contrast-release';
 const fixtures = [
+  // TEST: branch icon surfaces and captions.
+  ['branches', '<article class="branch-card"><div class="branch-card__head"><span>□</span><div><strong>Москва</strong><small>MSK · ФФ Москва</small></div><em>Активный</em></div><p>Адрес пока не указан</p><div class="branch-card__metrics"><span><b>15841</b><small>товаров</small></span></div></article>'],
+  // TEST: payroll actions, filters and summary stay readable with a compact border.
+  ['payroll', '<section class="payroll-management"><header class="payroll-heading"><button>К расходам</button><h2>ФОТ</h2></header><div class="payroll-tiles"><button class="is-active">Табель и начисления</button><button>Работы</button></div><div class="payroll-fields"><label>Сотрудник<input value="Все сотрудники"></label></div><button disabled>Добавить запись</button><section class="payroll-payment-summary"><h3>Суммы и реквизиты</h3><div class="payroll-payment-detail">Не оплачено: 1000 ₽</div><div class="payroll-table"><table><tr><th>Действия</th><td><button>Редактировать</button></td></tr></table></div></section></section>'],
   // TEST: FBS entry hero and all nested menu accents must remain readable.
   ['fbs-menu', `<header class="fbs-panel__hero"><h2>Выберите маркетплейс</h2><p>Заказы и инструменты</p><span class="fbs-panel__scope">3 рабочих контура</span></header>${["red","green","amber","slate","violet","blue"].map(accent=>`<div class="fbs-tile fbs-tile--${accent}"><button class="fbs-tile__open"><span class="fbs-tile__icon">□</span><span class="fbs-tile__content"><span class="fbs-tile__number">1</span><strong>Активные заказы FBS</strong><small>Новые заказы, сборка и упаковка</small></span><span class="fbs-tile__count">114</span></button><div class="fbs-tile__clients"><span class="fbs-tile__clients-title">Клиенты с заказами</span><button class="is-selected"><span>ИП Лукин</span><strong>104</strong></button><button><span>ИП Королев</span><strong>2</strong></button></div></div>`).join("")}`],
  ['contracts', '<section class="contracts-panel"><h2>Договоры с клиентами</h2><section class="contract-create-card"><div class="contract-create-card__title"><strong>Создать договор</strong><span>Основная компания</span></div></section><article class="contract-card"><div class="contract-card__identity"><strong>Договор 0002</strong><span>Лукин</span></div><span class="contract-status contract-status--waiting">Ожидает подписи</span><div class="contract-card__meta"><span>Дата: 28.09.2026</span></div><div class="contract-card__actions"><button class="contract-requisites-check-button">Проверить договор</button><button class="contract-archive-button">В архив</button></div></article></section>'],
@@ -27,14 +31,14 @@ const fixtures = [
   const browser = await chromium.launch({ channel: 'msedge', headless: true });
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
-    await page.setContent('<html data-ui-theme="modern" data-ui-variant="classic"><body><main class="app-layout" data-ui-theme="modern"><aside class="app-sidebar"><nav class="app-sidebar__nav"><button><svg></svg><span>Фабрика</span></button></nav></aside><div class="workspace-shell"><header class="workspace-header"></header><div class="workspace-content">' + fixtures.map(([id, html]) => `<div id="${id}" style="padding:12px">${html}</div>`).join('') + '</div></div></main></body></html>');
+    await page.setContent('<html data-ui-theme="modern" data-ui-variant="classic"><body><main class="app-layout" data-ui-theme="modern"><aside class="app-sidebar"><div class="app-sidebar__brand"><strong>LOGOFF</strong><span>WMS</span></div><nav class="app-sidebar__nav"><button><svg></svg><span>Фабрика</span></button></nav></aside><div class="workspace-shell"><header class="workspace-header"><label class="ui-theme-switcher"><select><option>la_panthera</option></select></label><div class="workspace-user"><div><strong>Пользователь</strong></div></div></header><div class="workspace-content">' + fixtures.map(([id, html]) => `<div id="${id}" style="padding:12px">${html}</div>`).join('') + '</div></div></main></body></html>');
     await page.addStyleTag({ path: path.join(root, 'styles.css') });
     // Fixture has no application header; keep the host tall enough for visual inspection.
     await page.addStyleTag({content: '.app-layout{min-height:100vh}.workspace-shell{height:auto!important;overflow:visible!important}.workspace-content{height:auto!important;max-height:none!important;overflow:visible!important}'});
     const before = await page.locator('.warehouse-panel').evaluate(e => getComputedStyle(e).backgroundColor);
     await page.addStyleTag({ path: process.env.THEME_CSS || path.join(root, 'components/layout/la-panthera-theme.css') });
     assert.equal(await page.locator('.warehouse-panel').evaluate(e => getComputedStyle(e).backgroundColor), before);
-    for (const file of ['client-requests/client-requests.css', 'kiz-circulation/kiz-circulation.css', 'logistics/logistics.css', 'integration-api/integration-api.css', 'monitoring/tsd-monitoring.css', 'service/service-center.css', 'administration/administration.css', 'fbs/fbs.css', 'warehouse/warehouse.css', 'inventory/inventory.css', 'print/print.css', 'contracts/contracts.css']) await page.addStyleTag({ path: path.join(root, 'components', file) });
+    for (const file of ['client-requests/client-requests.css', 'kiz-circulation/kiz-circulation.css', 'logistics/logistics.css', 'integration-api/integration-api.css', 'monitoring/tsd-monitoring.css', 'service/service-center.css', 'administration/administration.css', 'fbs/fbs.css', 'warehouse/warehouse.css', 'inventory/inventory.css', 'print/print.css', 'contracts/contracts.css', 'expenses/payroll.css', 'branches/branches.css']) await page.addStyleTag({ path: path.join(root, 'components', file) });
     if (process.env.RUNTIME_CSS) await page.addStyleTag({path: process.env.RUNTIME_CSS});
     await page.evaluate(() => document.documentElement.dataset.uiVariant = 'la_panthera');
     await page.waitForTimeout(300); // Allow existing theme colour transitions to settle.
@@ -64,6 +68,10 @@ const fixtures = [
     assert.deepEqual(failures, [], 'Every operational sample needs dark background and >=4.5:1 text contrast');
     assert.equal(await page.locator('.app-sidebar__nav svg').evaluate(e=>getComputedStyle(e).color), 'rgb(193, 84, 193)');
     assert.equal(await page.locator('.app-sidebar__nav span').evaluate(e=>getComputedStyle(e).color), 'rgb(192, 209, 255)');
+    assert.equal(await page.locator('.payroll-payment-summary').evaluate(e=>getComputedStyle(e).paddingTop), '8px');
+    // TEST: user-specified theme, account and brand colours.
+    for (const selector of ['.ui-theme-switcher select', '.workspace-user > div > strong']) assert.equal(await page.locator(selector).evaluate(e=>getComputedStyle(e).color), 'rgb(248, 0, 0)');
+    assert.equal(await page.locator('.app-sidebar__brand strong').evaluate(e=>getComputedStyle(e).color), 'rgb(248, 0, 0)');
     const product = page.locator('.tsd-feed__current-item strong');
     assert.equal(await product.evaluate(e => getComputedStyle(e).whiteSpace), 'normal');
     assert(await product.evaluate(e => e.clientHeight > parseFloat(getComputedStyle(e).lineHeight)), 'Full product name wraps');
@@ -74,6 +82,6 @@ const fixtures = [
     await page.evaluate(() => { for (const el of document.querySelector('.workspace-content').children) el.style.display = 'block'; });
     await page.emulateMedia({media: 'print'});
     assert.equal(await product.evaluate(e => getComputedStyle(e).whiteSpace), 'nowrap', 'Theme must not modify printing');
-    console.log('PASS: 14 operational views, real feature CSS, >=4.5:1 contrast, dark panels, full product name, theme isolation and print exclusion');
+    console.log('PASS: 16 operational views, real feature CSS, >=4.5:1 contrast, dark panels, full product name, theme isolation and print exclusion');
   } finally { await browser.close(); }
 })().catch(e => {console.error(e); process.exitCode = 1;});

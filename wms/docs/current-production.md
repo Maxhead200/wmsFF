@@ -1,3 +1,40 @@
+# OpenClaw опубликован 28.09.2026
+
+Наша WMS: [PR355](https://github.com/Maxhead2011/wmsFF/pull/355),
+[PR363](https://github.com/Maxhead2011/wmsFF/pull/363),
+[PR366](https://github.com/Maxhead2011/wmsFF/pull/366), база `feature/wb-print-check`.
+API image `sha256:51484e2ea51ba0ea5594fd0dcd741cfdd2363681fbe7f33333191ae8c93c09b8`.
+Web нашего выпуска `sha256:cdaa134f2f0806b28310ae7ec872f7104840967042cfbbb2218beb7b3d36c019`;
+последующее оформление уже дало web `sha256:912149dad82a9c0683326f4a66a797b077b65a6fd9e34b9ab3f33f0743ec43cf`.
+В последнем web сохранены entry `openclaw-20260928-0.js`, новый помощник и его маршруты.
+Перед следующим выпуском заново считать фактические image ID.
+
+OpenClaw 2026.9.6, Node 24.19.0, модель `openai/gpt-5.6-sol`, ChatGPT/Codex OAuth.
+Сервис `wms-openclaw` включён при загрузке. API получает приватную конфигурацию из
+`/etc/wms-openclaw/wms-api.env`; доступ разрешён действующим владельцам и администраторам.
+Прокси применяется только к OpenClaw. Firewall разрешает 18789/tcp только через мост
+нашей сети `infra_default` из 172.18.0.0/16 к 172.18.0.1. Публичного слушателя нет.
+
+Проверено через работающий API: задание `d8293e10-adb1-466f-95ec-4a700c4f4c85`
+завершено `DONE`, команда выполнена один раз, повтор requestId вернул тот же ответ.
+Клиенту отказано 403, прежнему чату — 409. Временные проверочные сессии закрыты.
+Первое сетевое задание осталось UNKNOWN без повторения; файл им не создан.
+
+Снимок API содержит 554 файла. `sourceParityVerified=false`: полная пересборка
+не разрешена. Проверенный локальный снимок:
+`C:/WMSFF2207/baselines/openclaw-published-20260928`.
+Серверный снимок и отчёты:
+`/opt/logoff-wms-releases/openclaw-wms-20260928/published-baseline`,
+`published.json`, `end-to-end.json`. Для следующего кандидата применять
+`release_baseline.py --baseline <этот снимок>` и сверять свежий image ID.
+Предыдущие снимки ниже являются историей.
+
+Тесты актуальной интеграционной базы: API 2905 passed / 113 skipped, web 280 passed, 6 Node и 11 Python проверок,
+TypeScript web и изолированный серверный кандидат. KIZ integration suite требует
+выделенную тестовую БД и не запускался на production. Резервные образы:
+`logoff-api:before-openclaw-20260928`, `logoff-web:before-openclaw-20260928`.
+Поздний откат не должен затирать последующие выпуски интерфейса.
+
 # Published PR364: cabinet loading / 28.09.2026
 
 API `sha256:2c5e58b7d57ac148e1bb8e6068c305b52679210eba74a68f8d2401da8a6a5ea2`; web `sha256:ebd933aef735ee17d2721121a939c715797c14c7e958fbdd7f1abff9f9cc358c`.

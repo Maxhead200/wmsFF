@@ -3,6 +3,11 @@ import importlib.util,pathlib,unittest
 spec=importlib.util.spec_from_file_location('deploy',pathlib.Path(__file__).parents[1]/'deploy-openclaw.py')
 deploy=importlib.util.module_from_spec(spec);spec.loader.exec_module(deploy)
 class PublicationTests(unittest.TestCase):
+    def test_firewall_is_limited_to_our_private_bridge(self):
+        args=deploy.firewall_command('6e8e55f3b697b90820b276497f1b64f2d', '172.18.0.0/16','172.18.0.1')
+        self.assertEqual(args,['ufw','allow','in','on','br-6e8e55f3b697','from','172.18.0.0/16','to','172.18.0.1','port','18789','proto','tcp','comment','WMS private OpenClaw gateway'])
+        for subnet,gateway in [('0.0.0.0/0','172.18.0.1'),('172.18.0.0/16','0.0.0.0'),('172.19.0.0/16','172.19.0.1')]:
+            with self.assertRaises(RuntimeError):deploy.firewall_command('6e8e55f3b697',subnet,gateway)
     def test_rejects_business_file_change(self):
         with self.assertRaises(RuntimeError):deploy.verify_delta({'ai':'a','stock':'b'},{'ai':'c','stock':'wrong'},{'ai':'c'})
         deploy.verify_delta({'ai':'a','stock':'b'},{'ai':'c','stock':'b'},{'ai':'c'})

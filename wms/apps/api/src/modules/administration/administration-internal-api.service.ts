@@ -141,7 +141,7 @@ export const INTERNAL_API_DEFINITIONS: readonly InternalApiDefinition[] = Object
     id: 'expenses',
     name: 'Расходы',
     prefixes: ['/expenses', '/expenses/workforce'],
-    routeCount: 34, // FIX: includes audited handling corrections and cancellation.
+    routeCount: 35, // FIX: includes audited shift cancellation.
     description: 'Учёт расходов, категорий, статей и подтверждающих документов.',
     logic: ['Регистрирует расходы филиала.', 'Фильтрует операции по периоду и ответственным.', 'Формирует отчётность и вложения.', 'Новый ФОТ за отдельным флагом: сотрудники, реквизиты, смены, ставки, погрузки, статусы выплат и импорт истории; администратор ограничен своим филиалом.'],
     dependencies: ['Основная БД', 'Файловое хранилище'],

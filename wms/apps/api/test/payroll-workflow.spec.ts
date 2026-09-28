@@ -5,7 +5,8 @@ import type { AuthUser } from '../src/modules/auth/auth.types';
 const user = { id: 'admin', roleCodes: ['ADMIN'], warehouseIds: ['msk'], writableWarehouseIds: ['msk'] } as AuthUser;
 function setup() {
   const db: any = { payrollEmployee: { findFirst: vi.fn().mockResolvedValue({ id: 'e', warehouseId: 'msk' }) },
-    payrollShift: { findFirst: vi.fn().mockResolvedValue(null), create: vi.fn().mockResolvedValue({ id: 's' }) },
+    payrollShift: { findFirst: vi.fn().mockResolvedValue(null), findMany: vi.fn().mockResolvedValue([]), create: vi.fn().mockResolvedValue({ id: 's', workDate: '2026-09-26' }) },
+    payrollWorkDay: { findUnique: vi.fn().mockResolvedValue(null), deleteMany: vi.fn() },
     payrollSettlement: { findFirst: vi.fn().mockResolvedValue(null), upsert: vi.fn() },
     payrollHistorical: { findFirst: vi.fn().mockResolvedValue(null) },
     payrollAudit: { create: vi.fn() }, $queryRaw: vi.fn() };

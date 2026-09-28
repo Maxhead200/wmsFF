@@ -794,7 +794,7 @@ export function App() {
           className={`workspace-content workspace-content--${activeWorkspace.id}`}
           aria-label={activeWorkspace.title}
         >
-          <SoulWorkspace enabled={uiTheme === 'soul'} groups={groupedWorkspaces} activeId={activeWorkspace.id} onOpen={(id) => setActiveWorkspaceId(id as WorkspaceId)}>
+          <SoulWorkspace enabled={uiTheme === 'soul'} userId={session.user.id} groups={groupedWorkspaces} activeId={activeWorkspace.id} onOpen={(id) => setActiveWorkspaceId(id as WorkspaceId)}>
           {renderWorkspace(
             activeWorkspace.id,
             session,

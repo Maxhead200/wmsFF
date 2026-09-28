@@ -5,6 +5,8 @@ import {SoulWorkspace,soulEnabled,soulGroups} from './SoulWorkspace';
 const groups=[{id:'main',title:'Главное',items:[{id:'overview',title:'Обзор'}]},{id:'client',title:'Клиентский контур',items:[{id:'fbs',title:'FBS'}]},{id:'operations',title:'Склад и операции',items:[]}];
 // TEST: Soul consumes permission-filtered groups; never invents hidden workspaces.
 describe('Soul live navigation',()=>{
+ // TEST: requested home heading replaces both the brand and slogan.
+ it('labels the home screen Управление Складом',()=>{const html=renderToStaticMarkup(<SoulWorkspace groups={groups} activeId="overview" onOpen={()=>{}}>{null}</SoulWorkspace>);expect(html).toContain('<h1>Управление Складом</h1>');expect(html).not.toContain('Всё на своих местах.');});
  it('keeps only accessible non-overview entries',()=>{expect(soulGroups(groups).map(g=>g.items.map(i=>i.id))).toEqual([['fbs']]);});
  it('is restricted to our environment and local preview',()=>{expect(soulEnabled('wms.logoff.pro')).toBe(true);expect(soulEnabled('127.0.0.1')).toBe(true);expect(soulEnabled('sold.logoff.pro')).toBe(false);expect(soulEnabled('wms.logoff.pro.evil.test')).toBe(false);});
  it('renders the existing page unchanged and marks its navigation',()=>{const html=renderToStaticMarkup(<SoulWorkspace groups={groups} activeId="fbs" onOpen={()=>{}}><div data-real-page>Real order page</div></SoulWorkspace>);expect(html).toContain('Real order page');expect(html).toContain('aria-current="page"');expect(html).not.toContain('data-soul-open="billing"');});

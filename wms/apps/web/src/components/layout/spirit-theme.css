@@ -383,7 +383,23 @@
   .billing-topic-tile__icon,.billing-invoice-kind-tile__icon,.directory-topic-tile__icon,
   .print-topic-tile__icon,.access-topic-tile__icon,.fbs-tile__icon,
   .fbs-turnkey-card__icon,.turnover-tile__icon
-) { background: #293e34; color: #a7e7c3; border-color: #638773; }
+) { background: var(--spirit-icon-bg, #24364f); color: var(--spirit-icon-fg, #a9cdff); border-color: var(--spirit-icon-border, #5a7ca7); }
+/* FIX: varied decorative accents; status colours and tile text stay unchanged. */
+:root[data-ui-variant='spirit'] .app-layout :is(.workspace-tile,.admin-tech-tile,.warehouse-topic-tile,.billing-topic-tile,.billing-invoice-kind-tile,.directory-topic-tile,.print-topic-tile,.access-topic-tile,.fbs-marketplace-card,.fbs-tile,.fbs-turnkey-card,.turnover-tile):nth-child(5n + 1) {
+  --spirit-icon-fg: #a9cdff; --spirit-icon-bg: #24364f; --spirit-icon-border: #5a7ca7;
+}
+:root[data-ui-variant='spirit'] .app-layout :is(.workspace-tile,.admin-tech-tile,.warehouse-topic-tile,.billing-topic-tile,.billing-invoice-kind-tile,.directory-topic-tile,.print-topic-tile,.access-topic-tile,.fbs-marketplace-card,.fbs-tile,.fbs-turnkey-card,.turnover-tile):nth-child(5n + 2) {
+  --spirit-icon-fg: #a7e7c3; --spirit-icon-bg: #293e34; --spirit-icon-border: #638773;
+}
+:root[data-ui-variant='spirit'] .app-layout :is(.workspace-tile,.admin-tech-tile,.warehouse-topic-tile,.billing-topic-tile,.billing-invoice-kind-tile,.directory-topic-tile,.print-topic-tile,.access-topic-tile,.fbs-marketplace-card,.fbs-tile,.fbs-turnkey-card,.turnover-tile):nth-child(5n + 3) {
+  --spirit-icon-fg: #d2baff; --spirit-icon-bg: #383049; --spirit-icon-border: #8972ad;
+}
+:root[data-ui-variant='spirit'] .app-layout :is(.workspace-tile,.admin-tech-tile,.warehouse-topic-tile,.billing-topic-tile,.billing-invoice-kind-tile,.directory-topic-tile,.print-topic-tile,.access-topic-tile,.fbs-marketplace-card,.fbs-tile,.fbs-turnkey-card,.turnover-tile):nth-child(5n + 4) {
+  --spirit-icon-fg: #f4d18e; --spirit-icon-bg: #443821; --spirit-icon-border: #a18a58;
+}
+:root[data-ui-variant='spirit'] .app-layout :is(.workspace-tile,.admin-tech-tile,.warehouse-topic-tile,.billing-topic-tile,.billing-invoice-kind-tile,.directory-topic-tile,.print-topic-tile,.access-topic-tile,.fbs-marketplace-card,.fbs-tile,.fbs-turnkey-card,.turnover-tile):nth-child(5n + 5) {
+  --spirit-icon-fg: #ffb5ac; --spirit-icon-bg: #482f31; --spirit-icon-border: #aa7272;
+}
 :root[data-ui-variant='spirit'] .app-layout .tsd-monitor :is(.is-online svg,.is-online strong,.tsd-picker-order b) { color: #a7e7c3; }
 :root[data-ui-variant='spirit'] .app-layout .tsd-monitor :is(.is-danger svg,.is-danger strong) { color: #ffb4af; }
 @media (max-width: 1100px) {

@@ -18,8 +18,21 @@ it.skipIf(!runtime).each([1440, 390])('keeps operational surfaces readable at %i
       'client-cabinet-client-editor', 'expenses-filters', 'kiz-dialog', 'dbs-setup-form', 'service-card',
       'ozfbo-card', 'turnover-cell-card', 'wms-ai-chat', 'packed-request__body', 'integration-api__form',
       'balance-review-panel', 'manual-box-selection-item', 'online-execution-section', 'box-overlap-panel'];
-    const html = `<!doctype html><html data-ui-variant="spirit"><meta charset="utf-8"><style>${css}</style>
-      <body><main class="app-layout" data-ui-variant="spirit"><div class="workspace-content">
+    // TEST: production uses modern tokens beneath Spirit, including text-primary.
+    const html = `<!doctype html><html data-ui-theme="modern" data-ui-variant="spirit"><meta charset="utf-8"><style>${css}</style>
+      <body><main class="app-layout" data-ui-theme="modern" data-ui-variant="spirit"><div class="workspace-content">
+      ${['workspace-tile','admin-tech-tile','warehouse-topic-tile','billing-topic-tile','directory-topic-tile','print-topic-tile'].map(c => `<button class="${c}"><span class="${c}__icon"><svg data-check width="24" height="24" fill="none" stroke="currentColor"><path d="M2 2L22 22"/></svg></span><strong data-check>${c}</strong></button>`).join('')}
+      <div class="client-services-toolbar"><label><span data-check>Клиент</span><select data-check><option>Лукин</option></select></label><div class="client-services-search"><span data-check>Поиск</span></div><div class="client-services-toolbar__summary" data-check>Подключено 0</div></div>
+      <div class="fbs-pricing-default is-active"><strong data-check>Калькулятор FBS</strong><span data-check>Работает автоматически</span><em data-check>Активен</em></div>
+      ${['','is-enabled','fbs-turnkey-card--logistics is-enabled','fbs-turnkey-card--primary is-enabled'].map(c => `<section class="fbs-turnkey-card ${c}"><div class="fbs-turnkey-card__copy"><strong data-check>FBS под ключ</strong><span data-check>Фиксированная цена</span></div></section>`).join('')}
+      <section class="fbs-turnkey-card"><div class="fbs-pricing__service-picker"><div><label class="is-selected"><span><strong data-check>Услуга выбрана</strong><small data-check>Тариф клиента</small></span></label></div></div></section>
+      <div class="panel-message" data-check>Нет счетов</div>
+      <section class="tsd-monitor"><div class="tsd-feed__connection is-online" data-check>В сети</div><div class="tsd-feed__idle" data-check>На устройстве нет открытой заявки</div><div class="tsd-monitor__error" data-check>Ошибка синхронизации</div><div class="tsd-monitor__notice" data-check>Операция завершена</div></section>
+      <div class="directory-result" data-check>Клиент сохранён</div><label class="directory-file-input" data-check>Выберите файл</label>
+      <section class="expenses-panel"><header class="expenses-header"><h2 data-check>Расходы</h2><p data-check>Материалы и логистика</p></header></section>
+      <section class="tsd-monitor"><h2 data-check>Мониторинг ТСД</h2><p class="tsd-monitor__subtitle" data-check>Живое состояние устройств</p><article class="tsd-feed"><h3 data-check>Гулрух</h3></article></section>
+      <article class="branch-card branch-card--active"><h3 data-check>Москва</h3></article><article class="branch-card"><h3 data-check>Ногинск</h3></article>
+      <section class="client-requisites-card"><h3 data-check>Новый клиент</h3><label class="directory-checkbox"><input type="checkbox"><span data-check>Вести учёт хранения</span></label><fieldset class="client-stock-mode"><legend data-check>Какие остатки учитывать</legend><label><input type="radio"><span><strong data-check>На паллетосортах</strong><small data-check>Только размещённые короба</small></span></label></fieldset></section>
       <section class="client-request-items-editor"><header class="client-request-items-editor__heading"><h3 data-check>Состав заявки</h3><p data-check>1 / 300 позиций</p></header>
       <label data-check>ШТРИХКОД</label><input value="2051621250518" data-check><button class="client-request-secondary-button" data-check>Строка</button></section>
       <section class="client-request-fbs-tails"><div class="client-request-fbs-tails__copy"><div><strong data-check>Новая заявка из хвостов FBS</strong><span data-check>Выберите клиента</span></div></div><div class="client-request-fbs-tails__actions"><label><span data-check>Клиент</span><select data-check><option>Лукин</option></select></label></div></section>
@@ -52,7 +65,7 @@ it.skipIf(!runtime).each([1440, 390])('keeps operational surfaces readable at %i
     await page.setContent(html);
     const result = JSON.parse(await page.locator('#result').textContent());
     expect(result.error).toBeUndefined();
-    for (const sample of result.spirit) expect(sample.ratio, JSON.stringify(sample)).toBeGreaterThanOrEqual(4.5);
+    expect(result.spirit.filter((sample: { ratio: number }) => sample.ratio < 4.5)).toEqual([]);
     expect(result.spirit.length).toBeGreaterThan(65);
     // TEST: requested font applies to headings and native controls, not just body.
     await page.evaluate(() => {
@@ -60,11 +73,15 @@ it.skipIf(!runtime).each([1440, 390])('keeps operational surfaces readable at %i
       (document.querySelector('main') as HTMLElement).dataset.uiVariant = 'spirit';
     });
     for (const selector of ['.analytics-placement-product strong', '.analytics-card__heading strong', 'input', 'button', 'select']) {
-      expect(await page.locator(selector).first().evaluate((el: Element) => getComputedStyle(el).fontFamily)).toContain('Times New Roman');
+      expect(await page.locator(selector).first().evaluate((el: Element) => getComputedStyle(el).fontFamily)).toContain('Cambria');
     }
     for (const selector of ['.analytics-supply-positive', '.analytics-dynamic.positive']) {
       expect(await page.locator(selector).evaluate((el: Element) => getComputedStyle(el).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
     }
+    // TEST: active branch must differ from its neighbours beyond the small badge.
+    const branchColours = await page.locator('.branch-card').evaluateAll((els: Element[]) => els.map(el => ({ bg: getComputedStyle(el).backgroundColor, border: getComputedStyle(el).borderColor })));
+    expect(branchColours[0].bg).not.toBe(branchColours[1].bg);
+    expect(branchColours[0].border).not.toBe(branchColours[1].border);
     // TEST: compare with theme absent rather than assuming the legacy theme's colour.
     await page.setContent(html.replace(readFileSync(new URL('./spirit-theme.css', import.meta.url), 'utf8'), ''));
     const baseline = JSON.parse(await page.locator('#result').textContent());

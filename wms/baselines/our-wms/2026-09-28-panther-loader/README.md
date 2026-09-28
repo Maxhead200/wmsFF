@@ -1,0 +1,3 @@
+# la_panthera / PR385
+
+PR385: la_panthera web contrast correction across 27 representative component states, larger dashboard/FBS labels, saturated icons and dark gradients. Original diploma GIF loader with reduced-motion still frame; readable graphite supply group headings, buttons and warehouse badges. Parallel spirit Cambria release (previous web 9636e1f3), API PR375, APK216, settings and other containers preserved. 281 web and 2891 API tests passed, 113 skipped; dedicated KIZ DB suite excluded. Browser contrast/isolation/print and runtime graph/font checks passed. Source parity false; runtime CSS overlay only. Rollback logoff-web:before-panther-loader.

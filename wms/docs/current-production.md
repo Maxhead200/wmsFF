@@ -1,3 +1,13 @@
+# Published PR364: cabinet loading / 28.09.2026
+
+API `sha256:2c5e58b7d57ac148e1bb8e6068c305b52679210eba74a68f8d2401da8a6a5ea2`; web `sha256:ebd933aef735ee17d2721121a939c715797c14c7e958fbdd7f1abff9f9cc358c`.
+
+Published PR364: cabinet-only compact stock projection and issued/paid invoice list without unused charge metadata. Product display settings expanded above branch tiles and all-client overview; loading/errors visible. Same database snapshot confirms identical balance quantities and visible invoice totals/payments/items. Stock payload 74.7MB to7MB, invoice50.9MB to1.4MB; server6.5s to4.1s and6.7s to0.33s respectively. API2872/web271 passed;113 API tests skipped. Four runtime API modules only; latest Spirit CSS, other assets, flags, APK216 and other containers preserved. Sold WMS untouched. Source parity false.
+
+Baseline `2026-09-28-cabinet-fast`.
+
+## Previous release
+
 # Published PR358: client product display / 28.09.2026
 
 API `sha256:09a4f4cc84a4ad1bb08279f8c2c236ab679accf7f1a50131c8e990647cd10cfb`; web `sha256:d204e622e626f793f63d733fa9efea41e701f3f77d2e10a506f8c8a138c83d59`.

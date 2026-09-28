@@ -40,7 +40,7 @@
 .app-layout[data-ui-variant='spirit'] .app-sidebar__nav button:hover { background: #30343a; }
 .app-layout[data-ui-variant='spirit'] .workspace-header { background: #191b1f; color: var(--ink); }
 .app-layout[data-ui-variant='spirit'] :is(.workspace-header__title h1, .workspace-user strong) { color: var(--ink); }
-.app-layout[data-ui-variant='spirit'] .modern-dashboard__heading h1 { font-family: 'Times New Roman', Times, serif; font-weight: 500; }
+.app-layout[data-ui-variant='spirit'] .modern-dashboard__heading h1 { font-family: Cambria, Georgia, serif; font-weight: 500; }
 .app-layout[data-ui-variant='spirit'] :is(.workspace-tile, .warehouse-topic-tile, .fbs-marketplace-card,.fbs-tile, .metric-tile, .module-card, .access-topic-tile, .admin-tech-tile, .billing-invoice-kind-tile, .billing-topic-tile, .directory-topic-tile, .fbs-warehouse-tile, .print-topic-tile, .turnover-summary-tile, .turnover-tile) { background: var(--surface); color: var(--ink); border-color: var(--line); border-radius: 12px; }
 .app-layout[data-ui-variant='spirit'] .client-request-table :is(button, .document-open-button) { background: #2c3036; color: #eef0f4; border-color: #555b65; font-weight: 600; box-shadow: none; }
 .app-layout[data-ui-variant='spirit'] .client-request-table td button :is(span, strong, small),
@@ -61,7 +61,7 @@
 @media (prefers-reduced-motion: reduce), (hover: none), (pointer: coarse) {
   .app-layout[data-ui-variant='spirit'] :is(.workspace-tile, .warehouse-topic-tile, .fbs-marketplace-card,.fbs-tile, .metric-tile, .module-card, .access-topic-tile, .admin-tech-tile, .billing-invoice-kind-tile, .billing-topic-tile, .directory-topic-tile, .fbs-warehouse-tile, .print-topic-tile, .turnover-summary-tile, .turnover-tile, .modern-dashboard__metrics article, .modern-dashboard__quick button) { transition: none; transform: none; }
 }
-.app-layout[data-ui-variant='spirit'] { font-family: 'Times New Roman', Times, serif; color: var(--ink); }
+.app-layout[data-ui-variant='spirit'] { font-family: Cambria, Georgia, serif; color: var(--ink); }
 .app-layout[data-ui-variant='spirit'] :is(.workspace-shell, .workspace-content, .modern-dashboard, .analytics-panel, .analytics-grid, .modern-dashboard__panel, .wave-overview) { min-width: 0; }
 .app-layout[data-ui-variant='spirit'] .workspace-content { padding: 16px; background: var(--spirit-canvas); }
 .app-layout[data-ui-variant='spirit'] :is(.modern-dashboard, .analytics-panel, .analytics-grid, .modern-dashboard__columns, .modern-dashboard__metrics, .wave-overview) { gap: 16px; }
@@ -104,11 +104,11 @@
 /* FIX: component compatibility. Pair foreground/background; root specificity also
    wins when a lazy-loaded module stylesheet arrives after this theme.
    Explicit surfaces only: never recolour document frames, labels or product images. */
-/* FIX: Times New Roman for Spirit UI, including native controls and portal dialogs.
+/* FIX: Cambria for Spirit UI, including native controls and portal dialogs.
    Barcode/label canvases and monospaced technical content retain their own fonts. */
 :root[data-ui-variant='spirit'] :is(.app-layout, [role='dialog']),
 :root[data-ui-variant='spirit'] :is(.app-layout, [role='dialog']) :is(h1,h2,h3,h4,h5,h6,button,input,select,textarea,option,table) {
-  font-family: 'Times New Roman', Times, serif;
+  font-family: Cambria, Georgia, serif;
 }
 /* FIX: analytics recommendations use the same graphite surfaces as adjacent cards.
    Positive values are text accents, not full-width green bars. */
@@ -318,6 +318,74 @@
 :root[data-ui-variant='spirit'] .app-layout :is(.workspace-tile,.warehouse-topic-tile,.fbs-marketplace-card,.fbs-tile,.metric-tile,.module-card,.access-topic-tile,.admin-tech-tile,.billing-invoice-kind-tile,.billing-topic-tile,.directory-topic-tile,.fbs-warehouse-tile,.print-topic-tile,.turnover-summary-tile,.turnover-tile) {
   background: linear-gradient(160deg, #101113 0%, #191b1f 45%, #30343a 100%); color: #f2f3f5;
 }
+/* FIX: complete the shared modern token contract at both root and app scope.
+   Monitoring and forms consume these aliases, not only --ink and --muted. */
+:root[data-ui-variant='spirit'],
+:root[data-ui-variant='spirit'] .app-layout[data-ui-variant='spirit'] {
+  --text-primary: #f2f3f5; --text-secondary: #c5c9d0;
+  --text: #f2f3f5; --text-soft: #c5c9d0; --muted: #c5c9d0;
+  --accent: #a7e7c3; --accent-strong: #d1f5e1; --accent-soft: #293e34;
+  --border: #636b77; --border-subtle: #454950;
+  --surface-muted: #30353c;
+}
+/* FIX: modern page wrappers must not leave white strips between dark children. */
+:root[data-ui-variant='spirit'] .app-layout :is(
+  .auth-panel,.import-panel,.data-panel,.billing-panel,.client-cabinet-panel,
+  .directory-panel,.logistics-panel,.warehouse-panel,.catalog-panel,.print-panel,
+  .access-panel,.own-companies-panel,.inventory-panel,.contracts-panel,.fbs-panel,
+  .kiz-issues-panel,.expenses-panel,.branches-panel,.client-requests-panel,
+  .client-services-toolbar,.client-services-search,.client-services-toolbar__summary,
+  .fbs-pricing-default,.fbs-turnkey-card,.client-service-picker,
+  .directory-checkbox,.client-requisites-card,.client-stock-mode,.directory-file-input,
+  .expenses-card,.expenses-workspace,.expenses-payroll-table-wrap,
+  .expenses-client-settings,.expenses-client-costs,.tsd-messages
+) { background: #202328; color: #f2f3f5; border-color: #454950; }
+:root[data-ui-variant='spirit'] .app-layout .panel-message {
+  background: repeating-linear-gradient(-45deg,#24282e,#24282e 10px,#292e35 10px,#292e35 20px);
+  color: #c5c9d0; border-color: #636b77;
+}
+:root[data-ui-variant='spirit'] .app-layout :is(
+  .client-services-toolbar label > span,.client-services-toolbar__summary,
+  .fbs-turnkey-card__copy span,.fbs-turnkey-card__price small,
+  .expenses-header p:not(.eyebrow),.expenses-workspace__heading p,
+  .expenses-filters label > span,.expenses-card__heading span,.expense-metric span,
+  .branch-card__address,.requisites-import__copy p,.requisites-import__copy span,
+  .admin-tech-tile__body small
+) { color: #c5c9d0; }
+/* FIX: preserve enabled/selected meaning using a paired dark green palette. */
+:root[data-ui-variant='spirit'] .app-layout :is(.fbs-pricing-default.is-active,.fbs-turnkey-card.is-enabled) {
+  background: #293e34; color: #d1f5e1; border-color: #87baa0;
+}
+:root[data-ui-variant='spirit'] .app-layout .fbs-pricing-default em {
+  background: #303947; color: #d1dcf0;
+}
+:root[data-ui-variant='spirit'] .app-layout .fbs-pricing-default.is-active em {
+  background: #1d3027; color: #a7e7c3;
+}
+:root[data-ui-variant='spirit'] .app-layout .branch-card.branch-card--active {
+  background: #293e34; border-color: #a7e7c3;
+  box-shadow: inset 0 0 0 1px #a7e7c3, 0 4px 12px rgb(0 0 0 / .25);
+}
+:root[data-ui-variant='spirit'] .app-layout .fbs-turnkey-card .fbs-pricing__service-picker > div > label.is-selected {
+  background: #353044; color: #ece0ff; border-color: #b9a1df;
+  box-shadow: inset 3px 0 #b9a1df;
+}
+:root[data-ui-variant='spirit'] .app-layout :is(.directory-result,.tsd-feed__connection.is-online,.tsd-monitor__notice) {
+  background: #223b2e; color: #a7e7c3; border-color: #547c64;
+}
+:root[data-ui-variant='spirit'] .app-layout :is(.tsd-monitor__error,.tsd-feed__errors-button.has-errors) {
+  background: #40282b; color: #ffb4af; border-color: #88565c;
+}
+:root[data-ui-variant='spirit'] .app-layout :is(.tsd-feed__idle,.tsd-feed__progress-notes b,.tsd-history-modal__empty) { color: #a7e7c3; }
+/* FIX: icon colour must win over button span inheritance; SVG keeps currentColor. */
+:root[data-ui-variant='spirit'] .app-layout :is(button,a,article,section,div) :is(
+  .workspace-tile__icon,.admin-tech-tile__icon,.warehouse-topic-tile__icon,
+  .billing-topic-tile__icon,.billing-invoice-kind-tile__icon,.directory-topic-tile__icon,
+  .print-topic-tile__icon,.access-topic-tile__icon,.fbs-tile__icon,
+  .fbs-turnkey-card__icon,.turnover-tile__icon
+) { background: #293e34; color: #a7e7c3; border-color: #638773; }
+:root[data-ui-variant='spirit'] .app-layout .tsd-monitor :is(.is-online svg,.is-online strong,.tsd-picker-order b) { color: #a7e7c3; }
+:root[data-ui-variant='spirit'] .app-layout .tsd-monitor :is(.is-danger svg,.is-danger strong) { color: #ffb4af; }
 @media (max-width: 1100px) {
   .app-layout[data-ui-variant='spirit'] .modern-dashboard__columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

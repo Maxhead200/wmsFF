@@ -2,7 +2,7 @@
 
 Opt-in web theme inspired by https://unitool.ai/ru/x-ai: graphite canvas, dark panels, subtle outlines, violet accents and high-contrast text. Existing navigation, section order and grid definitions are retained. No auto-selection for any user.
 
-Font stack: SF Pro Text, SF Pro Display, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif. San Francisco is used where installed; no proprietary font file is bundled. Body15px, table/navigation/card descriptions14px. Styles apply only to screen media, including portaled dialogs; labels and exported files retain their format.
+Font: bundled InterVariable.woff2, family La Panthera Inter, with Segoe UI/sans-serif fallback. Licensed under SIL OFL1.1; license bundled in public/fonts/inter. Source: https://github.com/rsms/inter/tree/master/docs/font-files. No third-party font requests. Body15px, table/navigation/card descriptions14px. Styles apply only to screen media, including portaled dialogs; labels and exported files retain their format.
 
 Files: App.tsx (option and union), main.tsx (stylesheet import), components/layout/la-panthera-theme.css, test/la-panthera-theme.browser.cjs. API, Android and sold WMS are unchanged. Existing localStorage stores the selection per user.
 

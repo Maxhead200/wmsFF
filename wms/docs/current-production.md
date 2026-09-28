@@ -1,3 +1,11 @@
+# Published PR348: sorting KIZ review / 28.09.2026
+
+PR348 опубликован 28.09.2026. API `sha256:9a3ec430469e30afeb1620b1a75852815976eba477325d5c06fcb9778313a9a9`. Только два модуля КИЗов; WMS_KIZ_SORTING_ADMIN_REUSE_ENABLED=true. Web, APK, остальные контейнеры и настройки сохранены. 30 runtime-тестов passed, точные хеши и health проверены. Read-only проверка рабочего API подтверждает поступление КИЗа заявки1494 через сортировку после прежней отгрузки. Разрешение администратора и физический повторный скан ещё не выполнялись. Source parity всей системы остаётся false.
+
+Baseline `2026-09-28-kiz-sorting`.
+
+## Previous release
+
 # Published PR346: handling review / 27.09.2026
 
 API `sha256:12fa527baadc9a49bee0422932e49311dd96f2a8ddc32cbc4a34f0a18af92f38`; web `sha256:a0d4dec5f81901fee35ffa90533051b2610fd5c6a53e39deed1062b4e439df86`. One-off operation tariff, correction/cancellation of REVIEW handling and employee activity filter. No migration; previous flags and APK215 unchanged. PR345 waves retained. Verified exact runtime hashes, public web assets, health and candidate transaction rollback. Tests: API2894 passed/94 skipped (dedicated KIZ duplicate suite excluded), web255, Android72, TypeScript and Android lint. Attendance APK0.2.2 built; physical UI validation pending. Baseline `2026-09-27-handling346`; source parity remains false.

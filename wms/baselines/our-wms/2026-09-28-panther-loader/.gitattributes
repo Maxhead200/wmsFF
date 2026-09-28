@@ -1,0 +1,2 @@
+# Preserve the exact live schema bytes used by manifest verification.
+prisma-runtime.prisma -text

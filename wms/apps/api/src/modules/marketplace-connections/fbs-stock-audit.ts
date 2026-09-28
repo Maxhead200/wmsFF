@@ -18,7 +18,7 @@ const identity = (value: string) => kizIdentityTransferEnabled() ? physicalKizId
 
 // FIX: this is a read-only return gate, never a KIZ replacement, WB undo or second stock debit.
 // Quantity-only inventory resolution cannot prove that the physical KIZ composition was repaired.
-export async function validateFbsStockAudit(db: Prisma.TransactionClient, task: FbsTsdAssembly, sessionId: string, userId: string) {
+export async function validateFbsStockAudit(db: Prisma.TransactionClient, task: FbsTsdAssembly, sessionId: string, userId: string, roleCodes: readonly string[] = []) {
   const stop = (message: string): never => { throw new ConflictException({ code: 'FBS_STOCK_AUDIT_PENDING', message }); };
   const session = await db.inventorySession.findUnique({ where: { id: sessionId }, include: {
     boxes: { include: { lines: true } },
@@ -47,7 +47,7 @@ export async function validateFbsStockAudit(db: Prisma.TransactionClient, task: 
       createdAt: { gte: audit.startedAt } } }),
   ]);
   const skuIds = [...new Set([...audit.lines.map(line => line.skuId), ...marks.map(mark => mark.skuId), ...balances.map(row => row.skuId)])];
-  const skus = await db.sku.findMany({ where: { id: { in: skuIds } }, select: { id: true, needsChestnyZnak: true, isUnmarked: true } });
+  const skus = await db.sku.findMany({ where: { id: { in: skuIds } }, select: { id: true, internalSku: true, needsChestnyZnak: true, isUnmarked: true } });
   if (skus.length !== skuIds.length) stop('Не все товары короба найдены. Нужен разбор администратора.');
   // FIX: administrator-confirmed historical packing remains in its shipment ledger,
   // but is outside the physical contents that the worker has just counted.
@@ -67,7 +67,20 @@ export async function validateFbsStockAudit(db: Prisma.TransactionClient, task: 
   for (const sku of skus) {
     const line = audit.lines.find(row => row.skuId === sku.id);
     const quantity = balances.filter(row => row.skuId === sku.id && row.status === 'AVAILABLE').reduce((n, row) => n + row.quantity, 0);
-    if (quantity !== (line?.countedQuantity ?? 0)) stop('Остаток после пересчёта не совпадает с фактом. Актуализируйте короб с администратором.');
+    // FIX: the privileged picker may explicitly retain their own unchanged system stock.
+    // This accepts the discrepancy, without fabricating scans or changing inventory.
+    const acceptedAsIs = process.env.WMS_INVENTORY_PHYSICAL_RESOLUTION_ENABLED === 'true' &&
+      roleCodes.some(role => role === 'ADMIN' || role === 'OWNER') && activePick && task.workerUserId === userId &&
+      line?.decision === 'KEEP_SYSTEM' && line.decisionComment?.startsWith('[ACCEPT_AS_IS]') &&
+      line.decidedByUserId === userId && line.decidedAt && line.decidedAt >= audit.startedAt &&
+      quantity === line.expectedQuantity && balances.filter(row => row.skuId === sku.id)
+        .every(row => !row.updatedAt || row.updatedAt <= line.decidedAt!);
+    if (!acceptedAsIs && quantity !== (line?.countedQuantity ?? 0)) {
+      // FIX: distinguish a changed stock quantity from a KIZ composition mismatch.
+      const details = process.env.WMS_INVENTORY_PHYSICAL_RESOLUTION_ENABLED === 'true'
+        ? ` Товар: ${sku.internalSku || sku.id}. В текущем остатке: ${quantity} шт.; в сохранённом пересчёте: ${line?.countedQuantity ?? 0} шт.` : '';
+      stop('Остаток после пересчёта не совпадает с фактом. Актуализируйте короб с администратором.' + details);
+    }
     if (!sku.needsChestnyZnak || sku.isUnmarked) continue;
     const scans = evidence.map(row => row.payload as Record<string, unknown> | null).filter(row =>
       row?.skuId === sku.id && row.roundStartedAt === audit.startedAt.toISOString() && row.clientId === task.clientId &&
@@ -76,10 +89,25 @@ export async function validateFbsStockAudit(db: Prisma.TransactionClient, task: 
     const registered = marks.filter(row => row.skuId === sku.id);
     // Missing KIZs are allowed only for the existing quantity-only imported-stock gap.
     // An absent old KIZ is never retired or overwritten by this gate.
-    if (scanned.has('') || scanned.size !== quantity || registered.some(row => row.clientId !== task.clientId ||
-        row.status !== 'AVAILABLE' || !scanned.has(identity(row.value))) ||
+    if ((!acceptedAsIs && (scanned.has('') || scanned.size !== quantity)) || registered.some(row => row.clientId !== task.clientId ||
+        row.status !== 'AVAILABLE' || !identity(row.value) || (!acceptedAsIs && !scanned.has(identity(row.value)))) ||
+        (acceptedAsIs && registered.length > quantity) ||
         new Set(registered.map(row => identity(row.value))).size !== registered.length) {
-      stop('Количество проверено, но состав КИЗ не подтверждён. Администратору нужно разобрать привязки КИЗ; сборка остаётся на проверке.');
+      // FIX: explain the mismatched physical identities using already loaded, scoped records.
+      let details = '';
+      if (process.env.WMS_INVENTORY_PHYSICAL_RESOLUTION_ENABLED === 'true') {
+        const registeredIds = new Set(registered.map(row => identity(row.value)));
+        const missing = [...scanned].filter(key => key && !registeredIds.has(key));
+        const extra = [...registeredIds].filter(key => key && !scanned.has(key));
+        const unavailable = registered.filter(row => row.status !== 'AVAILABLE');
+        details = ` Товар: ${sku.internalSku || sku.id}. Остаток: ${quantity} шт.; сохранено уникальных сканов: ${[...scanned].filter(Boolean).length}; привязано КИЗ: ${registered.length}.`;
+        if (missing.length) details += ` Отсканированы, но не привязаны к этому товару в коробе (${missing.length}): ${missing.slice(0, 5).join(', ')}.`;
+        if (extra.length) details += ` Числятся у товара, но отсутствуют в сканах (${extra.length}): ${extra.slice(0, 5).join(', ')}.`;
+        if (unavailable.length) details += ` Недоступные КИЗ (${unavailable.length}): ${unavailable.slice(0, 5).map(row => `${identity(row.value)} — ${row.status}`).join(', ')}.`;
+        if (registeredIds.size !== registered.length) details += ' Есть повторные привязки одного КИЗ.';
+        if (scanned.has('')) details += ' Есть скан с нераспознанным форматом КИЗ.';
+      }
+      stop('Количество проверено, но состав КИЗ не подтверждён. Администратору нужно разобрать привязки КИЗ; сборка остаётся на проверке.' + details);
     }
   }
   // FIX: an already picked unit is outside the storage box. Never ask to count it back into that box.

@@ -1,0 +1,17 @@
+const assert=require('assert');require('/app/apps/api/node_modules/reflect-metadata');
+const base='/app/apps/api/dist/', {ProductDisplayInterceptor,isProductDisplayRoute}=require(base+'modules/clients/product-display.interceptor');
+const {ProductDisplayService}=require(base+'modules/clients/product-display.service');
+const {ProductDisplayController}=require(base+'modules/clients/product-display.controller');
+const {ClientsModule}=require(base+'modules/clients/clients.module');
+const {of,lastValueFrom}=require('/app/apps/api/node_modules/rxjs');
+(async()=>{assert(Reflect.getMetadata('controllers',ClientsModule).includes(ProductDisplayController));assert(Reflect.getMetadata('providers',ClientsModule).includes(ProductDisplayService));
+const cache={task:{product:{id:'sku',name:'Original',barcode:'123',article:'A'}}};let queried=0;
+const db={sku:{findMany:async()=>{queried++;return [{id:'sku',clientId:'c',name:'Original',article:'A',size:'M',color:'Blue',barcodes:[{value:'123'}]}]}},systemSetting:{findMany:async()=>[{key:'client.product-display.v1:c',value:['article','size']}],findUnique:async()=>({value:['article']}),upsert:async x=>{assert.equal(x.where.key,'client.product-display.v1:c');assert.equal(x.create.updatedByUserId,'u')}},client:{findFirst:async()=>({id:'c'})}};
+const i=new ProductDisplayInterceptor(db),ctx={switchToHttp:()=>({getRequest:()=>({originalUrl:'/api/v1/tsd/fbs/next'})})};
+process.env.WMS_CLIENT_PRODUCT_DISPLAY_ENABLED='false';assert.strictEqual(await lastValueFrom(i.intercept(ctx,{handle:()=>of(cache)})),cache);assert.equal(queried,0);
+process.env.WMS_CLIENT_PRODUCT_DISPLAY_ENABLED='true';const result=await lastValueFrom(i.intercept(ctx,{handle:()=>of(cache)}));assert.equal(result.task.product.productDisplayText,'A · M');assert.equal(result.task.product.name,'Original');assert.equal(cache.task.product.productDisplayText,undefined);
+for(const url of ['/inventory/dashboard','/client-requests/x/export','/tsd/fbs/tasks/x/relabel-print'])assert(!isProductDisplayRoute(url));
+let checked=0;const service=new ProductDisplayService(db,{requireClientAccess:(u,c,m)=>{assert.equal(c,'c');checked++}});assert.deepEqual((await service.get('c',{id:'u'})).fields,['article']);await service.save('c',['size'],{id:'u'});await assert.rejects(()=>service.save('c',[],{id:'u'}));assert.equal(checked,3);
+process.env.WMS_CLIENT_PRODUCT_DISPLAY_ENABLED='false';await assert.rejects(()=>service.get('c',{id:'u'}));assert.equal(checked,3);
+console.log(JSON.stringify({passed:true,registration:true,flagOff:true,cachePreserved:true,rawFieldsPreserved:true,scope:true,validation:true}));
+})().catch(e=>{console.error(e);process.exitCode=1});

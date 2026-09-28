@@ -1,0 +1,3 @@
+# la_panthera / PR377
+
+PR377: la_panthera web contrast correction across 17 representative screens, larger dashboard/FBS labels, saturated icons and dark gradients. API PR375, APK216, settings and other containers preserved. 281 web and 2891 API tests passed, 113 skipped; dedicated KIZ DB suite excluded. Browser contrast/isolation/print and runtime graph/font checks passed. Source parity false; runtime CSS overlay only. Rollback logoff-web:before-la-panthera-contrast.

@@ -27,6 +27,9 @@ public class TsdFbsAssemblyResponse {
         public int itemCount;
         // FIX: server-confirmed unit count, also used to make scan retries safe.
         public int scannedItemCount;
+        // FIX: preserve each Ozon product line and its own confirmed quantity.
+        public List<OzonLine> ozonLines;
+        public int activeLineNumber;
         public boolean perUnitScanning;
         public boolean physicalPickConfirmation;
         public boolean sourceWithoutBox;
@@ -52,6 +55,12 @@ public class TsdFbsAssemblyResponse {
         // FIX: the API already marks delivery recovery as local-only; the TSD
         // uses this marker instead of waiting forever for an unavailable WB label.
         public EmergencyAssembly emergencyAssembly;
+    }
+
+    public static class OzonLine {
+        public String article;
+        public int quantity;
+        public int scanned;
     }
 
     public static class EmergencyAssembly {
@@ -119,6 +128,11 @@ public class TsdFbsAssemblyResponse {
     }
 
     public static class Product {
+        public String productDisplayText;
+        // FIX: presentation is independent of the real barcode and relabel source fields.
+        public String displayLabel(String fallback) {
+            return productDisplayText == null ? fallback : productDisplayText;
+        }
         public String id;
         public String name;
         public String article;

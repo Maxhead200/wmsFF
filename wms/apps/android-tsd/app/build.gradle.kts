@@ -24,8 +24,8 @@ android {
     productFlavors {
         create("logoff") {
             dimension = "brand"
-            versionCode = 214 // FIX: allow externally printed relabel scans without station ACK.
-            versionName = "0.1.214-fbs-article"
+            versionCode = 216 // FIX: client-specific product descriptions; preserve Ozon per-article counters.
+            versionName = "0.1.216-client-display"
             applicationId = "pro.logoff.wms.tsd"
             resValue("string", "app_name", "LOGOFF WMS TSD")
             buildConfigField("String", "BRAND_NAME", "\"LOGOFF ТСД\"")

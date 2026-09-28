@@ -15,7 +15,7 @@ import {
   Warehouse,
   X,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   downloadTurnoverMovementDocumentXlsx,
   downloadTurnoverReceiptPeriodXlsx,
@@ -87,6 +87,7 @@ const actionOptions: Array<{ value: TurnoverActionKind; label: string; hint: str
 ];
 
 export function TurnoverPanel({ session }: { session: AuthSession }) {
+  const reportGeneration = useRef(0);
   const [activeTile, setActiveTile] = useState<ActiveTile>('home');
   const [clients, setClients] = useState<LoadState<ClientSummary[]>>({ status: 'idle', data: [] });
   const [report, setReport] = useState<LoadState<TurnoverReport | null>>({ status: 'idle', data: null });
@@ -127,6 +128,8 @@ export function TurnoverPanel({ session }: { session: AuthSession }) {
     const items = report.data?.items ?? [];
     return items.find((item) => item.skuId === actionForm.skuId) ?? null;
   }, [actionForm.skuId, report.data]);
+  // FIX: zero balances retain history but are not current stock locations.
+  const currentLocationCells = selectedReportItem?.currentCells.filter((cell) => cell.quantity > 0) ?? [];
   const sourceCells = (activeTile === 'actions' && actionForm.skuId ? actionReportItem?.currentCells : selectedReportItem?.currentCells) ?? [];
   const allCells = useMemo(() => uniqueValues((report.data?.items ?? []).flatMap((item) => item.currentCells.map((cell) => cell.boxCode))), [report.data]);
   const productOptions = useMemo(() => buildProductOptions(report.data?.items ?? [], suggestions.data?.products ?? []), [report.data, suggestions.data]);
@@ -146,8 +149,11 @@ export function TurnoverPanel({ session }: { session: AuthSession }) {
     }
 
     setBoxDetails({ status: 'idle', data: null });
-    void loadTurnover();
-    void loadSuggestions('');
+    // FIX: client selection must not fetch every SKU's complete movement graph.
+    reportGeneration.current += 1;
+    setReport({status:'idle',data:null});
+    setStatistics({status:'idle',data:null});
+    // FIX: the debounced effect below is the single source of suggestion requests.
   }, [selectedClientId]);
 
   useEffect(() => {
@@ -228,6 +234,8 @@ export function TurnoverPanel({ session }: { session: AuthSession }) {
       return;
     }
 
+    // FIX: only the latest explicit search may update either result panel.
+    const generation = ++reportGeneration.current;
     setReport((current) => ({ ...current, status: 'loading', error: undefined }));
     setStatistics((current) => ({ ...current, status: canSeeStatistics ? 'loading' : 'idle', error: undefined }));
     setActionMessage('');
@@ -245,18 +253,15 @@ export function TurnoverPanel({ session }: { session: AuthSession }) {
     };
     const statisticsFilter = { ...reportFilter, groupBy };
 
-    try {
-      const [nextReport, nextStatistics] = await Promise.all([
-        fetchTurnoverReport(session.accessToken, reportFilter),
-        canSeeStatistics ? fetchTurnoverStatistics(session.accessToken, statisticsFilter) : Promise.resolve(null),
-      ]);
-      setReport({ status: 'ready', data: nextReport });
-      setStatistics({ status: nextStatistics ? 'ready' : 'idle', data: nextStatistics });
-    } catch (caught) {
-      const message = errorMessage(caught);
-      setReport((current) => ({ ...current, status: 'error', error: message }));
-      setStatistics((current) => ({ ...current, status: 'error', error: message }));
-    }
+    // FIX: statistics latency/failure must not hold back the stock report.
+    await Promise.all([
+      fetchTurnoverReport(session.accessToken, reportFilter)
+        .then(data => { if (generation === reportGeneration.current) setReport({ status: 'ready', data }); })
+        .catch(caught => { if (generation === reportGeneration.current) setReport(current => ({ ...current, status: 'error', error: errorMessage(caught) })); }),
+      (canSeeStatistics ? fetchTurnoverStatistics(session.accessToken, statisticsFilter) : Promise.resolve(null))
+        .then(data => { if (generation === reportGeneration.current) setStatistics({ status: data ? 'ready' : 'idle', data }); })
+        .catch(caught => { if (generation === reportGeneration.current) setStatistics(current => ({ ...current, status: 'error', error: errorMessage(caught) })); }),
+    ]);
   }
 
   async function loadSuggestions(query: string, scope: 'client' | 'barcode' = 'client') {
@@ -604,7 +609,7 @@ export function TurnoverPanel({ session }: { session: AuthSession }) {
             <input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
           </label>
 
-          <button className="primary-button" type="button" onClick={() => void loadTurnover()} disabled={!selectedClientId || report.status === 'loading'}>
+          <button className="primary-button" type="button" onClick={() => void loadTurnover()} disabled={!selectedClientId}>
             <RefreshCw size={16} aria-hidden="true" />
             <span>Показать</span>
           </button>
@@ -650,8 +655,8 @@ export function TurnoverPanel({ session }: { session: AuthSession }) {
               <small>{selectedReportItem.internalSku} · на остатке {formatNumber(selectedReportItem.currentQuantity)} шт</small>
             </div>
             <div className="turnover-quick-tool__locations">
-              {selectedReportItem.currentCells.length === 0 ? <span className="turnover-quick-tool__empty">На складе нет доступного остатка.</span> : null}
-              {selectedReportItem.currentCells.map((cell) => (
+              {currentLocationCells.length === 0 ? <span className="turnover-quick-tool__empty">На складе нет доступного остатка.</span> : null}
+              {currentLocationCells.map((cell) => (
                 <button type="button" key={`${cell.boxId ?? cell.boxCode}-${cell.status}-${cell.palletSortCode ?? ''}`} disabled={!cell.boxId} onClick={() => { if (cell.boxId) void loadBoxDetails(cell.boxCode, selectedReportItem.client.id); }}>
                   <strong>{cell.boxCode}</strong>
                   <span>{storageZoneLabel(cell)} · {cell.palletSortCode ?? cell.palletCode ?? 'без палет-сорта'}</span>

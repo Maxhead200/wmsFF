@@ -7187,6 +7187,14 @@ export type AdministrationPhantomStock = {
   }>;
 };
 
+export type ProductDisplayField = 'name' | 'article' | 'barcode' | 'size' | 'color';
+export type ProductDisplaySettings = { clientId: string; fields: ProductDisplayField[] | null };
+export function fetchProductDisplay(accessToken: string, clientId: string) {
+  return request<ProductDisplaySettings>(`/clients/${encodeURIComponent(clientId)}/product-display`, { accessToken });
+}
+export function saveProductDisplay(accessToken: string, clientId: string, fields: ProductDisplayField[] | null) {
+  return request<ProductDisplaySettings>(`/clients/${encodeURIComponent(clientId)}/product-display`, { accessToken, method: 'PUT', body: { fields } });
+}
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? '/api/v1';
 
 export async function login(payload: LoginPayload) {
@@ -8252,6 +8260,22 @@ export async function fetchExpensePayroll(accessToken: string, filter: { dateFro
   return request<ExpensePayrollReport>(withQuery('/expenses/payroll', filter), { accessToken });
 }
 
+export function payrollRequest<T>(accessToken: string, path: string, method: 'GET' | 'POST' | 'PUT' = 'GET', body?: unknown) {
+  return request<T>(`/expenses/workforce${path}`, { accessToken, method, body });
+}
+export function payrollAttendancePhoto(accessToken: string, eventId: string) {
+  return requestBlob(`/expenses/workforce/attendance/events/${encodeURIComponent(eventId)}/photo`, accessToken);
+}
+
+export function payrollImport<T>(accessToken: string, file: File, mapping?: Record<string, string>) {
+  const body = new FormData(); body.append('file', file);
+  if (mapping) body.append('mapping', JSON.stringify(mapping));
+  return requestMultipart<T>('/expenses/workforce/import', body, accessToken);
+}
+export function payrollDownload(accessToken: string, employeeId: string, from: string, to: string, format: string) {
+  return requestBlob(withQuery(`/expenses/workforce/employees/${encodeURIComponent(employeeId)}/export`, { from, to, format }), accessToken);
+}
+
 export async function updateExpensePayrollRate(accessToken: string, userId: string, rateRub: number) {
   return request<{ userId: string; userName: string; email: string; rateRub: number; rateIsDefault: boolean }>(
     `/expenses/payroll/users/${encodeURIComponent(userId)}/rate`,
@@ -8367,7 +8391,7 @@ export function generateBillingPeriod(accessToken: string, input: BillingPeriodI
 }
 export async function fetchBillingInvoices(
   accessToken: string,
-  filter: { clientId?: string; status?: BillingInvoiceStatus; periodFrom?: string; periodTo?: string; serviceCategory?: BillingServiceCategory } = {},
+  filter: { clientId?: string; status?: BillingInvoiceStatus; periodFrom?: string; periodTo?: string; serviceCategory?: BillingServiceCategory; view?: 'cabinet' } = {},
 ) {
   return request<BillingInvoiceSummary[]>(withQuery('/billing/invoices', filter), {
     accessToken,
@@ -8956,7 +8980,7 @@ export async function importArticleMappingsXlsx(accessToken: string, payload: { 
   return requestMultipart<ArticleMappingImportResult>(withQuery('/skus/article-mappings/import-xlsx', { clientId: payload.clientId }), form, accessToken);
 }
 
-export async function fetchStockBalances(accessToken: string, filter: { clientId?: string; search?: string } = {}) {
+export async function fetchStockBalances(accessToken: string, filter: { clientId?: string; search?: string; view?: 'cabinet' } = {}) {
   return request<StockBalance[]>(withQuery('/stock/balances', filter), {
     accessToken,
   });

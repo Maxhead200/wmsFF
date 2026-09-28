@@ -4,6 +4,10 @@ import { IsBoolean, IsDateString, IsEnum, IsIn, IsOptional, IsString } from 'cla
 import { BILLING_CATEGORIES, type BillingServiceCategory } from '../billing-period-policy';
 
 export class ListBillingInvoicesDto {
+  @IsOptional()
+  @IsIn(['cabinet'])
+  view?: 'cabinet';
+
   // ADDED: the same stable category policy is used by the registry and generation preview.
   @IsOptional()
   @IsIn(BILLING_CATEGORIES)

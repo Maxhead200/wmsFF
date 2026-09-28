@@ -25,6 +25,16 @@ export type InternalApiDefinition = {
 // ADDED: Explicit registry documents every controller group loaded by AppModule.
 // Keeping it declarative avoids a global interceptor and therefore does not touch normal API traffic.
 export const INTERNAL_API_DEFINITIONS: readonly InternalApiDefinition[] = Object.freeze([
+  // FIX: attendance is independently gated and unrelated to TSD picking/printing.
+  {
+    id: 'attendance-device',
+    name: 'Планшеты учёта времени',
+    prefixes: ['/attendance-device', '/expenses/workforce/attendance'],
+    routeCount: 13,
+    description: 'Отметки прихода/ухода, подключение планшетов и фотографии по запросу администратора.',
+    logic: ['Включается только флагом WMS_ATTENDANCE_DEVICE_ENABLED совместно с ФОТ.', 'Токен ограничен устройством и филиалом; повтор события не создаёт смену.', 'Фото 35 дней хранится на планшете, передаётся по запросу; приём отметок не зависит от фото.', 'Погрузки требуют подтверждения, спорные отметки разбирает администратор.'],
+    dependencies: ['Основная БД', 'ФОТ', 'Токены планшетов'],
+  },
   // FIX: register the read-only warehouse processing-time report.
   {
     id: 'operations-statistics',
@@ -112,8 +122,8 @@ export const INTERNAL_API_DEFINITIONS: readonly InternalApiDefinition[] = Object
   {
     id: 'clients',
     name: 'Клиенты',
-    prefixes: ['/clients'],
-    routeCount: 8,
+    prefixes: ['/clients', '/clients/:clientId/product-display'],
+    routeCount: 10, // FIX: read/save per-client assembly presentation settings.
     description: 'Карточки клиентов, реквизиты и правила складского обслуживания.',
     logic: ['Хранит юридические и контактные данные.', 'Настраивает режимы остатков и хранения.', 'Связывает клиента с менеджером и собственной компанией.'],
     dependencies: ['Основная БД'],
@@ -130,10 +140,10 @@ export const INTERNAL_API_DEFINITIONS: readonly InternalApiDefinition[] = Object
   {
     id: 'expenses',
     name: 'Расходы',
-    prefixes: ['/expenses'],
-    routeCount: 16,
+    prefixes: ['/expenses', '/expenses/workforce'],
+    routeCount: 35, // FIX: includes audited shift cancellation.
     description: 'Учёт расходов, категорий, статей и подтверждающих документов.',
-    logic: ['Регистрирует расходы филиала.', 'Фильтрует операции по периоду и ответственным.', 'Формирует отчётность и вложения.'],
+    logic: ['Регистрирует расходы филиала.', 'Фильтрует операции по периоду и ответственным.', 'Формирует отчётность и вложения.', 'Новый ФОТ за отдельным флагом: сотрудники, реквизиты, смены, ставки, погрузки, статусы выплат и импорт истории; администратор ограничен своим филиалом.'],
     dependencies: ['Основная БД', 'Файловое хранилище'],
   },
   {
@@ -315,9 +325,9 @@ export const INTERNAL_API_DEFINITIONS: readonly InternalApiDefinition[] = Object
     id: 'wms-ai',
     name: 'WMS AI',
     prefixes: ['/wms-ai'],
-    routeCount: 3,
-    description: 'Внутренний помощник для анализа WMS на основании разрешённых данных.',
-    logic: ['Принимает диагностический запрос.', 'Собирает безопасный контекст WMS.', 'Возвращает объяснение без прямого изменения склада.'],
+    routeCount: 6, // FIX: include private OpenClaw status, durable submission and job polling.
+    description: 'Помощник WMS: прежний режим или OpenClaw для владельца и разрешённых администраторов по отдельному флагу.',
+    logic: ['Проверяет серверные права и изоляцию пользовательского сеанса.', 'Записывает задание до отправки в приватный OpenClaw Gateway.', 'Повторный запрос читает прежний результат без повторного выполнения; неизвестный результат требует проверки оператором.'],
     dependencies: ['Основная БД', 'Настроенная AI-модель'],
   },
 ]);

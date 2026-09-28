@@ -1,0 +1,30 @@
+# FIX: private gateway with a dedicated runtime; does not replace the system Node or WMS containers.
+[Unit]
+Description=OpenClaw for our LOGOFF WMS
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=wms-openclaw
+Group=wms-openclaw
+SupplementaryGroups=docker
+WorkingDirectory=/var/lib/wms-openclaw/workspace
+Environment=HOME=/var/lib/wms-openclaw
+Environment=PATH=/opt/wms-openclaw/node/bin:/usr/local/bin:/usr/bin:/bin
+Environment=OPENCLAW_STATE_DIR=/var/lib/wms-openclaw/state
+Environment=OPENCLAW_CONFIG_PATH=/etc/wms-openclaw/openclaw.json
+Environment=OPENCLAW_EXEC_SHELL_SNAPSHOT=0
+EnvironmentFile=/etc/wms-openclaw/gateway.env
+EnvironmentFile=/etc/wms-openclaw/provider.env
+ExecStart=/opt/wms-openclaw/node/bin/node /opt/wms-openclaw/app/node_modules/openclaw/openclaw.mjs gateway run
+Restart=on-failure
+RestartSec=10
+UMask=0077
+MemoryMax=3G
+CPUQuota=150%
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

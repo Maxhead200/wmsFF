@@ -4278,10 +4278,10 @@ public class MainActivity extends Activity {
                 if (item == null) continue;
                 TsdOzonFboPlan.PlanItem product = item.planItem;
                 String offerId = product == null ? "—" : nonEmpty(product.offerId, nonEmpty(product.ozonSku, "—"));
-                String name = product == null ? "—" : nonEmpty(product.productName, offerId);
+                String name = product == null ? "—" : (product.productDisplayText != null ? product.productDisplayText : nonEmpty(product.productName, offerId));
                 root.addView(taskRow(
                     name,
-                    tr("Артикул: ", "Artikul: ") + offerId + " · " + item.assembledQuantity + " / " + item.quantity,
+                    (product != null && product.productDisplayText != null ? "" : tr("Артикул: ", "Artikul: ") + offerId + " · ") + item.assembledQuantity + " / " + item.quantity,
                     item.assembledQuantity >= item.quantity ? BOX_FOUND_GREEN : LIGHT_GRAY
                 ));
             }
@@ -4781,14 +4781,14 @@ public class MainActivity extends Activity {
 
         String clientName = task.client == null ? "-" : nonEmpty(task.client.name, task.client.code);
         // FIX: FBS presents articles; marketplace titles stay in data, not picking labels.
-        String productName = task.product == null ? "-" : nonEmpty(task.product.article, "-");
+        String productName = task.product == null ? "-" : task.product.displayLabel(nonEmpty(task.product.article, "-"));
         String article = task.product == null ? "-" : nonEmpty(task.product.article, "-");
         String color = task.product == null ? "-" : nonEmpty(task.product.color, tr("не указан", "ko‘rsatilmagan"));
         String size = task.product == null ? "-" : nonEmpty(task.product.size, tr("не указан", "ko‘rsatilmagan"));
         String marketplaceName = fbsMarketplaceName(task.marketplace);
         TsdFbsAssemblyResponse.Product sourceProduct =
             task.relabeling == null ? null : task.relabeling.sourceProduct;
-        String sourceProductName = sourceProduct == null ? productName : nonEmpty(sourceProduct.article, "-");
+        String sourceProductName = sourceProduct == null ? productName : sourceProduct.displayLabel(nonEmpty(sourceProduct.article, "-"));
         String sourceArticle = sourceProduct == null ? article : nonEmpty(sourceProduct.article, "-");
         String sourceColor = sourceProduct == null ? color : nonEmpty(sourceProduct.color, tr("не указан", "ko‘rsatilmagan"));
         String sourceSize = sourceProduct == null ? size : nonEmpty(sourceProduct.size, tr("не указан", "ko‘rsatilmagan"));
@@ -4911,6 +4911,12 @@ public class MainActivity extends Activity {
         }
 
         if ("SCAN_BOX".equals(state) || "PALLET_BOXES".equals(state)) {
+            // FIX: defer the source explicitly for Ozon lines; never reuse the previous article's box.
+            if ("logoff".equals(BuildConfig.FLAVOR) && task.ozonLines != null && !task.ozonLines.isEmpty()) {
+                root.addView(secondaryButton(tr("Без короба — указать источник позже", "Qutisiz — manbani keyin ko‘rsatish"),
+                    view -> executeFbsAction("scan-box", "boxCode", "БЕЗ КОРОБА")));
+            }
+
             LinearLayout routeDetails = new LinearLayout(this);
             routeDetails.setOrientation(LinearLayout.VERTICAL);
             if ("PALLET_BOXES".equals(state) && fbsAssembly.palletScan != null) {
@@ -5078,8 +5084,8 @@ public class MainActivity extends Activity {
             }
             root.addView(messageView(
                 tr("В коробе есть нужный товар: ", "Qutida kerakli mahsulot bor: ") +
-                    (relabelRequired ? sourceProductName : productName) + "\n" +
-                    tr("РАЗМЕР: ", "O‘LCHAM: ") + (relabelRequired ? sourceSize : size)
+                    (relabelRequired ? sourceProductName : productName) +
+                    ((relabelRequired ? sourceProduct : task.product) != null && (relabelRequired ? sourceProduct : task.product).productDisplayText != null ? "" : "\n" + tr("РАЗМЕР: ", "O‘LCHAM: ") + (relabelRequired ? sourceSize : size))
             ));
             fbsScanInput = input(tr(
                 "Номер короба или QR паллетсорта",
@@ -5097,9 +5103,9 @@ public class MainActivity extends Activity {
             ));
             root.addView(feedbackView(
                 tr("2. ВОЗЬМИТЕ ИСХОДНЫЙ ТОВАР ДЛЯ ПЕРЕКЛЕЙКИ\n", "2. QAYTA YORLIQLASH UCHUN MANBA MAHSULOTNI OLING\n") +
-                    tr("Артикул: ", "Artikul: ") + sourceArticle + "\n" +
+                    (sourceProduct != null && sourceProduct.productDisplayText != null ? sourceProduct.productDisplayText : tr("Артикул: ", "Artikul: ") + sourceArticle + "\n" +
                     tr("Цвет: ", "Rang: ") + sourceColor + "\n" +
-                    tr("РАЗМЕР: ", "O‘LCHAM: ") + sourceSize,
+                    tr("РАЗМЕР: ", "O‘LCHAM: ") + sourceSize),
                 BOX_MOVEMENT_BLUE
             ));
             fbsScanInput = input(tr("Сканируйте исходный ШК", "Manba SHKni skanerlang"));
@@ -5115,10 +5121,10 @@ public class MainActivity extends Activity {
             ));
             root.addView(feedbackView(
                 tr("3. ПЕРЕКЛЕЙТЕ ТОВАР И ОТСКАНИРУЙТЕ НОВЫЙ ШК\n", "3. YORLIQNI ALMASHTIRING VA YANGI SHKNI SKANERLANG\n") +
-                    sourceArticle + "  →  " + article + "\n" +
-                    tr("Должно уехать: ", "Jo‘natilishi kerak: ") + productName + "\n" +
+                    (task.product != null && task.product.productDisplayText != null ? sourceProductName + "  →  " + productName : sourceArticle + "  →  " + article) + "\n" +
+                    (task.product != null && task.product.productDisplayText != null ? task.product.productDisplayText : tr("Должно уехать: ", "Jo‘natilishi kerak: ") + productName + "\n" +
                     tr("Цвет: ", "Rang: ") + color + "\n" +
-                    tr("РАЗМЕР: ", "O‘LCHAM: ") + size,
+                    tr("РАЗМЕР: ", "O‘LCHAM: ") + size),
                 Color.rgb(254, 240, 138)
             ));
             if (FbsRelabelPrintUi.showPrintButton(BuildConfig.FLAVOR, state, task)) {
@@ -5209,9 +5215,9 @@ public class MainActivity extends Activity {
             root.addView(feedbackView(
                 tr("Сейчас числится: ", "Hozirgi quti: ") + fromBox + "\n" +
                     tr("Переместить в открытый короб: ", "Ochiq qutiga ko‘chirish: ") + toBox + "\n" +
-                    tr("Товар: ", "Mahsulot: ") + productName + "\n" +
+                    (task.product != null && task.product.productDisplayText != null ? task.product.productDisplayText : tr("Товар: ", "Mahsulot: ") + productName + "\n" +
                     tr("Артикул: ", "Artikul: ") + article + "\n" +
-                    tr("Цвет: ", "Rang: ") + color + " · " + tr("РАЗМЕР: ", "O‘LCHAM: ") + size,
+                    tr("Цвет: ", "Rang: ") + color + " · " + tr("РАЗМЕР: ", "O‘LCHAM: ") + size),
                 BOX_MOVEMENT_BLUE
             ));
             root.addView(primaryMenuButton(
@@ -5339,8 +5345,15 @@ public class MainActivity extends Activity {
     private String ozonQuantityInstruction(TsdFbsAssemblyResponse.Task task) {
         String quantity = tr("В ЗАКАЗЕ: ", "BUYURTMADA: ") + Math.max(1, task.itemCount) + tr(" ЕД.", " DONA");
         if (!task.perUnitScanning) return quantity;
-        return quantity + "\n" + tr("ОТСКАНИРОВАНО: ", "SKANERLANGAN: ") + task.scannedItemCount +
+        String result = quantity + "\n" + tr("ОТСКАНИРОВАНО: ", "SKANERLANGAN: ") + task.scannedItemCount +
             tr(" ИЗ ", " / ") + Math.max(1, task.itemCount);
+        // FIX: the total cannot hide a missing second article.
+        if ("logoff".equals(BuildConfig.FLAVOR) && task.ozonLines != null) {
+            for (TsdFbsAssemblyResponse.OzonLine line : task.ozonLines) {
+                result += "\n" + nonEmpty(line.article, "-") + ": " + line.scanned + " / " + line.quantity;
+            }
+        }
+        return result;
     }
 
     private boolean renderOzonOrderSticker(
@@ -5681,8 +5694,8 @@ public class MainActivity extends Activity {
             (scanKiz
                 ? tr("ШАГ 2 ИЗ 2 · ОТСКАНИРУЙТЕ КИЗ", "2-QADAM · KIZNI SKANERLANG")
                 : tr("ШАГ 1 ИЗ 2 · ОТСКАНИРУЙТЕ ШК", "1-QADAM · SHKNI SKANERLANG")) + "\n\n" +
-                tr("Артикул: ", "Artikul: ") + article + "\n" +
-                tr("Цвет: ", "Rang: ") + color + " · " + tr("Размер: ", "O‘lcham: ") + size + "\n" +
+                (task.product != null && task.product.productDisplayText != null ? task.product.productDisplayText : tr("Артикул: ", "Artikul: ") + article + "\n" +
+                tr("Цвет: ", "Rang: ") + color + " · " + tr("Размер: ", "O‘lcham: ") + size) + "\n" +
                 (scanKiz
                     ? task.physicalPickConfirmation
                         ? tr("После КИЗ нажмите «ТОВАР ОТОБРАН».", "KIZdan keyin «MAHSULOT OLINDI»ni bosing.")
@@ -6694,13 +6707,13 @@ public class MainActivity extends Activity {
                 int shown = 0;
                 for (TsdFbsCargoPackingResponse.Order order : current.orders) {
                     if (shown++ >= 8) break;
-                    String details = tr("Товар: ", "Mahsulot: ") + safeText(order.productName) +
+                    String details = tr("Товар: ", "Mahsulot: ") + (order.productDisplayText != null ? order.productDisplayText : safeText(order.productName)) +
                         (order.requestNumber > 0
                             ? "\n" + tr("Заявка WMS №", "WMS ariza №") + String.format(Locale.ROOT, "%06d", order.requestNumber)
                             : "") +
-                        "\n" + tr("Артикул: ", "Artikul: ") + safeText(order.article) +
+                        (order.productDisplayText != null ? "" : "\n" + tr("Артикул: ", "Artikul: ") + safeText(order.article) +
                         (safeText(order.color).equals("—") ? "" : " · " + tr("цвет: ", "rang: ") + safeText(order.color)) +
-                        (safeText(order.size).equals("—") ? "" : " · " + tr("размер: ", "o‘lcham: ") + safeText(order.size)) +
+                        (safeText(order.size).equals("—") ? "" : " · " + tr("размер: ", "o‘lcham: ") + safeText(order.size))) +
                         "\n" + tr("Большие цифры WB: ", "WB katta raqamlari: ") + safeText(order.wbStickerPartB);
                     root.addView(taskRow(tr("Заказ №", "Buyurtma №") + safeText(order.orderId), details, BOX_FOUND_GREEN));
                 }

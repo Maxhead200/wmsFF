@@ -67,7 +67,8 @@ describe('AdministrationInternalApiService', () => {
     expect(new Set(registryPrefixes)).toEqual(new Set(sourcePrefixes));
     expect(registryRoutes).toBe(sourceRoutes);
     // TEST: includes the warehouse processing-time statistics controller.
-    expect(INTERNAL_API_DEFINITIONS).toHaveLength(32);
+    // TEST: attendance-device adds the tablet and branch-scoped admin endpoints.
+    expect(INTERNAL_API_DEFINITIONS).toHaveLength(33);
   });
 
   it('не рисует ложный зелёный статус при ошибке основной БД', async () => {

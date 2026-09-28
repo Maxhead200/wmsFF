@@ -30,6 +30,7 @@ import {
   fetchExpenseMaterials,
   fetchExpensePayroll,
   fetchExpenseReport,
+  payrollRequest,
   resetExpensePayrollCounter,
   updateExpensePayrollRate,
   updateClientExpenseMaterialRule,
@@ -48,6 +49,7 @@ import {
 import './expenses.css';
 import { WorkspaceTileGate } from '../common/WorkspaceTileGate';
 import { useRememberedClientId } from '../../lib/rememberedClient';
+import { PayrollManagement } from './PayrollManagement';
 
 type ExpensesPanelProps = {
   session: AuthSession;
@@ -82,6 +84,14 @@ const expenseCategories: Array<{ value: ExpenseCategory; label: string }> = [
 const initialPeriod = currentMonthPeriod();
 
 export function ExpensesPanel({ session }: ExpensesPanelProps) {
+  const [workforceEnabled, setWorkforceEnabled] = useState(false);
+  useEffect(() => {
+    let live = true;
+    payrollRequest<{ enabled: boolean }>(session.accessToken, '/capabilities')
+      .then(result => { if (live) setWorkforceEnabled(result.enabled); })
+      .catch(() => { if (live) setWorkforceEnabled(false); });
+    return () => { live = false; };
+  }, [session.accessToken]);
   const canWrite = canUse(session, 'expenses:write');
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [clients, setClients] = useState<ClientSummary[]>([]);
@@ -183,6 +193,11 @@ export function ExpensesPanel({ session }: ExpensesPanelProps) {
     window.setTimeout(() => setMessage(null), 4500);
   }
 
+  // FIX: enabled FOT owns its workspace; returning remounts the Expenses landing tiles.
+  if (workforceEnabled && activeTab === 'payroll') {
+    return <PayrollManagement session={session} legacy={null} onBack={() => setActiveTab('overview')} />;
+  }
+
   return (
     <WorkspaceTileGate
       eyebrow="Финансовый контроль"
@@ -270,6 +285,7 @@ export function ExpensesPanel({ session }: ExpensesPanelProps) {
         <ExpenseOverview report={report} materials={materials} debts={debts} />
       ) : null}
       {!loading && activeTab === 'payroll' ? (
+        <PayrollManagement session={session} legacy={
         <PayrollWorkspace
           session={session}
           report={payroll}
@@ -278,6 +294,7 @@ export function ExpensesPanel({ session }: ExpensesPanelProps) {
           notify={notify}
           setError={setError}
         />
+        } />
       ) : null}
       {!loading && activeTab === 'materials' ? (
         <MaterialsWorkspace

@@ -23,6 +23,10 @@ public class TsdFboPlan {
         public int wholeBoxQuantity, remainderQuantity;
         public List<Task> tasks;
     }
-    public static class Task { public String skuId, barcode, name; public int quantity; public boolean requiresKiz; }
+    public static class Task {
+        public String skuId, barcode, name, productDisplayText;
+        public int quantity; public boolean requiresKiz;
+        public String displayLabel(String fallback) { return productDisplayText == null ? fallback : productDisplayText; }
+    }
     public static class Box { public String code; public boolean wholeBox, closed, confirmed; public int quantity; }
 }

@@ -1,3 +1,4 @@
+import { assemblyProductLabel, hasAssemblyProductDisplay } from '../../lib/assemblyProductDisplay';
 import { OrderAge } from './OrderAge';
 import { describeStockTransfer } from '../../lib/fbs-stock-transfer';
 import { AlertTriangle, Archive, ArrowLeft, ArrowRightLeft, Boxes, CheckCircle2, ClipboardList, FileDown, FileUp, MapPinned, PackageX, RefreshCw, RotateCcw, Search, ShieldAlert, Truck, X } from 'lucide-react';
@@ -4083,11 +4084,11 @@ function OnlineExecutionModal({
                                     <tr key={item.id}>
                                       <td><strong>№{item.orderId}</strong></td>
                                       <td>
-                                        <strong>{item.productName}</strong>
-                                        <span>{item.article ? `арт. ${item.article}` : 'артикул не указан'}</span>
+                                        <strong>{assemblyProductLabel(item, item.productName)}</strong>
+                                        {!hasAssemblyProductDisplay(item) && <span>{item.article ? `арт. ${item.article}` : 'артикул не указан'}</span>}
                                       </td>
-                                      <td>{item.productBarcode ?? '—'}</td>
-                                      <td><strong>{item.size ?? '—'}</strong></td>
+                                      <td>{hasAssemblyProductDisplay(item) ? '—' : item.productBarcode ?? '—'}</td>
+                                      <td><strong>{hasAssemblyProductDisplay(item) ? '—' : item.size ?? '—'}</strong></td>
                                       <td>{item.kiz ?? 'без КИЗ'}</td>
                                       <td><strong className="online-execution-wb-digits">{item.wbStickerPartB ?? '—'}</strong></td>
                                       <td>
@@ -4129,11 +4130,11 @@ function OnlineExecutionModal({
                                 <tr key={item.orderId}>
                                   <td><strong>№{item.orderId}</strong></td>
                                   <td>
-                                    <strong>{item.productName}</strong>
-                                    <span>{item.article ? `арт. ${item.article}` : 'артикул не указан'}</span>
+                                    <strong>{assemblyProductLabel(item, item.productName)}</strong>
+                                    {!hasAssemblyProductDisplay(item) && <span>{item.article ? `арт. ${item.article}` : 'артикул не указан'}</span>}
                                   </td>
-                                  <td>{item.productBarcode ?? '—'}</td>
-                                  <td><strong>{item.size ?? '—'}</strong></td>
+                                  <td>{hasAssemblyProductDisplay(item) ? '—' : item.productBarcode ?? '—'}</td>
+                                  <td><strong>{hasAssemblyProductDisplay(item) ? '—' : item.size ?? '—'}</strong></td>
                                   <td><strong>{item.wbStickerPartB ?? '—'}</strong></td>
                                   <td>
                                     <span className={`online-execution-pill ${item.readyForPacking ? 'is-open' : 'is-danger'}`}>
@@ -4235,8 +4236,8 @@ function OnlineExecutionModal({
                             <tr key={row.id}>
                               <td><strong>№{row.orderId}</strong></td>
                               <td>
-                                <strong>{row.productName}</strong>
-                                <span>{[row.article, row.size].filter(Boolean).join(' · ')}</span>
+                                <strong>{assemblyProductLabel(row, row.productName)}</strong>
+                                {!hasAssemblyProductDisplay(row) && <span>{[row.article, row.size].filter(Boolean).join(' · ')}</span>}
                               </td>
                               <td><strong>{row.sourceBoxCode ?? 'без короба'}</strong></td>
                               <td>{row.statusLabel}</td>
@@ -4418,12 +4419,12 @@ function OnlineExecutionModal({
                               </td>
                               <td><strong>№{row.orderId}</strong></td>
                               <td>
-                                <strong>{row.productName}</strong>
-                                <span>
+                                <strong>{assemblyProductLabel(row, row.productName)}</strong>
+                                {!hasAssemblyProductDisplay(row) && <span>
                                   {[row.article ? `арт. ${row.article}` : '', row.size ? `размер ${row.size}` : '', row.productBarcode ? `ШК ${row.productBarcode}` : '']
                                     .filter(Boolean)
                                     .join(' · ')}
-                                </span>
+                                </span>}
                               </td>
                               <td><strong>{row.sourceBoxCode ?? 'не выбран'}</strong></td>
                               <td>{row.kiz ?? 'не пропикан'}</td>
@@ -4550,12 +4551,12 @@ function OnlineExecutionModal({
                               {filteredNotCollectedRows.map((row) => (
                                 <tr key={row.requestItemId}>
                                   <td>
-                                    <strong>{row.article || 'Артикул не указан'}</strong>
-                                    <span>
+                                    <strong>{assemblyProductLabel(row, row.article || 'Артикул не указан')}</strong>
+                                    {!hasAssemblyProductDisplay(row) && <span>
                                       {[row.article ? `арт. ${row.article}` : '', row.color, row.size ? `размер ${row.size}` : '', row.barcode ? `ШК ${row.barcode}` : '']
                                         .filter(Boolean)
                                         .join(' · ')}
-                                    </span>
+                                    </span>}
                                   </td>
                                   <td>
                                     {row.orders.length > 0 ? (
@@ -4703,15 +4704,15 @@ function OnlineExecutionModal({
                               <td>
                                 <strong>№{row.orderId}</strong>
                                 <OrderAge createdAt={row.orderPlacedAt} />
-                                <span>{row.article || 'Артикул не указан'}</span>
+                                <span>{assemblyProductLabel(row, row.article || 'Артикул не указан')}</span>
                               </td>
                               <td>
-                                <strong>{row.productBarcode ?? 'ещё не пропикан'}</strong>
+                                <strong>{hasAssemblyProductDisplay(row) ? '—' : row.productBarcode ?? 'ещё не пропикан'}</strong>
                                 <span className="online-execution-kiz">
                                   КИЗ: {row.kiz ?? 'не записан'}
                                 </span>
                               </td>
-                              <td><strong>{row.size ?? 'не указан'}</strong></td>
+                              <td><strong>{hasAssemblyProductDisplay(row) ? '—' : row.size ?? 'не указан'}</strong></td>
                               <td>
                                 <strong className="online-execution-wb-digits">{row.wbStickerPartB ?? '—'}</strong>
                                 <span>{row.wbStickerBarcode ? `полный ШК: ${row.wbStickerBarcode}` : 'появится после получения наклейки WB'}</span>

@@ -1,0 +1,3 @@
+# PR343: tablet attendance
+
+Exact API/web runtime snapshot. API5 file delta, web29 file delta, four additive Attendance tables and sequence. WMS_ATTENDANCE_DEVICE_ENABLED=true only on our WMS. Existing flags, APK215 and warehouse operations retained. APK0.2.1 attendance installed on Huawei by user; physical camera not yet verified. Source reference archive remains historical; source parity false. Initial publication rolled back on nginx file permissions; corrected candidate verified over HTTP before successful publication. Rollback images: logoff-api:before-attendance343, logoff-web:before-attendance343; keep additive tables on rollback.

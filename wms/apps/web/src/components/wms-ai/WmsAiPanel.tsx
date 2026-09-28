@@ -10,7 +10,9 @@ import {
   ShieldCheck,
   Sparkles,
 } from 'lucide-react';
-import { FormEvent, useMemo, useRef, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { fetchOpenClawStatus, type OpenClawStatus } from '../../lib/openclaw-api';
+import { OpenClawPanel } from './OpenClawPanel';
 import type { AuthSession } from '../../lib/api';
 import {
   askWmsAi,
@@ -33,6 +35,20 @@ const starterPrompts = [
 ];
 
 export function WmsAiPanel({ session }: { session: AuthSession }) {
+  const [status, setStatus] = useState<OpenClawStatus | null>(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let active = true;
+    fetchOpenClawStatus(session.accessToken).then(value => { if (active) setStatus(value); }).catch(caught => { if (active) setError(caught instanceof Error ? caught.message : 'Не удалось проверить подключение ИИ.'); });
+    return () => { active = false; };
+  }, [session.accessToken]);
+  if (error) return <div className="wms-ai-error">{error}</div>;
+  if (!status) return <div className="wms-ai-panel">Проверяю подключение ИИ…</div>;
+  // FIX: disabled flag preserves the sold/legacy assistant; enabled flag replaces it entirely.
+  return status.enabled ? <OpenClawPanel key={session.user.id} session={session} allowed={status.allowed} /> : <LegacyWmsAiPanel session={session} />;
+}
+
+function LegacyWmsAiPanel({ session }: { session: AuthSession }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isSending, setSending] = useState(false);

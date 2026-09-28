@@ -440,3 +440,50 @@ it('preserves recovery of a physically scanned administrative writeoff', async (
   await f.confirm();
   expect(f.marks[0]).toMatchObject({ id: 'current', status: 'AVAILABLE', boxId: 'box' });
 });
+
+// TEST: admin physical scans resolve cross-box SKU and blocked-registration conflicts.
+it.each(['ADMIN', 'OWNER'].flatMap(role => ['AVAILABLE', 'BLOCKED', 'SHIPPING'].map(status => [role, status])))('resolves physical %s / %s registration without adding target stock twice', async (role, status) => {
+  vi.stubEnv('WMS_FBS_KIZ_MANDATORY_AUDIT', 'true');
+  vi.stubEnv('WMS_KIZ_IDENTITY_TRANSFER_ENABLED', 'true');
+  vi.stubEnv('WMS_INVENTORY_PHYSICAL_RESOLUTION_ENABLED', 'true');
+  const f = mutationFixture(); f.user.roleCodes = [role];
+  Object.assign(f.marks[0], { skuId: status === 'AVAILABLE' ? 'old-sku' : 'sku', boxId: 'source', status, updatedAt: new Date('2026-09-01'), box: { warehouseId: 'warehouse' } });
+  const source: any = { id: 'source-balance', skuId: 'old-sku', boxId: 'source', clientId: 'client', warehouseId: 'warehouse', status: 'AVAILABLE', quantity: 2, updatedAt: startedAt, palletId: null };
+  f.db.box.findUnique = vi.fn(async ({ where }: any) => ({ id: where.id, code: where.id, clientId: 'client', warehouseId: 'warehouse', status: 'active' }));
+  f.db.stockBalance.findMany = vi.fn(async ({ where }: any) => where.boxId === 'source' ? status === 'AVAILABLE' ? [source] : [] : f.balances);
+  f.db.stockBalance.updateMany = vi.fn(async () => { source.quantity--; return { count: 1 }; });
+  f.db.fboAssemblyUnit = { findFirst: vi.fn(async () => null) };
+  f.db.productMark.findUniqueOrThrow = vi.fn(async () => f.marks[0]);
+  await f.confirm();
+  expect(source.quantity).toBe(status === 'AVAILABLE' ? 1 : 2);
+  expect(f.balances[0].quantity).toBe(1);
+  expect(f.marks[0]).toMatchObject({ skuId: 'sku', boxId: 'box', status: 'AVAILABLE' });
+  expect(f.db.stockMovement.create).toHaveBeenCalledTimes(status === 'AVAILABLE' ? 1 : 0);
+  await f.confirm();
+  expect(source.quantity).toBe(status === 'AVAILABLE' ? 1 : 2);
+});
+
+// TEST: our dashboard must bound database reads, not discard old rows after expensive validation.
+it('bounds dashboard and KIZ history to seven days while retaining the global movement lock check', async () => {
+  vi.stubEnv('WMS_FBS_KIZ_MANDATORY_AUDIT', 'true');
+  vi.stubEnv('WMS_INVENTORY_PHYSICAL_RESOLUTION_ENABLED', 'true');
+  const f=wmsReviewFixture(); f.db.inventorySession.findMany.mockResolvedValue([]);
+  await f.service.dashboard(f.user, true);
+  for (const [query] of f.db.inventorySession.findMany.mock.calls) {
+    expect(query.where.startedAt.gte).toBeInstanceOf(Date);
+    expect(Date.now()-query.where.startedAt.gte.getTime()).toBeGreaterThanOrEqual(7*86400000);
+    expect(Date.now()-query.where.startedAt.gte.getTime()).toBeLessThan(7*86400000+5000);
+  }
+  expect(f.db.inventorySession.findFirst.mock.calls[0][0].where.startedAt).toBeUndefined();
+});
+it('keeps explicit old session access and disabled installations unrestricted by date', async () => {
+  vi.stubEnv('WMS_FBS_KIZ_MANDATORY_AUDIT','true');
+  vi.stubEnv('WMS_INVENTORY_PHYSICAL_RESOLUTION_ENABLED','true');
+  const f=wmsReviewFixture();f.db.inventorySession.findMany.mockResolvedValue([]);
+  await f.service.pendingKizReviews(f.user,null,'old-session');
+  expect(f.db.inventorySession.findMany.mock.calls[0][0].where).toMatchObject({id:'old-session'});
+  expect(f.db.inventorySession.findMany.mock.calls[0][0].where.startedAt).toBeUndefined();
+  f.db.inventorySession.findMany.mockClear();vi.stubEnv('WMS_INVENTORY_PHYSICAL_RESOLUTION_ENABLED','false');
+  await f.service.dashboard(f.user,true);
+  for(const [query] of f.db.inventorySession.findMany.mock.calls) expect(query.where.startedAt).toBeUndefined();
+});

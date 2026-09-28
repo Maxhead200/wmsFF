@@ -325,9 +325,9 @@ export const INTERNAL_API_DEFINITIONS: readonly InternalApiDefinition[] = Object
     id: 'wms-ai',
     name: 'WMS AI',
     prefixes: ['/wms-ai'],
-    routeCount: 3,
-    description: 'Внутренний помощник для анализа WMS на основании разрешённых данных.',
-    logic: ['Принимает диагностический запрос.', 'Собирает безопасный контекст WMS.', 'Возвращает объяснение без прямого изменения склада.'],
+    routeCount: 6, // FIX: include private OpenClaw status, durable submission and job polling.
+    description: 'Помощник WMS: прежний режим или OpenClaw для владельца и разрешённых администраторов по отдельному флагу.',
+    logic: ['Проверяет серверные права и изоляцию пользовательского сеанса.', 'Записывает задание до отправки в приватный OpenClaw Gateway.', 'Повторный запрос читает прежний результат без повторного выполнения; неизвестный результат требует проверки оператором.'],
     dependencies: ['Основная БД', 'Настроенная AI-модель'],
   },
 ]);

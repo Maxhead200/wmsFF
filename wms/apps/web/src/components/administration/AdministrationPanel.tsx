@@ -54,6 +54,8 @@ import {
   type MarketplaceDiagnostics,
 } from '../../lib/api';
 import { workspaceNav, type WorkspaceId } from '../../lib/workspaces';
+import { fetchOpenClawStatus, type OpenClawStatus } from '../../lib/openclaw-api';
+import { WmsAiPanel } from '../wms-ai/WmsAiPanel';
 import './administration.css';
 import { AdministrationStockCheck } from './AdministrationStockCheck';
 import { AdministrationPhantomStockPanel } from './AdministrationPhantomStock';
@@ -119,6 +121,12 @@ export function AdministrationPanel({ session, onOpenWorkspace }: Administration
   const [isLoading, setLoading] = useState(true);
   const [busyAction, setBusyAction] = useState('');
   const [phantomCount, setPhantomCount] = useState(0);
+  const [openClawStatus, setOpenClawStatus] = useState<OpenClawStatus | null>(null);
+  useEffect(() => {
+    let active = true;
+    fetchOpenClawStatus(session.accessToken).then(value => { if (active) setOpenClawStatus(value); }).catch(() => { if (active) setOpenClawStatus(null); });
+    return () => { active = false; };
+  }, [session.accessToken]);
 
   const selectedUser = useMemo(
     () => visibility?.users.find((item) => item.id === selectedUserId) ?? null,
@@ -369,7 +377,8 @@ export function AdministrationPanel({ session, onOpenWorkspace }: Administration
         />
       ) : null}
       {activeTab === 'assistant' && overview ? (
-        <AssistantTab
+        // FIX: both AI entry points use OpenClaw after the server flag is enabled.
+        !openClawStatus ? <p>Проверяю подключение ИИ…</p> : openClawStatus.enabled ? <WmsAiPanel session={session} /> : <AssistantTab
           overview={overview}
           prompt={assistantPrompt}
           preview={assistantPreview}

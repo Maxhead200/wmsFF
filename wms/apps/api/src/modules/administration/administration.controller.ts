@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Patch, Post, Put, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Put, Query, UploadedFile, UseInterceptors, ConflictException } from '@nestjs/common';
+import { openClawEnabled } from '../wms-ai/wms-openclaw.service';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { AuthUser } from '../auth/auth.types';
@@ -305,6 +306,8 @@ export class AdministrationController {
     @Body() body: { prompt?: string },
     @CurrentUser() user: AuthUser,
   ) {
+    // FIX: stale clients cannot continue invoking the replaced local planner.
+    if (openClawEnabled()) throw new ConflictException('Используйте чат OpenClaw в разделе ИИ.');
     return this.administration.previewAssistantChange(body.prompt, user);
   }
 
@@ -313,6 +316,7 @@ export class AdministrationController {
     @Body() body: { previewId?: string; confirmation?: string },
     @CurrentUser() user: AuthUser,
   ) {
+    if (openClawEnabled()) throw new ConflictException('Используйте чат OpenClaw в разделе ИИ.');
     return this.administration.applyAssistantChange(
       body.previewId,
       body.confirmation,

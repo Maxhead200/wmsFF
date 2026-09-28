@@ -2867,3 +2867,23 @@
  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .payroll-management form[role='dialog'] :is(input, select) { height: 44px; }
  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .payroll-management form[role='dialog'] > button { min-height: 44px; height: auto; justify-self: start; }
 }
+/* FIX: shipment groups use graphite rows and readable opaque controls. */
+@media screen {
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-table .fbs-table__shipment-group .fbs-table__shipment-heading td {
+  background: linear-gradient(110deg, #202127, #202b29);
+  color: #f3f3f6;
+  border-color: #3c665b;
+ }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-table .fbs-table__shipment-heading .fbs-table__shipment-warehouse {
+  background: #273a35;
+  color: #bbf4db;
+  border: 1px solid #447562;
+ }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-table .fbs-table__shipment-heading :is(.fbs-table__shipment-toggle, .fbs-table__shipment-actions button) {
+  background: #292c35;
+  color: #f3f3f6;
+  border: 1px solid #73758a;
+ }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-table .fbs-table__shipment-heading button:disabled { background: #25262d; color: #aeb1c2; opacity: 1; border-color: #444651; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-table .fbs-table__shipment-heading button:hover:not(:disabled) { background: #433044; border-color: #c154c1; }
+}

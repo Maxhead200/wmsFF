@@ -1,0 +1,27 @@
+/* FIX: original animated silhouette from the user's diploma. Screen/theme-only. */
+@media screen {
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera']:has(
+    :is(.workspace-loading, .expenses-loading, .admin-loading, .admin-tech-loading,
+      .kizc-loading, .tsd-history-modal__loading, .stock-monitor--loading,
+      .tsd-monitor--loading, .client-fbs-delivery--loading, .box-overlap-panel.is-loading,
+      .client-marketplace-access.is-loading, [aria-busy='true'],
+      svg.spin, svg.admin-spin, svg.is-spinning):not([hidden], [hidden] *)
+  ) body::after {
+    content: '';
+    position: fixed;
+    right: max(24px, env(safe-area-inset-right));
+    bottom: max(24px, env(safe-area-inset-bottom));
+    width: 85px;
+    height: 41px;
+    background: var(--panther-loading-image, url('/animations/panther-original.gif')) center / contain no-repeat;
+    filter: invert(1) drop-shadow(0 0 5px rgb(193 84 193 / 55%));
+    pointer-events: none;
+    z-index: 2000;
+  }
+}
+/* FIX: a GIF cannot be paused with animation:none; use its original first frame. */
+@media screen and (prefers-reduced-motion: reduce) {
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] {
+    --panther-loading-image: url('/animations/panther-still.png');
+  }
+}

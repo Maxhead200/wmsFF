@@ -37,3 +37,10 @@ Today dashboard: dark rows, saturated icons, matching gradients, 14px descriptio
 Navigation tiles and sidebar buttons scale to 1.02 with a dark red gradient on mouse hover. Transforms preserve neighbouring layout; reduced-motion disables scaling and transitions. Payroll editor inline white background is overridden and grid content stops stretching controls.
 
 New tests: `node test/la-panthera-hover.browser.cjs`; generated coverage validation: `node test/build-la-panthera-coverage.cjs --check`. PR target feature/wb-print-check. Deployment uses fresh production web with only index.html and a versioned la_panthera CSS delta; parallel spirit release is preserved. API, Android, sold WMS and business operations unchanged.
+
+
+## Original panther loading indicator
+
+The 85×41 transparent GIF (19 frames, 10,327 bytes) is extracted byte-for-byte from the user-provided diploma PPT Pictures stream. `public/animations/panther-still.png` is its first frame for reduced-motion. `la-panthera-loader.css` decorates existing loading classes and aria-busy states; it does not intercept requests or change their lifecycle. The small fixed silhouette is inverted for dark backgrounds, ignores pointer events and is excluded from print/other themes. States without existing loading markers are outside this CSS integration.
+
+Regression: `test/la-panthera-loader.browser.cjs` verifies lifecycle, busy state, disabled/error exclusion, reduced-motion, print and other-theme isolation. Supply groups also have a three-variant contrast fixture: opaque dark controls and warehouse badges, graphite heading and thin green accent; disabled actions remain disabled.

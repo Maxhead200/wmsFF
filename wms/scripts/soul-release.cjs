@@ -17,21 +17,21 @@ function patchMain(source,compiled){
  const result=body+append;parseAst(result);return result;
 }
 async function compile(){return (await rv('esbuild').build({entryPoints:[path.join(web,'src/components/layout/SoulWorkspace.tsx')],bundle:true,write:false,format:'iife',globalName:'SoulBuild',minify:true,target:'es2020',jsx:'transform',jsxFactory:'__SoulReact.createElement',jsxFragment:'__SoulReact.Fragment',tsconfigRaw:{compilerOptions:{jsx:'react'}},plugins:[{name:'live-react',setup(b){b.onResolve({filter:/^react$/},()=>({path:'react',namespace:'live'}));b.onLoad({filter:/.*/,namespace:'live'},()=>({contents:'export default __SoulReact;export const useEffect=__SoulReact.useEffect,useRef=__SoulReact.useRef,useState=__SoulReact.useState;',loader:'js'}));}}]})).outputFiles[0].text;}
-async function build(out){
+async function build(out,patch=patchMain,prefix='soul-live-20260929'){
  if(!out||fs.existsSync(out))throw Error('New output directory required');
  async function get(url){const r=await fetch(url);if(!r.ok)throw Error('Fetch failed '+url);return r.text();}
  const index=await get('https://wms.logoff.pro/'),entry=index.match(/src="\/assets\/([^"/]+\.js)"/)[1],source=await get('https://wms.logoff.pro/assets/'+entry);
- const compiled=await compile(),patched=patchMain(source,compiled);
+ const compiled=await compile(),patched=patch(source,compiled);
  const graph=new Map([[entry,source]]),pending=[entry];
  while(pending.length){const name=pending.pop();for(const m of graph.get(name).matchAll(/["']\.\/([^"']+\.js)["']/g)){const dep=m[1];if(!/^[\w.-]+\.js$/.test(dep))throw Error('Invalid asset');if(graph.has(dep))continue;graph.set(dep,await get('https://wms.logoff.pro/assets/'+dep));pending.push(dep);}}
- const names=Object.fromEntries([...graph.keys()].map((n,i)=>[n,`soul-live-20260929-${i}.js`]));
+ const names=Object.fromEntries([...graph.keys()].map((n,i)=>[n,`${prefix}-${i}.js`]));
  const rewrite=s=>s.replace(/[\w.-]+\.js/g,n=>names[n]||n),files={};fs.mkdirSync(out,{recursive:true});
  for(const [name,content] of graph){const next=rewrite(name===entry?patched:content);parseAst(next);fs.writeFileSync(path.join(out,names[name]),next);files[names[name]]={sha256:sha(next),original:name,originalSha256:sha(content)};}
- const css=fs.readFileSync(path.join(web,'src/components/layout/soul-theme.css'),'utf8'),cssName='soul-live-20260929.css';
+ const css=fs.readFileSync(path.join(web,'src/components/layout/soul-theme.css'),'utf8'),cssName=prefix+'.css';
  const html=once(index,'/assets/'+entry,'/assets/'+names[entry]).replace('</head>',`<link rel="stylesheet" href="/assets/${cssName}"></head>`);
  fs.writeFileSync(path.join(out,cssName),css);fs.writeFileSync(path.join(out,'index.html'),html);
  fs.writeFileSync(path.join(out,'proof.json'),JSON.stringify({indexBeforeSha:sha(index),indexAfterSha:sha(html),cssName,cssSha:sha(css),files},null,2));
  fs.writeFileSync(path.join(out,'original-entry.txt'),source); // local diagnostic artifact, not a deployed asset
  console.log(JSON.stringify({chunks:graph.size,entry:names[entry],cssName}));
 }
-module.exports={patchMain,compile,PIN};if(require.main===module)build(process.argv[2]).catch(e=>{console.error(e);process.exitCode=1;});
+module.exports={patchMain,compile,build,PIN};if(require.main===module)build(process.argv[2]).catch(e=>{console.error(e);process.exitCode=1;});

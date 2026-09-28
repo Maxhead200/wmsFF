@@ -52,6 +52,8 @@ export class InventoryService {
     const globalAccess = hasGlobalInventoryAccess(user);
     const warehouseId = this.resolveScopedWarehouseId(user, 'read');
     const warehouseWhere = warehouseId ? { warehouseId } : {};
+    // FIX: bound reads before loading box lines and validating KIZ history in our WMS.
+    const recentWhere = inventoryRecentWhere();
     const [activeFull, activeSessions, reviewSessions, historySessions, pendingRescanRequests] = await Promise.all([
       this.prisma.inventorySession.findFirst({
         where: {
@@ -63,7 +65,7 @@ export class InventoryService {
         orderBy: { startedAt: 'desc' },
       }),
       this.prisma.inventorySession.findMany({
-        where: { status: InventorySessionStatus.ACTIVE, ...warehouseWhere },
+        where: { status: InventorySessionStatus.ACTIVE, ...warehouseWhere, ...recentWhere },
         include: sessionInclude,
         orderBy: { startedAt: 'desc' },
         take: 30,
@@ -73,20 +75,22 @@ export class InventoryService {
           type: { in: [InventorySessionType.FULL, InventorySessionType.PARTIAL, InventorySessionType.BOX_CHECK] },
           status: InventorySessionStatus.REVIEW,
           ...warehouseWhere,
+          ...recentWhere,
         },
         include: sessionInclude,
         orderBy: { updatedAt: 'desc' },
         take: 30,
       }),
       this.prisma.inventorySession.findMany({
-        where: { boxes: { some: {} }, ...warehouseWhere },
+        where: { boxes: { some: {} }, ...warehouseWhere, ...recentWhere },
         include: sessionInclude,
         orderBy: { updatedAt: 'desc' },
         take: 100,
       }),
       canApproveInventoryRescan(user)
         ? this.prisma.inventoryBoxRescanRequest.findMany({
-            where: { status: 'PENDING', ...warehouseWhere },
+            where: { status: 'PENDING', ...warehouseWhere,
+              ...(recentWhere.startedAt ? { createdAt: recentWhere.startedAt } : {}) },
             orderBy: { createdAt: 'asc' },
             take: 100,
           })
@@ -147,6 +151,7 @@ export class InventoryService {
     return this.prisma.inventorySession.findMany({
       where: {
         type: parsedType,
+        ...inventoryRecentWhere(),
         ...(clientFilter ? { clientId: clientFilter } : {}),
         ...(warehouseId ? { warehouseId } : {}),
       },
@@ -184,6 +189,7 @@ export class InventoryService {
     if (!fbsKizAuditEnabled() || user.isDemo || !canManageInventory(user)) return [];
     const sessions = (await this.prisma.inventorySession.findMany({
       where: { ...(sessionId ? { id: sessionId } : {}), type: InventorySessionType.BOX_CHECK,
+        ...(sessionId ? {} : inventoryRecentWhere()),
         status: { in: [InventorySessionStatus.ACTIVE, InventorySessionStatus.REVIEW, InventorySessionStatus.COMPLETED] }, comment: { contains: FBS_KIZ_AUDIT_MARKER },
         ...(warehouseId ? { warehouseId } : {}),
         boxes: { some: { status: { in: [InventoryBoxStatus.MATCHED, InventoryBoxStatus.RESOLVED, InventoryBoxStatus.MISMATCH] } } } },
@@ -1666,4 +1672,10 @@ function canSeeInventorySession(user: AuthUser, clientId: string | null) {
     return hasGlobalInventoryAccess(user);
   }
   return hasGlobalInventoryAccess(user) || user.clientIds.includes(clientId);
+}
+
+// FIX: old records remain accessible by ID; only the default list has a rolling seven-day window.
+function inventoryRecentWhere(): { startedAt?: { gte: Date } } {
+  return process.env.WMS_INVENTORY_PHYSICAL_RESOLUTION_ENABLED === 'true'
+    ? { startedAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } } : {};
 }

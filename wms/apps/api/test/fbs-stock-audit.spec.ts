@@ -246,3 +246,23 @@ describe('administrator accepts own FBS audit as is', () => {
     await expect(f.call(kind === 'worker' ? ['WORKER'] : ['ADMIN'])).rejects.toThrow();
   });
 });
+
+// TEST: name the conflicting item and physical identities, not only a generic stop message.
+it('explains saved versus registered KIZs without exposing crypto tails', async () => {
+  vi.stubEnv('WMS_INVENTORY_PHYSICAL_RESOLUTION_ENABLED','true');
+  const f=auditFixture();f.evidence[0].payload.kiz=anotherKiz;
+  f.db.sku.findMany.mockResolvedValue([{id:'sku',internalSku:'Cambridge XS',needsChestnyZnak:true,isUnmarked:false}] as any);
+  try { await f.run();expect.fail('must stop'); } catch(e:any) {
+    expect(e.message).toContain('Cambridge XS');
+    expect(e.message).toContain('SERIAL0000001');expect(e.message).toContain('SERIAL0000002');
+    expect(e.message).not.toContain('CRYPTO');
+  }
+});
+
+// TEST: a quantity change also identifies the affected product.
+it('identifies the product when current stock differs from the saved count', async () => {
+  vi.stubEnv('WMS_INVENTORY_PHYSICAL_RESOLUTION_ENABLED','true');
+  const f=auditFixture();f.balances[0].quantity=0;
+  f.db.sku.findMany.mockResolvedValue([{id:'sku',internalSku:'Cambridge XS',needsChestnyZnak:true,isUnmarked:false}] as any);
+  await expect(f.run()).rejects.toThrow('Cambridge XS');
+});

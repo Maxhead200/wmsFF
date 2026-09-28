@@ -21,6 +21,10 @@ it.skipIf(!runtime).each([1440, 390])('keeps operational surfaces readable at %i
     // TEST: production uses modern tokens beneath Spirit, including text-primary.
     const html = `<!doctype html><html data-ui-theme="modern" data-ui-variant="spirit"><meta charset="utf-8"><style>${css}</style>
       <body><main class="app-layout" data-ui-theme="modern" data-ui-variant="spirit"><div class="workspace-content">
+      <div class="modern-dashboard__quick">${Array.from({length:5},(_,i)=>`<button><span><svg data-check width="18" height="18" fill="none" stroke="currentColor"><path d="M2 2L16 16"/></svg></span><div><strong data-check>Быстрый доступ ${i}</strong><small data-check>Описание раздела</small></div></button>`).join('')}</div>
+      <div class="modern-dashboard__queue"><button><span class="modern-dashboard__queue-icon is-danger"><svg data-check width="18" height="18" stroke="currentColor" fill="none"><path d="M2 2L16 16"/></svg></span><span><strong data-check>КИЗ</strong><small data-check>135 проблем</small></span><span class="modern-dashboard__queue-status is-danger" data-check>Проверить</span></button><button><span class="modern-dashboard__queue-icon"><svg data-check width="18" height="18" stroke="currentColor" fill="none"><path d="M2 2L16 16"/></svg></span><strong data-check>FBS</strong></button></div>
+      <div class="modern-dashboard__branches"><article class="is-active"><div><strong data-check>Москва</strong><span data-check>ИП Говорова</span></div><dl><div><dt data-check>Клиенты</dt><dd data-check>42</dd></div><div><dt data-check>Короба</dt><dd data-check>712</dd></div></dl></article></div>
+      <div class="workspace-tiles" id="icon-palette">${Array.from({length:5},(_,i)=>`<button class="workspace-tile"><span class="workspace-tile__icon"><svg data-check width="24" height="24" fill="none" stroke="currentColor"><path d="M2 2L22 22"/></svg></span><strong data-check>Раздел ${i+1}</strong></button>`).join('')}</div>
       ${['workspace-tile','admin-tech-tile','warehouse-topic-tile','billing-topic-tile','directory-topic-tile','print-topic-tile'].map(c => `<button class="${c}"><span class="${c}__icon"><svg data-check width="24" height="24" fill="none" stroke="currentColor"><path d="M2 2L22 22"/></svg></span><strong data-check>${c}</strong></button>`).join('')}
       <div class="client-services-toolbar"><label><span data-check>Клиент</span><select data-check><option>Лукин</option></select></label><div class="client-services-search"><span data-check>Поиск</span></div><div class="client-services-toolbar__summary" data-check>Подключено 0</div></div>
       <div class="fbs-pricing-default is-active"><strong data-check>Калькулятор FBS</strong><span data-check>Работает автоматически</span><em data-check>Активен</em></div>
@@ -79,6 +83,12 @@ it.skipIf(!runtime).each([1440, 390])('keeps operational surfaces readable at %i
       expect(await page.locator(selector).evaluate((el: Element) => getComputedStyle(el).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
     }
     // TEST: active branch must differ from its neighbours beyond the small badge.
+    // TEST: five neighbouring icons retain distinct readable colours, including hover.
+    const iconColours = await page.locator('#icon-palette svg').evaluateAll((els: Element[]) => els.map(el => getComputedStyle(el).color));
+    expect(new Set(iconColours).size).toBe(5);
+    expect(new Set(await page.locator('.modern-dashboard__quick svg').evaluateAll((els: Element[]) => els.map(el => getComputedStyle(el).color))).size).toBe(5);
+    await page.locator('#icon-palette button').first().hover();
+    expect(await page.locator('#icon-palette svg').first().evaluate((el: Element) => getComputedStyle(el).color)).toBe(iconColours[0]);
     const branchColours = await page.locator('.branch-card').evaluateAll((els: Element[]) => els.map(el => ({ bg: getComputedStyle(el).backgroundColor, border: getComputedStyle(el).borderColor })));
     expect(branchColours[0].bg).not.toBe(branchColours[1].bg);
     expect(branchColours[0].border).not.toBe(branchColours[1].border);

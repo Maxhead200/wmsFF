@@ -33,6 +33,8 @@ import { PalletSortingPanel } from './components/inventory/PalletSortingPanel';
 import { KizIssuesPanel } from './components/kiz/KizIssuesPanel';
 import { SpaceServiceShelf } from './components/layout/SpaceServiceShelf';
 import { SpaceTopNav } from './components/layout/SpaceTopNav';
+import { SoulWorkspace, soulEnabled } from './components/layout/SoulWorkspace';
+import './components/layout/soul-theme.css';
 import { installSpiritTileTilt } from './components/layout/spiritTileTilt';
 import './components/layout/tile-motion.css';
 import { WmsAiPanel } from './components/wms-ai/WmsAiPanel';
@@ -128,7 +130,8 @@ const workspaceSections = [
 ] as const;
 
 type WorkspaceSection = (typeof workspaceSections)[number]['id'];
-type UiTheme = 'classic' | 'modern' | 'aerospace' | 'obsidian' | 'polar' | 'future3100' | 'space' | 'winx' | 'spirit' | 'la_panthera';
+// FIX: retain both independently added themes.
+type UiTheme = 'classic' | 'modern' | 'aerospace' | 'obsidian' | 'polar' | 'future3100' | 'space' | 'winx' | 'spirit' | 'soul' | 'la_panthera';
 type HeaderNotificationItem = {
   id: string;
   title: string;
@@ -150,6 +153,7 @@ const uiThemeOptions: Array<{ value: UiTheme; label: string; personal?: 'winx' }
   { value: 'space', label: 'Space' },
   { value: 'la_panthera', label: 'la_panthera' }, // FIX: explicit opt-in; persisted per user.
   { value: 'spirit', label: 'Spirit' }, // FIX: additive opt-in theme; existing preferences remain intact.
+  { value: 'soul', label: 'Soul' }, // FIX: isolated navigation; available only on our host.
   { value: 'winx', label: 'WingX · Эля', personal: 'winx' },
 ];
 
@@ -545,7 +549,7 @@ export function App() {
     isAdvancedTheme(uiTheme) && modernSidebarCollapsed ? 'app-layout--sidebar-collapsed' : '',
   ].filter(Boolean).join(' ');
   const baseUiTheme = uiThemeBase(uiTheme);
-  const availableThemeOptions = uiThemeOptions.filter((option) => !option.personal || hasWinxCursor(session.user));
+  const availableThemeOptions = uiThemeOptions.filter((option) => (option.value !== 'soul' || soulEnabled(window.location.hostname)) && (!option.personal || hasWinxCursor(session.user)));
 
   function openWorkspaceFromSearch(value: string) {
     const normalized = value.trim().toLocaleLowerCase('ru-RU');
@@ -790,6 +794,7 @@ export function App() {
           className={`workspace-content workspace-content--${activeWorkspace.id}`}
           aria-label={activeWorkspace.title}
         >
+          <SoulWorkspace enabled={uiTheme === 'soul'} groups={groupedWorkspaces} activeId={activeWorkspace.id} onOpen={(id) => setActiveWorkspaceId(id as WorkspaceId)}>
           {renderWorkspace(
             activeWorkspace.id,
             session,
@@ -806,6 +811,7 @@ export function App() {
             },
             () => setFocusedRequestId(null),
           )}
+          </SoulWorkspace>
         </section>
 
         <footer className="workspace-footer">
@@ -824,7 +830,7 @@ function uiThemeStorageKey(userId: string) {
 function loadUiTheme(user: AuthUser): UiTheme {
   const stored = window.localStorage.getItem(uiThemeStorageKey(user.id));
   const matched = uiThemeOptions.find((option) => option.value === stored);
-  if (!matched || (matched.personal === 'winx' && !hasWinxCursor(user))) {
+  if (!matched || (matched.value === 'soul' && !soulEnabled(window.location.hostname)) || (matched.personal === 'winx' && !hasWinxCursor(user))) {
     return 'classic';
   }
   return matched.value;

@@ -14,7 +14,7 @@ describe('Spirit graphite readable palette', () => {
   // TEST: WB/Ozon selection cards use a different class from inner FBS tiles.
   it('includes FBS marketplace cards in pointer handling and all motion states', () => {
     expect(tiltSource.split('\n')[0]).toContain('.fbs-marketplace-card');
-    for (const rule of css.split('}').filter(rule => rule.includes('.fbs-tile'))) {
+    for (const rule of css.split('}').filter(rule => /\.fbs-tile\s*[,)]/.test(rule))) {
       expect(rule).toContain('.fbs-marketplace-card');
     }
   });

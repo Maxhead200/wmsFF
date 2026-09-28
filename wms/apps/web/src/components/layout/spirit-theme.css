@@ -14,6 +14,9 @@
   --work: #e8c58b;
   --red: #c9ced7;
   --red-dark: #edf0f5;
+  --text: #f2f3f5;
+  --text-soft: #c5c9d0;
+  --border-subtle: #454950;
   --modern-topbar: #191b1f;
   --modern-sidebar: #191b1f;
   --modern-sidebar-hover: #30343a;
@@ -97,6 +100,200 @@
   border-top-color: #68717e;
   border-radius: 12px;
   box-shadow: var(--spirit-tile-shadow);
+}
+/* FIX: component compatibility. Pair foreground/background; root specificity also
+   wins when a lazy-loaded module stylesheet arrives after this theme.
+   Explicit surfaces only: never recolour document frames, labels or product images. */
+:root[data-ui-variant='spirit'] .app-layout[data-ui-variant='spirit'] {
+  --ink: #f2f3f5; --muted: #c5c9d0; --surface: #202328; --line: #454950;
+  --text: #f2f3f5; --text-soft: #c5c9d0; --border-subtle: #454950;
+}
+:root[data-ui-variant='spirit'] :is(.app-layout, [role='dialog']) :is(
+  .client-request-items-editor, .client-request-database-picker__panel,
+  .client-request-xlsx-preview, .client-request-xlsx-line, .client-request-xlsx-summary span,
+  .client-request-fbs-audit, .client-request-fbs-audit__issue,
+  .client-request-fbs-tails, .fbs-tail-preview-modal__summary > span,
+  .fbs-tail-preview-modal__notice, .fbs-tail-preview-modal__skipped,
+  .client-request-edit-modal__panel, .online-execution-modal__panel,
+  .client-request-sku-suggestions, .client-request-items-grid,
+  .client-request-xlsx-suggestion, .client-request-xlsx-relabel-source,
+  .client-request-item-search, .client-request-items-grid__empty,
+  .manual-close-modal__notice, .manual-box-selection-modal__body,
+  .manual-box-selection-modal__notice, .manual-box-selection-modal__summary,
+  .manual-box-selection-item, .manual-box-selection-box, .manual-box-selection-box__quantity,
+  .close-stock-recovery-item, .close-stock-recovery-item__body,
+  .close-stock-recovery-available-heading, .close-stock-recovery-boxes > label,
+  .close-stock-recovery-stale-boxes, .close-stock-recovery-manual-box,
+  .close-stock-recovery-no-box, .fbs-box-search-modal__body,
+  .fbs-box-search-modal__summary > span, .fbs-box-search-modal__search,
+  .fbs-box-search-card, .fbs-box-search-card__orders,
+  .manual-instruction-modal__result, .online-execution-progress,
+  .online-execution-metrics article, .online-execution-section, .online-execution-search,
+  .online-execution-wms-box, .online-execution-kiz-conflict-list > article,
+  .online-execution-duplicate-kiz-list > article, .online-execution-sync-conflict-bulk,
+  .online-execution-bulk-move label > strong, .online-execution-action-message,
+  .box-overlap-panel, .box-overlap-metrics article, .box-overlap-card,
+  .box-overlap-card__requests > div, .balance-review-panel, .balance-review-search,
+  .balance-review-modal__progress, .balance-review-line, .balance-review-line__box span,
+  .balance-review-line__numbers span, .balance-destination,
+  .fbs-supply-consistency-metrics article, .fbs-route-drawer, .fbs-route-diff,
+  .billing-panel__heading, .billing-tabs, .billing-form, .billing-client-register,
+  .billing-client-register__header, .billing-client-register__totals,
+  .billing-invoice-register__detail, .billing-reconciliation, .billing-period-summary,
+  .billing-reconciliation-metric, .billing-period-card, .billing-period-metric,
+  .billing-reconciliation-client, .billing-reconciliation-invoice,
+  .billing-client-settings-dialog__panel,
+  .fbs-panel__hero, .fbs-panel__scope, .fbs-workspace, .fbs-connect-empty,
+  .fbs-tile__clients, .fbs-supply-request-tool, .fbs-order-summary article,
+  .fbs-cost-summary article, .fbs-order-actions,
+  .storage-zones__hero, .storage-zones__toolbar, .storage-zones__list,
+  .storage-zones__empty-zones, .storage-pallet-bulkbar,
+  .storage-pallet-move-dialog__preview, .warehouse-box-view-toggle,
+  .warehouse-box-search__input, .warehouse-box-suggestions, .storage-box-preview,
+  .inventory-hero, .inventory-workbench, .inventory-session__summary,
+  .inventory-rescan-requests, .inventory-rescan-requests article, .inventory-item-scan,
+  .branch-card, .branch-workspace, .branch-receiving, .branch-history, .branch-create,
+  .expenses-hero, .expenses-header, .expenses-filters, .expenses-tabs,
+  .expenses-loading, .expenses-empty, .expenses-payroll__summary article,
+  .expense-metric, .expenses-side-card, .expenses-form,
+  .catalog-marketplaces, .catalog-manual-card, .catalog-readonly-facts div,
+  .catalog-card-form__checks label, .catalog-characteristics div, .catalog-stock-list div,
+  .client-control-panel, .directory-tabs, .relabel-product-entry, .relabel-reconciliation,
+  .relabel-reconciliation__filters, .relabel-reconciliation__summary > div,
+  .client-cabinet-client, .client-cabinet-client-editor, .client-cabinet-online-receipts,
+  .client-marketplace-panel, .client-cabinet-stock-import, .client-marketplace-checkbox,
+  .client-cabinet-file-field, .client-marketplace-empty, .client-marketplace-key,
+  .access-tabs, .access-segments, .role-choice, .access-scope-switches label,
+  .scope-row, .access-result, .admin-section, .admin-metrics article,
+  .admin-stock-check__scope label, .admin-stock-check__all-warehouses,
+  .admin-phantom__metrics > div, .admin-phantom__clean,
+  .analytics-metric, .analytics-recommendation, .analytics-search,
+  .contract-create-card, .contracts-empty, .contract-card, .contract-card__meta,
+  .contract-check-dialog, .contract-check-dialog__summary,
+  .dbs-panel__hero, .dbs-panel__scope, .dbs-marketplace-card, .dbs-workspace-shell,
+  .dbs-setup-form, .dbs-configured, .debug-tabs, .debug-list, .debug-editor,
+  .debug-shortcut, .debug-code-box, .debug-list-item, .debug-switches label,
+  .integration-api__secret, .integration-api__form, .integration-api__registry,
+  .integration-api__empty, .kiz-hero, .kiz-summary__card, .kiz-tabs, .kiz-search,
+  .kiz-queue, .kiz-dialog, .kiz-dialog__facts div, .kiz-dialog__explanation,
+  .kiz-dialog__diagnostic, .kiz-dialog__diagnostic > div > div,
+  .kizc-source, .kizc-tabs, .kizc-sync-panel, .kizc-workbar, .kizc-operation-switch,
+  .kizc-queue, .readonly-field, .quote-mode, .quote-result, .logistics-summary,
+  .logistics-summary-metric, .logistics-summary-row, .carrier-form, .trip-form,
+  .own-company-bank-accounts, .own-company-bank-account, .own-company-clients__list label,
+  .ozfbo-hero, .ozfbo-flow-step, .ozfbo-card, .ozfbo-stage, .ozfbo-events,
+  .ozfbo-plan-row, .ozfbo-detail-head, .ozfbo-kpis > div,
+  .packed-audit__hero, .packed-audit__filters, .packed-audit__stat,
+  .packed-audit__viewbar, .packed-audit__view-switch, .packed-request,
+  .packed-request__body, .service-mobile-app, .service-client-selector,
+  .service-section, .service-card, .service-metric, .service-form-card,
+  .storage-optimization__toolbar, .tsd-history__filters, .tsd-history__table-wrap,
+  .tsd-history-modal > section, .tsd-history-modal__facts article,
+  .tsd-box-checks__head, .tsd-box-checks__details-row td,
+  .known-value-options, .known-value-options__empty, .turnover-placement-cell__item,
+  .turnover-metric, .turnover-current-placement, .turnover-cells > span, .turnover-cell-card,
+  .wo-filters, .wo-summary, .wo-scroll, .wo-footer, .wo-detail,
+  .wms-ai-hero, .wms-ai-chat, .wms-ai-message, .wms-ai-teach,
+  .requisites-import, .relabeling-workspace__tile
+) {
+  background: #202328; color: #f2f3f5; border-color: #454950;
+}
+/* FIX: headings inherit their surface context instead of forcing white
+   independently of their parent panel. */
+:root[data-ui-variant='spirit'] :is(.app-layout, [role='dialog']) :is(h1,h2,h3,h4,strong,label,dt) {
+  color: inherit;
+}
+:root[data-ui-variant='spirit'] :is(.app-layout, [role='dialog']) :is(
+  .client-request-fbs-tails__copy span, .client-request-fbs-tails__selected,
+  .client-request-fbs-tails__actions label > span, .client-request-items-editor__heading p,
+  .fbs-tail-preview-modal__summary small, .client-request-items-grid__head,
+  .billing-client-register__header, .fbs-tile__clients-title,
+  .fbs-workspace__search > span:first-child
+) { color: #c5c9d0; }
+:root[data-ui-variant='spirit'] :is(.app-layout, [role='dialog']) :is(
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
+  select, textarea, option
+) {
+  background: #191b1f; color: #f2f3f5; border-color: #636b77;
+  -webkit-text-fill-color: #f2f3f5;
+}
+:root[data-ui-variant='spirit'] :is(.app-layout, [role='dialog']) :is(input,textarea)::placeholder {
+  color: #b8bec7; -webkit-text-fill-color: #b8bec7; opacity: 1;
+}
+:root[data-ui-variant='spirit'] :is(.app-layout, [role='dialog']) button {
+  background: #30353c; color: #f2f3f5; border-color: #636b77;
+}
+:root[data-ui-variant='spirit'] :is(.app-layout, [role='dialog']) button :is(span,strong,small) { color: inherit; }
+:root[data-ui-variant='spirit'] :is(.app-layout, [role='dialog']) button:hover:not(:disabled) {
+  background: #414852; color: #ffffff; border-color: #909ba9;
+}
+:root[data-ui-variant='spirit'] :is(.app-layout, [role='dialog']) button:is(.active,.is-active,[aria-pressed='true']) {
+  background: #3b4e46; color: #d1f5e1; border-color: #87baa0;
+}
+:root[data-ui-variant='spirit'] :is(.app-layout, [role='dialog']) .primary-button:not(.confirm-dialog__secondary) {
+  background: #a62c3b; color: #ffffff; border-color: #dc7884;
+}
+:root[data-ui-variant='spirit'] :is(.app-layout, [role='dialog']) .primary-button:hover:not(:disabled):not(.confirm-dialog__secondary) {
+  background: #bb3546; color: #ffffff;
+}
+:root[data-ui-variant='spirit'] :is(.app-layout, [role='dialog']) :is(button,.primary-button):disabled {
+  background: #282c31; color: #aeb5bf; border-color: #555c66;
+  opacity: 1; cursor: not-allowed; border-style: dashed;
+}
+:root[data-ui-variant='spirit'] :is(.app-layout, [role='dialog']) table :is(th,td) {
+  background: #202328; color: #f2f3f5; border-color: #454950;
+}
+:root[data-ui-variant='spirit'] :is(.app-layout, [role='dialog']) table thead th {
+  background: #30353c; color: #dce0e6;
+}
+:root[data-ui-variant='spirit'] :is(.app-layout, [role='dialog']) table tbody tr:hover td { background: #2c3138; }
+:root[data-ui-variant='spirit'] :is(.app-layout, [role='dialog']) table tbody tr:is(.selected,.is-selected) td {
+  background: #2d443a; color: #e0f4e8;
+}
+/* FIX: native portals get the same paired palette; iframe/printed content is untouched. */
+:root[data-ui-variant='spirit'] :is(.confirm-dialog,.document-preview-modal,.contract-check-dialog,.kiz-dialog) {
+  background: #202328; color: #f2f3f5; border-color: #454950;
+}
+:root[data-ui-variant='spirit'] :is(.confirm-dialog__details,.confirm-dialog__icon) {
+  background: #3a3020; color: #f1d29d; border-color: #7e6945;
+}
+/* FIX: semantic messages remain distinguishable without pastel backgrounds. */
+:root[data-ui-variant='spirit'] :is(.app-layout, [role='dialog']) :is(
+  .form-error,.analytics-alert--error,.contracts-alert--error,.branches-message--error,
+  .inventory-alert--danger,.client-request-fbs-audit.is-warning,
+  .client-request-xlsx-line--shortage,.client-request-items-grid__row--shortage,
+  .service-message--error,.packed-audit__error,.tsd-history__error,.wms-ai-error,
+  .requisites-import--error,.client-marketplace-access.is-error,
+  .online-execution-bulk-move__result.is-error,.online-execution-action-message.is-error,
+  .fbs-supply-consistency-summary.is-error,.box-overlap-errors,.status--cancelled,
+  .online-execution-pill.is-danger,.online-execution-pill.is-sos
+) { background: #40282b; color: #ffb4af; border-color: #88565c; }
+:root[data-ui-variant='spirit'] :is(.app-layout, [role='dialog']) :is(
+  .analytics-alert--success,.contracts-alert--success,.branches-message--ok,
+  .client-request-fbs-audit.is-ok,.client-request-xlsx-line--ok,
+  .client-request-items-grid__row--ok,.inventory-result--ok,.requisites-import--success,
+  .online-execution-bulk-move__result.is-success,.fbs-supply-consistency-summary.is-ok,
+  .status--done,.status--ready,.online-execution-chip.is-done,.online-execution-pill.is-done
+) { background: #223b2e; color: #a7e7c3; border-color: #547c64; }
+:root[data-ui-variant='spirit'] :is(.app-layout, [role='dialog']) :is(
+  .analytics-alert--warning,.service-warning,.ops-statistics__warning,
+  .client-request-xlsx-line--reserved,.client-request-items-grid__row--reserved,
+  .billing-client-change-warning,.logistics-route-warning,.ozfbo-inline-warning,
+  .kiz-dialog__notice,.wo-notice,.manual-instruction-modal__warning,
+  .emergency-xlsx-modal__warning,.close-stock-recovery-modal__warning,
+  .close-stock-recovery-fbs-warning,.status--in-work,.status--in-progress
+) { background: #3a3020; color: #f1d29d; border-color: #7e6945; }
+:root[data-ui-variant='spirit'] :is(.app-layout, [role='dialog']) :is(
+  .status--planned,.client-request-relabel-pill,.client-request-sku-collection-badge,
+  .client-request-fbs-recovery-badge,.online-execution-chip,.online-execution-pill
+):not(.is-done):not(.is-danger):not(.is-sos) { background: #303947; color: #d1dcf0; border-color: #65738a; }
+/* Do not replace the requested tile gradient or geometric motion with button styling. */
+:root[data-ui-variant='spirit'] .app-layout .sticker-set__canvas {
+  background: #ffffff; color: #111111; --ink: #111111; --muted: #333333;
+}
+:root[data-ui-variant='spirit'] .app-layout .sticker-set__canvas :is(small,strong,b,em) { color: #111111; }
+:root[data-ui-variant='spirit'] .app-layout :is(.workspace-tile,.warehouse-topic-tile,.fbs-marketplace-card,.fbs-tile,.metric-tile,.module-card,.access-topic-tile,.admin-tech-tile,.billing-invoice-kind-tile,.billing-topic-tile,.directory-topic-tile,.fbs-warehouse-tile,.print-topic-tile,.turnover-summary-tile,.turnover-tile) {
+  background: linear-gradient(160deg, #101113 0%, #191b1f 45%, #30343a 100%); color: #f2f3f5;
 }
 @media (max-width: 1100px) {
   .app-layout[data-ui-variant='spirit'] .modern-dashboard__columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }

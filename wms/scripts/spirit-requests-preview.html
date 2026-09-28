@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ru" data-ui-theme="modern" data-ui-variant="spirit">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Spirit — проверка читаемости заявок</title>
+<link rel="stylesheet" href="/styles.css"><link rel="stylesheet" href="/requests.css"><link rel="stylesheet" href="/spirit.css">
+<!-- TEST: real request CSS classes; synthetic data; no production API or handlers. -->
+<div class="app-layout" data-ui-theme="modern" data-ui-variant="spirit" style="display:block;height:auto;min-height:100vh">
+<main class="workspace-content">
+<header class="modern-dashboard__heading"><h1>Заявки · Spirit</h1><span>Локальная проверка · тестовые данные</span></header>
+<div class="workspace-tiles" style="margin-bottom:16px">
+<button class="workspace-tile"><span><strong>Заявки</strong><small>Отбор и отгрузка</small></span></button>
+<button class="workspace-tile"><span><strong>Склад</strong><small>Короба и остатки</small></span></button>
+<button class="workspace-tile"><span><strong>Аналитика</strong><small>Рабочие показатели</small></span></button>
+</div>
+<div class="client-request-table-wrap"><table class="client-request-table">
+<thead><tr><th>Заявка</th><th>Клиент</th><th>Состав</th><th>Статус</th><th>Действия</th></tr></thead>
+<tbody><tr><td><div class="client-request-number"><span class="client-request-number__prefix">№</span><strong class="client-request-number__accent">1513</strong></div><div class="client-request-title">FBS — 2 заказа</div><p class="client-request-list-meta">Отгрузка · Обычный</p><div class="client-request-wb-supplies">Поставка WB<strong>WB-GI-ТЕСТ</strong></div></td>
+<td class="client-request-table__client-cell"><strong>Тестовый клиент</strong><span>Москва</span></td>
+<td><span class="client-request-items-count">2 позиции · 2 шт.</span><p class="client-request-items-preview">Костюм · S / 42 × 1<br>Худи · M / 46 × 1</p><button class="client-request-action-button client-request-action-button--xlsx"><span>Состав XLSX</span></button></td>
+<td><span class="status">Новая</span></td>
+<td><div class="client-request-actions"><button class="client-request-action-button client-request-action-button--fbs-box-search"><span>Остатки FBS</span></button><button class="client-request-action-button client-request-action-button--box-selection"><span>Выбрать короба</span></button><button class="client-request-action-button client-request-action-button--instruction"><span>Инструкция</span></button><button class="client-request-action-button client-request-action-button--sync-tsd"><span>В ТСД</span></button><button class="client-request-action-button" disabled><span>Проверка</span></button><button class="client-request-action-button client-request-action-button--cancel"><span>Отменить</span></button></div></td></tr></tbody></table></div>
+</main></div></html>

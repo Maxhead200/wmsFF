@@ -4,8 +4,8 @@ spec=importlib.util.spec_from_file_location('spirit_deploy',pathlib.Path(__file_
 deploy=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(deploy)
 deploy.ROOT=pathlib.Path('/opt/logoff-wms-releases/spirit-depth-20260928')
-deploy.BASE='sha256:0c52bd5273ae6e32eaeefe356bcb71e6440e3e266e3b50a4f21815ef01b6eba2'
-deploy.API='sha256:882d31805242c776406f5f9fb8ed7e6887a33b07be9343c9abe14457dcc89c6c'
+deploy.BASE='sha256:d204e622e626f793f63d733fa9efea41e701f3f77d2e10a506f8c8a138c83d59'
+deploy.API='sha256:09a4f4cc84a4ad1bb08279f8c2c236ab679accf7f1a50131c8e990647cd10cfb'
 deploy.TAG='logoff-web:spirit-depth-20260928'
 deploy.ROLLBACK='logoff-web:before-spirit-depth-20260928'
 if __name__=='__main__': deploy.main()

@@ -1,0 +1,5 @@
+# PR356: weekly inventory review
+
+Published PR356: inventory default reads bounded to seven days under the existing our-WMS physical-resolution flag; exact-ID historical access and global full-inventory movement lock retained. Both live admin reconciliation and legacy FBS queries are bounded. Audit error details identify SKU/counts and conflicting physical KIZ identities. Quick lookup hides zero-balance locations. API delta is two files against payroll352; web delta preserves the newer Spirit warm build e764be7 and consistently renames its shared module graph to avoid a second React runtime. All other runtime hashes, old web assets, APK215, flags, config and other containers unchanged. No operational data writes or new migration. API2884/web265 tests and TypeScript passed; 113 skipped, dedicated KIZ integration DB unavailable. Eight runtime flag combinations and nine browser notification/navigation scenarios passed. Published read-only dashboard plus detail checks took 798ms. Source parity remains false; source reference is historical, not a complete build source.
+
+Rollback tags: logoff-api:before-inventory-week and logoff-web:before-inventory-week.

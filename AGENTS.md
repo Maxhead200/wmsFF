@@ -61,3 +61,6 @@ Published PR341 (27.09.2026): own ADMIN/OWNER ACCEPT_AS_IS now permits FBS conti
 Latest verified release: PR343, tablet attendance. Baseline wms/baselines/our-wms/2026-09-27-attendance343. API sha256:d67de6f69a8ebd5902a913be8662f67ab0e79b6c8d775dc9987bcf8ea13b8c90; web sha256:597d5e296a51dcbf0d353321461255d3c55e4b8de0225f2732afdbfaf955e71b. New Attendance tables and sequence, WMS_ATTENDANCE_DEVICE_ENABLED=true only on our WMS. Previous flags and APK215 unchanged. API2885/web248/Android72 tests, server rollback smoke and runtime hashes passed; physical camera pending. Source parity remains false.
 
 Latest verified release PR348: baseline `2026-09-28-kiz-sorting`; API `sha256:9a3ec430469e30afeb1620b1a75852815976eba477325d5c06fcb9778313a9a9`. Two KIZ modules only, sorting admin reuse flag enabled; other services preserved. 30 runtime tests and actual-unit read-only proof verified; physical scan pending.
+
+
+Latest verified release PR356: baseline `wms/baselines/our-wms/2026-09-28-inventory-weekly`; API `sha256:882d31805242c776406f5f9fb8ed7e6887a33b07be9343c9abe14457dcc89c6c`, web `sha256:0c52bd5273ae6e32eaeefe356bcb71e6440e3e266e3b50a4f21815ef01b6eba2`. Weekly inventory review, descriptive KIZ errors, positive locations only. Existing flags and APK215 unchanged; sold WMS untouched; source parity false.

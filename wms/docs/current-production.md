@@ -1,3 +1,13 @@
+# Published PR356: weekly inventory review / 28.09.2026
+
+API `sha256:882d31805242c776406f5f9fb8ed7e6887a33b07be9343c9abe14457dcc89c6c`; web `sha256:0c52bd5273ae6e32eaeefe356bcb71e6440e3e266e3b50a4f21815ef01b6eba2`.
+
+Published PR356: inventory default reads bounded to seven days under the existing our-WMS physical-resolution flag; exact-ID historical access and global full-inventory movement lock retained. Both live admin reconciliation and legacy FBS queries are bounded. Audit error details identify SKU/counts and conflicting physical KIZ identities. Quick lookup hides zero-balance locations. API delta is two files against payroll352; web delta preserves the newer Spirit warm build e764be7 and consistently renames its shared module graph to avoid a second React runtime. All other runtime hashes, old web assets, APK215, flags, config and other containers unchanged. No operational data writes or new migration. API2884/web265 tests and TypeScript passed; 113 skipped, dedicated KIZ integration DB unavailable. Eight runtime flag combinations and nine browser notification/navigation scenarios passed. Published read-only dashboard plus detail checks took 798ms. Source parity remains false; source reference is historical, not a complete build source.
+
+Baseline `2026-09-28-inventory-weekly`.
+
+## Previous release
+
 # Published PR352: payroll corrections / 28.09.2026
 
 API `sha256:edaec90e3b3b9e777c0dc9d4f3083a4ad9fe60036a454c6e0022f016b629797b`; web `sha256:c958929305d4139a6f884cd2f6742a598c2cb307701d36a613aef01505e7a04e`. Shift time/lunch editing, audited cancellation, initial employee rates. Additive migration and generated Prisma Client deployed. Spirit PR350/351, KIZ PR348, FBS, flags and APK215 preserved. Exact runtime/public asset hashes and health verified. Candidate migration/CRUD checked in isolated database. API2899 passed/94 skipped, dedicated KIZ database suite excluded; web260 passed. Dark physical camera capture remains unresolved; APK unchanged.

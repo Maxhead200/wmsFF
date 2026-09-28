@@ -211,3 +211,16 @@
  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .app-sidebar__nav button.active { background: #302943; color: #ffffff; }
  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .app-sidebar__nav button.active :is(span, strong) { color: #ffffff; }
 }
+
+/* FIX: contract forms and records follow dark theme; PDF documents are untouched. */
+@media screen {
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.contracts-panel, .contract-create-card, .contract-card, .contracts-empty, .contract-check-dialog) { background: #202127; color: #f3f3f6; border-color: #50515e; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.contract-card__meta, .contract-attachments button, .contract-check-dialog__summary, .contract-requisites-changes__values strong, .contract-status--archived) { background: #292a34; color: #eee9ff; border-color: #666575; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.contracts-panel, .contract-check-dialog) :is(h2, h3, strong, b) { color: #f3f3f6; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.contracts-panel, .contract-check-dialog) :is(p, small, label, .contract-create-grid label > span, .contract-card__identity span, .contract-card__meta span, .contract-create-card__footer > span, .contract-create-card__title span) { color: #c9cad6; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.contract-upload-button--secondary, .contract-card__actions .contract-requisites-check-button, .contract-card__actions .contract-archive-button, .contract-check-dialog__cancel) { background: #343044; color: #ede5ff; border-color: #8979b3; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.contract-card__actions .contract-delete-button, .contracts-alert--error) { background: #3b242b; color: #ffb3bb; border-color: #985361; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.contract-status--waiting, .contract-check-dialog__signed-warning) { background: #3a3021; color: #f6d295; border-color: #9a7b4b; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.contract-status--signed, .contracts-alert--success) { background: #193c2c; color: #9feac1; border-color: #438967; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.contract-card__icon, .contract-check-dialog__icon) { background: #25314c; color: #b8ceff; }
+}

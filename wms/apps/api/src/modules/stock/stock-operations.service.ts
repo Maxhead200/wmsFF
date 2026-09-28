@@ -1985,6 +1985,43 @@ export class StockOperationsService {
     return fboTransaction ? execute(fboTransaction) : this.prisma.$transaction(execute);
   }
 
+  // FIX: FBO consumption must finish the lifecycle of a genuinely empty receipt box.
+  async archiveEmptyFboBoxes(tx: Prisma.TransactionClient, requestId: string, user: AuthUser, sourceBoxIds?: string[]) {
+    if (process.env.WMS_FBO_EMPTY_BOX_ARCHIVE_ENABLED !== 'true') return [];
+    if (!await tx.fboAssembly.findUnique({ where: { requestId }, select: { requestId: true } })) return [];
+    const request = await tx.clientRequest.findUniqueOrThrow({ where: { id: requestId }, select: { clientId: true, warehouseId: true } });
+    const ids = sourceBoxIds ?? (await tx.stockMovement.findMany({
+      where: { sourceDocument: requestId, clientId: request.clientId, warehouseId: request.warehouseId,
+        boxId: { not: null }, quantity: { lt: 0 }, type: { in: ['MOVE', 'PICK', 'SHIP'] } },
+      distinct: ['boxId'], select: { boxId: true },
+    })).flatMap(row => row.boxId ? [row.boxId] : []);
+    const boxes = await tx.box.findMany({ where: { id: { in: ids }, clientId: request.clientId,
+      warehouseId: request.warehouseId, status: 'active' }, select: { id: true, code: true } });
+    const archived: string[] = [];
+    for (const box of boxes) {
+      if (await preserveEmptyStorageBox(box.code, this.boxCodes)) continue;
+      const checks = await Promise.all([
+        tx.stockBalance.count({ where: { boxId: box.id, quantity: { not: 0 } } }),
+        tx.productMark.count({ where: { boxId: box.id } }),
+        tx.fbsTsdAssembly.count({ where: { status: { in: ['RESERVED', 'IN_PROGRESS', 'RETURN_REQUIRED', 'RESCAN_REQUIRED'] },
+          OR: [{ boxId: box.id }, { reservedBoxId: box.id }] } }),
+        tx.fboAssemblyUnit.count({ where: { requestId: { not: requestId }, state: { not: 'RETURNED' },
+          assembly: { request: { status: { notIn: ['DONE', 'CANCELLED', 'REJECTED'] } } },
+          OR: [{ targetBoxId: box.id }, { sourceBoxId: box.id, wholeBox: true }] } }),
+      ]);
+      if (checks.some(Boolean)) continue;
+      if (!this.archivedEmptyBoxDetach) throw new Error('Сервис снятия пустых коробов недоступен.');
+      const changed = await tx.box.updateMany({ where: { id: box.id, status: 'active',
+        balances: { none: { quantity: { not: 0 } } }, productMarks: { none: {} } }, data: { status: 'archived' } });
+      if (!changed.count) continue;
+      await tx.auditLog.create({ data: { userId: user.id, action: 'FBO_EMPTY_BOX_ARCHIVED', entity: 'Box', entityId: box.id,
+        payload: { requestId, boxCode: box.code, reason: 'FBO stock consumed; no remaining marks or active tasks' } } });
+      await this.archivedEmptyBoxDetach.detachIfArchivedAndEmpty({ boxId: box.id, userId: user.id, reason: 'fbo-empty-source' }, tx);
+      archived.push(box.id);
+    }
+    return archived;
+  }
+
   async shipClientRequest(dto: FulfillClientRequestDto, user: AuthUser) {
     let fboShipment = false;
     if (process.env.WMS_FBO_TWO_STAGE_ENABLED === 'true') {
@@ -2035,6 +2072,7 @@ export class StockOperationsService {
 
       if (existingMovement) {
         await captureShippedKizHistory(tx, request.id, doneAt);
+      await this.archiveEmptyFboBoxes(tx, request.id, user);
         await tx.clientRequest.update({
           where: { id: request.id },
           data: {
@@ -2111,6 +2149,7 @@ export class StockOperationsService {
       }
 
       await captureShippedKizHistory(tx, request.id, doneAt);
+      await this.archiveEmptyFboBoxes(tx, request.id, user);
       await tx.clientRequest.update({
         where: { id: request.id },
         data: {
@@ -2198,6 +2237,7 @@ export class StockOperationsService {
       if (existingMovement) {
         await this.ensureRequestFulfillmentBillingCharges(tx, request, user, doneAt);
         await captureShippedKizHistory(tx, request.id, doneAt);
+      await this.archiveEmptyFboBoxes(tx, request.id, user);
         await tx.clientRequest.update({
           where: { id: request.id },
           data: {
@@ -2271,6 +2311,7 @@ export class StockOperationsService {
       }
 
       await captureShippedKizHistory(tx, request.id, doneAt);
+      await this.archiveEmptyFboBoxes(tx, request.id, user);
       await tx.clientRequest.update({
         where: { id: request.id },
         data: {

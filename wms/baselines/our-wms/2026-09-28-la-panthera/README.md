@@ -1,0 +1,3 @@
+# la_panthera / PR374
+
+PR374: opt-in la_panthera web theme with self-hosted Inter (SIL OFL), graphite panels and violet accents. Existing section layout retained. Android, printing, Excel, API image and other containers unchanged. Full web274 tests, TypeScript and actual runtime graph/browser/font loading passed. Public index, entry, CSS, WOFF2 and license hashes verified. Source parity false; source-reference remains historical. API runtime captured from verified PR372 snapshot. Rollback: logoff-web:before-la-panthera.

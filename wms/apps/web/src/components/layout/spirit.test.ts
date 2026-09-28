@@ -12,8 +12,8 @@ describe('Spirit theme', () => {
     expect(option).not.toHaveProperty('dataZoom');
     expect(option).not.toHaveProperty('toolbox');
     expect(option.xAxis.splitLine.lineStyle.type).toBe('dashed');
-    expect(option.series[0].itemStyle.color({ value: -12.5 })).toBe('#f69ba7');
-    expect(option.series[0].itemStyle.color({ value: 100 })).toBe('#7de2c3');
+    expect(option.series[0].itemStyle.color({ value: -12.5 })).toBe('#a53d38');
+    expect(option.series[0].itemStyle.color({ value: 100 })).toBe('#28654b');
   });
   it('adds an option without removing existing themes', () => {
     const app = readFileSync(new URL('../../App.tsx', import.meta.url), 'utf8');

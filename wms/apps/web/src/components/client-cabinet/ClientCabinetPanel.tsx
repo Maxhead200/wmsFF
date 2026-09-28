@@ -311,9 +311,9 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
         notificationPreferences,
       ] = await Promise.all([
         fetchClients(session.accessToken),
-        fetchStockBalances(session.accessToken),
+        fetchStockBalances(session.accessToken, { view: 'cabinet' }),
         fetchClientRequests(session.accessToken),
-        fetchBillingInvoices(session.accessToken),
+        fetchBillingInvoices(session.accessToken, { view: 'cabinet' }),
         fetchBillingCharges(session.accessToken),
         fetchBillingAdvances(session.accessToken),
         fetchBillingReconciliation(session.accessToken),
@@ -732,6 +732,7 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
             </div>
           ) : null}
 
+          {canManageClients && <ClientProductDisplaySettings key={view.client.id} accessToken={session.accessToken} clientId={view.client.id} />}
           <ClientBranchStockTiles accessToken={session.accessToken} clientId={view.client.id} />
 
           {showClientOverview ? (
@@ -812,7 +813,6 @@ export function ClientCabinetPanel({ session }: ClientCabinetPanelProps) {
               onSave={() => void saveClientEdit()}
             />
           ) : null}
-          {canManageClients && <ClientProductDisplaySettings key={view.client.id} accessToken={session.accessToken} clientId={view.client.id} />}
           {canManageMarketplaceApi ? (
             <ClientMarketplaceConnections accessToken={session.accessToken} client={view.client} />
           ) : null}

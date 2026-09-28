@@ -8391,7 +8391,7 @@ export function generateBillingPeriod(accessToken: string, input: BillingPeriodI
 }
 export async function fetchBillingInvoices(
   accessToken: string,
-  filter: { clientId?: string; status?: BillingInvoiceStatus; periodFrom?: string; periodTo?: string; serviceCategory?: BillingServiceCategory } = {},
+  filter: { clientId?: string; status?: BillingInvoiceStatus; periodFrom?: string; periodTo?: string; serviceCategory?: BillingServiceCategory; view?: 'cabinet' } = {},
 ) {
   return request<BillingInvoiceSummary[]>(withQuery('/billing/invoices', filter), {
     accessToken,
@@ -8980,7 +8980,7 @@ export async function importArticleMappingsXlsx(accessToken: string, payload: { 
   return requestMultipart<ArticleMappingImportResult>(withQuery('/skus/article-mappings/import-xlsx', { clientId: payload.clientId }), form, accessToken);
 }
 
-export async function fetchStockBalances(accessToken: string, filter: { clientId?: string; search?: string } = {}) {
+export async function fetchStockBalances(accessToken: string, filter: { clientId?: string; search?: string; view?: 'cabinet' } = {}) {
   return request<StockBalance[]>(withQuery('/stock/balances', filter), {
     accessToken,
   });

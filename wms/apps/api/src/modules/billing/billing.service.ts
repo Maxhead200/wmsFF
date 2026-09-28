@@ -1419,6 +1419,8 @@ export class BillingService {
   }
 
   async listInvoices(query: ListBillingInvoicesDto, user: AuthUser) {
+    // FIX: cabinet keeps invoice rows/amounts, but does not use charge execution metadata or registry categories.
+    const cabinet = query.view === 'cabinet' && !query.serviceCategory;
     const hideDraftInvoices = isClientBillingUser(user);
     if (
       hideDraftInvoices &&
@@ -1453,11 +1455,18 @@ export class BillingService {
     };
 
     if (query.periodFrom && query.periodTo) parseBillingPeriod(query.periodFrom.slice(0, 10), query.periodTo.slice(0, 10));
+    // FIX: these are the same statuses already shown by cabinet rows and client summary cards.
+    if (cabinet) where.AND = { status: { in: ['ISSUED', 'PAID'] } };
     const invoices = await this.prisma.billingInvoice.findMany({
       where,
-      include: { ...billingInvoiceInclude, warehouse: { select: { id: true, name: true } } },
+      include: { ...billingInvoiceInclude,
+        ...(cabinet ? { items: { ...billingInvoiceInclude.items, include: { charge: {
+          select: { ...billingInvoiceInclude.items.include.charge.select, metadata: false },
+        } } } } : {}),
+        warehouse: { select: { id: true, name: true } } },
       orderBy: [{ periodFrom: 'desc' }, { createdAt: 'desc' }],
     });
+    if (cabinet) return invoices;
     // FIX: include mixed completed-work recoveries in the FBS registry and merge selection.
     return invoices.map(invoice => ({ ...invoice, serviceCategory: classifyBillingRegistryInvoice(invoice) }))
       .filter(invoice => !query.serviceCategory || invoice.serviceCategory === query.serviceCategory);

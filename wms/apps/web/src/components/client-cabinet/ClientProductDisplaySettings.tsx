@@ -11,12 +11,15 @@ export function ClientProductDisplaySettings({ accessToken, clientId }: { access
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [loadError, setLoadError] = useState('');
   useEffect(() => {
     let active = true;
-    setReady(false); setMessage('');
+    setReady(false); setMessage(''); setLoadError('');
     fetchProductDisplay(accessToken, clientId).then(result => {
       if (active) { setFields(result.fields); setReady(true); }
-    }).catch(() => { /* Disabled deployments keep their existing cabinet. */ });
+    }).catch(error => {
+      if (active) setLoadError(error instanceof Error ? error.message : 'Не удалось загрузить настройку.');
+    });
     return () => { active = false; };
   }, [accessToken, clientId]);
   async function save() {
@@ -27,8 +30,12 @@ export function ClientProductDisplaySettings({ accessToken, clientId }: { access
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Не удалось сохранить.'); }
     finally { setBusy(false); }
   }
-  if (!ready) return null;
-  return <details className="client-product-display"><summary>Отображение товара при сборке и упаковке</summary>
+  // FIX: keep disabled deployments unchanged, but never silently hide a failed enabled setting.
+  if (loadError.includes('Настройка отображения товаров не включена')) return null;
+  return <section className="client-product-display" aria-label="Отображение товара при сборке и упаковке"
+    style={{ padding: 20, margin: '16px 0', border: '1px solid var(--line)', borderRadius: 12 }}>
+    <h3>Отображение товара при сборке и упаковке</h3>
+    {!ready ? <p role={loadError ? 'alert' : 'status'}>{loadError || 'Загружаю настройку отображения…'}</p> : <>
     <p>Настройка клиента для ВМС и ТСД. Выберите поля, которые видит сотрудник.</p>
     <label><input type="checkbox" checked={fields === null} disabled={busy}
       onChange={event => setFields(event.target.checked ? null : choices.map(([field]) => field))} /> Использовать прежнее отображение</label>
@@ -40,5 +47,6 @@ export function ClientProductDisplaySettings({ accessToken, clientId }: { access
     {fields?.length === 0 && <p role="alert">Выберите хотя бы одно поле.</p>}
     <button type="button" disabled={busy || fields?.length === 0} onClick={() => void save()}>{busy ? 'Сохранение…' : 'Сохранить отображение'}</button>
     {message && <p role="status">{message}</p>}
-  </details>;
+    </>}
+  </section>;
 }

@@ -6,6 +6,21 @@ COMPOSE=['docker','compose','--project-name','infra','--env-file','/opt/logoff-w
 def run(*args):return subprocess.check_output(args,text=True).strip()
 def sha(b):return hashlib.sha256(b).hexdigest()
 def image(n):return run('docker','inspect','--format','{{.Image}}',n)
+def firewall_command(network_id,subnet,gateway):
+    # FIX: Docker-to-host traffic traverses UFW INPUT, not Docker's forwarding rules.
+    if not re.fullmatch(r'[a-f0-9]{12,64}',network_id) or subnet!='172.18.0.0/16' or gateway!='172.18.0.1':raise RuntimeError('Unexpected private WMS network')
+    return ['ufw','allow','in','on','br-'+network_id[:12],'from',subnet,'to',gateway,'port','18789','proto','tcp','comment','WMS private OpenClaw gateway']
+def configure_private_gateway():
+    network=json.loads(run('docker','network','inspect','infra_default'))[0]
+    config=network['IPAM']['Config']
+    if network['Name']!='infra_default' or len(config)!=1:raise RuntimeError('WMS network drift')
+    args=firewall_command(network['Id'],config[0]['Subnet'],config[0]['Gateway'])
+    bridge=args[4];run('ip','link','show',bridge)
+    snapshot=ROOT/'ufw-before-openclaw.txt'
+    if not snapshot.exists():snapshot.write_text(run('ufw','status','numbered'));snapshot.chmod(0o600)
+    subprocess.run(args,check=True)
+    probe="fetch(process.env.WMS_OPENCLAW_URL+'/v1/models',{headers:{Authorization:'Bearer '+process.env.WMS_OPENCLAW_TOKEN},signal:AbortSignal.timeout(10000)}).then(r=>{if(r.status!==200)throw Error('Gateway HTTP '+r.status);console.log('WMS_PRIVATE_GATEWAY_OK')}).catch(e=>{console.error('Private gateway unavailable');process.exit(1)})"
+    print(run('docker','run','--rm','--network','infra_default','--env-file','/etc/wms-openclaw/wms-api.env','--entrypoint','node','logoff-api:openclaw-20260928','-e',probe))
 def hashes(n,folder):
     return {line.split('  ',1)[1][len(folder)+1:]:line.split('  ',1)[0] for line in run('docker','exec',n,'find',folder,'-type','f','-exec','sha256sum','{}',';').splitlines()}
 def verify_delta(before,after,allowed):
@@ -34,6 +49,8 @@ def wait_health():
     raise RuntimeError('API health did not recover')
 def main():
     import fcntl
+    if '--configure-private-gateway' in sys.argv:
+        configure_private_gateway();return
     manifest=json.loads((ROOT/'baseline-v2/manifest.json').read_text());bases={n:v['image'] for n,v in manifest['containers'].items()}
     api_proof=json.loads((ROOT/'api/proof.json').read_text());web_proof=json.loads((ROOT/'web/proof.json').read_text())
     with open('/opt/logoff-wms/.release.lock','a') as lock:
@@ -76,6 +93,7 @@ def main():
             if line.startswith('OPENCLAW_GATEWAY_TOKEN='):token=line.split('=',1)[1].strip().strip('"\'')
         if not token or '\n' in token:raise RuntimeError('Gateway credential unavailable')
         private_env=pathlib.Path('/etc/wms-openclaw/wms-api.env');private_env.write_text('WMS_OPENCLAW_ENABLED=true\nWMS_OPENCLAW_ACCESS=administrators\nWMS_OPENCLAW_URL=http://172.18.0.1:18789\nWMS_OPENCLAW_TOKEN='+token+'\n');private_env.chmod(0o600)
+        configure_private_gateway()
         run('systemctl','enable','wms-openclaw');run('systemctl','is-active','wms-openclaw')
         try:
             COMPOSE_FILE.write_text(new_compose)

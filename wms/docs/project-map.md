@@ -58,3 +58,13 @@ Android WmsApiFactory (physical-pick-v1)
 ## FBS box scan latency (PR317)
 
 `marketplace-connections.service.ts`: `scanFbsTsdBox` / `performFbsTsdBoxScan`, `switchFbsTsdAssemblyToBox`; `fbs-box-scan-search.ts` narrows candidates, batches search reservations and shares pending scans. Flag default off; transactional revalidation remains authoritative. See [release checks](releases/fbs-box-scan-latency/README.md).
+
+## OpenClaw — ИИ нашей WMS
+
+API: `modules/wms-ai/wms-openclaw.service.ts`, `wms-ai.controller.ts`,
+`dto/wms-openclaw-job.dto.ts`; web: `components/wms-ai/OpenClawPanel.tsx`,
+`lib/openclaw-api.ts`. Настройка — `infra/openclaw/`, паспорт — `docs/openclaw-wms.md`.
+Выпуск: `scripts/openclaw-release.cjs`, `deploy-openclaw.py`,
+`openclaw-candidate-smoke.cjs`; тесты рядом и `scripts/tests/test_deploy_openclaw.py`.
+Правило firewall ограничено внутренней сетью нашей WMS. При неизвестном результате
+задание не повторяется автоматически. В проданном окружении флаг не включать.

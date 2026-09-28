@@ -64,3 +64,6 @@ Latest verified release PR348: baseline `2026-09-28-kiz-sorting`; API `sha256:9a
 
 
 Latest verified release PR356: baseline `wms/baselines/our-wms/2026-09-28-inventory-weekly`; API `sha256:882d31805242c776406f5f9fb8ed7e6887a33b07be9343c9abe14457dcc89c6c`, web `sha256:0c52bd5273ae6e32eaeefe356bcb71e6440e3e266e3b50a4f21815ef01b6eba2`. Weekly inventory review, descriptive KIZ errors, positive locations only. Existing flags and APK215 unchanged; sold WMS untouched; source parity false.
+
+
+Latest verified release PR358: baseline `wms/baselines/our-wms/2026-09-28-client-display`; API `sha256:09a4f4cc84a4ad1bb08279f8c2c236ab679accf7f1a50131c8e990647cd10cfb`, web `sha256:d204e622e626f793f63d733fa9efea41e701f3f77d2e10a506f8c8a138c83d59`. Client product display for assembly/packing, APK216. Existing flags preserved; new display flag true only on our WMS; sold WMS untouched; source parity false.

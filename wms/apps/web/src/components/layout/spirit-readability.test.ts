@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 
 const css = readFileSync(new URL('./spirit-theme.css', import.meta.url), 'utf8');
+const tiltSource = readFileSync(new URL('./spiritTileTilt.ts', import.meta.url), 'utf8');
 const color = (name: string) => css.match(new RegExp(`--${name}: (#[a-fA-F0-9]{6})`))![1];
 const luminance = (hex: string) => {
   const values = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
@@ -10,6 +11,13 @@ const luminance = (hex: string) => {
 };
 // TEST: reproduces pale labels on light controls; verify every principal text/background pair.
 describe('Spirit warm readable palette', () => {
+  // TEST: WB/Ozon selection cards use a different class from inner FBS tiles.
+  it('includes FBS marketplace cards in pointer handling and all motion states', () => {
+    expect(tiltSource.split('\n')[0]).toContain('.fbs-marketplace-card');
+    for (const rule of css.split('}').filter(rule => rule.includes('.fbs-tile'))) {
+      expect(rule).toContain('.fbs-marketplace-card');
+    }
+  });
   it('uses light native controls and accessible text contrast', () => {
     expect(css).toContain('color-scheme: light');
     for (const fg of ['ink', 'muted', 'ok', 'danger']) {

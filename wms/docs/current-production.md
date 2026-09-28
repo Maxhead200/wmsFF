@@ -1,3 +1,11 @@
+# Published PR352: payroll corrections / 28.09.2026
+
+API `sha256:edaec90e3b3b9e777c0dc9d4f3083a4ad9fe60036a454c6e0022f016b629797b`; web `sha256:c958929305d4139a6f884cd2f6742a598c2cb307701d36a613aef01505e7a04e`. Shift time/lunch editing, audited cancellation, initial employee rates. Additive migration and generated Prisma Client deployed. Spirit PR350/351, KIZ PR348, FBS, flags and APK215 preserved. Exact runtime/public asset hashes and health verified. Candidate migration/CRUD checked in isolated database. API2899 passed/94 skipped, dedicated KIZ database suite excluded; web260 passed. Dark physical camera capture remains unresolved; APK unchanged.
+
+Baseline `2026-09-28-payroll352`; source parity false. Live Prisma schema captured separately. Old API ignores cancelled shifts: rollback after user cancellations requires reconciliation.
+
+## Previous release
+
 # Published PR348: sorting KIZ review / 28.09.2026
 
 PR348 опубликован 28.09.2026. API `sha256:9a3ec430469e30afeb1620b1a75852815976eba477325d5c06fcb9778313a9a9`. Только два модуля КИЗов; WMS_KIZ_SORTING_ADMIN_REUSE_ENABLED=true. Web, APK, остальные контейнеры и настройки сохранены. 30 runtime-тестов passed, точные хеши и health проверены. Read-only проверка рабочего API подтверждает поступление КИЗа заявки1494 через сортировку после прежней отгрузки. Разрешение администратора и физический повторный скан ещё не выполнялись. Source parity всей системы остаётся false.

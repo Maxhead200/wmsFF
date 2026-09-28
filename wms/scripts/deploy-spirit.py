@@ -28,7 +28,7 @@ def main():
         for record in proof['files'].values():
             if record.get('original') and before.get('/usr/share/nginx/html/assets/'+record['original'])!=record['originalSha256']: raise RuntimeError('Live chunk drift')
         files={n:v['sha256'] for n,v in proof['files'].items()}
-        files['spirit-20260928.css']=proof['cssSha']
+        files[proof.get('cssName','spirit-20260928.css')]=proof['cssSha']
         for n,d in files.items():
             if sha((ROOT/'build'/n).read_bytes())!=d: raise RuntimeError('Upload mismatch')
         if sha((ROOT/'build/index.html').read_bytes())!=proof['indexAfterSha']: raise RuntimeError('Uploaded index mismatch')

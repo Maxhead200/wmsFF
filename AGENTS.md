@@ -106,3 +106,6 @@ Latest verified release PR410: baseline `2026-09-29-la-panthera-light`. Web sha2
 
 
 Latest verified PR412: baseline `2026-09-29-kiz-physical-review`; API `sha256:78c06803de1b44099824175217cceb2e6899066de9e485cc6954971b49691957`. PR412: explicit administrator/owner KIZ reuse with a later audited physical sorting return when historical WB status is unavailable. Two API modules only. WMS_KIZ_PHYSICAL_REVIEW_ENABLED=true only on our WMS. Runtime tests33, API2929/web343 passed;115/2 skipped; isolated PostgreSQL suite excluded. API TypeScript passed. Live physical proof verified read-only. Exact runtime hashes, health, flags and unchanged web/APK/other containers verified. No business records changed. Source parity false. Rollback logoff-api:before-kiz-physical-review.
+
+
+Latest verified release PR414: baseline `2026-09-29-request-action-menus`. Web sha256:fe944ebb4ba1486f1284e91a6dfae3f2aa529ece11e69943299bd413ef217a4e; API sha256:78c06803de1b44099824175217cceb2e6899066de9e485cc6954971b49691957. Compact FBO/FBS action menus; API and previous behavior unchanged. APK216/sold WMS unchanged; source parity false.

@@ -1,0 +1,3 @@
+# Request action menus / PR414
+
+PR414: compact FBO/FBS request actions with Documents and More disclosures; unique route, explicit edit/cancel, manual stages and administrator recovery. Existing callbacks retained. Web347/API2929 passed, 2/115 skipped; dedicated KIZ DB suite excluded. TypeScript and actual runtime browser checks across 11 themes plus Light passed, including 13 callbacks, keyboard and permissions. API PR412/APK216/flags/schema/sold WMS unchanged. Full hashes/health verified; source parity false. Rollback logoff-web:before-request-action-menus.

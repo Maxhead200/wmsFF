@@ -1,0 +1,3 @@
+# FBS navigation tiles / PR420
+
+PR420: equal-height FBS navigation headers and aligned counters, with client list in a separate row. Shared marketplace UI across themes. CSS-only delta; all JS, API PR412, APK216, flags and sold WMS unchanged. Web351/2 skipped; 72 browser theme/viewport/client-list cases passed. Exact hashes/health verified; source parity false. Rollback logoff-web:before-fbs-equal-tiles.

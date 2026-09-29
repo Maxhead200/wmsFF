@@ -115,3 +115,6 @@ Latest verified release PR416: baseline `2026-09-29-request-wrap`. Web sha256:83
 
 
 Latest verified release PR418: baseline `2026-09-29-request-four-rows`. Web sha256:124f6f71375505e845600ce174efc7fb4aefb7c66474133513bb78bfb7f4a958; API sha256:78c06803de1b44099824175217cceb2e6899066de9e485cc6954971b49691957. Four equal centered menu rows; CSS only; JS/API unchanged. APK216/sold WMS unchanged; source parity false.
+
+
+Latest verified release PR420: baseline `2026-09-29-fbs-equal-tiles`. Web sha256:bab947a845a51d3a02eef205658b2114474e9eef11bd725b754c58d0c533a438; API sha256:78c06803de1b44099824175217cceb2e6899066de9e485cc6954971b49691957. Equal-height FBS navigation tiles; CSS only; JS/API unchanged. APK216/sold WMS unchanged; source parity false.

@@ -1,0 +1,11 @@
+{
+  "published": true,
+  "at": 1790699109.776399,
+  "pullRequest": 420,
+  "apiUnchanged": "sha256:78c06803de1b44099824175217cceb2e6899066de9e485cc6954971b49691957",
+  "webImage": "sha256:bab947a845a51d3a02eef205658b2114474e9eef11bd725b754c58d0c533a438",
+  "previousWeb": "sha256:124f6f71375505e845600ce174efc7fb4aefb7c66474133513bb78bfb7f4a958",
+  "apkUnchanged": true,
+  "otherContainersUnchanged": true,
+  "publicAssetsVerified": true
+}

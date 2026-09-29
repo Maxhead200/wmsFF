@@ -14,7 +14,7 @@
 | Печать/подтверждение/списание | `fbs-print-order-scope.spec.ts`, `fbs-print-stale-kiz.spec.ts`, `fbs-print-ack-billing.spec.ts`, `print-job.service.spec.ts` | Повтор запроса не печатает/не списывает ещё раз; тестовый принтер только с разрешением |
 | Автостатусы и уведомления | `fbs-request-auto-status.integration.spec.ts` на изолированной БД и candidate runtime | Сохранить ручной статус и поведение выключенного флага |
 | FBO | `fbo-two-stage.integration.spec.ts`, `fbo-picked-reservation.spec.ts`, `fbo-archived-shipping.spec.ts` | `FboTwoStageScreenTest`, `FboPackingProgressTest`, `FboScanStateTest` |
-| Палет-сортировка | `pallet-sorting-session.spec.ts`, `pallet-sorting-stock.spec.ts`, `pallet-sorting-terminal-route.spec.ts` | `PalletSortingRestoreConsentTest`, `PalletSortingAutoSubmitTest` |
+| Палет-сортировка | `pallet-sorting-session.spec.ts`, `pallet-sorting-stock.spec.ts`, `pallet-sorting-terminal-route.spec.ts`, `pallet-sorting-admin-access.spec.ts`, `pallet-sorting-policy.spec.ts` | `PalletSortingRestoreConsentTest`, `PalletSortingAutoSubmitTest`; web `workspaces.admin-sorting.spec.ts`, `PalletSortingPanel.spec.tsx`; `owner-sorting-web-overlay.test.cjs` checks OWNER/ADMIN in actual menu and screen |
 | Состав выпуска | `python -m unittest discover -s scripts/tests -p test_release_baseline.py` из `wms/` | verify → materialize → check-candidate; свежий image ID обязателен |
 
 Android-тесты находятся в

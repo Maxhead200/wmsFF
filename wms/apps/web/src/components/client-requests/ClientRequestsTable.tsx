@@ -1,5 +1,6 @@
 import { Activity, AlertTriangle, Boxes, CheckCircle2, ClipboardList, Edit3, FileDown, FileSpreadsheet, FileText, FileUp, MapPinned, PackageCheck, RefreshCw, Search, Send, ShieldCheck, Truck, Undo2, XCircle } from 'lucide-react';
-import {useState} from 'react';
+import {useContext, useState} from 'react';
+import {RequestZoneContext} from './RequestZoneProvider';
 import {
   type ClientRequestFileSummary,
   type ClientRequestStatus,
@@ -109,6 +110,7 @@ export function ClientRequestsTable({
   onPackageOutbound,
   onShipOutbound,
 }: ClientRequestsTableProps) {
+  const zones=useContext(RequestZoneContext);
   // FIX: disclosure state only; existing permission checks and callbacks stay intact.
   const [mobileDetails,setMobileDetails]=useState<Set<string>>(()=>new Set());
   const [mobileActions,setMobileActions]=useState<Set<string>>(()=>new Set());
@@ -153,7 +155,7 @@ export function ClientRequestsTable({
                   type="checkbox"
                   checked={allSelectableSelected}
                   onChange={toggleAllSelectable}
-                  aria-label="Выбрать все незавершённые FBS-заявки"
+                  aria-label="Выбрать все доступные заявки на экране"
                 />
               </th>
             ) : null}
@@ -184,6 +186,7 @@ export function ClientRequestsTable({
             return (
             <tr
               key={request.id}
+              data-request-zone={zones[request.id]}
               className={`client-request-row client-request-row--${requestStatusTone(request.status)}${
                 deliveryRecovery ? ' client-request-row--fbs-recovery' : ''
               }${isSkuCollectionRequest(request) ? ' client-request-row--sku-collection' : ''}${compactMobile?' request-mobile-compact':''}${mobileDetails.has(request.id)?' request-mobile-details-open':''}${mobileActions.has(request.id)?' request-mobile-actions-open':''}`}
@@ -191,14 +194,14 @@ export function ClientRequestsTable({
               {showRequestSelection ? (
                 <td
                   className="client-request-table__select-cell"
-                  data-label="В хвосты"
+                  data-label="Выбор"
                 >
                   {selectableRequestIds.has(request.id) ? (
                     <input
                       type="checkbox"
                       checked={selectedRequestIds.has(request.id)}
                       onChange={() => toggleRequest(request.id)}
-                      aria-label={`Выбрать FBS-заявку №${formatRequestNumber(request.number)}`}
+                      aria-label={`Выбрать заявку №${formatRequestNumber(request.number)}`}
                     />
                   ) : null}
                 </td>

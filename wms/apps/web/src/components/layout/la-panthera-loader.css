@@ -1,5 +1,6 @@
 /* FIX: original animated silhouette from the user's diploma. Screen/theme-only. */
 @media screen {
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'][data-network-loading] body::after,
   :root[data-ui-theme='modern'][data-ui-variant='la_panthera']:has(
     :is(.workspace-loading, .expenses-loading, .admin-loading, .admin-tech-loading,
       .kizc-loading, .tsd-history-modal__loading, .stock-monitor--loading,

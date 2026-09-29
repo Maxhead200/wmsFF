@@ -66,8 +66,8 @@ export class ClientRequestsService {
       status:
         query.status ??
         (query.archive
-          ? { in: [ClientRequestStatus.DONE, ClientRequestStatus.CANCELLED] }
-          : { notIn: [ClientRequestStatus.DONE, ClientRequestStatus.CANCELLED] }),
+          ? { in: [ClientRequestStatus.DONE, ClientRequestStatus.CANCELLED, ClientRequestStatus.REJECTED] }
+          : { notIn: [ClientRequestStatus.DONE, ClientRequestStatus.CANCELLED, ClientRequestStatus.REJECTED] }),
       type: query.type,
       AND: boxCode
         ? [

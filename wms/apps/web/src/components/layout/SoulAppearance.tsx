@@ -1,9 +1,9 @@
 import React,{useEffect,useRef,useState} from 'react';
-import {appearanceBackground,appearanceKey,normaliseAppearance,wallpaperError,type SoulAppearanceValue} from './soulAppearanceModel';
+import {appearanceBackground,userAppearanceKey,resolveUserAppearance,isSoulWinxUser,normaliseAppearance,wallpaperError,type SoulAppearanceValue} from './soulAppearanceModel';
 
 // FIX: scoped to the mounted Soul theme and current user; never uploads files.
 export function SoulAppearance({userId}:{userId:string}){
- const [value,setValue]=useState(()=>{try{return normaliseAppearance(JSON.parse(localStorage.getItem(appearanceKey(userId))||'{}'));}catch{return normaliseAppearance(null);}});
+ const [value,setValue]=useState(()=>{try{return resolveUserAppearance(userId,JSON.parse(localStorage.getItem(userAppearanceKey(userId))||'null'));}catch{return resolveUserAppearance(userId,null);}});
  const [error,setError]=useState(''),[busy,setBusy]=useState(false),request=useRef(0),panel=useRef<HTMLDetailsElement>(null);
  useEffect(()=>()=>{request.current++;},[]);
  useEffect(()=>{
@@ -11,7 +11,7 @@ export function SoulAppearance({userId}:{userId:string}){
   root.dataset.soulMode=value.mode;root.style.setProperty('--soul-background',appearanceBackground(value));
   return ()=>{delete root.dataset.soulMode;root.style.removeProperty('--soul-background');};
  },[value]);
- function save(next:SoulAppearanceValue){setValue(next);try{localStorage.setItem(appearanceKey(userId),JSON.stringify(next));setError('');}catch{setError('Оформление применено, но браузер не смог сохранить его. Попробуйте обои меньшего размера.');}}
+ function save(next:SoulAppearanceValue){setValue(next);try{localStorage.setItem(userAppearanceKey(userId),JSON.stringify(next));setError('');}catch{setError('Оформление применено, но браузер не смог сохранить его. Попробуйте обои меньшего размера.');}}
  function update(patch:Partial<SoulAppearanceValue>){request.current++;setBusy(false);save(normaliseAppearance({...value,...patch}));}
  async function upload(file?:File){
   if(!file)return;const problem=wallpaperError(file);if(problem){setError(problem);return;}
@@ -25,9 +25,9 @@ export function SoulAppearance({userId}:{userId:string}){
   finally{if(id===request.current)setBusy(false);}
  }
  return <details className="soul-appearance" ref={panel} onKeyDown={e=>{if(e.key==='Escape'){e.stopPropagation();if(panel.current){panel.current.open=false;panel.current.querySelector('summary')?.focus();}}}}>
-  <summary>Оформление · {value.mode==='dark'?'Тёмное':value.mode==='custom'?'Своё':'Светлое'}</summary>
+  <summary>Оформление · {value.mode==='winx'?'Winx':value.mode==='dark'?'Тёмное':value.mode==='custom'?'Своё':'Светлое'}</summary>
   <div className="soul-appearance-panel">
-   <label>Цвет темы<select aria-label="Цвет темы" value={value.mode} onChange={e=>update({mode:e.target.value as SoulAppearanceValue['mode']})}><option value="light">Светлый</option><option value="dark">Тёмный</option><option value="custom">Настраиваемый</option></select></label>
+   <label>Цвет темы<select aria-label="Цвет темы" value={value.mode} onChange={e=>update({mode:e.target.value as SoulAppearanceValue['mode']})}>{isSoulWinxUser(userId)&&<option value="winx">Winx · Элькапоне</option>}<option value="light">Светлый</option><option value="dark">Тёмный</option><option value="custom">Настраиваемый</option></select></label>
    {value.mode==='custom'&&<>
     <label>Фон<select aria-label="Тип фона" value={value.kind} onChange={e=>update({kind:e.target.value as SoulAppearanceValue['kind']})}><option value="color">Цвет</option><option value="gradient">Градиент</option><option value="image">Обои</option></select></label>
     {value.kind!=='image'?<div className="soul-colors"><label>Первый цвет<input aria-label="Первый цвет" type="color" value={value.first} onChange={e=>update({first:e.target.value})}/></label>{value.kind==='gradient'&&<label>Второй цвет<input aria-label="Второй цвет" type="color" value={value.second} onChange={e=>update({second:e.target.value})}/></label>}</div>:<>
@@ -37,7 +37,7 @@ export function SoulAppearance({userId}:{userId:string}){
     </>}
    </>}
    {busy&&<p role="status">Проверяю изображение…</p>}{error&&<p role="alert">{error}</p>}
-   <button type="button" onClick={()=>update(normaliseAppearance(null))}>Сбросить оформление</button>
+   <button type="button" onClick={()=>update(resolveUserAppearance(userId,null))}>Сбросить оформление</button>
   </div>
  </details>;
 }

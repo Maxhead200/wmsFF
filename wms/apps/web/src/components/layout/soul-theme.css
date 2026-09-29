@@ -113,4 +113,40 @@
  :root[data-ui-variant='soul'] .app-layout .client-requests-panel__heading-actions{flex-wrap:wrap}
  :root[data-ui-variant='soul'] .app-layout .client-requests-panel__heading-actions>*{max-width:100%}
 }
+/* FIX: personal Winx palette only while the verified user's preset is active. */
+:root[data-ui-variant='soul'][data-soul-mode='winx'] :is(.soul-toolbar,.soul-quick-access,.soul-group,.soul-page){background:#fff9ff;border-color:#c9a6dd;color:#342044}
+:root[data-ui-variant='soul'][data-soul-mode='winx'] :is(.soul-group h2,.soul-items button){color:#342044}
+:root[data-ui-variant='soul'][data-soul-mode='winx'] :is(.soul-group small,.soul-quick-access h2,.soul-quick-access p){color:#695176}
+:root[data-ui-variant='soul'][data-soul-mode='winx'] .soul-client{--soul-accent:#8043a5;--soul-tint:#f0e0fa}
+:root[data-ui-variant='soul'][data-soul-mode='winx'] .soul-marketplaces{--soul-accent:#a22a70;--soul-tint:#ffe1f1}
+:root[data-ui-variant='soul'][data-soul-mode='winx'] .soul-operations{--soul-accent:#176b75;--soul-tint:#d9f5f5}
+:root[data-ui-variant='soul'][data-soul-mode='winx'] .soul-management{--soul-accent:#854da0;--soul-tint:#f4e4fa}
+:root[data-ui-variant='soul'][data-soul-mode='winx'] .soul-control{--soul-accent:#5541a6;--soul-tint:#eae3ff}
+:root[data-ui-variant='soul'][data-soul-mode='winx'] .soul-logistics{--soul-accent:#176b75;--soul-tint:#d9f5f5}
+:root[data-ui-variant='soul'][data-soul-mode='winx'] .soul-finance{--soul-accent:#a22a70;--soul-tint:#ffe1f1}
+:root[data-ui-variant='soul'][data-soul-mode='winx'] .soul-group-tabs button{background:#fff9ff;border-color:#c9a6dd;color:#342044}
+:root[data-ui-variant='soul'][data-soul-mode='winx'] .soul-items button[aria-current='page'],
+:root[data-ui-variant='soul'][data-soul-mode='winx'] .soul-group-tabs button[aria-expanded=true]{background:var(--soul-tint);color:var(--soul-accent)}
+/* FIX: reduce the desktop row tower without hiding fields or changing actions. */
+@media(max-width:1280px){:root[data-ui-variant='soul'] .app-layout .client-request-table :is(button,select){min-height:36px;height:auto}}
+@media(max-width:620px){:root[data-ui-variant='soul'] .app-layout .client-request-table :is(button,select){min-height:40px}}
+@media(min-width:1281px){
+ :root[data-ui-variant='soul'] .app-layout .client-request-table :is(th,td){padding:7px 6px;font-size:12px;line-height:1.25;vertical-align:top;height:auto}
+ :root[data-ui-variant='soul'] .app-layout :is(.client-request-table__request-cell,.client-request-table__request-heading){width:210px;text-align:left}
+ :root[data-ui-variant='soul'] .app-layout .client-request-table__request-cell :is(.client-request-title,.client-request-list-meta,.client-request-title--button){text-align:left;margin:2px 0;line-height:1.25;font-size:12px}
+ :root[data-ui-variant='soul'] .app-layout .client-request-table .client-request-number{display:inline-flex;flex-direction:row;padding:2px 6px;margin:0 0 3px;gap:2px;min-height:0}
+ :root[data-ui-variant='soul'] .app-layout .client-request-number__accent{font-size:20px;line-height:1}
+ :root[data-ui-variant='soul'] .app-layout .client-request-number__prefix{font-size:10px}
+ :root[data-ui-variant='soul'] .app-layout .client-request-table :is(.client-request-city,.client-request-wb-supplies){display:block;width:auto;margin:3px 0;padding:3px 6px;line-height:1.2;text-align:left;border-radius:6px}
+ :root[data-ui-variant='soul'] .app-layout .client-request-table .client-request-city>span{display:inline;margin:0 5px 0 0;font-size:10px;line-height:1.2}
+ :root[data-ui-variant='soul'] .app-layout .client-request-table .client-request-city>strong{display:inline;font-size:12px;line-height:1.2;letter-spacing:0}
+ :root[data-ui-variant='soul'] .app-layout .client-request-table .client-request-wb-supplies :is(span,strong){display:inline;font-size:11px;line-height:1.2;margin:0;letter-spacing:0}
+ :root[data-ui-variant='soul'] .app-layout .client-request-table .client-request-wb-supplies strong{margin-left:4px}
+ :root[data-ui-variant='soul'] .app-layout .client-request-table :is(.client-request-row-fbs-link,.document-open-button,.client-request-action-button){display:inline-flex;align-items:center;justify-content:center;min-height:28px;height:auto;padding:4px 6px;font-size:12px;line-height:1.2;white-space:normal;margin:2px 3px 0 0}
+ :root[data-ui-variant='soul'] .app-layout .client-request-table .client-request-action-button span{white-space:normal;overflow:visible;text-overflow:clip}
+ :root[data-ui-variant='soul'] .app-layout .client-request-table :is(.client-request-items-count,.client-request-fbs-completion){font-size:12px;line-height:1.2;padding:3px 6px;margin-bottom:4px}
+ :root[data-ui-variant='soul'] .app-layout .client-request-table .client-request-items-preview{font-size:12px;line-height:1.3;margin-bottom:4px}
+ :root[data-ui-variant='soul'] .app-layout .client-request-table .client-request-actions{gap:4px}
+ :root[data-ui-variant='soul'] .app-layout .client-request-table select{min-height:30px;padding:4px;font-size:12px}
+}
 }

@@ -1,0 +1,55 @@
+/* FIX: approved pearl/teal palette; all structural and animation rules remain owned by Dark. */
+@media screen {
+ :root[data-ui-variant='la_panthera'] .ui-style-switcher { flex: 0 0 auto; min-width: 0; }
+ :root[data-ui-variant='la_panthera'] .ui-style-switcher select { min-width: 62px; }
+ :root[data-ui-variant='la_panthera'][data-ui-style='light'] {
+  color-scheme: light;
+  --ink: #25333c; --text: #25333c; --text-primary: #25333c; --text-secondary: #526473; --text-soft: #526473;
+  --bg: #eff4f4; --surface: #ffffff; --sidebar: #f5fbfa; --muted: #526473; --sidebar-muted: #526473;
+  --line: #d6e2e2; --border: #d6e2e2; --border-subtle: #d6e2e2;
+  --modern-canvas: #eff4f4; --modern-panel: #ffffff; --modern-topbar: #f5fbfa; --modern-sidebar: #f5fbfa;
+  --modern-sidebar-hover: #e7f4f1; --modern-line: #d6e2e2; --modern-line-soft: #e0e8e8;
+  --accent: #675084; --accent-strong: #594071; --accent-soft: #f1ebf7;
+ }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'][data-ui-style='light'] :is(.app-sidebar,.workspace-header) { background: linear-gradient(110deg,#f0faf8,#ffffff); color:#25333c; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'][data-ui-style='light'] :is(.workspace-shell,.workspace-content,.app-layout) { background: #eff4f4; color:#25333c; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'][data-ui-style='light'] .client-request-table tbody tr { background:#ffffff; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'][data-ui-style='light'] .client-request-table tbody tr:nth-child(even) { background:#f5f8f9; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'][data-ui-style='light'] :is(.client-request-row-fbs-link,.client-request-actions .client-request-action-button:not(:disabled):not(.client-request-action-button--cancel):not(.client-request-action-button--emergency-rollback)) { background:linear-gradient(115deg,#eeeafa,#f5eaf3); color:#493b5d; border-color:#d8cee2; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'][data-ui-style='light'] .workspace-nav button.active { background:linear-gradient(110deg,#d8f3ef,#e9e2f7,#f1dfe8); background-size:240% 100%; color:#493b5d; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'][data-ui-style='light'] .workspace-nav button:hover:not(.active) { background:linear-gradient(110deg,#edf8f5,#f9e8eb); color:#7d3446; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'][data-ui-style='light'] :is(.workspace-nav__group--collapsible > summary,.workspace-favorites__heading) { color:#216e68; background:#e8f6f3; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'][data-ui-style='light'] :is(.client-request-row[data-request-zone='normal'],.online-order-age[data-age-zone='normal']) { --request-zone-ink:#287049; --request-zone-bg:#e5f3ea; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'][data-ui-style='light'] :is(.client-request-row[data-request-zone='warning'],.online-order-age[data-age-zone='warning']) { --request-zone-ink:#825b12; --request-zone-bg:#fff3dc; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'][data-ui-style='light'] :is(.client-request-row[data-request-zone='critical'],.online-order-age[data-age-zone='critical']) { --request-zone-ink:#a93245; --request-zone-bg:#fcebee; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'][data-ui-style='light'] .header-notification-center > button { color:#966814; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'][data-ui-style='light'] .header-notification-center > button > span { background:#f4d78e; color:#654a14; border-color:#e3c578; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'][data-ui-style='light'] :is(.admin-topic-tile__icon,.fbs-turnkey-card__icon) { color:#34434f; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'][data-ui-style='light'] body::after { filter:drop-shadow(0 0 4px rgb(103 80 132 / 22%)) !important; }
+}
+
+@media screen { :root[data-ui-theme="modern"][data-ui-variant="la_panthera"][data-ui-style="light"] .admin-topic-tile__icon { background:var(--topic-shade); } }
+@media screen { :root[data-ui-theme="modern"][data-ui-variant="la_panthera"][data-ui-style="light"] body { background:#eff4f4; color:#25333c; } }
+/* FIX: the second selector must shrink/wrap with existing header controls. */
+@media screen {
+ :root[data-ui-variant='la_panthera'] .ui-style-switcher { grid-template-columns:auto minmax(0,1fr); max-width:100%; }
+}
+@media screen and (max-width: 1500px) {
+ :root[data-ui-variant='la_panthera'] .workspace-header__meta:has(.ui-style-switcher) { flex-wrap:wrap; min-width:0; }
+ :root[data-ui-variant='la_panthera'] .workspace-header:has(.ui-style-switcher) { height:auto; min-height:64px; }
+}
+@media screen and (max-width: 900px) {
+ :root[data-ui-variant='la_panthera'] .workspace-header:has(.ui-style-switcher) { flex-direction:column; align-items:stretch; padding:12px; }
+ :root[data-ui-variant='la_panthera'] .workspace-header__meta:has(.ui-style-switcher) { position:static; display:flex; width:100%; justify-content:flex-start; gap:8px; }
+ :root[data-ui-variant='la_panthera'] .workspace-header:has(.ui-style-switcher) :is(.ui-theme-switcher,.workspace-global-search,.workspace-branch-select) { width:100%; min-width:0; max-width:100%; }
+ :root[data-ui-variant='la_panthera'] .ui-style-switcher { grid-template-columns:minmax(0,1fr); }
+}
+@media screen and (max-width:900px) {
+ :root[data-ui-variant='la_panthera'] .workspace-header:has(.ui-style-switcher) { display:flex !important; height:auto !important; }
+ :root[data-ui-variant='la_panthera'] .workspace-header__meta:has(.ui-style-switcher) { flex-flow:row wrap; height:auto; align-content:flex-start; }
+}
+@media screen and (max-width:900px) {
+ :root[data-ui-variant='la_panthera'] .workspace-header:has(.ui-style-switcher) { flex-wrap:nowrap; max-height:none; flex-shrink:0; }
+ :root[data-ui-variant='la_panthera'] .workspace-shell:has(.ui-style-switcher) { grid-template-rows:auto minmax(0,1fr); }
+}
+@media screen { :root[data-ui-theme='modern'][data-ui-variant='la_panthera'][data-ui-style='light'] .header-notification-center > button > svg { color:#966814 !important; fill:rgb(244 215 142 / 20%); } }

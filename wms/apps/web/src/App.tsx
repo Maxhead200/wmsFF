@@ -1,3 +1,4 @@
+import {ThemeStyleSwitcher} from './components/layout/ThemeStyleSwitcher'; // FIX: independent user appearance.
 import { MarkAllNotificationsButton } from './components/layout/MarkAllNotificationsButton';
 import { PantheraNavigation } from './components/layout/PantheraNavigation';
 import {
@@ -779,6 +780,7 @@ export function App() {
                 ))}
               </select>
             </label>
+            {uiTheme === 'la_panthera' ? <ThemeStyleSwitcher key={session.user.id} userId={session.user.id}/> : null}
             <div className="workspace-user">
               <span className="workspace-user__avatar" aria-hidden="true">
                 {session.user.name.trim().charAt(0).toUpperCase() || 'W'}

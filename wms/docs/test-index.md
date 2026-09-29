@@ -93,3 +93,11 @@ PR404: `apps/web/test/fbs-zone-colors.browser.cjs` — реальные CSS, т�
 - `apps/web/src/components/client-requests/ClientRequestColumns.test.tsx`: request identity/supply grouping and client above composition.
 - `apps/web/test/compact-request-columns.browser.cjs`: actual release runtime; 11 themes, two request columns, combined due/status and actions/process, existing navigation/status callbacks, 390px mobile overflow. Set `RELEASE_ROOT` to the candidate release directory.
 - Web/API general suites, TypeScript, baseline verify/materialize/check-candidate and exact web image hash delta before publication. API is unchanged.
+
+
+## la_panthera Light
+
+- `apps/web/src/components/layout/themeStyle.test.ts`: Dark default, user-isolated Light persistence, invalid/denied storage.
+- `apps/web/test/la-panthera-light.browser.cjs`: 30 operational views, text contrast >=4.5:1, exact zone colours, Dark restoration and print exclusion.
+- `apps/web/test/theme-style-runtime.browser.cjs`: actual packaged App, adjacent selector, persistence on reload, theme/user switches and selector fitting narrow header. Set RELEASE_ROOT to the release directory.
+- `apps/web/test/build-la-panthera-light.cjs --check`: generated colour-only coverage remains current; images and print styles excluded. Palette tuning in la-panthera-light-tuning.css.

@@ -17,6 +17,8 @@ import { isSkuCollectionRequest } from './skuCollectionRow';
 
 type ClientRequestsTableProps = {
   compactMobile?: boolean;
+  modernActions?: boolean;
+  canManageRequestRecovery?: boolean;
   items: ClientRequestSummary[];
   selectableRequestIds?: Set<string>;
   selectedRequestIds?: Set<string>;
@@ -72,6 +74,9 @@ const createdAtFormatter = new Intl.DateTimeFormat('ru-RU', {
 
 export function ClientRequestsTable({
   compactMobile = false,
+  // FIX: retain the legacy layout outside our modern fulfillment contour.
+  modernActions = import.meta.env?.VITE_FBO_WORKSPACE_ENABLED === 'true',
+  canManageRequestRecovery = false,
   items,
   selectableRequestIds = new Set<string>(),
   selectedRequestIds = new Set<string>(),
@@ -171,6 +176,7 @@ export function ClientRequestsTable({
         </thead>
         <tbody>
           {items.map((request) => {
+            const groupedActions = modernActions && request.type === 'OUTBOUND' && canPickOutbound;
             const originalFile = findOriginalRequestFile(request);
             const emergencyClosed = isEmergencyClosedRequest(request);
             const formattedRequestNumber = formatRequestNumber(request.number);
@@ -269,7 +275,7 @@ export function ClientRequestsTable({
                     <span>К заказам FBS</span>
                   </button>
                 ) : null}
-                {onOpenFbsRoute && isFbsRequest(request) ? (
+                {!groupedActions && onOpenFbsRoute && isFbsRequest(request) ? (
                   <button
                     className="client-request-row-fbs-link client-request-row-fbs-link--route"
                     type="button"
@@ -341,7 +347,7 @@ export function ClientRequestsTable({
                     <span>Файл клиента</span>
                   </button>
                 ) : null}
-                {onOpenOnlineExecution && request.type === 'OUTBOUND' ? (
+                {!groupedActions && onOpenOnlineExecution && request.type === 'OUTBOUND' ? (
                   <button
                     className="document-open-button document-open-button--online"
                     type="button"
@@ -376,7 +382,247 @@ export function ClientRequestsTable({
                 <td className="client-request-table__warehouse-cell" data-label="Склад">
                   {canShowWarehouseActions(request) ? (
                     <div className="client-request-actions">
-                       {onOpenFbsBoxSearch && isFbsRequest(request) ? (
+{groupedActions ? <div className="request-action-menu">
+{onOpenOnlineExecution && request.type === 'OUTBOUND' ? (
+                  <button
+                    className="client-request-action-button request-action-menu__open"
+                    type="button"
+                    onClick={() => onOpenOnlineExecution(request)}
+                    title="Онлайн-выполнение заявки"
+                  >
+                    <Activity size={15} aria-hidden="true" />
+                    <span>Открыть сборку</span>
+                  </button>
+                ) : null}{onOpenFbsRoute && isFbsRequest(request) ? (
+                  <button
+                    className="client-request-action-button request-action-menu__route"
+                    type="button"
+                    onClick={() => onOpenFbsRoute(request)}
+                    disabled={routeLoadingRequestId === request.id}
+                    title="Показать живой маршрут: паллетсорты, короба и недоступные позиции"
+                  >
+                    <MapPinned size={15} aria-hidden="true" />
+                    <span>{routeLoadingRequestId === request.id ? 'Открываю маршрут' : 'Маршрут'}</span>
+                  </button>
+                ) : null}{onOpenFbsBoxSearch && isFbsRequest(request) ? (
+                         <button
+                           className="client-request-action-button client-request-action-button--fbs-box-search"
+                           type="button"
+                           onClick={() => onOpenFbsBoxSearch(request)}
+                           title="Показать складские остатки по товарам FBS-заявки"
+                         >
+                           <Search size={15} aria-hidden="true" />
+                           <span>Остатки и короба</span>
+                         </button>
+                       ) : null}
+{!isFbsRequest(request) ? <>{onRefreshPickInstruction && canRefreshPickInstruction && canSyncTsdRequest(request) ? (
+                        <button
+                          className="client-request-action-button client-request-action-button--refresh-instruction"
+                          type="button"
+                          onClick={() => onRefreshPickInstruction(request)}
+                          disabled={refreshingInstructionId === request.id}
+                          title={isFbsRequest(request)
+                            ? 'Проверить состав заявки, восстановить недостающие задания и маршруты до паллет-сортов'
+                            : 'Принудительно пересчитать оставшиеся товары и короба по текущим остаткам'}
+                        >
+                          <RefreshCw size={15} aria-hidden="true" />
+                          <span>{refreshingInstructionId === request.id
+                            ? isFbsRequest(request)
+                              ? 'Проверяю паллет-сорты'
+                              : 'Пересчитываю заявку'
+                            : isFbsRequest(request)
+                              ? 'Проверить паллет-сорты'
+                              : 'Обновить план'}</span>
+                        </button>
+                      ) : null}</> : null}
+<details className="request-action-menu__group"><summary>Документы</summary><div className="request-action-menu__items">
+{onOpenPickInstruction && request.type === 'OUTBOUND' ? (
+                        <button
+                          className="client-request-action-button client-request-action-button--instruction"
+                          type="button"
+                          onClick={() => onOpenPickInstruction(request)}
+                          title="Открыть складскую инструкцию"
+                        >
+                          <ClipboardList size={15} aria-hidden="true" />
+                          <span>Инструкция</span>
+                        </button>
+                      ) : null}{onDownloadPickInstruction && request.type === 'OUTBOUND' ? (
+                        <button
+                          className="client-request-action-button client-request-action-button--xlsx"
+                          type="button"
+                          onClick={() => onDownloadPickInstruction(request)}
+                          title={isFbsRequest(request)
+                            ? 'Скачать лист подбора FBS для маркетплейса заявки'
+                            : 'Скачать Excel-инструкцию сборки'}
+                        >
+                          <FileDown size={15} aria-hidden="true" />
+                          <span>{isFbsRequest(request) ? 'Лист подбора' : 'Инструкция Excel'}</span>
+                        </button>
+                      ) : null}{canDownloadMarketplaceTemplates(request) ? (
+                        <>
+                          <button
+                            className="client-request-action-button client-request-action-button--xlsx"
+                            type="button"
+                            onClick={() => onDownloadWbProducts?.(request)}
+                            title="Скачать файл товаров для загрузки в WB"
+                          >
+                            <FileSpreadsheet size={15} aria-hidden="true" />
+                            <span>WB товары</span>
+                          </button>
+                          <button
+                            className="client-request-action-button client-request-action-button--xlsx"
+                            type="button"
+                            onClick={() => onDownloadWbPackages?.(request)}
+                            title="Скачать файл упаковки для загрузки в WB"
+                          >
+                            <FileSpreadsheet size={15} aria-hidden="true" />
+                            <span>WB упаковка</span>
+                          </button>
+                        </>
+                      ) : null}</div></details>
+<details className="request-action-menu__group"><summary>Ещё</summary><div className="request-action-menu__items">
+{onSelectManualBoxes && canSelectManualBoxes(request) ? (
+                         <button
+                           className="client-request-action-button client-request-action-button--box-selection"
+                           type="button"
+                           onClick={() => onSelectManualBoxes(request)}
+                           title="Выбрать короба, из которых будет списан товар"
+                         >
+                           <Boxes size={15} aria-hidden="true" />
+                           <span>Источники товара</span>
+                         </button>
+                       ) : null}{onCheckSupplyConsistency && isFbsRequest(request) ? (
+                         <button
+                           className="client-request-action-button client-request-action-button--supply-check"
+                           type="button"
+                           onClick={() => onCheckSupplyConsistency(request)}
+                           disabled={checkingSupplyRequestId === request.id}
+                           title="Сравнить состав этой заявки с фактическим составом поставки Wildberries"
+                         >
+                           <ShieldCheck size={15} aria-hidden="true" />
+                           <span>{checkingSupplyRequestId === request.id ? 'Проверяю WB' : 'Проверить с WB'}</span>
+                         </button>
+                       ) : null}{onSyncTsd && canSyncTsdRequest(request) ? (
+                        <button
+                          className="client-request-action-button client-request-action-button--sync-tsd"
+                          type="button"
+                          onClick={() => onSyncTsd(request)}
+                          disabled={syncingTsdRequestId === request.id}
+                          title="Обновить заявку в очереди ТСД"
+                        >
+                          <RefreshCw size={15} aria-hidden="true" />
+                          <span>{syncingTsdRequestId === request.id ? 'Синхронизирую' : isFbsRequest(request) ? 'Синхронизировать задания' : 'Обновить очередь ТСД'}</span>
+                        </button>
+                      ) : null}{isFbsRequest(request) ? <>{onRefreshPickInstruction && canRefreshPickInstruction && canSyncTsdRequest(request) ? (
+                        <button
+                          className="client-request-action-button client-request-action-button--refresh-instruction"
+                          type="button"
+                          onClick={() => onRefreshPickInstruction(request)}
+                          disabled={refreshingInstructionId === request.id}
+                          title={isFbsRequest(request)
+                            ? 'Проверить состав заявки, восстановить недостающие задания и маршруты до паллет-сортов'
+                            : 'Принудительно пересчитать оставшиеся товары и короба по текущим остаткам'}
+                        >
+                          <RefreshCw size={15} aria-hidden="true" />
+                          <span>{refreshingInstructionId === request.id
+                            ? isFbsRequest(request)
+                              ? 'Проверяю паллет-сорты'
+                              : 'Пересчитываю заявку'
+                            : isFbsRequest(request)
+                              ? 'Проверить задания и маршруты'
+                              : 'Пересчитать заявку'}</span>
+                        </button>
+                      ) : null}</> : null}
+{canCancelRequests ? <>                  {!isSkuCollectionRequest(request) && canEditRequest(request, canEditAnyRequest) ? (
+                    <button
+                      className="client-request-action-button client-request-action-button--edit"
+                      type="button"
+                      onClick={() => onEditRequest(request)}
+                      title="Редактировать заявку"
+                    >
+                      <Edit3 size={15} aria-hidden="true" />
+                      <span>Редактировать заявку</span>
+                    </button>
+                  ) : null}
+                  {!isSkuCollectionRequest(request) && canCancelRequest(request) ? (
+                    <button
+                      className="client-request-action-button client-request-action-button--cancel"
+                      type="button"
+                      onClick={() => onCancelRequest(request)}
+                      title="Отменить заявку"
+                    >
+                      <XCircle size={15} aria-hidden="true" />
+                      <span>Отменить заявку</span>
+                    </button>
+                  ) : (
+                    canEditRequest(request, canEditAnyRequest) ? null : '-'
+                  )}
+</> : null}
+<details className="request-action-menu__group"><summary>Ручные этапы заявки</summary><div className="request-action-menu__items">
+{canPickRequest(request) ? (
+                        <button
+                          className="client-request-action-button client-request-action-button--pick"
+                          type="button"
+                          onClick={() => onPickOutbound(request)}
+                          title="Собрать заявку"
+                        >
+                          <PackageCheck size={15} aria-hidden="true" />
+                          <span>Запустить сборку вручную</span>
+                        </button>
+                      ) : null}{canPackageRequest(request) ? (
+                        <button
+                          className="client-request-action-button client-request-action-button--pack"
+                          type="button"
+                          onClick={() => onPackageOutbound(request)}
+                          title="Упаковать заявку"
+                        >
+                          <Send size={15} aria-hidden="true" />
+                          <span>Упаковать</span>
+                        </button>
+                      ) : null}{canShipRequest(request) ? (
+                        <button
+                          className="client-request-action-button client-request-action-button--ship"
+                          type="button"
+                          onClick={() => onShipOutbound(request)}
+                          title="Закрыть отгрузку"
+                        >
+                          <Truck size={15} aria-hidden="true" />
+                          <span>Отгрузить</span>
+                        </button>
+                      ) : null}</div></details>
+{canManageRequestRecovery ? <details className="request-action-menu__group request-action-menu__recovery"><summary>Администрирование</summary><div className="request-action-menu__items">
+{onUploadManualInstruction && canUploadManualInstruction(request) ? (
+                        <button
+                          className="client-request-action-button client-request-action-button--manual-instruction"
+                          type="button"
+                          onClick={() => onUploadManualInstruction(request)}
+                          title="Загрузить свою складскую инструкцию и перестроить план заявки"
+                        >
+                          <FileUp size={15} aria-hidden="true" />
+                          <span>Своя инструкция</span>
+                        </button>
+                      ) : null}{onRollbackEmergencyClose && emergencyClosed ? (
+                        <button
+                          className="client-request-action-button client-request-action-button--emergency-rollback"
+                          type="button"
+                          onClick={() => onRollbackEmergencyClose(request)}
+                          title="Отменить аварийное закрытие и восстановить остатки"
+                        >
+                          <Undo2 size={15} aria-hidden="true" />
+                          <span>Отмена аварийного закрытия</span>
+                        </button>
+                      ) : onEmergencyPackedXlsx && canEmergencyPackRequest(request) ? (
+                        <button
+                          className="client-request-action-button client-request-action-button--emergency"
+                          type="button"
+                          onClick={() => onEmergencyPackedXlsx(request)}
+                          title="Аварийно упаковать заявку по Excel со списком коробов"
+                        >
+                          <AlertTriangle size={15} aria-hidden="true" />
+                          <span>Аварийная упаковка из Excel</span>
+                        </button>
+                      ) : null}</div></details> : null}
+</div></details></div> : <>                       {onOpenFbsBoxSearch && isFbsRequest(request) ? (
                          <button
                            className="client-request-action-button client-request-action-button--fbs-box-search"
                            type="button"
@@ -552,7 +798,7 @@ export function ClientRequestsTable({
                           <AlertTriangle size={15} aria-hidden="true" />
                           <span>Короба XLSX</span>
                         </button>
-                      ) : null}
+                      ) : null}</> }
                     </div>
                   ) : (
                     '-'
@@ -562,6 +808,7 @@ export function ClientRequestsTable({
               {canCancelRequests ? (
                 <td className="client-request-table__actions-cell" data-label="Действия">
                   <div className="client-request-actions client-request-actions--main">
+                  {!groupedActions ? <>
                   {!isSkuCollectionRequest(request) && canEditRequest(request, canEditAnyRequest) ? (
                     <button
                       className="client-request-action-button client-request-action-button--edit"
@@ -586,6 +833,7 @@ export function ClientRequestsTable({
                   ) : (
                     canEditRequest(request, canEditAnyRequest) ? null : '-'
                   )}
+                  </> : null}
                   {canChangeStatus ? <div className="client-request-combined-process"><span className="client-request-process-caption">Процесс</span>                  {isSkuCollectionRequest(request) ? (
                     <span className="client-request-sku-collection-process">Управляется ТСД</span>
                   ) : <label className="client-request-status-select">

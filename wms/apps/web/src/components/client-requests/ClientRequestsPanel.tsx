@@ -1,3 +1,5 @@
+import { onlineRequestToolbar } from './onlineRequestToolbar';
+import { isSkuCollectionRequest } from './skuCollectionRow';
 import './request-action-menus.css'; // FIX: scoped modern request disclosures.
 import {compareRequestStatus, missingSourceOnly} from './requestBatch';
 import {useRequestBatch} from './RequestBatchControls';
@@ -81,7 +83,7 @@ import { ClientRequestDocumentPreview } from './ClientRequestDocumentPreview';
 import { ClientRequestEditModal } from './ClientRequestEditModal';
 import { ClientRequestXlsxImportForm } from './ClientRequestXlsxImportForm';
 import './client-requests.css';
-import { ClientRequestsTable } from './ClientRequestsTable';
+import { ClientRequestsTable, canEditRequest, canCancelRequest } from './ClientRequestsTable';
 import { FboTwoStagePanel } from './FboTwoStagePanel';
 import { isWbFboRequest } from './fboRequestScope';
 import {
@@ -2365,6 +2367,8 @@ export function ClientRequestsPanel({
             setOnlineFbsSyncResolution({ assemblyId: null });
           }}
           onRefresh={() => void refreshOnlineExecution()}
+          onEditRequestAction={canWrite && !isSkuCollectionRequest(onlinePreview.request) && canEditRequest(onlinePreview.request, canEditAnyRequest) ? () => { const request = onlinePreview.request; setOnlinePreview(null); setEditingRequest(request); } : undefined}
+          onCancelRequestAction={canWrite && !isSkuCollectionRequest(onlinePreview.request) && canCancelRequest(onlinePreview.request) ? () => { const request = onlinePreview.request; setOnlinePreview(null); void cancelRequest(request); } : undefined}
           onDownloadBoxes={() => void downloadOnlineOutgoingBoxes(onlinePreview.request)}
           onDownloadContents={() => void downloadOnlineOutgoingContents(onlinePreview.request)}
           onDownloadMovements={() => void downloadOnlineMovements(onlinePreview.request)}
@@ -3800,6 +3804,8 @@ type OnlineExecutionModalProps = {
   onRepairMoveOrders?: (orders: Array<{ id: string; connectionId: string }>) => void;
   onClose: () => void;
   onRefresh: () => void;
+  onEditRequestAction?: () => void;
+  onCancelRequestAction?: () => void;
   onDownloadBoxes: () => void;
   onDownloadContents: () => void;
   onDownloadMovements: () => void;
@@ -3830,6 +3836,8 @@ function OnlineExecutionModal({
   onRepairMoveOrders,
   onClose,
   onRefresh,
+  onEditRequestAction,
+  onCancelRequestAction,
   onDownloadBoxes,
   onDownloadContents,
   onDownloadMovements,
@@ -3951,7 +3959,7 @@ function OnlineExecutionModal({
               {request.client.name} · {request.destinationCity ?? 'город не указан'}
             </small>
           </div>
-          <div className="online-execution-modal__actions">
+          {onlineRequestToolbar(<>
             <button
               className="client-request-action-button client-request-action-button--wms-boxes"
               type="button"
@@ -3992,7 +4000,7 @@ function OnlineExecutionModal({
             <button className="icon-button" type="button" onClick={onClose} title="Закрыть">
               <X size={18} aria-hidden="true" />
             </button>
-          </div>
+          </>, onEditRequestAction, onCancelRequestAction)}
         </header>
 
         {status === 'loading' ? <p className="inline-status">Получаю данные выполнения.</p> : null}

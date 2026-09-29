@@ -18,6 +18,8 @@
 /* Existing pages retain their own layout and state; wide tables scroll locally. */
 :root[data-ui-variant='soul'] .soul-page :is(.client-request-table-wrap,.billing-table-wrap,.data-table-wrap,.storage-table-wrap,.table-wrap){max-width:100%;overflow-x:auto}
 @keyframes soul-arrive{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+/* FIX: equal group rectangles without clipping menu items; mobile remains content-sized. */
+@media(min-width:651px){.soul-home-grid{align-items:stretch;grid-auto-rows:1fr}}
 @media(max-width:1199px){.soul-home-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){.soul-home-grid{grid-template-columns:1fr}:root[data-ui-variant='soul'] .app-layout .workspace-content{padding:14px}.soul-toolbar{align-items:start}.soul-toolbar h1{font-size:34px}.soul-toolbar h1 span{display:block;margin:5px 0 0;font-size:17px}.soul-caption{display:none}.soul-group-tabs button{font-size:13px}.soul-group h2{font-size:20px}}
 @media(prefers-reduced-motion:reduce){.soul-page,.soul-expanded .soul-group{animation:none}}

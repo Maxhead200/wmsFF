@@ -47,3 +47,15 @@ FBS_RUNTIME_ENTRY=<candidate>/modules/marketplace-connections/marketplace-connec
 
 
 la_panthera full coverage: web/test/build-la-panthera-coverage.cjs --check (47 component stylesheet inventory), la-panthera-contrast.browser.cjs (26 representative views; optional RUNTIME_CSS), la-panthera-hover.browser.cjs (scale/red gradient, stable neighbour, reduced motion, classic isolation). Browser fixtures do not substitute for an authenticated full-screen walkthrough.
+
+
+## PR396: заявки и la_panthera
+
+- `apps/api/test/client-requests.service.spec.ts`: архив DONE/CANCELLED/REJECTED, явный статус и доступные клиенты.
+- `apps/web/src/components/client-requests/requestBatch.test.ts`: источники хранения, noBox только без источника, упаковка, частичные результаты.
+- `apps/web/test/request-release.browser.cjs`: фактический runtime; архив, массовая сдача, сортировка, Excel, WB-статус, пантера при сетевой загрузке. Запуск с `RUNTIME_CANDIDATE` на проверенном каталоге кандидата.
+- `apps/web/test/sidebar-groups.browser.cjs`, `sidebar-favorites.browser.cjs`: независимые группы и пользовательские быстрые ссылки.
+- `apps/web/src/lib/networkLoading.test.ts`: параллельные fetch, чтение тела и ошибки.
+- `apps/web/src/components/client-requests/requestZoneTones.test.ts`: большинство активных заказов, границы 12/19 часов, срочные равенства.
+
+Публикация PR396: Web 328, API 2893, 8 baseline-тестов пройдены; пропуски 2/113, отдельная DB-серия KIZ исключена. Снимок `2026-09-29-request-batch-theme`, source parity false.

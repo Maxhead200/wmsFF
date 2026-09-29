@@ -1,3 +1,11 @@
+# Published PR398 / 29.09.2026 — OWNER sorting access
+
+OWNER now sees and can open «Сортировка и перемещение», matching the existing server authority. Both OWNER and OWNER+ADMIN expose the same37 sections. Two web authorization checks and explanatory message changed; versioned29-module import graph retains current requests/themes. Web `sha256:aeda927dca4331f4978a15c96a4cbdc9fd0dd5142042d66d1fececfffb557218`. API/APK216, flags, data and sold WMS unchanged.
+
+Validation: OWNER menu and screen failures reproduced before fix; web331 passed/2 skipped, API2917 passed/113 skipped; isolated KIZ integration suite unavailable. Web TypeScript, actual runtime menu/screen/role/demo checks, exact delta, public artifact hashes and health passed. Baseline `2026-09-29-owner-sorting`; source parity false. Rollback `logoff-web:before-owner-menu-20260929`.
+
+## Previous release
+
 # Published PR396 / 29.09.2026
 
 PR396: request status sorting, collapsed Excel assembly, sequential bulk DONE with per-request results and strict no-source-only noBox. Cancelled and rejected requests are archived in all themes. Russian WB status badge. la_panthera: graphite/cyan navigation, independent collapsible groups, user-scoped browser favorites, toned request identities, original panther during fetch/body loading, dark panels and muted gradients. Runtime based on Soul Winx PR395 and API a83204; two web behavioral modules plus import graph/CSS, one API module with two archive predicates. Full hashes and public health verified; APK216, flags, schema and sold WMS unchanged. Web328/API2893 passed; 2/113 skipped and dedicated KIZ DB suite excluded. TypeScript and browser/runtime tests passed. Source parity remains false; full source rebuild must not replace production. Rollbacks: logoff-web:before-request-batch-theme and logoff-api:before-request-batch-theme.

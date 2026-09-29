@@ -1,0 +1,3 @@
+# Requests and la_panthera / PR406
+
+PR406: ordinary WB unmarked non-SOS picking shows found/packed, then atomically ships stock and closes the complete request. Our-WMS flag only. Reviews collapsed individually over seven days. Mark-all-read uses existing scoped endpoints and full history pagination. Gold bell/count and monitoring top row in la_panthera. API2929/web339 passed, 91/2 skipped; isolated PostgreSQL24 plus packaged runtime24 passed; dedicated KIZ duplicate DB suite excluded. TypeScript, actual runtime browser, all hashes and health verified. APK216, schema, sold WMS unchanged; source parity false. Rollback logoff-api:before-ordinary-pick-reviews and logoff-web:before-ordinary-pick-reviews.

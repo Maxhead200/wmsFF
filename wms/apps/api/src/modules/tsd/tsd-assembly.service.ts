@@ -1,3 +1,4 @@
+import { ordinaryPickStatusLabel } from '../../common/stock/ordinary-unmarked-pick';
 import { ozonPickLinesEnabled, readOzonPickState } from '../marketplace-connections/ozon-fbs-pick-lines';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { readFbsAttemptHistory } from '../../common/shipment-history/fbs-attempt-history';
@@ -923,6 +924,7 @@ export class TsdAssemblyService {
           orderId: true,
           requestItemId: true,
           skuId: true,
+          marketplace: true, // FIX: ordinary unmarked picking status labels.
           sourceSkuId: true, // FIX: source stock remains under its original SKU until relabeling.
           reservedBoxCode: true,
           connectionId: true,
@@ -1091,7 +1093,7 @@ export class TsdAssemblyService {
       wbStickerPartB: row.stickerPartB,
       wbStickerBarcode: row.stickerBarcode,
       status: row.status,
-      statusLabel: fbsAssemblyStatusLabel(row.status),
+      statusLabel: ordinaryPickStatusLabel(row, fbsAssemblyStatusLabel(row.status)),
       sourceBoxPending: row.sourceBoxPending,
       syncIssue: row.errorMessage,
       // FIX: web clients request fresh receipt scans only when our installation requires them.
@@ -1348,7 +1350,7 @@ export class TsdAssemblyService {
           size: task ? skuById.get(task.skuId)?.size ?? null : sku?.size ?? null,
           wbStickerPartB: task?.stickerPartB ?? null,
           assemblyStatus: task?.status ?? 'NOT_STARTED',
-          assemblyStatusLabel: task ? fbsAssemblyStatusLabel(task.status) : 'Ещё не собрано',
+          assemblyStatusLabel: task ? ordinaryPickStatusLabel(task, fbsAssemblyStatusLabel(task.status)) : 'Ещё не собрано',
           readyForPacking: task?.status === 'COMPLETED',
         };
       })

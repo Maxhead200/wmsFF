@@ -1,3 +1,6 @@
+import {KizReviewCard} from './KizReviewCard';
+export {KizReviewCard} from './KizReviewCard';
+import {reviewWeek} from './reviewWeek';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {decideKizReview,fetchKizReviewQueue,type AuthSession,type KizReviewCase} from '../../lib/api';
 
@@ -9,7 +12,7 @@ export function KizReviewQueuePanel({session,onInspect}:{session:AuthSession;onI
   const live=useRef(true),lock=useRef(false),generation=useRef(0);
   const load=useCallback(async(next?:string)=>{
     const current=++generation.current;
-    try {const response=await fetchKizReviewQueue(session.accessToken,next);
+    try {const response=reviewWeek(await fetchKizReviewQueue(session.accessToken,next));
       if(!live.current||current!==generation.current)return;
       setItems(previous=>next?[...previous,...response.items.filter(r=>!previous.some(p=>p.id===r.id))]:response.items);
       setCursor(response.nextCursor);setError('');
@@ -20,7 +23,7 @@ export function KizReviewQueuePanel({session,onInspect}:{session:AuthSession;onI
   useEffect(()=>{if(selected)return;const timer=window.setInterval(()=>{if(!document.hidden&&!lock.current)void load();},30000);return()=>window.clearInterval(timer);},[load,selected]);
   return <section className="kiz-queue">
     <h3>Обращения сборщиков</h3>
-    <p>Проблемные КИЗы поступают сюда автоматически. Решение действует только для указанного задания.</p>
+    <p>Обращения за последние 7 дней. Проблемные КИЗы поступают сюда автоматически. Решение действует только для указанного задания.</p>
     <button type="button" disabled={saving} onClick={()=>void load()}>Обновить обращения</button>
     {loading&&<p>Загружаю обращения…</p>}{error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}
     {!loading&&!error&&!items.length&&<p>Обращений на проверку нет.</p>}
@@ -43,21 +46,4 @@ export function KizReviewQueuePanel({session,onInspect}:{session:AuthSession;onI
       <button type="button" disabled={saving} onClick={()=>setSelected(null)}>Отмена</button>
     </form>}
   </section>;
-}
-// FIX: both administrator actions stay visible; confirmed usage can only be relabeled.
-export function KizReviewCard({row,disabled,onDecision,onInspect}:{row:KizReviewCase;disabled:boolean;
-  onDecision:(resolution:'REUSE'|'RELABEL')=>void;onInspect:()=>void}) {
-  const blocked=disabled||!row.active||row.status!=='OPEN';
-  return <article className="kiz-queue">
-    <h4>{row.snapshot.productName} · заявка №{String(row.snapshot.requestNumber).padStart(6,'0')}</h4>
-    <p>Сборщик: {row.snapshot.workerName??'не указан'} · заказ WB {row.snapshot.orderId} · короб {row.snapshot.boxCode??'не указан'}</p>
-    <p>КИЗ: {row.kizIdentity} · ШК: {row.snapshot.barcode??'—'}</p>
-    <p>{row.decision==='RELABEL'?'Подтверждено использование: нужна переклейка.':'История использования требует проверки администратора.'}</p>
-    <p>Первое обращение: {new Date(row.createdAt).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})} · сканирований: {row.attempts}</p>
-    {!row.active&&<p>Задание изменилось или единица уже принята. Нужно новое обращение из текущей сборки.</p>}
-    {row.status==='APPROVED'&&<p>Разрешено: {row.resolution==='RELABEL'?'переклейка':'использование'}. {row.decidedByName} · {row.reason}</p>}
-    <button type="button" onClick={onInspect}>Посмотреть историю КИЗа</button>
-    <button type="button" disabled={blocked||row.decision==='RELABEL'} onClick={()=>onDecision('REUSE')}>Разрешить использовать</button>
-    <button type="button" disabled={blocked||row.decision!=='RELABEL'} onClick={()=>onDecision('RELABEL')}>Разрешить переклейку</button>
-  </article>;
 }

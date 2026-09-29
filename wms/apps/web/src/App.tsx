@@ -1,3 +1,4 @@
+import { MarkAllNotificationsButton } from './components/layout/MarkAllNotificationsButton';
 import { PantheraNavigation } from './components/layout/PantheraNavigation';
 import {
   AlertTriangle,
@@ -715,6 +716,8 @@ export function App() {
                       <X size={17} aria-hidden="true" />
                     </button>
                   </header>
+
+                  <MarkAllNotificationsButton api={{clientPage:()=>session.user.permissionCodes.includes('client-notifications:read')?fetchClientNotifications(session.accessToken,{unreadOnly:true}):Promise.resolve([]),readClient:id=>markClientNotificationRead(session.accessToken,id)}} onRefresh={()=>{window.dispatchEvent(new Event('client-notifications-changed'));}}/>
 
                   {headerNotifications.length ? (
                     <div className="header-notification-list">

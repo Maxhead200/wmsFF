@@ -1,0 +1,25 @@
+{
+  "applied": true,
+  "at": "2026-09-29T17:12:01.813Z",
+  "number": 1550,
+  "before": {
+    "picked": 1019,
+    "packed": 140,
+    "remaining": 814,
+    "boxes": 144,
+    "whole": 75,
+    "wholeQty": 606,
+    "shortage": 0
+  },
+  "after": {
+    "picked": 1019,
+    "packed": 140,
+    "remaining": 814,
+    "boxes": 134,
+    "whole": 77,
+    "wholeQty": 624,
+    "shortage": 0
+  },
+  "progressPreserved": true,
+  "settingKey": "fbo.route.1c6568d2-5de8-4d66-8713-487157aeed7f"
+}

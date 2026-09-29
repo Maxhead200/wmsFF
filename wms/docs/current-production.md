@@ -1,3 +1,12 @@
+# Published PR404 / 29.09.2026
+
+PR404: compact FBS selection controls along the top and action buttons below; matching green/amber/red request palette for zone buttons and elapsed timers. CSS-only, two files changed, all JavaScript/API unchanged. Desktop/narrow layout and actual runtime CSS browser tests passed, including other themes and print isolation. Web334/API2895 passed; 2/113 skipped, dedicated KIZ DB suite excluded. Full hashes and health verified; APK216, flags, schema, sold WMS unchanged. Source parity false. Rollback logoff-web:before-fbs-zone-colors.
+
+Web `sha256:95ef7bb7954cf2ff21060cfcd25f408b455158f41b97109ee09cc9b78086fa71`; API `sha256:277d5a2c9c5dc21acb28df6d4197688cdb81c4bbf3ca8db4290a5340d855986b`.
+Baseline `2026-09-29-fbs-zone-colors`.
+
+## Previous release
+
 # Published PR402 / 29.09.2026
 
 PR402: graphite reconciliation surface, readable teal heading and subtle border in la_panthera. Personal shortcuts no longer expand their original navigation group; edit mode supports drag reorder in both directions and keyboard arrows, persisted per user in browser storage. Original groups and authorization remain intact. Web334/API2895 passed, 2/113 skipped, dedicated KIZ DB suite excluded. Browser source/runtime regressions and TypeScript passed. Full hashes and health verified; API277d5, APK216, flags, schema, sold WMS unchanged. Source parity false. Rollback logoff-web:before-reconciliation-nav.

@@ -1,0 +1,17 @@
+/* FIX: Keep the WMS word legible in every sidebar theme while giving it flag stripes. */
+.app-sidebar__brand > strong {
+  background-image: linear-gradient(
+    to bottom,
+    #ffffff 0%,
+    #ffffff 33.333%,
+    #0039a6 33.333%,
+    #0039a6 66.667%,
+    #d52b1e 66.667%,
+    #d52b1e 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 0.35px rgba(15, 32, 48, 0.7);
+}

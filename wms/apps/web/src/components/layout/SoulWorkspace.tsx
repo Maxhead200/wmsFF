@@ -19,8 +19,8 @@ export function SoulWorkspace({groups,activeId,onOpen,children,enabled=true,user
    <div className="soul-items">{g.items.map((i,n)=><button key={i.id} data-soul-open={i.id} type="button" title={i.description} aria-current={activeId===i.id?'page':undefined} onClick={()=>open(i.id)}><span className="soul-number" aria-hidden="true">{String(n+1).padStart(2,'0')}</span><span>{i.title}</span><span className="soul-arrow" aria-hidden="true">↗</span></button>)}</div>
  </section>;
  return <div className="soul-workspace">
-   {/* FIX: requested warehouse heading; theme selector remains Soul. */}
-   <div className="soul-toolbar">{!home?<button type="button" onClick={()=>{onOpen('overview');setBrowse(undefined);}}>← Все разделы</button>:<h1>Управление Складом</h1>}<SoulAppearance key={userId} userId={userId}/></div>
+   {/* FIX: requested WMS LOGOff heading; theme selector remains Soul. */}
+   <div className="soul-toolbar">{!home?<button type="button" onClick={()=>{onOpen('overview');setBrowse(undefined);}}>← Все разделы</button>:<h1>WMS LOGOff</h1>}<SoulAppearance key={userId} userId={userId}/></div>
    <nav ref={nav} className={home?'soul-home-grid':'soul-expanded'} aria-label="Разделы Soul">
     {!home&&<div className="soul-group-tabs">{visible.map(g=><button className={`soul-${g.id}`} type="button" key={g.id} data-soul-group={g.id} aria-expanded={expanded?.id===g.id} onClick={()=>setBrowse(g.id)}><span aria-hidden="true">{symbols[g.id]||'◇'}</span> {g.title}</button>)}</div>}
     {home?visible.map(card):expanded&&card(expanded)}

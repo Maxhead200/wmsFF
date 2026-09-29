@@ -77,3 +77,12 @@ Web334/API2895 прошли; 2/113 пропущены, отдельная KIZ DB
 
 
 PR404: `apps/web/test/fbs-zone-colors.browser.cjs` — реальные CSS, три цвета кнопок/таймеров, hover, изоляция тем и печати, верхняя строка выбора и нижняя строка действий, компактная высота и перенос на 390px.
+
+## PR406: ordinary picking, reviews and notifications
+
+- `apps/api/test/ordinary-unmarked-pick.spec.ts`: new flag, complete/unmarked/SOS/source guards and found/packed labels.
+- `fbs-request-auto-status.integration.spec.ts`: isolated PostgreSQL concurrent retry and all-or-nothing stock shipment; `FBS_RUNTIME_AUTO_STATUS_ENTRY` and `FBS_RUNTIME_ENTRY` repeat against published JS.
+- `ordinary-pick.runtime.cjs`: image module loading and disabled-flag isolation; `tsd-fbs-capability.spec.ts` with `FBS_RUNTIME_CONTROLLER` passed all 11 tests on this runtime.
+- `KizReviewQueuePanel.test.tsx`, `markAllNotifications.test.ts`: collapsed cases, seven days, complete pagination, new arrivals and partial failures.
+- `reviews-notifications.browser.cjs`, `monitoring-notifications.browser.cjs`: actual adapter interactions and CSS; favorites regression also passed.
+- Production public page: HTTP200 and zero JavaScript errors. Full hashes, health, APK216 and all preexisting flags verified.

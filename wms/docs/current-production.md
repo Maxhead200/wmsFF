@@ -1,3 +1,12 @@
+# Published PR406 / 29.09.2026
+
+PR406: ordinary WB unmarked non-SOS picking shows found/packed, then atomically ships stock and closes the complete request. Our-WMS flag only. Reviews collapsed individually over seven days. Mark-all-read uses existing scoped endpoints and full history pagination. Gold bell/count and monitoring top row in la_panthera. API2929/web339 passed, 91/2 skipped; isolated PostgreSQL24 plus packaged runtime24 passed; dedicated KIZ duplicate DB suite excluded. TypeScript, actual runtime browser, all hashes and health verified. APK216, schema, sold WMS unchanged; source parity false. Rollback logoff-api:before-ordinary-pick-reviews and logoff-web:before-ordinary-pick-reviews.
+
+Web `sha256:299f32d7fb3eb66ab08bc4bb22bb870226cf3d9250e628ba03090ad658ea7034`; API `sha256:aba843bb78a45c4a1f06a25315f53210b8eaad6992d44f1bc02dfff97a8208e5`.
+Baseline `2026-09-29-ordinary-pick-reviews`.
+
+## Previous release
+
 # Published PR404 / 29.09.2026
 
 PR404: compact FBS selection controls along the top and action buttons below; matching green/amber/red request palette for zone buttons and elapsed timers. CSS-only, two files changed, all JavaScript/API unchanged. Desktop/narrow layout and actual runtime CSS browser tests passed, including other themes and print isolation. Web334/API2895 passed; 2/113 skipped, dedicated KIZ DB suite excluded. Full hashes and health verified; APK216, flags, schema, sold WMS unchanged. Source parity false. Rollback logoff-web:before-fbs-zone-colors.

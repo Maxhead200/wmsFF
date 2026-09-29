@@ -94,3 +94,6 @@ Latest verified release PR402: baseline `2026-09-29-reconciliation-navigation`. 
 
 
 Latest verified release PR404: baseline `2026-09-29-fbs-zone-colors`. Web sha256:95ef7bb7954cf2ff21060cfcd25f408b455158f41b97109ee09cc9b78086fa71; API sha256:277d5a2c9c5dc21acb28df6d4197688cdb81c4bbf3ca8db4290a5340d855986b. Request archive/bulk actions in all themes; navigation/visual changes opt-in la_panthera. APK216/sold WMS unchanged; source parity false.
+
+
+Latest verified release PR406: baseline `2026-09-29-ordinary-pick-reviews`. Web sha256:299f32d7fb3eb66ab08bc4bb22bb870226cf3d9250e628ba03090ad658ea7034; API sha256:aba843bb78a45c4a1f06a25315f53210b8eaad6992d44f1bc02dfff97a8208e5. Request archive/bulk actions in all themes; navigation/visual changes opt-in la_panthera. WMS_FBS_UNMARKED_PICK_CLOSE_ENABLED=true only on our WMS; APK216/sold WMS unchanged; source parity false.

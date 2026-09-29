@@ -36,7 +36,8 @@
 .soul-quick-access h2{font-size:15px;color:#60665e;margin:0 0 10px;font-weight:700}
 .soul-quick-access p{font-size:14px;color:#60665e;margin:0;line-height:1.4}
 .soul-quick-items{display:flex;flex-wrap:wrap;gap:10px}
-.soul-quick-items button{box-sizing:border-box;flex:0 0 114px;width:114px;max-width:100%;min-height:57px;padding:7px 8px;border:1px solid var(--soul-accent);border-radius:8px;background:var(--soul-tint);color:var(--soul-accent);font:700 14px/1.2 Cambria,Georgia,serif;overflow-wrap:anywhere;cursor:pointer}
+/* FIX: size each tile to its label and wrap only between words on narrow screens. */
+.soul-quick-items button{box-sizing:border-box;flex:0 0 auto;width:max-content;min-width:114px;max-width:100%;min-height:57px;padding:7px 8px;border:1px solid var(--soul-accent);border-radius:8px;background:var(--soul-tint);color:var(--soul-accent);font:700 14px/1.2 Cambria,Georgia,serif;overflow-wrap:normal;word-break:normal;cursor:pointer}
 .soul-quick-items button:hover{box-shadow:0 2px 8px #0002;text-decoration:underline}
 :root[data-ui-variant='soul'][data-soul-mode='dark'] .soul-quick-access{background:#292f37;border-color:#64717e}
 :root[data-ui-variant='soul'][data-soul-mode='dark'] .soul-quick-access :is(h2,p){color:#c0cbd5}

@@ -1,0 +1,9 @@
+/* FIX: versioned Soul override for already published web bundles. */
+.soul-quick-items button {
+  flex: 0 0 auto;
+  width: max-content;
+  min-width: 114px;
+  max-width: 100%;
+  overflow-wrap: normal;
+  word-break: normal;
+}

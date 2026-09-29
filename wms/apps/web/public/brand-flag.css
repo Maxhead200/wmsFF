@@ -15,3 +15,27 @@
   -webkit-text-fill-color: transparent;
   -webkit-text-stroke: 0.35px rgba(15, 32, 48, 0.7);
 }
+
+/* FIX: Soul has its own page heading; keep LOGOff red while colouring WMS. */
+:root[data-ui-variant='soul'] .soul-toolbar h1.soul-brand {
+  background-image: linear-gradient(
+    to bottom,
+    #ffffff 0%,
+    #ffffff 33.333%,
+    #0039a6 33.333%,
+    #0039a6 66.667%,
+    #d52b1e 66.667%,
+    #d52b1e 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 0.35px rgba(15, 32, 48, 0.7);
+}
+
+:root[data-ui-variant='soul'] .soul-brand u {
+  color: #b4232d;
+  -webkit-text-fill-color: #b4232d;
+  -webkit-text-stroke: 0;
+}

@@ -37,6 +37,12 @@ async function patchWeb(live){
  if(!fresh.startsWith('var __wmsOpenClaw ='))throw Error('Compiled panel shape changed');
  const next=live.slice(0,old.start)+fresh+live.slice(old.end);parseAst(next);return next;
 }
+// FIX: the patched bundle must be loaded by the current page, not merely present in assets.
+function assertActiveWebBundle(index, bundlePath){
+ const scripts=[...index.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/g)].map(match=>match[1]);
+ if(!bundlePath||!scripts.includes(bundlePath))throw Error('OpenClaw bundle is not referenced by the active page');
+ return bundlePath;
+}
 function historyCss(){
  const css=fs.readFileSync(path.join(root,'apps/web/src/components/wms-ai/wms-ai.css'),'utf8');
  const start=css.indexOf('/* FIX: server-backed OpenClaw conversations'),end=css.indexOf('.wms-ai-chat__status',start);
@@ -70,6 +76,7 @@ async function build(baseline,target){
  const manifest=JSON.parse(fs.readFileSync(path.join(baseline,'manifest.json'),'utf8'));
  for(const [name,expected] of Object.entries(manifest.files))if(hash(fs.readFileSync(path.join(baseline,name)))!==expected)throw Error('Baseline hash changed: '+name);
  if(fs.existsSync(target))throw Error('Destination already exists');
+ assertActiveWebBundle(fs.readFileSync(path.join(baseline,'web-index.html'),'utf8'),manifest.webBundlePath);
  const files={
   'api-service.js':patchService(fs.readFileSync(path.join(baseline,'api-service.js'),'utf8')),
   'api-controller.js':patchController(fs.readFileSync(path.join(baseline,'api-controller.js'),'utf8')),
@@ -79,8 +86,8 @@ async function build(baseline,target){
   'openclaw-history-20260929.css':historyCss(),
  };
  fs.mkdirSync(target,{recursive:true});for(const [name,content] of Object.entries(files))fs.writeFileSync(path.join(target,name),content);
- fs.writeFileSync(path.join(target,'proof.json'),JSON.stringify({baseImages:manifest.images,changes:Object.fromEntries(Object.entries(files).map(([k,v])=>[k,hash(v)]))},null,2));
+ fs.writeFileSync(path.join(target,'proof.json'),JSON.stringify({baseImages:manifest.images,webBundlePath:manifest.webBundlePath,changes:Object.fromEntries(Object.entries(files).map(([k,v])=>[k,hash(v)]))},null,2));
  return Object.keys(files);
 }
-module.exports={patchService,patchController,patchRegistry,patchWeb,patchIndex,historyCss,build};
+module.exports={patchService,patchController,patchRegistry,patchWeb,assertActiveWebBundle,patchIndex,historyCss,build};
 if(require.main===module)build(process.argv[2],process.argv[3]).then(files=>console.log(JSON.stringify(files))).catch(error=>{console.error(error.message);process.exitCode=1});

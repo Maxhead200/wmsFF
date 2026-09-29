@@ -3045,3 +3045,27 @@
  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .workspace-favorites__order { display: flex; flex-direction: column; }
  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .workspace-favorites__order button { padding: 0 5px; min-height: 22px; }
 }
+
+/* FIX: FBS zone selection and elapsed timers share the readable request palette. */
+@media screen {
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.fbs-order-actions__age-zones .is-green, .fbs-order-age--normal) { --fbs-zone-ink: #93c9ac; --fbs-zone-fill: #25352e; --fbs-zone-line: #46785e; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.fbs-order-actions__age-zones .is-yellow, .fbs-order-age--warning) { --fbs-zone-ink: #dfc281; --fbs-zone-fill: #393326; --fbs-zone-line: #826933; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.fbs-order-actions__age-zones .is-red, .fbs-order-age--critical) { --fbs-zone-ink: #e79d9f; --fbs-zone-fill: #3a282e; --fbs-zone-line: #8c505b; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.fbs-order-actions__age-zones button.is-green, .fbs-order-actions__age-zones button.is-yellow, .fbs-order-actions__age-zones button.is-red, .fbs-order-age--normal, .fbs-order-age--warning, .fbs-order-age--critical) {
+  background: var(--fbs-zone-fill) !important; color: var(--fbs-zone-ink) !important; border: 1px solid var(--fbs-zone-line);
+ }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-order-actions__age-zones button:hover:not(:disabled) { box-shadow: 0 0 0 1px var(--fbs-zone-line), 0 0 10px color-mix(in srgb, var(--fbs-zone-ink) 12%, transparent); }
+}
+
+/* FIX: use the full action-panel width instead of a tall selection side column. */
+@media screen {
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-order-actions { display: grid; min-width: 0; width: 100%; box-sizing: border-box; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 12px; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-order-actions__selection { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; min-width: 0; width: 100%; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-order-actions__selection > span { order: 2; flex: 1 1 100%; min-width: 0; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-order-actions__quick-select { display: flex; margin-top: 0; flex: 1 1 auto; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-order-actions__age-zones { display: flex; flex: 0 1 auto; min-width: 0; flex-wrap: wrap; align-items: center; gap: 8px; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-order-actions__quick-select label { display: flex; align-items: center; gap: 8px; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-order-actions__quick-select input { width: 76px; min-width: 0; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-order-actions__buttons { display: flex; flex-wrap: wrap; justify-content: flex-start; align-items: center; gap: 8px; padding-top: 12px; border-top: 1px solid #3c414a; min-width: 0; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-order-actions__buttons .button { flex: 0 1 auto; max-width: 100%; white-space: normal; }
+}

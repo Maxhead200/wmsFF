@@ -1,3 +1,12 @@
+# Published PR410 / 29.09.2026
+
+PR410: la_panthera now offers an independent Dark/Light style selector next to the theme. Dark remains default; style persists per browser/user, isolated from other themes and accounts. Light uses pale teal/white surfaces, dark text and pastel accents; request zones and original panther remain visible. Web343/API2929 passed, 2/115 skipped; dedicated KIZ DB suite excluded. TypeScript, 30-view contrast >=4.5:1, print exclusion, actual App persistence/theme/user checks and request table browser checks passed. Main selector, CSS and versioned import paths only; API/APK216/flags/schema/sold WMS unchanged. Full hashes/health verified; source parity false. Rollback logoff-web:before-la-panthera-light.
+
+Web `sha256:eb0e9d15040e6512d3363ec3d87f99c2c280c9d47f709be4886cb244332880bb`; API `sha256:aba843bb78a45c4a1f06a25315f53210b8eaad6992d44f1bc02dfff97a8208e5`.
+Baseline `2026-09-29-la-panthera-light`.
+
+## Previous release
+
 # Published PR408 / 29.09.2026
 
 PR408: compact request table in all 11 themes. Two identity columns, client above composition, due date above status, actions above process. Existing actions and permissions retained. Web340 passed/2 skipped, API2929 passed/115 skipped (DB-dependent cases skipped, dedicated KIZ DB suite excluded), TypeScript and 11-theme actual-runtime mobile/desktop checks passed. Only request markup, CSS and versioned import paths changed. API, APK216, flags, schema and sold WMS unchanged. Full image/public hashes and health verified; source parity false. Rollback logoff-web:before-compact-request-columns.

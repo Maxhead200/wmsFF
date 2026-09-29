@@ -1,0 +1,3 @@
+# la_panthera Light / PR410
+
+PR410: la_panthera now offers an independent Dark/Light style selector next to the theme. Dark remains default; style persists per browser/user, isolated from other themes and accounts. Light uses pale teal/white surfaces, dark text and pastel accents; request zones and original panther remain visible. Web343/API2929 passed, 2/115 skipped; dedicated KIZ DB suite excluded. TypeScript, 30-view contrast >=4.5:1, print exclusion, actual App persistence/theme/user checks and request table browser checks passed. Main selector, CSS and versioned import paths only; API/APK216/flags/schema/sold WMS unchanged. Full hashes/health verified; source parity false. Rollback logoff-web:before-la-panthera-light.

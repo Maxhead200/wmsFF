@@ -1,3 +1,12 @@
+# Published PR396 / 29.09.2026
+
+PR396: request status sorting, collapsed Excel assembly, sequential bulk DONE with per-request results and strict no-source-only noBox. Cancelled and rejected requests are archived in all themes. Russian WB status badge. la_panthera: graphite/cyan navigation, independent collapsible groups, user-scoped browser favorites, toned request identities, original panther during fetch/body loading, dark panels and muted gradients. Runtime based on Soul Winx PR395 and API a83204; two web behavioral modules plus import graph/CSS, one API module with two archive predicates. Full hashes and public health verified; APK216, flags, schema and sold WMS unchanged. Web328/API2893 passed; 2/113 skipped and dedicated KIZ DB suite excluded. TypeScript and browser/runtime tests passed. Source parity remains false; full source rebuild must not replace production. Rollbacks: logoff-web:before-request-batch-theme and logoff-api:before-request-batch-theme.
+
+Web `sha256:2262deb8564c040b6186b4c4016e738fd4cf7f56a1796d547a6b9ebc6fee7248`; API `sha256:7334f195b90d4d8e4f4915993974511c8ce49b3198f6a46569b0edabd799b2db`.
+Baseline `2026-09-29-request-batch-theme`.
+
+## Previous release
+
 # Published PR385: la_panthera / 28.09.2026
 
 PR385: la_panthera web contrast correction across 27 representative component states, larger dashboard/FBS labels, saturated icons and dark gradients. Original diploma GIF loader with reduced-motion still frame; readable graphite supply group headings, buttons and warehouse badges. Parallel spirit Cambria release (previous web 9636e1f3), API PR375, APK216, settings and other containers preserved. 281 web and 2891 API tests passed, 113 skipped; dedicated KIZ DB suite excluded. Browser contrast/isolation/print and runtime graph/font checks passed. Source parity false; runtime CSS overlay only. Rollback logoff-web:before-panther-loader.

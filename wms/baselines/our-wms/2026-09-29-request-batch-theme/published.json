@@ -1,0 +1,12 @@
+{
+  "published": true,
+  "at": 1790662290.3420413,
+  "pullRequest": 396,
+  "apiImage": "sha256:7334f195b90d4d8e4f4915993974511c8ce49b3198f6a46569b0edabd799b2db",
+  "previousApi": "sha256:a83204a8bb4819193a11ba7ba8a3b462c960ef772fc9d659c88a122dfd531f62",
+  "webImage": "sha256:2262deb8564c040b6186b4c4016e738fd4cf7f56a1796d547a6b9ebc6fee7248",
+  "previousWeb": "sha256:b7cd80512332f7bb228084b8da1e40f07dacb57fcd697fcef4c351d02627d280",
+  "apkUnchanged": true,
+  "otherContainersUnchanged": true,
+  "publicFontVerified": true
+}

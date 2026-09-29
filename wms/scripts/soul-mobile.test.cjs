@@ -3,7 +3,8 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),fs=requir
 const web=path.resolve(__dirname,'../apps/web'),rw=createRequire(path.join(web,'package.json')),rv=createRequire(rw.resolve('vite/package.json'));
 test('Soul header and real request cards contain their content on mobile',async()=>{
  const {chromium}=require(process.env.WMS_TEST_PLAYWRIGHT);
- const code=`import React from 'react';import{createRoot}from'react-dom/client';import{ClientRequestsTable}from'./src/components/client-requests/ClientRequestsTable';
+ const code=`import React from 'react';import{createRoot}from'react-dom/client';import{ClientRequestsTable as RawTable}from'./src/components/client-requests/ClientRequestsTable';
+ const ClientRequestsTable=props=><RawTable compactMobile onOpenOnlineExecution={r=>{window.onlineRequest=r.id;}} {...props}/>;
  const noop=()=>{};const items=[1,2].map(n=>({id:String(n),number:1527+n,title:'FBS — 1 заказа(а/ов)',type:'OUTBOUND',priority:'NORMAL',status:'PACKED',createdAt:'2026-09-29T00:00:00Z',destinationCity:'Маркетплейс FBS · Мой склад Москва Вешки',client:{code:'CL-000004',name:'ИП Королева Ольга Михайловна'},files:[],packages:[],items:[{id:'a',quantity:1,sku:{name:'Очень длинное название костюма с капюшоном',barcode:'2051621250518'}}],fbsCompletion:{completed:true,completedOrders:1,totalOrders:1,percent:100}}));
  createRoot(document.getElementById('table')).render(<ClientRequestsTable items={items} selectableRequestIds={new Set(['1','2'])} onRequestSelectionChange={noop} canChangeStatus canPickOutbound canCancelRequests canEditAnyRequest canRefreshPickInstruction onStatusChange={noop} onCancelRequest={noop} onEditRequest={noop} onOpenFbsOrders={noop} onOpenFbsRoute={noop} onOpenFbsBoxSearch={noop} onOpenPickInstruction={noop} onRefreshPickInstruction={noop} onSyncTsd={noop} onDownloadPickInstruction={noop} onUploadManualInstruction={noop} onEmergencyPackedXlsx={noop} onPickOutbound={noop} onPackageOutbound={noop} onShipOutbound={noop}/>);`;
  const built=await rv('esbuild').build({stdin:{contents:code,resolveDir:web,loader:'tsx'},bundle:true,write:false,format:'iife',jsx:'automatic'});
@@ -14,9 +15,19 @@ test('Soul header and real request cards contain their content on mobile',async(
   const page=await browser.newPage({viewport:{width,height:900}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.setContent(`<html data-ui-variant="soul"><head><style>${css}</style></head><body><div class="app-layout" data-ui-theme="modern" data-ui-variant="soul" data-workspace="requests"><main class="workspace-shell"><header class="workspace-header"><div class="workspace-header__title"><h1>Заявки</h1></div><div class="workspace-header__meta"><label class="workspace-global-search"><input placeholder="Найти раздел или операцию"></label><label class="workspace-branch-select"><select><option>Москва · ФФ Москва</option></select></label><button class="modern-header-action">99+</button><div class="ui-theme-switcher"><button>Soul</button></div><div class="workspace-user">Константин</div></div></header><section class="workspace-content"><div class="soul-workspace"><div class="soul-toolbar"><h1>Управление Складом</h1></div><div class="soul-page"><section class="client-requests-panel"><header class="client-requests-panel__heading"><h2>Клиентские заявки</h2></header><div id="table"></div></section></div></div></section><footer class="workspace-footer">LOGOFF WMS</footer></main></div></body></html>`);
   await page.addScriptTag({content:built.outputFiles[0].text});await page.locator('.client-request-row').first().waitFor();assert.deepEqual(errors,[]);
+  if(width<=620){
+   const row=page.locator('.client-request-row').first();
+   assert.ok(await row.getByRole('button',{name:'Онлайн',exact:true}).isVisible());await row.getByRole('button',{name:'Онлайн',exact:true}).click();assert.equal(await page.evaluate(()=>window.onlineRequest),'1');
+   assert.equal(await row.locator('.client-request-action-button--edit').isVisible(),false,'actions initially collapsed');
+   await row.getByRole('button',{name:'Действия',exact:true}).click();assert.ok(await row.locator('.client-request-action-button--edit').isVisible());
+   await row.getByRole('button',{name:'Действия',exact:true}).click();
+   assert.equal(await row.locator('.client-request-items-preview').isVisible(),false);
+   await row.getByRole('button',{name:'Подробнее',exact:true}).click();assert.ok(await row.locator('.client-request-items-preview').isVisible());
+   await row.getByRole('button',{name:'Подробнее',exact:true}).click();
+  }else{assert.equal(await page.locator('.client-request-mobile-tools').first().isVisible(),false);assert.ok(await page.locator('.client-request-action-button--edit').first().isVisible());}
   const result=await page.evaluate(()=>{
    const rect=e=>e.getBoundingClientRect(),header=rect(document.querySelector('.workspace-header')),content=rect(document.querySelector('.workspace-content'));
-   const escaped=[...document.querySelectorAll('.client-request-table tbody td')].flatMap(td=>[...td.children].filter(c=>{const a=rect(td),b=rect(c);return b.bottom>a.bottom+2||b.right>a.right+2;}).map(()=>td.dataset.label));
+   const escaped=[...document.querySelectorAll('.client-request-table tbody td')].flatMap(td=>[...td.children].filter(c=>{const a=rect(td),b=rect(c);return b.width>0&&b.height>0&&(b.bottom>a.bottom+2||b.right>a.right+2);}).map(()=>td.dataset.label));
    const headerEscape=[...document.querySelectorAll('.workspace-header input,.workspace-header select,.workspace-header button')].some(el=>{const b=rect(el);return b.width>0&&(b.bottom>header.bottom+2||b.right>innerWidth+1);});
    return {overlap:header.bottom>content.top+1||headerEscape,headerHeight:header.height,escaped,overflow:document.documentElement.scrollWidth>innerWidth+1};
   });

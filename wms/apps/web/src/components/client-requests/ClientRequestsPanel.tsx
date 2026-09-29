@@ -101,6 +101,7 @@ type LoadState<T> = {
 };
 
 type ClientRequestsPanelProps = {
+  compactMobile?: boolean;
   fboOnly?: boolean;
   session: AuthSession;
   onOpenFbsOrders?: (request: ClientRequestSummary) => void;
@@ -182,6 +183,7 @@ type FbsSynchronizationAudit = {
 };
 
 export function ClientRequestsPanel({
+  compactMobile = false,
   fboOnly = false,
   session,
   onOpenFbsOrders,
@@ -2191,6 +2193,7 @@ export function ClientRequestsPanel({
           (request) => void pickOutboundRequest(request),
           (request) => void packageOutboundRequest(request),
           (request) => void shipOutboundRequest(request),
+          compactMobile,
         )}
       </div>
 
@@ -5276,6 +5279,7 @@ function renderRequests(
   onPickOutbound: (request: ClientRequestSummary) => void,
   onPackageOutbound: (request: ClientRequestSummary) => void,
   onShipOutbound: (request: ClientRequestSummary) => void,
+  compactMobile = false,
 ) {
   if (state.status === 'idle' || (state.status === 'loading' && state.data.length === 0)) {
     return (
@@ -5298,6 +5302,7 @@ function renderRequests(
     <>
       {state.status === 'loading' ? <p className="inline-status">Обновляю заявки.</p> : null}
       <ClientRequestsTable
+        compactMobile={compactMobile}
         items={state.data}
         selectableRequestIds={selectableRequestIds}
         selectedRequestIds={selectedRequestIds}

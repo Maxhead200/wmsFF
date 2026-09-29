@@ -34,6 +34,7 @@ import { KizIssuesPanel } from './components/kiz/KizIssuesPanel';
 import { SpaceServiceShelf } from './components/layout/SpaceServiceShelf';
 import { SpaceTopNav } from './components/layout/SpaceTopNav';
 import { SoulWorkspace, soulEnabled } from './components/layout/SoulWorkspace';
+import { isThemeAvailable, resolveRetiredTheme } from './components/layout/themeAvailability';
 import './components/layout/soul-theme.css';
 import { installSpiritTileTilt } from './components/layout/spiritTileTilt';
 import './components/layout/tile-motion.css';
@@ -549,7 +550,7 @@ export function App() {
     isAdvancedTheme(uiTheme) && modernSidebarCollapsed ? 'app-layout--sidebar-collapsed' : '',
   ].filter(Boolean).join(' ');
   const baseUiTheme = uiThemeBase(uiTheme);
-  const availableThemeOptions = uiThemeOptions.filter((option) => (option.value !== 'soul' || soulEnabled(window.location.hostname)) && (!option.personal || hasWinxCursor(session.user)));
+  const availableThemeOptions = uiThemeOptions.filter((option) => isThemeAvailable(option.value, soulEnabled(window.location.hostname)) && (option.value !== 'soul' || soulEnabled(window.location.hostname)) && (!option.personal || hasWinxCursor(session.user)));
 
   function openWorkspaceFromSearch(value: string) {
     const normalized = value.trim().toLocaleLowerCase('ru-RU');
@@ -831,9 +832,9 @@ function loadUiTheme(user: AuthUser): UiTheme {
   const stored = window.localStorage.getItem(uiThemeStorageKey(user.id));
   const matched = uiThemeOptions.find((option) => option.value === stored);
   if (!matched || (matched.value === 'soul' && !soulEnabled(window.location.hostname)) || (matched.personal === 'winx' && !hasWinxCursor(user))) {
-    return 'classic';
+    return resolveRetiredTheme('classic', soulEnabled(window.location.hostname));
   }
-  return matched.value;
+  return resolveRetiredTheme(matched.value, soulEnabled(window.location.hostname));
 }
 
 function isAdvancedTheme(theme: UiTheme) {
@@ -958,7 +959,7 @@ function renderWorkspace(
     case 'turnover':
       return <TurnoverPanel session={session} />;
     case 'requests':
-      return <Suspense fallback={<div className="workspace-loading">Загружаю заявки…</div>}><ClientRequestsPanel session={session} onOpenFbsOrders={() => setActiveWorkspaceId('fbs')} focusRequestId={focusedRequestId} onFocusRequestHandled={clearFocusedRequest} /></Suspense>;
+      return <Suspense fallback={<div className="workspace-loading">Загружаю заявки…</div>}><ClientRequestsPanel compactMobile={uiTheme === 'soul'} session={session} onOpenFbsOrders={() => setActiveWorkspaceId('fbs')} focusRequestId={focusedRequestId} onFocusRequestHandled={clearFocusedRequest} /></Suspense>;
     case 'order-assembly':
       return <Suspense fallback={<div className="workspace-loading">Загружаю сборку заказов…</div>}><OrderAssemblyPanel session={session} /></Suspense>;
     case 'contracts':

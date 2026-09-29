@@ -1,6 +1,8 @@
 const BASE = import.meta.env.VITE_API_URL ?? '/api/v1';
 export type OpenClawStatus = { enabled: boolean; allowed: boolean; provider: string; engine: string };
 export type OpenClawJob = { requestId: string; status: 'RUNNING' | 'DONE' | 'UNKNOWN'; answer?: string; error?: string };
+export type OpenClawHistoryItem = OpenClawJob & { conversationId: string; message: string; userId: string | null; userName: string; createdAt: string };
+export type OpenClawHistoryPage = { items: OpenClawHistoryItem[]; nextCursor: string | null };
 export class OpenClawHttpError extends Error {
   constructor(message: string, readonly status: number) { super(message); }
 }
@@ -27,4 +29,6 @@ async function request<T>(token: string, path: string, body?: unknown): Promise<
 }
 export const fetchOpenClawStatus = (token: string) => request<OpenClawStatus>(token, 'status');
 export const fetchOpenClawJob = (token: string, id: string) => request<OpenClawJob>(token, `jobs/${encodeURIComponent(id)}`);
+// FIX: history is read from WMS, never reconstructed from one browser's memory.
+export const fetchOpenClawHistory = (token: string, cursor?: string) => request<OpenClawHistoryPage>(token, `jobs${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`);
 export const submitOpenClawJob = (token: string, body: { requestId: string; conversationId: string; message: string }) => request<OpenClawJob>(token, 'jobs', { requestId: body.requestId, conversationId: body.conversationId, message: body.message });

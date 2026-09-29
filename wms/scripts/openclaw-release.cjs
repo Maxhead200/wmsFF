@@ -61,5 +61,5 @@ function buildApi(sourceFile,runtimeFile,out){
  for(const [n,kind]of [['modules/administration/administration.controller.js','admin'],['modules/administration/administration-internal-api.service.js','registry']])files[n]=patchApiRuntime(kind,Buffer.from(runtime[n],'base64').toString());
  const proof={};for(const [n,text]of Object.entries(files)){parseAst(text);const p=path.join(out,n);fs.mkdirSync(path.dirname(p),{recursive:true});fs.writeFileSync(p,text);proof[n]=sha(text)}fs.writeFileSync(path.join(out,'proof.json'),JSON.stringify(proof,null,2));return Object.keys(proof);
 }
-module.exports={patchEntry,patchAdmin,patchApiRuntime,rewriteReferences,buildWeb,buildApi};
+module.exports={patchEntry,patchAdmin,patchApiRuntime,rewriteReferences,buildWeb,buildApi,bundlePanel};
 if(require.main===module)(async()=>{const [mode,...args]=process.argv.slice(2);console.log(JSON.stringify(mode==='web'?await buildWeb(...args):buildApi(...args)))})().catch(e=>{console.error(e);process.exitCode=1});

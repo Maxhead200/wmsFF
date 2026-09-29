@@ -23,6 +23,11 @@ export class WmsAiController {
   @RequirePermissions()
   openClawSubmit(@Body() dto: WmsOpenClawJobDto, @CurrentUser() user: AuthUser) { return this.openClaw.submit(dto, user); }
 
+  // FIX: only currently permitted WMS administrators can read the shared job history.
+  @Get('openclaw/jobs')
+  @RequirePermissions()
+  openClawJobs(@CurrentUser() user: AuthUser, @Query('cursor') cursor?: string) { return this.openClaw.listJobs(user, cursor); }
+
   @Get('openclaw/jobs/:requestId')
   @RequirePermissions()
   openClawJob(@Param('requestId') requestId: string, @CurrentUser() user: AuthUser) { return this.openClaw.get(requestId, user); }

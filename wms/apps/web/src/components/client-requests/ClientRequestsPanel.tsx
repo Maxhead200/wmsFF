@@ -1,3 +1,4 @@
+import './request-action-menus.css'; // FIX: scoped modern request disclosures.
 import {compareRequestStatus, missingSourceOnly} from './requestBatch';
 import {useRequestBatch} from './RequestBatchControls';
 import './request-batch.css';
@@ -5322,6 +5323,7 @@ function renderRequests(
       {state.status === 'loading' ? <p className="inline-status">Обновляю заявки.</p> : null}
       <ClientRequestsTable
         compactMobile={compactMobile}
+        canManageRequestRecovery={canUploadManualInstruction}
         items={state.data}
         selectableRequestIds={selectableRequestIds}
         selectedRequestIds={selectedRequestIds}

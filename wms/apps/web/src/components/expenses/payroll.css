@@ -1,4 +1,30 @@
 .payroll-management { display: grid; gap: 18px; }
+/* FIX: compact attendance editor only in our opt-in la_panthera interface. */
+:root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .payroll-management form.payroll-shift-dialog {
+  inset: auto !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%);
+  box-sizing: border-box;
+  width: min(720px, calc(100vw - 32px));
+  height: auto;
+  max-height: calc(100dvh - 32px);
+  padding: 20px !important;
+  grid-template-columns: max-content max-content 1fr;
+  gap: 16px 10px;
+  align-content: start;
+}
+:root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .payroll-shift-dialog > :is(h3, .payroll-fields) { grid-column: 1 / -1; margin: 0; }
+:root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .payroll-shift-dialog .payroll-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
+:root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .payroll-shift-dialog .payroll-fields :is(label, input) { min-width: 0; }
+:root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .payroll-shift-dialog small { font-size: 12px; line-height: 1.4; font-weight: 400; }
+:root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .payroll-management form.payroll-shift-dialog > button { width: auto; margin: 0; padding: 10px 14px; }
+:root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .payroll-management form.payroll-shift-dialog > button:nth-of-type(3) { justify-self: end; }
+@media (max-width: 600px) {
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .payroll-management form.payroll-shift-dialog { grid-template-columns: 1fr 1fr; padding: 16px !important; }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .payroll-shift-dialog .payroll-fields { grid-template-columns: minmax(0, 1fr); }
+  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .payroll-management form.payroll-shift-dialog > button:nth-of-type(3) { grid-column: 1 / -1; justify-self: start; }
+}
 .payroll-tiles { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
 .payroll-management button { border:1px solid #dce3ed; background:white; border-radius:12px; padding:12px 18px; font-weight:650; cursor:pointer; }
 .payroll-management button:disabled { opacity:.55; cursor:default; }

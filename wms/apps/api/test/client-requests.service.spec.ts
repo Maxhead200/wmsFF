@@ -5,7 +5,18 @@ import type { AuthUser } from '../src/modules/auth/auth.types';
 import { ClientScopeService } from '../src/modules/auth/client-scope.service';
 import { ClientRequestsService } from '../src/modules/client-requests/client-requests.service';
 
+// TEST: archive and active list both account for all terminal request statuses.
 describe('ClientRequestsService', () => {
+  // TEST: keep explicit status filters and access scopes when viewing terminal requests.
+  it.each([ClientRequestStatus.CANCELLED, ClientRequestStatus.REJECTED])('retains explicit %s status', async status => {
+    const prisma = { clientRequest: { findMany: vi.fn().mockResolvedValue([]) } };
+    const service = new ClientRequestsService(prisma as never, new ClientScopeService(), stockOperations() as never);
+    await service.list({ status }, user({ clientIds: ['client-1'] }));
+    expect(prisma.clientRequest.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ status, clientId: { in: ['client-1'] } }),
+    }));
+  });
+
   it('фильтрует список заявок по доступным клиентам пользователя', async () => {
     const prisma = {
       clientRequest: {
@@ -21,7 +32,7 @@ describe('ClientRequestsService', () => {
         where: expect.objectContaining({
           clientId: { in: ['client-1', 'client-2'] },
           status: {
-            notIn: [ClientRequestStatus.DONE, ClientRequestStatus.CANCELLED],
+            notIn: [ClientRequestStatus.DONE, ClientRequestStatus.CANCELLED, ClientRequestStatus.REJECTED],
           },
         }),
       }),
@@ -43,7 +54,7 @@ describe('ClientRequestsService', () => {
         where: expect.objectContaining({
           clientId: { in: ['client-1'] },
           status: {
-            in: [ClientRequestStatus.DONE, ClientRequestStatus.CANCELLED],
+            in: [ClientRequestStatus.DONE, ClientRequestStatus.CANCELLED, ClientRequestStatus.REJECTED],
           },
         }),
       }),

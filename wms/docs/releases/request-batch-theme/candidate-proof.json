@@ -1,0 +1,59 @@
+{
+  "passed": true,
+  "base": "sha256:b7cd80512332f7bb228084b8da1e40f07dacb57fcd697fcef4c351d02627d280",
+  "candidate": "sha256:2262deb8564c040b6186b4c4016e738fd4cf7f56a1796d547a6b9ebc6fee7248",
+  "api": "sha256:a83204a8bb4819193a11ba7ba8a3b462c960ef772fc9d659c88a122dfd531f62",
+  "changed": [
+    "assets/panthera-network-20260929.css",
+    "assets/panthera-surfaces-20260929.css",
+    "assets/request-batch-20260929.css",
+    "assets/requests-theme-20260929-0.js",
+    "assets/requests-theme-20260929-1.js",
+    "assets/requests-theme-20260929-10.js",
+    "assets/requests-theme-20260929-11.js",
+    "assets/requests-theme-20260929-12.js",
+    "assets/requests-theme-20260929-13.js",
+    "assets/requests-theme-20260929-14.js",
+    "assets/requests-theme-20260929-15.js",
+    "assets/requests-theme-20260929-16.js",
+    "assets/requests-theme-20260929-17.js",
+    "assets/requests-theme-20260929-18.js",
+    "assets/requests-theme-20260929-19.js",
+    "assets/requests-theme-20260929-2.js",
+    "assets/requests-theme-20260929-20.js",
+    "assets/requests-theme-20260929-21.js",
+    "assets/requests-theme-20260929-22.js",
+    "assets/requests-theme-20260929-23.js",
+    "assets/requests-theme-20260929-24.js",
+    "assets/requests-theme-20260929-25.js",
+    "assets/requests-theme-20260929-26.js",
+    "assets/requests-theme-20260929-27.js",
+    "assets/requests-theme-20260929-28.js",
+    "assets/requests-theme-20260929-3.js",
+    "assets/requests-theme-20260929-4.js",
+    "assets/requests-theme-20260929-5.js",
+    "assets/requests-theme-20260929-6.js",
+    "assets/requests-theme-20260929-7.js",
+    "assets/requests-theme-20260929-8.js",
+    "assets/requests-theme-20260929-9.js",
+    "index.html"
+  ],
+  "apiCandidate": "sha256:7334f195b90d4d8e4f4915993974511c8ce49b3198f6a46569b0edabd799b2db",
+  "apiChanged": [
+    "modules/client-requests/client-requests.service.js"
+  ],
+  "browser": {
+    "passed": true,
+    "checks": [
+      "actual request panel",
+      "collapsed Excel",
+      "status sorting",
+      "majority zone",
+      "bulk selection",
+      "known box preserved",
+      "partial results",
+      "network loader"
+    ],
+    "errors": []
+  }
+}

@@ -1,3 +1,7 @@
+import {compareRequestStatus, missingSourceOnly} from './requestBatch';
+import {useRequestBatch} from './RequestBatchControls';
+import './request-batch.css';
+import {RequestZoneProvider} from './RequestZoneProvider';
 import { assemblyProductLabel, hasAssemblyProductDisplay } from '../../lib/assemblyProductDisplay';
 import { OrderAge } from './OrderAge';
 import { describeStockTransfer } from '../../lib/fbs-stock-transfer';
@@ -109,7 +113,7 @@ type ClientRequestsPanelProps = {
   onFocusRequestHandled?: () => void;
 };
 
-type RequestSortField = 'number' | 'createdAt' | 'quantity';
+type RequestSortField = 'number' | 'createdAt' | 'quantity' | 'status';
 type RequestSortDirection = 'asc' | 'desc';
 
 type ManualCloseState = {
@@ -266,6 +270,8 @@ export function ClientRequestsPanel({
   const [closeStockRecovery, setCloseStockRecovery] = useState<CloseStockRecoveryState | null>(null);
   const [fbsBoxSearch, setFbsBoxSearch] = useState<FbsBoxSearchState | null>(null);
   const [showArchive, setShowArchive] = useState(false);
+  // FIX: separate selection from the FBS tail merge workflow.
+
   const [requestSortField, setRequestSortField] = useState<RequestSortField>(() =>
     (window.localStorage.getItem(`wms-request-sort-field:${session.user.id}`) as RequestSortField | null) ?? 'number',
   );
@@ -294,10 +300,11 @@ export function ClientRequestsPanel({
       data: requests.data
         .filter(request => !fboOnly || isWbFboRequest(request))
         .filter((request) => {
-          const isArchived = request.status === 'DONE' || request.status === 'CANCELLED';
+          const isArchived = request.status === 'DONE' || request.status === 'CANCELLED' || request.status === 'REJECTED';
           return showArchive ? isArchived : !isArchived;
         })
         .sort((left, right) => {
+          if(requestSortField === 'status') return compareRequestStatus(left,right) * (requestSortDirection === 'asc' ? 1 : -1);
           const leftValue = requestSortField === 'number'
             ? left.number
             : requestSortField === 'createdAt'
@@ -314,6 +321,8 @@ export function ClientRequestsPanel({
     }),
     [requests, requestSortDirection, requestSortField, showArchive, fboOnly],
   );
+  const batch = useRequestBatch({items: displayedRequests.data, enabled: !showArchive && canChangeStatus, token: session.accessToken, fetchSelection: fetchClientRequestManualBoxSelection, updateStatus: updateClientRequestStatus, reload: loadData});
+
   const fbsTailEligibleRequests = useMemo(
     () =>
       displayedRequests.data.filter((request) =>
@@ -831,6 +840,11 @@ export function ClientRequestsPanel({
           throw new Error('В заявке нет проблемных FBS-позиций с неизвестным источником.');
         }
         stockSources = bulkNoBox.stockSources;
+      } else {
+        // FIX: auto noBox only when the current server selection has no known source.
+        const selection = await fetchClientRequestManualBoxSelection(session.accessToken, manualClose.request.id);
+        const missing = missingSourceOnly(selection.items);
+        stockSources = missing.length ? missing : undefined;
       }
       await updateClientRequestStatus(session.accessToken, manualClose.request.id, {
         status: 'DONE',
@@ -2000,7 +2014,7 @@ export function ClientRequestsPanel({
 
       {!showArchive && canWrite && clients.status === 'ready' ? (
         <>
-          <ClientRequestXlsxImportForm clients={visibleClients} session={session} onCreated={acceptCreated} />
+          <details className="client-request-excel-collapse"><summary>Сборка из Excel</summary><ClientRequestXlsxImportForm clients={visibleClients} session={session} onCreated={acceptCreated} /></details>
           <ClientRequestCreateForm clients={visibleClients} session={session} onCreated={acceptCreated} outboundOnly={fboOnly} />
         </>
       ) : null}
@@ -2129,7 +2143,7 @@ export function ClientRequestsPanel({
           >
             <option value="number">По номеру</option>
             <option value="createdAt">По дате создания</option>
-            <option value="quantity">По количеству товаров</option>
+            <option value="quantity">По количеству товаров</option><option value="status">По статусу</option>
           </select>
         </label>
         <label>
@@ -2149,17 +2163,19 @@ export function ClientRequestsPanel({
         <strong>{displayedRequests.data.length} заявок</strong>
       </div>
 
+      {batch.controls}
       <div className="client-requests-panel__list">
+        <RequestZoneProvider items={displayedRequests.data} token={session.accessToken} fetchOrders={fetchFbsOrders}>
         {renderRequests(
           displayedRequests,
-          selectableFbsTailRequestIds,
-          selectedFbsTailRequestIds,
-          setSelectedFbsTailRequestIds,
-          canChangeStatus,
-          canPickOutbound,
-          canWrite,
-          canEditAnyRequest,
-          canPickOutbound && canEditAnyRequest,
+          batch.active ? batch.selectable : selectableFbsTailRequestIds,
+          batch.active ? batch.selected : selectedFbsTailRequestIds,
+          batch.active ? batch.setSelected : setSelectedFbsTailRequestIds,
+          canChangeStatus && !batch.busy,
+          canPickOutbound && !batch.busy,
+          canWrite && !batch.busy,
+          canEditAnyRequest && !batch.busy,
+          canPickOutbound && canEditAnyRequest && !batch.busy,
           canUploadManualInstruction,
           refreshingInstructionId,
           syncingTsdRequestId,
@@ -2195,6 +2211,7 @@ export function ClientRequestsPanel({
           (request) => void shipOutboundRequest(request),
           compactMobile,
         )}
+        </RequestZoneProvider>
       </div>
 
       {fbsRoutePanel ? (

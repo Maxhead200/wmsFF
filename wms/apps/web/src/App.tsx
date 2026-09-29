@@ -1,3 +1,4 @@
+import { PantheraNavigation } from './components/layout/PantheraNavigation';
 import {
   AlertTriangle,
   Bell,
@@ -599,7 +600,7 @@ export function App() {
         </div>
 
         <nav className="workspace-nav">
-          {groupedWorkspaces.map((group) => (
+          {uiTheme === 'la_panthera' ? <PantheraNavigation key={session.user.id} groups={groupedWorkspaces} userId={session.user.id} activeId={activeWorkspace.id} onOpen={id=>setActiveWorkspaceId(id as WorkspaceId)} kizUnread={kizUnread}/> : groupedWorkspaces.map((group) => (
             <section className="workspace-nav__group" key={group.id}>
               <p>{group.title}</p>
               {group.items.map((item) => {

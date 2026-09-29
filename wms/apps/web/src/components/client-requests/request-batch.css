@@ -1,0 +1,15 @@
+/* FIX: functional request controls use each theme's existing tokens. */
+.client-request-excel-collapse { margin: 12px 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.client-request-excel-collapse > summary { padding: 12px; cursor: pointer; color: var(--ink); font-weight: 700; }
+.request-batch-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 12px 0; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); }
+.request-batch-actions > label { display: flex; align-items: center; gap: 8px; }
+.request-batch-actions > [role='status'], .request-batch-actions > [role='alert'] { width: 100%; }
+.request-batch-confirm { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 8px; }
+.request-batch-confirm input { width: 90px; margin: 0 12px; }
+.request-batch-confirm button { margin: 4px 8px 0 0; }
+
+/* FIX: readable status and shipment actions in every theme. */
+.wb-status-badge { display: inline-flex; align-items: center; margin: .4rem 0; padding: .4rem .75rem; border: 1px solid var(--line, #667085); border-radius: .65rem; background: var(--surface, #202228); color: var(--ink, #e0e4e9); font-weight: 600; line-height: 1.4; }
+.wb-shipment-action { padding: .65rem 1rem; border: 1px solid var(--line, #667085); border-radius: .7rem; background: var(--surface, #202228); color: var(--ink, #e0e4e9); font: inherit; font-weight: 600; cursor: pointer; }
+.wb-shipment-action:hover:not(:disabled) { box-shadow: 0 0 0 2px #00dbc233; }
+.wb-shipment-action:disabled { cursor: not-allowed; opacity: .65; }

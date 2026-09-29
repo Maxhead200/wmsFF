@@ -2961,7 +2961,7 @@
  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .workspace-favorites__heading strong { flex: 1; font-size: 13px; color: #6bc9bd; }
  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .workspace-favorites__heading button { display: inline-flex; justify-content: center; align-items: center; width: 30px; height: 30px; min-height: 30px; padding: 4px; color: #6bc9bd; }
  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .workspace-favorites__item { display: flex; align-items: center; gap: 4px; }
- :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .workspace-favorites__item > button:first-child { flex: 1; min-width: 0; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .workspace-favorites__item > button:first-of-type { flex: 1; min-width: 0; }
  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .workspace-favorites__item > .workspace-favorites__remove { width: 30px; min-height: 30px; padding: 4px; color: #ffb3bb; }
  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .workspace-favorites__picker { max-height: 45vh; overflow-y: auto; background: #202127; border: 1px solid #3c6569; border-radius: 6px; padding: 4px; }
  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .workspace-favorites__picker button { width: 100%; font-size: 14px; }
@@ -3029,4 +3029,19 @@
  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .online-order-age[data-age-zone='warning'] { --request-zone-ink: #dfc281; --request-zone-bg: #393326; }
  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .online-order-age[data-age-zone='critical'] { --request-zone-ink: #e79d9f; --request-zone-bg: #3a282e; }
  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .online-order-age[data-age-zone] small { color: var(--request-zone-ink); background: var(--request-zone-bg) !important; }
+}
+
+/* FIX: reconciliation owns its surface; pale legacy containers must not shine through. */
+@media screen {
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .billing-reconciliation {
+  background: #191a1e; color: #e0e3ea; border: 1px solid #35524f;
+  border-radius: 12px; padding: 16px; gap: 12px;
+  box-shadow: 0 0 12px rgba(0, 219, 194, .06);
+ }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .billing-reconciliation__heading h3 { color: #9fd7d1; font-size: 20px; margin: 0 0 6px; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .billing-reconciliation__heading span { color: #b4bac7; font-size: 15px; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .billing-reconciliation > .panel-message { background: #202127; color: #c9cdd7; border: 1px solid #3c414a; border-radius: 8px; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .workspace-favorites__drag { display: grid; place-items: center; min-width: 22px; color: #8ecac4; cursor: grab; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .workspace-favorites__order { display: flex; flex-direction: column; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .workspace-favorites__order button { padding: 0 5px; min-height: 22px; }
 }

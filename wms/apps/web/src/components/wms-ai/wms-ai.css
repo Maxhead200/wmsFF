@@ -72,6 +72,50 @@
   overflow: hidden;
 }
 
+/* FIX: server-backed OpenClaw conversations stay accessible after a browser reload. */
+.wms-ai-chat.wms-openclaw-layout {
+  display: grid;
+  grid-template-columns: minmax(210px, 270px) minmax(0, 1fr);
+}
+
+.wms-openclaw-history {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  max-height: 75vh;
+  overflow: auto;
+  padding: 16px;
+  border-right: 1px solid var(--line);
+  background: #fafafa;
+  color: #111827;
+}
+
+.wms-openclaw-history h3 { margin: 0 0 8px; }
+.wms-openclaw-history > button {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #fff;
+  color: #111827;
+  text-align: left;
+  cursor: pointer;
+}
+.wms-openclaw-history > button.is-active { border-color: #7c3aed; background: #f5f3ff; }
+.wms-openclaw-history > button strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wms-openclaw-history > button small { color: var(--muted); }
+.wms-openclaw-conversation { display: grid; align-content: start; gap: 12px; min-width: 0; padding: 16px; }
+.wms-openclaw-conversation > p { margin: 0; }
+.wms-openclaw-conversation .wms-ai-message { display: grid; gap: 6px; }
+.wms-openclaw-conversation .wms-ai-message small { color: var(--muted); }
+.wms-openclaw-conversation .wms-ai-answer { white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 720px) {
+  .wms-ai-chat.wms-openclaw-layout { grid-template-columns: 1fr; }
+  .wms-openclaw-history { max-height: 220px; border-right: 0; border-bottom: 1px solid var(--line); }
+}
+
 .wms-ai-chat__status {
   display: flex;
   align-items: center;

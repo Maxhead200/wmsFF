@@ -55,6 +55,39 @@ export class WmsOpenClawService {
     return this.publicJob(await this.record(requestId, user));
   }
 
+  // FIX: the WMS journal is the source of shared history, even after a browser reload.
+  async listJobs(user: AuthUser, cursor?: string) {
+    this.assertAccess(user);
+    if (cursor && (!cursor.startsWith('openclaw:') || !this.uuid(cursor.slice(9)))) {
+      throw new BadRequestException('Некорректная страница истории OpenClaw.');
+    }
+    if (cursor) {
+      const previous = await this.prisma.auditLog.findUnique({ where: { id: cursor }, select: { action: true, entity: true } });
+      if (previous?.action !== ACTION || previous.entity !== 'OpenClawJob') {
+        throw new BadRequestException('Страница истории OpenClaw не найдена.');
+      }
+    }
+    const rows = await this.prisma.auditLog.findMany({
+      // FIX: use the existing AuditLog primary-key index instead of scanning all WMS audit rows.
+      where: { id: { gte: 'openclaw:', lt: 'openclaw;' }, action: ACTION, entity: 'OpenClawJob' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: 21,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      select: { id: true, userId: true, createdAt: true, payload: true, user: { select: { name: true } } },
+    });
+    return {
+      items: rows.slice(0, 20).map(row => ({
+        ...this.publicJob(row),
+        conversationId: (row.payload as JobPayload).conversationId,
+        message: (row.payload as JobPayload).message,
+        userId: row.userId,
+        userName: row.user?.name ?? 'Удалённый пользователь',
+        createdAt: row.createdAt.toISOString(),
+      })),
+      nextCursor: rows.length > 20 ? rows[19].id : null,
+    };
+  }
+
   private assertAccess(user: AuthUser) {
     if (!openClawEnabled()) throw new ServiceUnavailableException('OpenClaw ещё не включён.');
     if (!openClawAllowed(user)) throw new ForbiddenException('OpenClaw доступен только разрешённым администраторам и владельцу.');

@@ -86,3 +86,10 @@ PR404: `apps/web/test/fbs-zone-colors.browser.cjs` — реальные CSS, т�
 - `KizReviewQueuePanel.test.tsx`, `markAllNotifications.test.ts`: collapsed cases, seven days, complete pagination, new arrivals and partial failures.
 - `reviews-notifications.browser.cjs`, `monitoring-notifications.browser.cjs`: actual adapter interactions and CSS; favorites regression also passed.
 - Production public page: HTTP200 and zero JavaScript errors. Full hashes, health, APK216 and all preexisting flags verified.
+
+
+## Compact request columns / all themes
+
+- `apps/web/src/components/client-requests/ClientRequestColumns.test.tsx`: request identity/supply grouping and client above composition.
+- `apps/web/test/compact-request-columns.browser.cjs`: actual release runtime; 11 themes, two request columns, combined due/status and actions/process, existing navigation/status callbacks, 390px mobile overflow. Set `RELEASE_ROOT` to the candidate release directory.
+- Web/API general suites, TypeScript, baseline verify/materialize/check-candidate and exact web image hash delta before publication. API is unchanged.

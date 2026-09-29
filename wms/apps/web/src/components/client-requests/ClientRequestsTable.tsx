@@ -207,6 +207,8 @@ export function ClientRequestsTable({
                 </td>
               ) : null}
               <td className="client-request-table__request-cell" data-label="Заявка">
+                {/* FIX: independent identity and supply columns in every theme. */}
+                <div className="client-request-identity"><div className="client-request-identity__main">
                 <span className="client-request-number" aria-label={`Заявка №${formattedRequestNumber}`}>
                   <span className="client-request-number__prefix">№{requestNumberPrefix}</span>
                   <strong className="client-request-number__accent">{requestNumberAccent}</strong>
@@ -216,15 +218,6 @@ export function ClientRequestsTable({
                 ) : null}
                 {isSkuCollectionRequest(request) ? (
                   <span className="client-request-sku-collection-badge">СБОРКА ПО SKU</span>
-                ) : null}
-                {/* ADDED: shipped and archived requests share this table, so the WB supply stays visible. */}
-                {request.status === 'DONE' && request.wbSupplyIds?.length ? (
-                  <span className="client-request-wb-supplies">
-                    <span>{request.wbSupplyIds.length === 1 ? 'Поставка WB' : 'Поставки WB'}</span>
-                    {request.wbSupplyIds.map((supplyId) => (
-                      <strong key={supplyId}>{supplyId}</strong>
-                    ))}
-                  </span>
                 ) : null}
                 {transferOrigin ? (
                   <span className="client-request-transfer-origin" title={request.comment ?? undefined}>
@@ -252,6 +245,16 @@ export function ClientRequestsTable({
                   <span>Склад</span>
                   <strong>{request.destinationCity ?? '-'}</strong>
                 </span>
+                </div><div className="client-request-identity__details">
+                {/* ADDED: shipped and archived requests share this table, so the WB supply stays visible. */}
+                {request.status === 'DONE' && request.wbSupplyIds?.length ? (
+                  <span className="client-request-wb-supplies">
+                    <span>{request.wbSupplyIds.length === 1 ? 'Поставка WB' : 'Поставки WB'}</span>
+                    {request.wbSupplyIds.map((supplyId) => (
+                      <strong key={supplyId}>{supplyId}</strong>
+                    ))}
+                  </span>
+                ) : null}
                 <span className="client-request-list-meta">
                   Создана: {createdAtFormatter.format(new Date(request.createdAt))}
                 </span>
@@ -281,12 +284,14 @@ export function ClientRequestsTable({
                 {request.comment && !transferOrigin ? (
                   <span className="client-request-list-comment" title={request.comment}>{request.comment}</span>
                 ) : null}
+                </div></div>
               </td>
               <td className="client-request-table__client-cell" data-label="Клиент">
                 <strong>{request.client.code}</strong>
                 <span>{request.client.name}</span>
               </td>
               <td className="client-request-table__composition-cell" data-label="Состав">
+                <div className="client-request-composition-client"><strong>{request.client.code}</strong><span>{request.client.name}</span></div>
                 <span className="client-request-items-count">{itemsCountSummary(request)}</span>
                 {request.fbsCompletion ? (
                   <span
@@ -348,7 +353,15 @@ export function ClientRequestsTable({
                   </button>
                 ) : null}
               </td>
-              <td className="client-request-table__due-cell" data-label="Срок">{formatDate(request.desiredDate)}</td>
+              <td className="client-request-table__due-cell" data-label="Срок">{formatDate(request.desiredDate)}<div className="client-request-due-status">                <span className={`status status--${requestStatusTone(request.status)}`}>
+                  {emergencyClosed ? 'Аварийно упакована' : requestStatusLabel(request.status)}
+                </span>
+                {request.managerComment ? (
+                  <span className="client-request-status-comment" title={request.managerComment}>
+                    {request.managerComment}
+                  </span>
+                ) : null}
+</div></td>
               <td className="client-request-table__status-cell" data-label="Статус">
                 <span className={`status status--${requestStatusTone(request.status)}`}>
                   {emergencyClosed ? 'Аварийно упакована' : requestStatusLabel(request.status)}
@@ -573,6 +586,24 @@ export function ClientRequestsTable({
                   ) : (
                     canEditRequest(request, canEditAnyRequest) ? null : '-'
                   )}
+                  {canChangeStatus ? <div className="client-request-combined-process"><span className="client-request-process-caption">Процесс</span>                  {isSkuCollectionRequest(request) ? (
+                    <span className="client-request-sku-collection-process">Управляется ТСД</span>
+                  ) : <label className="client-request-status-select">
+                    <CheckCircle2 size={15} aria-hidden="true" />
+                    <select
+                      aria-label={`Статус заявки ${request.title}`}
+                      title="Изменить статус заявки"
+                      value={request.status}
+                      onChange={(event) => onStatusChange(request.id, event.target.value as ClientRequestStatus)}
+                    >
+                      {requestStatusOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>}
+</div> : null}
                   </div>
                 </td>
               ) : null}

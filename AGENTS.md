@@ -85,3 +85,6 @@ Latest verified web release PR385: baseline `2026-09-28-panther-loader`. Web sha
 
 
 Latest verified release PR396: baseline `2026-09-29-request-batch-theme`. Web sha256:2262deb8564c040b6186b4c4016e738fd4cf7f56a1796d547a6b9ebc6fee7248; API sha256:7334f195b90d4d8e4f4915993974511c8ce49b3198f6a46569b0edabd799b2db. Request archive/bulk actions in all themes; navigation/visual changes opt-in la_panthera. APK216/sold WMS unchanged; source parity false.
+
+
+Latest verified release PR400: baseline `2026-09-29-request-polish`. Web sha256:6fb21ea4193cd208c1a989ea81b41b87a1cba9ea928394738611091360c171c0; API sha256:277d5a2c9c5dc21acb28df6d4197688cdb81c4bbf3ca8db4290a5340d855986b. Request archive/bulk actions in all themes; navigation/visual changes opt-in la_panthera. APK216/sold WMS unchanged; source parity false.

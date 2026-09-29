@@ -1,3 +1,12 @@
+# Published PR400 / 29.09.2026
+
+PR400: complete creation form collapse with draft retention, exact status filters and stage sort labels in every theme. Safe batch DONE recognizes no-box sentinels and selects only a sole sufficient source; server strict stock guard rejects shortages and incomplete assembly without adjustments. Request majority colors include shipped orders until WMS terminal; individual timers use actual order age. Softer route/FBS buttons in la_panthera. Based on PR398 runtime, preserving OWNER sorting access. Web334/API2895 passed, 2/113 skipped, dedicated KIZ DB suite excluded. Browser tests and packaged API fixture passed; complete runtime/public hashes and health verified. APK216, schema, flags, sold WMS unchanged. Source parity remains false. Rollback logoff-web:before-request-polish and logoff-api:before-request-polish.
+
+Web `sha256:6fb21ea4193cd208c1a989ea81b41b87a1cba9ea928394738611091360c171c0`; API `sha256:277d5a2c9c5dc21acb28df6d4197688cdb81c4bbf3ca8db4290a5340d855986b`.
+Baseline `2026-09-29-request-polish`.
+
+## Previous release
+
 # Published PR398 / 29.09.2026 — OWNER sorting access
 
 OWNER now sees and can open «Сортировка и перемещение», matching the existing server authority. Both OWNER and OWNER+ADMIN expose the same37 sections. Two web authorization checks and explanatory message changed; versioned29-module import graph retains current requests/themes. Web `sha256:aeda927dca4331f4978a15c96a4cbdc9fd0dd5142042d66d1fececfffb557218`. API/APK216, flags, data and sold WMS unchanged.

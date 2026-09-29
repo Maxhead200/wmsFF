@@ -105,7 +105,7 @@ PR404: `apps/web/test/fbs-zone-colors.browser.cjs` — реальные CSS, т�
 ## Request action menus (our modern fulfillment contour)
 
 - `RequestActionMenus.test.tsx`: FBO/FBS grouping, unique route, separate orders navigation, administrator-only recovery, legacy opt-out. Three regression assertions failed before the change.
-- `test/request-action-menus.browser.cjs`: bundled React table, 13 distinct callbacks with the same request ID, keyboard disclosures, six variants including la_panthera Dark/Light, terminal status and administrator restrictions.
+- `test/request-action-menus.browser.cjs`: source and actual runtime React table (RELEASE_ROOT), 13 distinct callbacks with the same request ID, keyboard disclosures, 11 themes including la_panthera Dark/Light, terminal status and administrator restrictions.
 - Enabled by existing `VITE_FBO_WORKSPACE_ENABLED`; no server workflow changes. Sold/legacy contour retains its original layout with the flag disabled.
 - Web 347 passed / 2 skipped; API 2929 passed / 115 skipped. `kiz-duplicate.integration.spec.ts` requires a dedicated local database and was excluded after its missing-configuration failure. Web TypeScript passed.
 - This entry describes source validation, not a production deployment. Source/runtime parity remains false; publication requires the existing surgical runtime release workflow.

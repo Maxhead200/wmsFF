@@ -558,70 +558,7 @@ export function ClientRequestsTable({
                     canEditRequest(request, canEditAnyRequest) ? null : '-'
                   )}
 </> : null}
-<details className="request-action-menu__group"><summary>Ручные этапы заявки</summary><div className="request-action-menu__items">
-{canPickRequest(request) ? (
-                        <button
-                          className="client-request-action-button client-request-action-button--pick"
-                          type="button"
-                          onClick={() => onPickOutbound(request)}
-                          title="Собрать заявку"
-                        >
-                          <PackageCheck size={15} aria-hidden="true" />
-                          <span>Запустить сборку вручную</span>
-                        </button>
-                      ) : null}{canPackageRequest(request) ? (
-                        <button
-                          className="client-request-action-button client-request-action-button--pack"
-                          type="button"
-                          onClick={() => onPackageOutbound(request)}
-                          title="Упаковать заявку"
-                        >
-                          <Send size={15} aria-hidden="true" />
-                          <span>Упаковать</span>
-                        </button>
-                      ) : null}{canShipRequest(request) ? (
-                        <button
-                          className="client-request-action-button client-request-action-button--ship"
-                          type="button"
-                          onClick={() => onShipOutbound(request)}
-                          title="Закрыть отгрузку"
-                        >
-                          <Truck size={15} aria-hidden="true" />
-                          <span>Отгрузить</span>
-                        </button>
-                      ) : null}</div></details>
-{canManageRequestRecovery ? <details className="request-action-menu__group request-action-menu__recovery"><summary>Администрирование</summary><div className="request-action-menu__items">
-{onUploadManualInstruction && canUploadManualInstruction(request) ? (
-                        <button
-                          className="client-request-action-button client-request-action-button--manual-instruction"
-                          type="button"
-                          onClick={() => onUploadManualInstruction(request)}
-                          title="Загрузить свою складскую инструкцию и перестроить план заявки"
-                        >
-                          <FileUp size={15} aria-hidden="true" />
-                          <span>Своя инструкция</span>
-                        </button>
-                      ) : null}{onRollbackEmergencyClose && emergencyClosed ? (
-                        <button
-                          className="client-request-action-button client-request-action-button--emergency-rollback"
-                          type="button"
-                          onClick={() => onRollbackEmergencyClose(request)}
-                          title="Отменить аварийное закрытие и восстановить остатки"
-                        >
-                          <Undo2 size={15} aria-hidden="true" />
-                          <span>Отмена аварийного закрытия</span>
-                        </button>
-                      ) : onEmergencyPackedXlsx && canEmergencyPackRequest(request) ? (
-                        <button
-                          className="client-request-action-button client-request-action-button--emergency"
-                          type="button"
-                          onClick={() => onEmergencyPackedXlsx(request)}
-                          title="Аварийно упаковать заявку по Excel со списком коробов"
-                        >
-                          <AlertTriangle size={15} aria-hidden="true" />
-                          <span>Аварийная упаковка из Excel</span>
-                        </button>
-                      ) : null}</div></details> : null}
+{/* FIX: obsolete manual stages and emergency actions removed from modern menu. */}
 </div></details></div> : <>                       {onOpenFbsBoxSearch && isFbsRequest(request) ? (
                          <button
                            className="client-request-action-button client-request-action-button--fbs-box-search"

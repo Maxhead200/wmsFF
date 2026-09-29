@@ -30,8 +30,6 @@ export function groupRuntimeRequestActions(tree:any, administrator:boolean):any 
     const refresh=action('refresh-instruction'),fbs=!!route||!!action('fbs-box-search');
     const main=cells.find(c=>has(c,'client-request-table__actions-cell'));
     const edit=find(main,n=>has(n,'client-request-action-button--edit')),cancel=find(main,n=>has(n,'client-request-action-button--cancel'));
-    const manualStages=[action('pick')&&rename(action('pick'),'Запустить сборку вручную'),action('pack'),action('ship')].filter(Boolean);
-    const recovery=[action('manual-instruction'),rename(action('emergency'),'Аварийная упаковка из Excel'),action('emergency-rollback')].filter(Boolean);
     const menu=jsx('div',{className:'request-action-menu',children:[
       rename(online,'Открыть сборку','client-request-action-button request-action-menu__open'),
       route&&jsx(route.type,{...route.props,className:'client-request-action-button request-action-menu__route'},route.key??undefined),
@@ -43,8 +41,6 @@ export function groupRuntimeRequestActions(tree:any, administrator:boolean):any 
         action('sync-tsd')&&rename(action('sync-tsd'),action('sync-tsd').props.disabled?'Синхронизирую':fbs?'Синхронизировать задания':'Обновить очередь ТСД'),
         fbs&&refresh&&rename(refresh,refresh.props.disabled?'Проверяю паллет-сорты':'Проверить задания и маршруты'),
         rename(edit,'Редактировать заявку'),rename(cancel,'Отменить заявку'),
-        manualStages.length?group('Ручные этапы заявки',manualStages):null,
-        administrator&&recovery.length?group('Администрирование',recovery,true):null,
       ]),
     ]});
     return jsx(row.type,{...row.props,children:cells.map(cell=>{

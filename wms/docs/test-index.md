@@ -109,3 +109,10 @@ PR404: `apps/web/test/fbs-zone-colors.browser.cjs` — реальные CSS, т�
 - Enabled by existing `VITE_FBO_WORKSPACE_ENABLED`; no server workflow changes. Sold/legacy contour retains its original layout with the flag disabled.
 - Web 347 passed / 2 skipped; API 2929 passed / 115 skipped. `kiz-duplicate.integration.spec.ts` requires a dedicated local database and was excluded after its missing-configuration failure. Web TypeScript passed.
 - Published as PR414 after actual runtime browser checks, exact public/image hashes and health checks. API PR412 retained. Source/runtime parity remains false; use the surgical runtime release workflow.
+
+
+## Request label wrapping and simplified menus
+
+- `request-action-menus.browser.cjs`: long Novosibirsk title in a narrow column, no clipped title or overflowing action labels, 12 retained callbacks, 11 themes plus Light; source and actual runtime.
+- `RequestActionMenus.test.tsx`: modern menu excludes manual stages and emergency controls even for administrators; legacy opt-out unchanged. Regression failed before the fix.
+- CSS and existing runtime adapter only; no API changes.

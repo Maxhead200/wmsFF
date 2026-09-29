@@ -11,7 +11,7 @@ function render(fbs=false, overrides:Record<string,unknown>={}) {
 }
 // TEST: obsolete standalone actions collapse into explicit documents/recovery groups.
 it('groups FBO actions without duplicate online and legacy primary controls',()=>{
- const html=render();expect(html).toContain('Открыть сборку');expect(html).toContain('Обновить план');expect(html).toContain('<summary>Документы</summary>');expect(html).toContain('<summary>Ещё</summary>');expect(html).toContain('<summary>Администрирование</summary>');expect(html).toContain('Аварийная упаковка из Excel');expect(html).not.toContain('>В ТСД<');expect(html).not.toContain('>Онлайн<');expect(html).not.toContain('>Короба XLSX<');
+ const html=render();expect(html).toContain('Открыть сборку');expect(html).toContain('Обновить план');expect(html).toContain('<summary>Документы</summary>');expect(html).toContain('<summary>Ещё</summary>');expect(html).not.toContain('<summary>Администрирование</summary>');expect(html).not.toContain('Аварийная упаковка из Excel');expect(html).not.toContain('Ручные этапы заявки');expect(html).not.toContain('>В ТСД<');expect(html).not.toContain('>Онлайн<');expect(html).not.toContain('>Короба XLSX<');
  expect(html.match(/title="Редактировать заявку"/g)).toHaveLength(1);expect(html).toContain('>Редактировать заявку<');expect(html).toContain('>Отменить заявку<');
 });
 // TEST: navigation has one route and preserves the distinct orders link.

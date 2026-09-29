@@ -43,3 +43,21 @@
 .request-action-menu > .client-request-action-button--fbs-box-search { grid-column: auto; }
 .request-action-menu summary:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 .request-action-menu__recovery > summary { color: inherit; }
+
+/* FIX: long labels and nested disclosures fit narrow warehouse columns. */
+.client-request-actions .request-action-menu .request-action-menu__group {
+  grid-column: 1 / -1;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.client-request-actions .request-action-menu .request-action-menu__items {
+  grid-template-columns: minmax(0, 1fr);
+}
+.client-request-actions .request-action-menu summary,
+.client-request-actions .request-action-menu button > span {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.client-request-actions .request-action-menu .request-action-menu__items > * { grid-column: 1 / -1 !important; }

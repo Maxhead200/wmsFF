@@ -1,3 +1,12 @@
+# Published PR408 / 29.09.2026
+
+PR408: compact request table in all 11 themes. Two identity columns, client above composition, due date above status, actions above process. Existing actions and permissions retained. Web340 passed/2 skipped, API2929 passed/115 skipped (DB-dependent cases skipped, dedicated KIZ DB suite excluded), TypeScript and 11-theme actual-runtime mobile/desktop checks passed. Only request markup, CSS and versioned import paths changed. API, APK216, flags, schema and sold WMS unchanged. Full image/public hashes and health verified; source parity false. Rollback logoff-web:before-compact-request-columns.
+
+Web `sha256:4d3bb184e13764d8bfbced614cb042986b24c4da16b1174e37889afc43c6f771`; API `sha256:aba843bb78a45c4a1f06a25315f53210b8eaad6992d44f1bc02dfff97a8208e5`.
+Baseline `2026-09-29-compact-request-columns`.
+
+## Previous release
+
 # Published PR406 / 29.09.2026
 
 PR406: ordinary WB unmarked non-SOS picking shows found/packed, then atomically ships stock and closes the complete request. Our-WMS flag only. Reviews collapsed individually over seven days. Mark-all-read uses existing scoped endpoints and full history pagination. Gold bell/count and monitoring top row in la_panthera. API2929/web339 passed, 91/2 skipped; isolated PostgreSQL24 plus packaged runtime24 passed; dedicated KIZ duplicate DB suite excluded. TypeScript, actual runtime browser, all hashes and health verified. APK216, schema, sold WMS unchanged; source parity false. Rollback logoff-api:before-ordinary-pick-reviews and logoff-web:before-ordinary-pick-reviews.

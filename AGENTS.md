@@ -121,3 +121,6 @@ Latest verified release PR420: baseline `2026-09-29-fbs-equal-tiles`. Web sha256
 
 
 Latest verified release PR422: baseline `2026-09-29-fbo1550-route`. API sha256:ff9265aa3b693bba2038053967ba690dcac36d325ec621eb7265a746e3fd348a; web unchanged. Scoped remaining-route preference for request1550 only; picked/packed progress unchanged. No DB migration; one audited SystemSetting. APK216/flags/sold WMS unchanged; source parity false.
+
+
+Latest verified release PR424: baseline `2026-09-29-payroll-compact`. Web sha256:0b41f6ce4ae558cee000289e724e41acfb3cb48f436fd9f94d3a43213fe8ecf0; API sha256:ff9265aa3b693bba2038053967ba690dcac36d325ec621eb7265a746e3fd348a. Compact attendance editor; handlers/API unchanged. APK216/sold WMS unchanged; source parity false.

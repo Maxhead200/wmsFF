@@ -1,10 +1,17 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const {patchService,patchController,patchRegistry,patchWeb,patchIndex,historyCss} = require('./openclaw-history-release.cjs');
+const {patchService,patchController,patchRegistry,patchWeb,patchIndex,historyCss,assertActiveWebBundle} = require('./openclaw-history-release.cjs');
 const base=process.env.WMS_OPENCLAW_HISTORY_BASELINE || 'C:/WMSFF2207/baselines/openclaw-history-live-20260929';
 const hasBaseline=fs.existsSync(base+'/manifest.json');
 const read=name=>fs.readFileSync(base+'/'+name,'utf8');
+
+// TEST: updating a dormant bundle cannot make history appear in the active WMS page.
+test('release bundle must be referenced by the live page entry', {skip:!hasBaseline}, () => {
+ const index=read('web-index.html');
+ assert.throws(()=>assertActiveWebBundle(index,'/assets/openclaw-20260928-0.js'),/active page/);
+ assert.doesNotThrow(()=>assertActiveWebBundle(index,'/assets/payroll-compact-20260929-0.js'));
+});
 
 // TEST: preserve every deployed method outside the new history route.
 test('adds one service method and controller route without changing existing bodies', {skip:!hasBaseline}, () => {

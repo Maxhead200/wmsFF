@@ -56,3 +56,15 @@ On the refreshed integration base `e9fab8e6`, API Vitest passed 2936 tests
 with 115 skipped and zero failures; web Vitest passed 353 with 2 skipped.
 API and web TypeScript `--noEmit` passed. Two runtime builder tests passed.
 Reports: `C:/WMSFF2207/reports/openclaw-history-{api,web}-current-20260929.json`.
+
+## Active web entry correction, 30 September 2026
+
+The first web publication patched `/assets/openclaw-20260928-0.js`, which still
+existed in the image but was not loaded by the current `index.html`. The live
+entry was `/assets/payroll-compact-20260929-0.js`, so the page kept the old
+panel even though the API and history stylesheet were published. A release
+baseline must now record `webBundlePath`, and the builder refuses a path absent
+from the captured index. The repair patches only that active entry bundle in
+the current web image. The API, existing stylesheet, page index, stock and sold
+WMS are unchanged. Verify the active entry name and image again before applying
+the repair because later web releases may rename it.

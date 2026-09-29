@@ -1,3 +1,12 @@
+# Published PR416 / 29.09.2026
+
+PR416: approved request and online menus. Online replaces Route; downloads grouped in Documents; obsolete manual/emergency/source-selection actions removed. Edit/cancel moved inside Online with original permission/status predicates and confirmation. Long names and narrow action labels wrap fully. Web351 passed/2 skipped, TypeScript, source and actual runtime browser across 11 themes plus Light; 8 list callbacks and online toolbar actions verified. API PR412/APK216/flags/schema/sold WMS unchanged. Exact image/public hashes and health verified. Source parity false. Rollback logoff-web:before-request-title-wrap.
+
+Web `sha256:83443774025472e37c58d4ef7249bf7219088a84117f49d95b8310c7b3bbb227`; API `sha256:78c06803de1b44099824175217cceb2e6899066de9e485cc6954971b49691957`.
+Baseline `2026-09-29-request-wrap`.
+
+## Previous release
+
 # Published PR414 / 29.09.2026
 
 PR414: compact FBO/FBS request actions with Documents and More disclosures; unique route, explicit edit/cancel, manual stages and administrator recovery. Existing callbacks retained. Web347/API2929 passed, 2/115 skipped; dedicated KIZ DB suite excluded. TypeScript and actual runtime browser checks across 11 themes plus Light passed, including 13 callbacks, keyboard and permissions. API PR412/APK216/flags/schema/sold WMS unchanged. Full hashes/health verified; source parity false. Rollback logoff-web:before-request-action-menus.

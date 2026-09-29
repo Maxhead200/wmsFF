@@ -1,0 +1,3 @@
+# Request action menus / PR416
+
+PR416: approved request and online menus. Online replaces Route; downloads grouped in Documents; obsolete manual/emergency/source-selection actions removed. Edit/cancel moved inside Online with original permission/status predicates and confirmation. Long names and narrow action labels wrap fully. Web351 passed/2 skipped, TypeScript, source and actual runtime browser across 11 themes plus Light; 8 list callbacks and online toolbar actions verified. API PR412/APK216/flags/schema/sold WMS unchanged. Exact image/public hashes and health verified. Source parity false. Rollback logoff-web:before-request-title-wrap.

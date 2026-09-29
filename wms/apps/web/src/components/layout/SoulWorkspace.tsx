@@ -1,5 +1,6 @@
 import React, {useEffect, useRef, useState, type ReactNode} from 'react';
 import {SoulAppearance} from './SoulAppearance';
+import {SoulQuickAccess} from './SoulQuickAccess';
 
 type SoulItem = {id:string; title:string; description?:string};
 type SoulGroup = {id:string; title:string; items:SoulItem[]};
@@ -21,6 +22,7 @@ export function SoulWorkspace({groups,activeId,onOpen,children,enabled=true,user
  return <div className="soul-workspace">
    {/* FIX: requested WMS LOGOff heading; theme selector remains Soul. */}
    <div className="soul-toolbar">{!home?<button type="button" onClick={()=>{onOpen('overview');setBrowse(undefined);}}>← Все разделы</button>:<h1 className="soul-brand">WMS <u>LOGOff</u></h1>}<SoulAppearance key={userId} userId={userId}/></div>
+   <SoulQuickAccess key={userId} userId={userId} activeId={activeId} items={visible.flatMap(g=>g.items.map(i=>({...i,groupId:g.id})))} onOpen={open}/>
    <nav ref={nav} className={home?'soul-home-grid':'soul-expanded'} aria-label="Разделы Soul">
     {!home&&<div className="soul-group-tabs">{visible.map(g=><button className={`soul-${g.id}`} type="button" key={g.id} data-soul-group={g.id} aria-expanded={expanded?.id===g.id} onClick={()=>setBrowse(g.id)}><span aria-hidden="true">{symbols[g.id]||'◇'}</span> {g.title}</button>)}</div>}
     {home?visible.map(card):expanded&&card(expanded)}

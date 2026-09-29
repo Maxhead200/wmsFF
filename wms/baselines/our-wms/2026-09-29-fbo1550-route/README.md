@@ -1,0 +1,3 @@
+# FBO remainder route / PR422
+
+PR422: request-scoped FBO remainder route. Setting activated only for request 1550; preferred receipt FFL_LKB2409. Whole reconciled boxes first, largest useful partial balances next; current unpicked demand and local pallet context retained. Application under request row lock: 1019 picked units preserved; remaining814, route144->134 boxes, whole75/606units->77/624units, no shortage. Two API modules only; web, APK216, flags and sold WMS unchanged. API2933 passed/115 skipped; dedicated KIZ DB suite excluded. TypeScript and read-only actual runtime comparison passed. Exact hashes/health verified; source parity false. Rollback logoff-api:before-fbo1550-remainder-route (preference becomes dormant on old runtime).

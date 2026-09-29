@@ -69,3 +69,8 @@ la_panthera full coverage: web/test/build-la-panthera-coverage.cjs --check (47 c
 - `apps/api/test/stock-operations.service.spec.ts`: те же ограничения на уровне исходников.
 
 Web334/API2895 прошли; 2/113 пропущены, отдельная KIZ DB-серия исключена. TypeScript, браузерные сценарии и runtime-проверки прошли. Снимок `2026-09-29-request-polish`, source parity false.
+
+
+## PR402: сверка и быстрые ссылки
+
+`apps/web/test/reconciliation-theme.browser.cjs`: графитовый контейнер, заголовок/дата, пустое и заполненное состояния, другие темы и печать. `sidebar-favorites.browser.cjs`: переход без раскрытия группы, drag в обе стороны, клавиатура, сохранение порядка и изоляция пользователей; NAV_RUNTIME позволяет проверить фактический опубликованный адаптер. Web334/API2895 passed, 2/113 skipped; отдельная KIZ DB-серия исключена.

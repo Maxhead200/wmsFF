@@ -1,3 +1,12 @@
+# Published PR402 / 29.09.2026
+
+PR402: graphite reconciliation surface, readable teal heading and subtle border in la_panthera. Personal shortcuts no longer expand their original navigation group; edit mode supports drag reorder in both directions and keyboard arrows, persisted per user in browser storage. Original groups and authorization remain intact. Web334/API2895 passed, 2/113 skipped, dedicated KIZ DB suite excluded. Browser source/runtime regressions and TypeScript passed. Full hashes and health verified; API277d5, APK216, flags, schema, sold WMS unchanged. Source parity false. Rollback logoff-web:before-reconciliation-nav.
+
+Web `sha256:e17e49f27e77dce52f86e18386cf8fc29d9bd3e1102e181ad059c00d036f1fc9`; API `sha256:277d5a2c9c5dc21acb28df6d4197688cdb81c4bbf3ca8db4290a5340d855986b`.
+Baseline `2026-09-29-reconciliation-navigation`.
+
+## Previous release
+
 # Published PR400 / 29.09.2026
 
 PR400: complete creation form collapse with draft retention, exact status filters and stage sort labels in every theme. Safe batch DONE recognizes no-box sentinels and selects only a sole sufficient source; server strict stock guard rejects shortages and incomplete assembly without adjustments. Request majority colors include shipped orders until WMS terminal; individual timers use actual order age. Softer route/FBS buttons in la_panthera. Based on PR398 runtime, preserving OWNER sorting access. Web334/API2895 passed, 2/113 skipped, dedicated KIZ DB suite excluded. Browser tests and packaged API fixture passed; complete runtime/public hashes and health verified. APK216, schema, flags, sold WMS unchanged. Source parity remains false. Rollback logoff-web:before-request-polish and logoff-api:before-request-polish.

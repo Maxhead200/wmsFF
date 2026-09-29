@@ -1,0 +1,3 @@
+# Compact attendance editor / PR424
+
+PR424: compact attendance editor in opt-in la_panthera. Max width720, content height, two-column fields and inline actions; narrow-screen stacking. Save/delete/time calculation unchanged. Web351 passed/2 skipped, TypeScript, source and actual runtime browser checks passed. API PR422, APK216, flags and sold WMS unchanged. Exact hashes/health verified; source parity false. Rollback logoff-web:before-payroll-compact.

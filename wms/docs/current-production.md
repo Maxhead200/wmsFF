@@ -1,3 +1,12 @@
+# Published PR424 / 29.09.2026
+
+PR424: compact attendance editor in opt-in la_panthera. Max width720, content height, two-column fields and inline actions; narrow-screen stacking. Save/delete/time calculation unchanged. Web351 passed/2 skipped, TypeScript, source and actual runtime browser checks passed. API PR422, APK216, flags and sold WMS unchanged. Exact hashes/health verified; source parity false. Rollback logoff-web:before-payroll-compact.
+
+Web `sha256:0b41f6ce4ae558cee000289e724e41acfb3cb48f436fd9f94d3a43213fe8ecf0`; API `sha256:ff9265aa3b693bba2038053967ba690dcac36d325ec621eb7265a746e3fd348a`.
+Baseline `2026-09-29-payroll-compact`.
+
+## Previous release
+
 # Published PR422 / 29.09.2026
 
 PR422: request-scoped FBO remainder route. Setting activated only for request 1550; preferred receipt FFL_LKB2409. Whole reconciled boxes first, largest useful partial balances next; current unpicked demand and local pallet context retained. Application under request row lock: 1019 picked units preserved; remaining814, route144->134 boxes, whole75/606units->77/624units, no shortage. Two API modules only; web, APK216, flags and sold WMS unchanged. API2933 passed/115 skipped; dedicated KIZ DB suite excluded. TypeScript and read-only actual runtime comparison passed. Exact hashes/health verified; source parity false. Rollback logoff-api:before-fbo1550-remainder-route (preference becomes dormant on old runtime).

@@ -1,0 +1,3 @@
+# Requests and la_panthera / PR404
+
+PR404: compact FBS selection controls along the top and action buttons below; matching green/amber/red request palette for zone buttons and elapsed timers. CSS-only, two files changed, all JavaScript/API unchanged. Desktop/narrow layout and actual runtime CSS browser tests passed, including other themes and print isolation. Web334/API2895 passed; 2/113 skipped, dedicated KIZ DB suite excluded. Full hashes and health verified; APK216, flags, schema, sold WMS unchanged. Source parity false. Rollback logoff-web:before-fbs-zone-colors.

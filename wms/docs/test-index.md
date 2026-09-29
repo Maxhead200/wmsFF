@@ -124,3 +124,9 @@ PR404: `apps/web/test/fbs-zone-colors.browser.cjs` — реальные CSS, т�
 - `onlineRequestToolbar.test.tsx`: original download callbacks, optional edit/cancel, unchanged status predicates, assembly body retained.
 - `request-action-menus.browser.cjs`: source and actual runtime; 11 themes plus Light; eight retained list callbacks, online documents/WMS boxes/edit/cancel/refresh/close, denied actions absent, no clipped labels.
 - Web351 passed/2 skipped; TypeScript passed. API unchanged.
+
+
+## Four equal request menu rows
+
+- Browser regression checks four vertically sequential controls, equal width/56px height, identical background/text colour, horizontal and vertical centering for FBS/FBO and all themes. Failed against PR416 before CSS fix. Existing keyboard and callback tests retained.
+- CSS-only release; JavaScript/API/APK unchanged.

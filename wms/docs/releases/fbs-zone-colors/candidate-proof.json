@@ -1,0 +1,10 @@
+{
+  "passed": true,
+  "base": "sha256:e17e49f27e77dce52f86e18386cf8fc29d9bd3e1102e181ad059c00d036f1fc9",
+  "candidate": "sha256:242efa059355a38ccf8a5973766d230a027961fc2ee42680d7f3f8962167fff3",
+  "api": "sha256:277d5a2c9c5dc21acb28df6d4197688cdb81c4bbf3ca8db4290a5340d855986b",
+  "changed": [
+    "assets/fbs-zone-colors-20260929.css",
+    "index.html"
+  ]
+}

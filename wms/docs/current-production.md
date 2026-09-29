@@ -1,3 +1,9 @@
+# Published PR412 / 29.09.2026
+
+PR412: explicit administrator/owner KIZ reuse with a later audited physical sorting return when historical WB status is unavailable. Two API modules only. WMS_KIZ_PHYSICAL_REVIEW_ENABLED=true only on our WMS. Runtime tests33, API2929/web343 passed;115/2 skipped; isolated PostgreSQL suite excluded. API TypeScript passed. Live physical proof verified read-only. Exact runtime hashes, health, flags and unchanged web/APK/other containers verified. No business records changed. Source parity false. Rollback logoff-api:before-kiz-physical-review.
+
+Baseline: `2026-09-29-kiz-physical-review`. API `sha256:78c06803de1b44099824175217cceb2e6899066de9e485cc6954971b49691957`.
+
 # Published PR410 / 29.09.2026
 
 PR410: la_panthera now offers an independent Dark/Light style selector next to the theme. Dark remains default; style persists per browser/user, isolated from other themes and accounts. Light uses pale teal/white surfaces, dark text and pastel accents; request zones and original panther remain visible. Web343/API2929 passed, 2/115 skipped; dedicated KIZ DB suite excluded. TypeScript, 30-view contrast >=4.5:1, print exclusion, actual App persistence/theme/user checks and request table browser checks passed. Main selector, CSS and versioned import paths only; API/APK216/flags/schema/sold WMS unchanged. Full hashes/health verified; source parity false. Rollback logoff-web:before-la-panthera-light.

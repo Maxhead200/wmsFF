@@ -100,3 +100,6 @@ Latest verified release PR406: baseline `2026-09-29-ordinary-pick-reviews`. Web 
 
 
 Latest verified release PR408: baseline `2026-09-29-compact-request-columns`. Web sha256:4d3bb184e13764d8bfbced614cb042986b24c4da16b1174e37889afc43c6f771; API sha256:aba843bb78a45c4a1f06a25315f53210b8eaad6992d44f1bc02dfff97a8208e5. Compact request columns in every theme; API and previous behavior unchanged. APK216/sold WMS unchanged; source parity false.
+
+
+Latest verified release PR410: baseline `2026-09-29-la-panthera-light`. Web sha256:eb0e9d15040e6512d3363ec3d87f99c2c280c9d47f709be4886cb244332880bb; API sha256:aba843bb78a45c4a1f06a25315f53210b8eaad6992d44f1bc02dfff97a8208e5. Opt-in Dark/Light style for la_panthera; API and previous behavior unchanged. APK216/sold WMS unchanged; source parity false.

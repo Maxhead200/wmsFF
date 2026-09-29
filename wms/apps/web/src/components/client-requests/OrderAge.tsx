@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { fbsActiveOrderAgeTone } from '../fbs/fbsOrderDeadlineReport';
 
 // FIX: calculate from WB creation, without substituting a local import timestamp.
 export function orderAgeLabel(createdAt: string | null | undefined, now: number): string | null {
@@ -17,7 +18,7 @@ export function OrderAge({ createdAt }: { createdAt?: string | null }) {
   }, []);
   const label = orderAgeLabel(createdAt, now);
   if (!label || !createdAt) return null;
-  return <span className="online-order-age">
+  return <span className="online-order-age" data-age-zone={fbsActiveOrderAgeTone(now-Date.parse(createdAt))}>
     <span>от {new Date(createdAt).toLocaleDateString('ru-RU', { timeZone: 'Europe/Moscow' })}</span>
     <small style={{ display: 'inline-block', background: '#f0f0f3', borderRadius: 4, padding: '2px 8px', fontVariantNumeric: 'tabular-nums' }}>{label}</small>
   </span>;

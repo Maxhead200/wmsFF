@@ -10,12 +10,13 @@ const { chromium } = require('C:/Users/La_pa/.cache/codex-runtimes/codex-primary
     await page.addStyleTag({ path: path.resolve(__dirname, '../src/components/layout/la-panthera-theme.css') });
     // TEST: reduce only the action background intensity, keeping foreground opaque.
     await page.evaluate(() => {
-      document.body.insertAdjacentHTML('beforeend','<div class="client-request-actions"><button class="client-request-action-button"><span>Выбрать короба</span></button></div>');
+      document.body.insertAdjacentHTML('beforeend','<button class="client-request-row-fbs-link">К заказам FBS</button><button class="client-request-row-fbs-link client-request-row-fbs-link--route">Маршрут</button><div class="client-request-actions"><button class="client-request-action-button"><span>Выбрать короба</span></button></div>');
       document.querySelector('#other').insertAdjacentHTML('beforeend','<strong class="workspace-nav__badge">99+</strong>');
     });
     const css = (selector, property) => page.locator(selector).evaluate((el, prop) => getComputedStyle(el)[prop], property);
     assert.match(await css('.client-request-action-button', 'backgroundImage'), /rgba\(106, 90, 205, 0.3\)/);
     assert.equal(await css('.client-request-action-button', 'opacity'), '1');
+    for(const button of await page.locator('.client-request-row-fbs-link').all()){assert.match(await button.evaluate(e=>getComputedStyle(e).backgroundImage),/rgba\(106, 90, 205, 0.3\)/);assert.equal(await button.evaluate(e=>getComputedStyle(e).opacity),'1');}
     assert.equal(await css('.workspace-nav__badge', 'backgroundColor'), 'rgb(32, 49, 53)');
     assert.equal(await css('.workspace-nav__badge', 'color'), 'rgb(184, 231, 231)');
     for (const selector of ['.app-sidebar', '.workspace-header']) {

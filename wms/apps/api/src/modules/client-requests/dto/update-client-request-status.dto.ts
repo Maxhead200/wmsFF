@@ -14,6 +14,11 @@ import {
 import { PackageClientRequestPlaceDto } from '../../stock/dto/fulfill-client-request.dto';
 
 export class ClientRequestPhysicalStockSourceDto {
+  // FIX: automatic source selection may not reconcile missing stock.
+  @IsOptional()
+  @IsBoolean()
+  requireAvailableStock?: boolean;
+
   @IsString()
   requestItemId!: string;
 

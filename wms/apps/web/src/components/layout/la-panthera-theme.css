@@ -2911,7 +2911,7 @@
 }
 /* FIX: mix request action gradients into graphite without dimming labels or icons. */
 @media screen {
- :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .client-request-actions .client-request-action-button:not(:disabled):not(.client-request-action-button--cancel):not(.client-request-action-button--emergency-rollback) {
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] :is(.client-request-row-fbs-link, .client-request-actions .client-request-action-button:not(:disabled):not(.client-request-action-button--cancel):not(.client-request-action-button--emergency-rollback)) {
   background: linear-gradient(110deg, rgb(106 90 205 / 30%), rgb(193 84 193 / 26%)) #202127;
   border-color: #786593;
   color: #f3eefb;
@@ -3021,4 +3021,12 @@
  }
  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-table .fbs-table__shipment-heading button:disabled { background: #25262d; color: #aeb1c2; opacity: 1; border-color: #444651; }
  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-table .fbs-table__shipment-heading button:hover:not(:disabled) { background: #433044; border-color: #c154c1; }
+}
+
+/* FIX: individual order timers also live outside request table rows (online execution). */
+@media screen {
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .online-order-age[data-age-zone='normal'] { --request-zone-ink: #93c9ac; --request-zone-bg: #25352e; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .online-order-age[data-age-zone='warning'] { --request-zone-ink: #dfc281; --request-zone-bg: #393326; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .online-order-age[data-age-zone='critical'] { --request-zone-ink: #e79d9f; --request-zone-bg: #3a282e; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .online-order-age[data-age-zone] small { color: var(--request-zone-ink); background: var(--request-zone-bg) !important; }
 }

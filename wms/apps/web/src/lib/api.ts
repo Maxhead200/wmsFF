@@ -8758,6 +8758,7 @@ export async function updateClientRequestStatus(
     allowOverweightPackages?: boolean;
     packages?: unknown[];
     stockSources?: Array<{
+      requireAvailableStock?: boolean;
       requestItemId: string;
       boxCode?: string;
       noBox?: boolean;
@@ -9660,10 +9661,11 @@ export async function connectAnalyticsApi(accessToken: string, clientId: string,
   });
 }
 
-export async function fetchFbsOrders(accessToken: string, clientId: string, refresh = false) {
+export async function fetchFbsOrders(accessToken: string, clientId: string, refresh = false, view?: 'snapshot') {
   return request<ClientFbsOrders>(
     withQuery('/marketplace-connections/fbs/orders', {
       clientId,
+      view,
       refresh: refresh ? '1' : undefined,
     }),
     { accessToken },

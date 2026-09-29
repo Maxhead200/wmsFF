@@ -90,7 +90,7 @@ import {
   type CloseStockSourceValue,
 } from './closeStockRecovery';
 import { HtmlDocumentPreview } from '../documents/HtmlDocumentPreview';
-import { requestStatusLabel } from './clientRequestMeta';
+import { requestStatusLabel, requestStatusOptions } from './clientRequestMeta';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { PickWaveBalanceReviewPanel } from './PickWaveBalanceReviewPanel';
 import { useRememberedClientId } from '../../lib/rememberedClient';
@@ -294,11 +294,13 @@ export function ClientRequestsPanel({
   const [resolvingFbsSynchronizationRequestId, setResolvingFbsSynchronizationRequestId] = useState<string | null>(null);
 
   const visibleClients = useMemo(() => clients.data, [clients.data]);
+  const [requestStatusFilter, setRequestStatusFilter] = useState('');
   const displayedRequests = useMemo(
     () => ({
       ...requests,
       data: requests.data
         .filter(request => !fboOnly || isWbFboRequest(request))
+        .filter(request => !requestStatusFilter || request.status === requestStatusFilter)
         .filter((request) => {
           const isArchived = request.status === 'DONE' || request.status === 'CANCELLED' || request.status === 'REJECTED';
           return showArchive ? isArchived : !isArchived;
@@ -319,7 +321,7 @@ export function ClientRequestsPanel({
           return requestSortDirection === 'asc' ? difference : -difference;
         }),
     }),
-    [requests, requestSortDirection, requestSortField, showArchive, fboOnly],
+    [requests, requestSortDirection, requestSortField, showArchive, fboOnly, requestStatusFilter],
   );
   const batch = useRequestBatch({items: displayedRequests.data, enabled: !showArchive && canChangeStatus, token: session.accessToken, fetchSelection: fetchClientRequestManualBoxSelection, updateStatus: updateClientRequestStatus, reload: loadData});
 
@@ -2013,10 +2015,9 @@ export function ClientRequestsPanel({
       ) : null}
 
       {!showArchive && canWrite && clients.status === 'ready' ? (
-        <>
-          <details className="client-request-excel-collapse"><summary>Сборка из Excel</summary><ClientRequestXlsxImportForm clients={visibleClients} session={session} onCreated={acceptCreated} /></details>
+        <details className="client-request-excel-collapse"><summary>Сборка из Excel</summary><ClientRequestXlsxImportForm clients={visibleClients} session={session} onCreated={acceptCreated} />
           <ClientRequestCreateForm clients={visibleClients} session={session} onCreated={acceptCreated} outboundOnly={fboOnly} />
-        </>
+        </details>
       ) : null}
 
       {error ? <p className="form-error">{error}</p> : null}
@@ -2156,10 +2157,11 @@ export function ClientRequestsPanel({
               window.localStorage.setItem(`wms-request-sort-direction:${session.user.id}`, value);
             }}
           >
-            <option value="desc">Сначала большие / новые</option>
-            <option value="asc">Сначала маленькие / старые</option>
+            <option value="desc">{requestSortField === 'status' ? 'В обратном порядке этапов' : 'Сначала большие / новые'}</option>
+            <option value="asc">{requestSortField === 'status' ? 'По порядку этапов' : 'Сначала маленькие / старые'}</option>
           </select>
         </label>
+        <label>Статус<select aria-label="Статус заявки" value={requestStatusFilter} onChange={event=>{const value=event.target.value;setRequestStatusFilter(value);if(value)setShowArchive(['DONE','CANCELLED','REJECTED'].includes(value));}}><option value="">Все статусы</option>{requestStatusOptions.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
         <strong>{displayedRequests.data.length} заявок</strong>
       </div>
 

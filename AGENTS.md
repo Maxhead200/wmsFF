@@ -88,3 +88,6 @@ Latest verified release PR396: baseline `2026-09-29-request-batch-theme`. Web sh
 
 
 Latest verified release PR400: baseline `2026-09-29-request-polish`. Web sha256:6fb21ea4193cd208c1a989ea81b41b87a1cba9ea928394738611091360c171c0; API sha256:277d5a2c9c5dc21acb28df6d4197688cdb81c4bbf3ca8db4290a5340d855986b. Request archive/bulk actions in all themes; navigation/visual changes opt-in la_panthera. APK216/sold WMS unchanged; source parity false.
+
+
+Latest verified release PR402: baseline `2026-09-29-reconciliation-navigation`. Web sha256:e17e49f27e77dce52f86e18386cf8fc29d9bd3e1102e181ad059c00d036f1fc9; API sha256:277d5a2c9c5dc21acb28df6d4197688cdb81c4bbf3ca8db4290a5340d855986b. Request archive/bulk actions in all themes; navigation/visual changes opt-in la_panthera. APK216/sold WMS unchanged; source parity false.

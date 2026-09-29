@@ -1,0 +1,3 @@
+# Requests and la_panthera / PR402
+
+PR402: graphite reconciliation surface, readable teal heading and subtle border in la_panthera. Personal shortcuts no longer expand their original navigation group; edit mode supports drag reorder in both directions and keyboard arrows, persisted per user in browser storage. Original groups and authorization remain intact. Web334/API2895 passed, 2/113 skipped, dedicated KIZ DB suite excluded. Browser source/runtime regressions and TypeScript passed. Full hashes and health verified; API277d5, APK216, flags, schema, sold WMS unchanged. Source parity false. Rollback logoff-web:before-reconciliation-nav.

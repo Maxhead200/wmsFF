@@ -8,6 +8,7 @@ import { createRequire } from 'node:module';
 const { MarketplaceConnectionsService } = process.env.FBS_RUNTIME_ENTRY
   ? createRequire(import.meta.url)(process.env.FBS_RUNTIME_ENTRY)
   : await import('../src/modules/marketplace-connections/marketplace-connections.service');
+const reconcileRuntime = process.env.FBS_RUNTIME_AUTO_STATUS_ENTRY ? createRequire(import.meta.url)(process.env.FBS_RUNTIME_AUTO_STATUS_ENTRY).reconcileFbsRequestStatus : reconcileFbsRequestStatus;
 const url = process.env.FBS_AUTO_STATUS_TEST_DATABASE_URL;
 if (url && !/^postgresql:\/\/codex_tests@127\.0\.0\.1:55479\/fbs_auto_status_tests$/.test(url)) throw Error('Dedicated test database only');
 
@@ -16,7 +17,7 @@ describe.skipIf(!url).sequential('FBS automatic request statuses', () => {
   let clientId: string, warehouseId: string, requestId: string, userId: string, stationId: string, boxId: string;
   let tasks: Awaited<ReturnType<typeof db.fbsTsdAssembly.findMany>>;
   const apply = (stage: 'START' | 'PICK' | 'SOS_PRINT', occurredAt = new Date()) =>
-    db.$transaction(tx => reconcileFbsRequestStatus(tx, requestId, { stage, occurredAt, actorId: userId }));
+    db.$transaction(tx => reconcileRuntime(tx, requestId, { stage, occurredAt, actorId: userId }));
   const status = async () => (await db.clientRequest.findUniqueOrThrow({ where: { id: requestId } })).status;
   const pick = async () => db.fbsTsdAssembly.updateMany({ where: { requestId }, data: { status: 'COMPLETED', completedAt: new Date() } });
   async function print(index: number, printed = true, source = 'SOS-WB:TEST', shipped = true) {
@@ -57,6 +58,8 @@ describe.skipIf(!url).sequential('FBS automatic request statuses', () => {
     await db.wbOrderShipment.deleteMany({ where: { clientId } });
     await db.fbsTsdAssembly.deleteMany({ where: { clientId } });
     await db.clientRequest.deleteMany({ where: { clientId } });
+    await db.stockMovement.deleteMany({ where: { clientId } });
+    await db.stockBalance.deleteMany({ where: { clientId } });
     await db.sku.deleteMany({ where: { clientId } });
     await db.box.deleteMany({ where: { clientId } });
     await db.client.delete({ where: { id: clientId } });
@@ -66,6 +69,29 @@ describe.skipIf(!url).sequential('FBS automatic request statuses', () => {
     vi.unstubAllEnvs();
   });
   afterAll(() => db.$disconnect());
+  // TEST: isolated PostgreSQL proves concurrent retries, stock safety and rollback.
+  async function seedOrdinaryStock(shortage=false) {
+    vi.stubEnv('WMS_FBS_UNMARKED_PICK_CLOSE_ENABLED','true');
+    vi.stubEnv('WMS_WB_ORDER_STOCK_LIFECYCLE_ENABLED','true');
+    await pick();
+    for(const [index,task] of tasks.entries()) {
+      await db.stockMovement.create({data:{clientId,warehouseId,skuId:task.skuId,status:'PACKING',type:'MOVE',quantity:1,sourceDocument:requestId,idempotencyKey:`fbs-sticker-pick:${task.id}:test`}});
+      if(!shortage||index===0)await db.stockBalance.create({data:{clientId,warehouseId,skuId:task.skuId,status:'PACKING',quantity:1,balanceKey:randomUUID()}});
+    }
+  }
+  it('closes ordinary unmarked picks once under concurrent retries',async()=>{
+    await seedOrdinaryStock();await Promise.all([apply('PICK'),apply('PICK')]);
+    expect(await status()).toBe('DONE');expect(await db.wbOrderShipment.count({where:{requestId}})).toBe(2);
+    expect(await db.stockMovement.count({where:{sourceDocument:requestId,type:'SHIP'}})).toBe(2);
+    expect((await db.stockBalance.aggregate({where:{clientId},_sum:{quantity:true}}))._sum.quantity).toBe(0);
+    await apply('PICK');expect(await db.stockMovement.count({where:{sourceDocument:requestId,type:'SHIP'}})).toBe(2);
+  });
+  it('rolls back every shipment if the final unit lacks packing stock',async()=>{
+    await seedOrdinaryStock(true);await expect(apply('PICK')).rejects.toThrow('Недостаточно');
+    expect(await status()).toBe('SUBMITTED');expect(await db.wbOrderShipment.count({where:{requestId}})).toBe(0);
+    expect(await db.stockMovement.count({where:{sourceDocument:requestId,type:'SHIP'}})).toBe(0);
+    expect((await db.stockBalance.aggregate({where:{clientId},_sum:{quantity:true}}))._sum.quantity).toBe(1);
+  });
   // TEST: real order and line evidence drives all three transitions without duplicate history.
   it('advances on start, complete pick and final successful SOS print', async () => {
     await apply('START'); expect(await status()).toBe('IN_WORK');

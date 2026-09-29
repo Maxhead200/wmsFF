@@ -3069,3 +3069,22 @@
  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-order-actions__buttons { display: flex; flex-wrap: wrap; justify-content: flex-start; align-items: center; gap: 8px; padding-top: 12px; border-top: 1px solid #3c414a; min-width: 0; }
  :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .fbs-order-actions__buttons .button { flex: 0 1 auto; max-width: 100%; white-space: normal; }
 }
+
+/* FIX: monitoring across the top, compact reviews and a readable gold notification bell. */
+@media screen {
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .monitoring-hub__switcher { grid-template-columns: repeat(3,minmax(0,1fr)); width: 100%; align-items: stretch; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .monitoring-hub__switcher :is(strong,small) { white-space: normal; overflow: visible; overflow-wrap: anywhere; text-overflow: clip; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .header-notification-center > button > svg { color: #e2ba62; fill: rgba(226,186,98,.13); }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .header-notification-center > button > span { background: #efd28c; color: #201910; border: 1px solid #f5dfa8; font-weight: 800; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .notification-read-all { padding: 12px 16px; border-bottom: 1px solid #383f46; background: #1e2327; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .notification-read-all button { padding: 8px 14px; border: 1px solid #716343; border-radius: 9px; background: #343024; color: #e9d7ab; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .notification-read-all p { margin: 8px 0 0; color: #bbc7cb; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .kiz-review-case { background: #20242a; border: 1px solid #3b454b; border-radius: 10px; margin-block: 10px; padding: 0; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .kiz-review-case > summary { padding: 12px 16px; cursor: pointer; color: #9bd4ce; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .kiz-review-case > summary h4 { display: inline; color: inherit; margin: 0; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .kiz-review-case > summary span { display: block; color: #b2bbc6; margin-top: 5px; }
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .kiz-review-case__body { padding: 0 16px 14px; overflow-wrap: anywhere; }
+}
+@media screen and (max-width: 760px) {
+ :root[data-ui-theme='modern'][data-ui-variant='la_panthera'] .monitoring-hub__switcher { grid-template-columns: 1fr; }
+}

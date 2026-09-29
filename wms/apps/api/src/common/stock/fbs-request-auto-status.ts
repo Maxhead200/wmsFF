@@ -1,3 +1,5 @@
+import { isOrdinaryUnmarkedPick } from './ordinary-unmarked-pick';
+import { finalizeWbOrderShipment, wbOrderStockLifecycleEnabled } from './wb-order-stock-lifecycle';
 import { ozonPickLinesEnabled, readOzonPickState } from '../../modules/marketplace-connections/ozon-fbs-pick-lines';
 import { ClientRequestStatus, Prisma } from '@prisma/client';
 
@@ -27,6 +29,7 @@ export async function reconcileFbsRequestStatus(tx: Prisma.TransactionClient, re
   if (manual) return;
   const allTasks = await tx.fbsTsdAssembly.findMany({ where: { requestId, clientId: request.clientId }, select: {
     id: true, marketplace: true, connectionId: true, orderId: true, requestItemId: true, skuId: true,
+    requiresKiz: true, kiz: true, barcode: true, sourceBoxPending: true,
     status: true, itemCount: true, startedAt: true, completedAt: true, workerUserId: true, deviceCode: true,
   } });
   const keys = new Set(links.filter(l => l.syncStatus === 'ACTIVE').map(orderKey));
@@ -63,11 +66,25 @@ export async function reconcileFbsRequestStatus(tx: Prisma.TransactionClient, re
     const shipped = new Map(shipments.map(s => [s.assemblyId, s.quantity]));
     if (tasks.every(t => printed.has(t.id) && shipped.get(t.id) === t.itemCount)) target = 'DONE';
   }
+  // FIX: final physical pick and stock shipment share the caller transaction and request lock.
+  let ordinaryClosed = false;
+  if (complete && trigger.stage === 'PICK' && wbOrderStockLifecycleEnabled() && tasks.every(isOrdinaryUnmarkedPick)) {
+    const sosJobs = await tx.fbsPrintJob.findMany({ where: { requestId, assemblyId: { in: tasks.map(t => t.id) },
+      deviceCode: { startsWith: 'SOS-WB:' } }, select: { assemblyId: true } });
+    if (!sosJobs.length) {
+      for (const task of tasks) {
+        const fact = await finalizeWbOrderShipment(tx, task.id, 'STANDARD_PICK_CONFIRMED',
+          { orderId: task.orderId, barcode: task.barcode, confirmation: 'Товар отобран' }, trigger.occurredAt);
+        if (!fact || fact.quantity !== task.itemCount) throw new Error('Не подтверждено складское списание обычного отбора.');
+      }
+      target = 'DONE'; ordinaryClosed = true;
+    }
+  }
   if (rank[target]! <= rank[request.status]!) return;
   await tx.clientRequest.update({ where: { id: requestId }, data: { status: target } });
   await tx.clientRequestEvent.create({ data: { requestId, clientId: request.clientId, eventType: 'STATUS_CHANGED',
     title: FBS_AUTO_STATUS_TITLE, statusFrom: request.status, statusTo: target, createdByUserId: trigger.actorId ?? null,
-    body: target === 'DONE' ? 'Все товары обработаны через SOS WB 2, печать и складское списание подтверждены.' :
+    body: ordinaryClosed ? 'Все товары без КИЗ отобраны и упакованы; складское списание подтверждено.' : target === 'DONE' ? 'Все товары обработаны через SOS WB 2, печать и складское списание подтверждены.' :
       target === 'PACKED' ? 'Отбор всех товаров заявки завершён.' : 'Сотрудник приступил к сборке FBS.' } });
   // FIX: collect the actual transition; the caller sends only after transaction commit.
   changes?.push({ clientId: request.clientId, requestId, number: request.number, title: request.title, from: request.status, to: target });

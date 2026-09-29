@@ -154,6 +154,7 @@ type RequestItemForAllocation = {
 };
 
 export type PhysicalStockSourceInput = {
+  requireAvailableStock?: boolean;
   requestItemId: string;
   boxCode?: string;
   noBox?: boolean;
@@ -3230,6 +3231,7 @@ export class StockOperationsService {
         boxCode,
         noBox,
         quantity: source.quantity,
+        requireAvailableStock: source.requireAvailableStock === true,
       };
     });
     for (const source of normalizedSources) {
@@ -3388,7 +3390,7 @@ export class StockOperationsService {
       const allocations: Array<{ balance: StockBalanceForAllocation; quantity: number }> = [];
       const confirmedSources = sourcesByItem.get(item.id);
       const incompleteFbsOrderIds = incompleteFbsOrdersBySku.get(sku.id) ?? [];
-      if (incompleteFbsOrderIds.length > 0 && !confirmedSources) {
+      if (incompleteFbsOrderIds.length > 0 && (!confirmedSources || confirmedSources.some(source => source.requireAvailableStock))) {
         throw new BadRequestException(
           `По позиции ${sku.internalSku} не завершены FBS-заказы №${incompleteFbsOrderIds.join(', №')}. ` +
             'Подтвердите фактический короб или выберите «Без короба» для этой позиции.',
@@ -3406,6 +3408,9 @@ export class StockOperationsService {
             allocations,
           );
           if (missing <= 0) continue;
+          // FIX: a batch-selected source cannot create stock to cover a concurrent shortage.
+          if (source.requireAvailableStock) throw new BadRequestException(`Недостаточно остатка в коробе ${box?.code}: не хватает ${missing} шт. Выберите источник заново.`);
+
 
           const targetBalance = await this.incrementTargetBalance(tx, {
             warehouseId: this.requireBalanceWarehouseId(box?.warehouseId ?? warehouseId),

@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {batchDonePayload, canBatchComplete, compareRequestStatus, missingSourceOnly, runRequestBatch} from './requestBatch';
+import {batchDonePayload, canBatchComplete, compareRequestStatus, missingSourceOnly, batchStockSources, runRequestBatch} from './requestBatch';
 // TEST: never erase a known box, even if its balance is zero or insufficient.
 describe('request batch safety',()=>{
  it('selects noBox only without any known source',()=>{
@@ -20,4 +20,19 @@ describe('request batch safety',()=>{
   expect(batchDonePayload(request as any,9,{items:[]} as any)).toMatchObject({boxes:1,pallets:1,packedUnits:8,allowOverweightPackages:false});
   expect(batchDonePayload({...request,status:'IN_WORK',packages:[]} as any,2,{items:[]} as any)).toMatchObject({boxes:2,pallets:0,packedUnits:20});
  });
+});
+
+// TEST: production tasks use a sentinel for no box; it is not a physical source.
+it('recognizes the no-box sentinel without discarding a real source',()=>{
+ const item={requestItemId:'i',requestedQuantity:2,selectedQuantity:0,boxes:[],fbsOrders:[{boxCode:'БЕЗ КОРОБА'}]};
+ expect(missingSourceOnly([item] as any)).toEqual([{requestItemId:'i',quantity:2,noBox:true}]);
+ expect(missingSourceOnly([{...item,boxes:[{boxCode:'REAL',availableQuantity:0}]}] as any)).toEqual([]);
+});
+// TEST: only a sole sufficient known source may be selected automatically.
+it('uses the sole source, preserving shortages and ambiguous choices',()=>{
+ const item={requestItemId:'i',requestedQuantity:2,selectedQuantity:0,boxes:[{boxCode:'MANUAL-STOCK',availableQuantity:5}],fbsOrders:[]};
+ expect(batchStockSources([item] as any)).toEqual([{requestItemId:'i',boxCode:'MANUAL-STOCK',quantity:2,requireAvailableStock:true}]);
+ expect(()=>batchStockSources([{...item,boxes:[{boxCode:'REAL',availableQuantity:1}]}] as any)).toThrow();
+ expect(()=>batchStockSources([{...item,boxes:[...item.boxes,{boxCode:'SECOND',availableQuantity:5}]}] as any)).toThrow();
+ expect(batchStockSources([{...item,selectedQuantity:2}] as any)).toEqual([]);
 });

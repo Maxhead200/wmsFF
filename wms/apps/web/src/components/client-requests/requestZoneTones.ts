@@ -4,7 +4,7 @@ import { fbsDeadlineSnapshot, type FbsDeadlineTone } from '../fbs/fbsOrderDeadli
 export function requestZoneTones(orders: FbsOrderSummary[], now: number): Record<string,FbsDeadlineTone> {
   const counts=new Map<string,Record<FbsDeadlineTone,number>>(),seen=new Set<string>();
   for(const order of orders){
-    if(order.category!=='active'||!order.request)continue;
+    if(!['active','shipped'].includes(order.category)||!order.request||['DONE','CANCELLED','REJECTED'].includes(order.request.status))continue;
     const key=`${order.connectionId}:${order.id}`;
     if(seen.has(key))continue;seen.add(key);
     const snapshot=fbsDeadlineSnapshot(order,now);if(!snapshot)continue;

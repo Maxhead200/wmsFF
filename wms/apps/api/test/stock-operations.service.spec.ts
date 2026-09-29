@@ -1120,7 +1120,111 @@ describe('StockOperationsService', () => {
     );
   });
 
-  it('требует фактический источник для каждого FBS-заказа, который не завершён на ТСД', async () => {
+  it('TEST: automatic known box refuses a shortage without inventory adjustment', async () => {
+    const existingBalance = {
+      id: 'balance-1',
+      balanceKey: 'client-1:sku-1:box-1:no-pallet:AVAILABLE',
+      clientId: 'client-1',
+      warehouseId: 'warehouse-1',
+      skuId: 'sku-1',
+      boxId: 'box-1',
+      palletId: null,
+      status: 'AVAILABLE',
+      quantity: 1,
+      updatedAt: new Date('2026-07-25T00:00:00.000Z'),
+      box: { code: 'FFL_LKB1107_245', warehouseId: 'warehouse-1' },
+    };
+    const reconciledBalance = {
+      id: 'shipping-1',
+      balanceKey: 'client-1:sku-1:box-1:no-pallet:SHIPPING',
+      clientId: 'client-1',
+      warehouseId: 'warehouse-1',
+      skuId: 'sku-1',
+      boxId: 'box-1',
+      palletId: null,
+      status: 'SHIPPING',
+      quantity: 1,
+      updatedAt: new Date('2026-07-25T01:00:00.000Z'),
+    };
+    const tx = {
+      sku: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'sku-1',
+          internalSku: 'Костюм-вейв-44',
+          weightGrams: 500,
+        }),
+      },
+      box: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: 'box-1',
+            code: 'FFL_LKB1107_245',
+            palletId: null,
+            warehouseId: 'warehouse-1',
+          },
+        ]),
+      },
+      stockBalance: {
+        findMany: vi.fn().mockResolvedValue([existingBalance]),
+        upsert: vi.fn().mockResolvedValue(reconciledBalance),
+      },
+      stockMovement: {
+        create: vi.fn().mockResolvedValue({ id: 'adjustment-1' }),
+      },
+      fbsOrderRequestLink: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      fbsTsdAssembly: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+    };
+    const physicalService = new StockOperationsService(
+      {} as never,
+      {} as never,
+      {
+        balanceKey: vi.fn().mockReturnValue(reconciledBalance.balanceKey),
+      } as never,
+    );
+
+    await expect((physicalService as unknown as {
+      planRequestAllocationsWithPhysicalSources: (
+        tx: typeof tx,
+        request: {
+          id: string;
+          clientId: string;
+          items: Array<{ id: string; skuId: string; barcode: null; quantity: number }>;
+        },
+        selections: never[],
+        sources: Array<{ requestItemId: string; boxCode: string; quantity: number; requireAvailableStock: boolean }>,
+        baseKey: string,
+        warehouseId?: string,
+      ) => Promise<{
+        lines: Array<{ allocations: Array<{ quantity: number }> }>;
+      }>;
+    }).planRequestAllocationsWithPhysicalSources(
+      tx,
+      {
+        id: 'request-35',
+        clientId: 'client-1',
+        items: [{ id: 'item-1', skuId: 'sku-1', barcode: null, quantity: 2 }],
+      },
+      [],
+      [
+        {
+          requestItemId: 'item-1',
+          boxCode: 'ffl_lkb1107_245',
+          requireAvailableStock: true,
+          quantity: 2,
+        },
+      ],
+      'manual-status-done:request-35',
+      'warehouse-1',
+    )).rejects.toThrow(/Недостаточно остатка/);
+    expect(tx.stockBalance.upsert).not.toHaveBeenCalled();
+    expect(tx.stockMovement.create).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])('TEST: incomplete FBS order stays blocked (strict=%s)', async (strict) => {
     const tx = {
       sku: {
         findFirst: vi
@@ -1189,7 +1293,7 @@ describe('StockOperationsService', () => {
           ],
         },
         [],
-        [{ requestItemId: 'item-confirmed', noBox: true, quantity: 1 }],
+        [...(strict ? [{ requestItemId: 'item-incomplete', noBox: true, quantity: 1, requireAvailableStock: true }] : []), { requestItemId: 'item-confirmed', noBox: true, quantity: 1 }],
         'manual-status-done:request-37',
       ),
     ).rejects.toThrow(

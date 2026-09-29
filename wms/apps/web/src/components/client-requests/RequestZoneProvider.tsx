@@ -12,7 +12,7 @@ export function RequestZoneProvider({items,token,fetchOrders,children}:{items:Cl
     if(!enabled)return;
     const clients=[...new Set(items.filter(item=>!['DONE','CANCELLED','REJECTED'].includes(item.status)&&(item._count?.fbsOrderLinks??0)>0).map(item=>item.clientId))];
     let next=0;const loaded:FbsOrderSummary[]=[];
-    async function worker(){while(!stopped&&next<clients.length){const client=clients[next++];try{const data=await fetchOrders(token,client,false);if(!stopped){loaded.push(...data.orders);setOrders([...loaded]);}}catch{/* Keep a neutral colour when source information is unavailable. */}}}
+    async function worker(){while(!stopped&&next<clients.length){const client=clients[next++];try{const data=await fetchOrders(token,client,false,'snapshot');if(!stopped){loaded.push(...data.orders);setOrders([...loaded]);}}catch{/* Keep a neutral colour when source information is unavailable. */}}}
     void Promise.all([worker(),worker()]);
     return()=>{stopped=true;};
   },[enabled,items,token,fetchOrders]);

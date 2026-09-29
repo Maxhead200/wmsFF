@@ -11,5 +11,11 @@ it('uses actual order majority and urgent ties',()=>{
 // TEST: duplicate, completed and invalid records cannot skew a request's zone.
 it('ignores duplicates and unavailable age',()=>{
  expect(requestZoneTones([order('1',1),order('1',1),order('2',19)] as any,now)).toEqual({r:'critical'});
- expect(requestZoneTones([{...order('1',20),category:'shipped'},{...order('2',20),createdAt:null}] as any,now)).toEqual({});
+ expect(requestZoneTones([{...order('1',20),category:'archive'},{...order('2',20),createdAt:null}] as any,now)).toEqual({});
+});
+
+// TEST: marketplace shipment is not WMS completion; packed requests still need age colours.
+it('includes shipped orders until the WMS request is done',()=>{
+ expect(requestZoneTones([{...order('1',15),category:'shipped',request:{id:'r',status:'PACKED'}}] as any,now)).toEqual({r:'warning'});
+ expect(requestZoneTones([{...order('1',15),category:'shipped',request:{id:'r',status:'DONE'}}] as any,now)).toEqual({});
 });

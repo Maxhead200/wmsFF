@@ -1,5 +1,5 @@
 import { ArrowLeft, Calculator, ChevronRight, Files, ReceiptText, RefreshCw, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import {
   downloadCombinedBillingInvoicesPdf,
   downloadBillingInvoiceActPdf,
@@ -177,11 +177,16 @@ export function BillingPanel({ session }: BillingPanelProps) {
     [genericMergeInvoices, mergeAggregateSameItems, mergeExcludeZeroTotalItems],
   );
 
+  // FIX: opt in only our deployment; sold WMS keeps its existing loading path.
+  const fastOpening = typeof window !== 'undefined' && ['wms.logoff.pro', 'localhost', '127.0.0.1'].includes(window.location.hostname);
+  const loadGeneration = useRef(0);
+
   useEffect(() => {
     if (canRead) {
-      void loadData();
+      void loadData(!fastOpening);
     }
-  }, [canRead, selectedClientId]);
+    return () => { loadGeneration.current += 1; };
+  }, [canRead, selectedClientId, session.accessToken, fastOpening ? activeTab : null]);
 
   useEffect(() => {
     setSelectedInvoiceIds(new Set());
@@ -212,8 +217,9 @@ export function BillingPanel({ session }: BillingPanelProps) {
     return null;
   }
 
-  async function loadData() {
-    setRegisterRevision(value => value + 1);
+  async function loadData(refreshRegister = true) {
+    if (refreshRegister) setRegisterRevision(value => value + 1);
+    if (fastOpening) return loadVisibleData();
     setError(null);
     setCharges((current) => ({ ...current, status: 'loading', error: undefined }));
     setInvoices((current) => ({ ...current, status: 'loading', error: undefined }));
@@ -282,6 +288,44 @@ export function BillingPanel({ session }: BillingPanelProps) {
     setInvoiceKindFilter('ALL');
     void loadData();
     void refreshReconciliation();
+  }
+
+  // FIX: hidden heavy tabs do not compete with the initial invoice registry.
+  // Each response becomes usable independently; obsolete responses cannot replace newer data.
+  async function loadVisibleData() {
+    const generation = ++loadGeneration.current;
+    setError(null);
+    async function load<T>(fetcher: () => Promise<T>, setter: Dispatch<SetStateAction<{ status: 'idle' | 'loading' | 'ready' | 'error'; data: T; error?: string }>>, accepted?: (data: T) => void) {
+      setter(current => ({ ...current, status: 'loading', error: undefined }));
+      try {
+        const data = await fetcher();
+        if (generation !== loadGeneration.current) return;
+        setter({ status: 'ready', data });
+        accepted?.(data);
+      } catch (caught) {
+        if (generation !== loadGeneration.current) return;
+        setter(current => ({ ...current, status: 'error', error: errorMessage(caught) }));
+      }
+    }
+    const pending = [
+      load(() => fetchClients(session.accessToken), setClients, nextClients => {
+        setSelectedClientId(current => validRememberedClientId(current, nextClients));
+        setInvoiceClientId(current => validRememberedClientId(current, nextClients));
+      }),
+      // Required by unpaid-PDF and payment controls; preserve their complete dataset.
+      load(() => fetchBillingInvoices(session.accessToken), setInvoices),
+      load(() => fetchBillingServices(session.accessToken), setServices),
+    ];
+    if (activeTab === 'overview' || activeTab === 'charges') {
+      pending.push(load(() => fetchBillingCharges(session.accessToken, { clientId: selectedClientId || undefined }), setCharges));
+    }
+    if (activeTab === 'overview') {
+      pending.push(load<BillingReconciliation | null>(() => fetchBillingReconciliation(session.accessToken, { clientId: selectedClientId || undefined }), setReconciliation));
+    }
+    if (activeTab === 'create') {
+      pending.push(load(() => fetchClientRequests(session.accessToken), setRequests));
+    }
+    await Promise.all(pending);
   }
 
   function acceptEditedInvoice(invoice: BillingInvoiceSummary) {

@@ -59,3 +59,13 @@ la_panthera full coverage: web/test/build-la-panthera-coverage.cjs --check (47 c
 - `apps/web/src/components/client-requests/requestZoneTones.test.ts`: большинство активных заказов, границы 12/19 часов, срочные равенства.
 
 Публикация PR396: Web 328, API 2893, 8 baseline-тестов пройдены; пропуски 2/113, отдельная DB-серия KIZ исключена. Снимок `2026-09-29-request-batch-theme`, source parity false.
+
+
+## PR400: форма, статусы и безопасная массовая сдача
+
+- `apps/web/test/request-release.browser.cjs`: сворачивание всей формы в трёх темах, сохранение ввода, конкретный статус, цвета таймеров 1/15/20 часов и большинства shipped-заказов.
+- `apps/web/src/components/client-requests/requestBatch.test.ts`: БЕЗ КОРОБА, единственный достаточный источник, неоднозначный/недостаточный остаток и сохранение выбора.
+- `apps/api/test/request-stock-source.runtime.cjs`: фактический упакованный API; недостаточный остаток и незавершённая сборка запрещены без корректировок; достаточный источник разрешён; DTO сохраняет флаг.
+- `apps/api/test/stock-operations.service.spec.ts`: те же ограничения на уровне исходников.
+
+Web334/API2895 прошли; 2/113 пропущены, отдельная KIZ DB-серия исключена. TypeScript, браузерные сценарии и runtime-проверки прошли. Снимок `2026-09-29-request-polish`, source parity false.

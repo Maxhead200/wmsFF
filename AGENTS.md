@@ -112,3 +112,6 @@ Latest verified release PR414: baseline `2026-09-29-request-action-menus`. Web s
 
 
 Latest verified release PR416: baseline `2026-09-29-request-wrap`. Web sha256:83443774025472e37c58d4ef7249bf7219088a84117f49d95b8310c7b3bbb227; API sha256:78c06803de1b44099824175217cceb2e6899066de9e485cc6954971b49691957. Approved simplified list/online menus and full label wrapping; API unchanged. APK216/sold WMS unchanged; source parity false.
+
+
+Latest verified release PR418: baseline `2026-09-29-request-four-rows`. Web sha256:124f6f71375505e845600ce174efc7fb4aefb7c66474133513bb78bfb7f4a958; API sha256:78c06803de1b44099824175217cceb2e6899066de9e485cc6954971b49691957. Four equal centered menu rows; CSS only; JS/API unchanged. APK216/sold WMS unchanged; source parity false.

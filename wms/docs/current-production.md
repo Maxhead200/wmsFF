@@ -1,3 +1,12 @@
+# Published PR418 / 29.09.2026
+
+PR418: four equal request menu rows, 56px high and full width, with centered labels/icons and identical theme-aware backgrounds. Native Documents/More disclosures retained. CSS-only delta; all JS, API PR412, APK216, flags and sold WMS unchanged. Web351/2 skipped; source and actual runtime checks across 11 themes plus Light, FBO/FBS, geometry, colours, centering, keyboard/callbacks passed. Exact hashes/health verified; source parity false. Rollback logoff-web:before-request-menu-four-rows.
+
+Web `sha256:124f6f71375505e845600ce174efc7fb4aefb7c66474133513bb78bfb7f4a958`; API `sha256:78c06803de1b44099824175217cceb2e6899066de9e485cc6954971b49691957`.
+Baseline `2026-09-29-request-four-rows`.
+
+## Previous release
+
 # Published PR416 / 29.09.2026
 
 PR416: approved request and online menus. Online replaces Route; downloads grouped in Documents; obsolete manual/emergency/source-selection actions removed. Edit/cancel moved inside Online with original permission/status predicates and confirmation. Long names and narrow action labels wrap fully. Web351 passed/2 skipped, TypeScript, source and actual runtime browser across 11 themes plus Light; 8 list callbacks and online toolbar actions verified. API PR412/APK216/flags/schema/sold WMS unchanged. Exact image/public hashes and health verified. Source parity false. Rollback logoff-web:before-request-title-wrap.

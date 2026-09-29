@@ -5843,6 +5843,10 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
               value: response,
             });
           }
+        } else if (process.env.WMS_FBS_TSD_FAST_LOCAL_ENABLED === 'true') {
+          // FIX: an unselected next request shares the worker's assignment lock.
+          // A full marketplace/billing sync here blocks later selected requests too.
+          response = await this.loadFbsTsdRequestOrders(clientId);
         } else if (cached && cached.expiresAt > Date.now()) {
           response = cached.value;
         } else if (requestFallback && requestFallback.expiresAt > Date.now()) {
@@ -5872,7 +5876,7 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
           }
         }
         // FIX: the selected local response already contains its saved orders.
-        if (!selectedRequestId || process.env.WMS_FBS_TSD_FAST_LOCAL_ENABLED !== 'true') {
+        if (process.env.WMS_FBS_TSD_FAST_LOCAL_ENABLED !== 'true') {
           response = await this.mergeSyncedFbsTsdRequestOrders(clientId, response);
         }
 

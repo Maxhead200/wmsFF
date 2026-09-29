@@ -61,3 +61,10 @@
 }
 
 .client-request-actions .request-action-menu .request-action-menu__items > * { grid-column: 1 / -1 !important; }
+
+/* FIX: header menus expand without clipping or covering assembly controls. */
+.request-online-toolbar { align-items: flex-start; flex-wrap: wrap; }
+.request-online-toolbar .request-online-menu { min-width: 180px; max-width: min(300px,100%); border: 1px solid var(--border-color,#8c8c9860); border-radius: 8px; }
+.request-online-menu > summary { padding: 10px 12px; cursor: pointer; font-weight: 600; overflow-wrap: anywhere; }
+.request-online-menu__items { display: grid; grid-template-columns: minmax(0,1fr); gap: 6px; padding: 6px; }
+.online-execution-modal__actions .request-online-menu button { width: 100%; min-width: 0; height: auto; white-space: normal; overflow-wrap: anywhere; }

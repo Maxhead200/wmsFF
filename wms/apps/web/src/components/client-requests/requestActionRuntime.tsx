@@ -23,6 +23,9 @@ export function groupRuntimeRequestActions(tree:any, administrator:boolean):any 
     const cells=list(row.props.children),warehouse=cells.find(c=>has(c,'client-request-table__warehouse-cell'));
     const online=find(row,n=>has(n,'document-open-button--online'));
     if(!warehouse||!online)return row;
+    const composition=cells.find(c=>has(c,'client-request-table__composition-cell'));
+    const downloads=list(composition?.props.children).filter(n=>has(n,'document-open-button--source'));
+    const view=list(composition?.props.children).find(n=>n?.props?.className==='document-open-button');
     const route=find(row,n=>has(n,'client-request-row-fbs-link--route'));
     const holder=find(warehouse,n=>has(n,'client-request-actions'));
     if(!holder)return row;
@@ -31,21 +34,19 @@ export function groupRuntimeRequestActions(tree:any, administrator:boolean):any 
     const main=cells.find(c=>has(c,'client-request-table__actions-cell'));
     const edit=find(main,n=>has(n,'client-request-action-button--edit')),cancel=find(main,n=>has(n,'client-request-action-button--cancel'));
     const menu=jsx('div',{className:'request-action-menu',children:[
-      rename(online,'Открыть сборку','client-request-action-button request-action-menu__open'),
-      route&&jsx(route.type,{...route.props,className:'client-request-action-button request-action-menu__route'},route.key??undefined),
+      rename(online,'Онлайн','client-request-action-button'),
       rename(action('fbs-box-search'),'Остатки и короба'),
       !fbs&&refresh&&rename(refresh,refresh.props.disabled?'Пересчитываю заявку':'Обновить план'),
-      group('Документы',[action('instruction'),...actions.filter(n=>has(n,'client-request-action-button--xlsx'))]),
+      group('Документы',[...downloads,...actions.filter(n=>has(n,'client-request-action-button--xlsx')).map(n=>rename(n,list(n.props.children).find(c=>c?.type==='span')?.props.children==='Лист подбора'?'Лист подбора PDF':list(n.props.children).find(c=>c?.type==='span')?.props.children))]),
       group('Ещё',[
-        rename(action('box-selection'),'Источники товара'),action('supply-check'),
-        action('sync-tsd')&&rename(action('sync-tsd'),action('sync-tsd').props.disabled?'Синхронизирую':fbs?'Синхронизировать задания':'Обновить очередь ТСД'),
-        fbs&&refresh&&rename(refresh,refresh.props.disabled?'Проверяю паллет-сорты':'Проверить задания и маршруты'),
-        rename(edit,'Редактировать заявку'),rename(cancel,'Отменить заявку'),
+        action('supply-check'),
+        action('sync-tsd')&&rename(action('sync-tsd'),action('sync-tsd').props.disabled?'Синхронизирую':fbs?'Обновить данные WB / ТСД':'Обновить очередь ТСД'),
+        fbs&&refresh&&rename(refresh,refresh.props.disabled?'Проверяю паллет-сорты':'Пересчитать подбор и маршрут'),
       ]),
     ]});
     return jsx(row.type,{...row.props,children:cells.map(cell=>{
       if(cell===warehouse)return jsx(cell.type,{...cell.props,children:jsx('div',{className:'client-request-actions',children:menu})},cell.key??undefined);
-      return walk(cell,n=>n===route||n===online||n===edit||n===cancel?null:n);
+      return walk(cell,n=>n===online||n===view||downloads.includes(n)||n===route||n===edit||n===cancel?null:n);
     })},row.key??undefined);
   });
 }

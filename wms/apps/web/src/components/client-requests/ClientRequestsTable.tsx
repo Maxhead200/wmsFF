@@ -314,7 +314,7 @@ export function ClientRequestsTable({
                 {request.packages.length ? (
                   <span className="request-package-summary">{packagesSummary(request)}</span>
                 ) : null}
-                {onOpenDocument ? (
+                {!groupedActions ? <>                {onOpenDocument ? (
                   <button
                     className="document-open-button"
                     type="button"
@@ -336,6 +336,17 @@ export function ClientRequestsTable({
                     <span>Состав XLSX</span>
                   </button>
                 ) : null}
+                {onOpenOnlineExecution && request.type === 'OUTBOUND' ? (
+                  <button
+                    className="document-open-button document-open-button--online"
+                    type="button"
+                    onClick={() => onOpenOnlineExecution(request)}
+                    title="Онлайн-выполнение заявки"
+                  >
+                    <Activity size={15} aria-hidden="true" />
+                    <span>{modernActions ? 'Открыть сборку' : 'Онлайн'}</span>
+                  </button>
+                ) : null}
                 {onDownloadOriginalFile && originalFile ? (
                   <button
                     className="document-open-button document-open-button--source"
@@ -347,17 +358,7 @@ export function ClientRequestsTable({
                     <span>Файл клиента</span>
                   </button>
                 ) : null}
-                {!groupedActions && onOpenOnlineExecution && request.type === 'OUTBOUND' ? (
-                  <button
-                    className="document-open-button document-open-button--online"
-                    type="button"
-                    onClick={() => onOpenOnlineExecution(request)}
-                    title="Онлайн-выполнение заявки"
-                  >
-                    <Activity size={15} aria-hidden="true" />
-                    <span>Онлайн</span>
-                  </button>
-                ) : null}
+</> : null}
               </td>
               <td className="client-request-table__due-cell" data-label="Срок">{formatDate(request.desiredDate)}<div className="client-request-due-status">                <span className={`status status--${requestStatusTone(request.status)}`}>
                   {emergencyClosed ? 'Аварийно упакована' : requestStatusLabel(request.status)}
@@ -383,28 +384,7 @@ export function ClientRequestsTable({
                   {canShowWarehouseActions(request) ? (
                     <div className="client-request-actions">
 {groupedActions ? <div className="request-action-menu">
-{onOpenOnlineExecution && request.type === 'OUTBOUND' ? (
-                  <button
-                    className="client-request-action-button request-action-menu__open"
-                    type="button"
-                    onClick={() => onOpenOnlineExecution(request)}
-                    title="Онлайн-выполнение заявки"
-                  >
-                    <Activity size={15} aria-hidden="true" />
-                    <span>Открыть сборку</span>
-                  </button>
-                ) : null}{onOpenFbsRoute && isFbsRequest(request) ? (
-                  <button
-                    className="client-request-action-button request-action-menu__route"
-                    type="button"
-                    onClick={() => onOpenFbsRoute(request)}
-                    disabled={routeLoadingRequestId === request.id}
-                    title="Показать живой маршрут: паллетсорты, короба и недоступные позиции"
-                  >
-                    <MapPinned size={15} aria-hidden="true" />
-                    <span>{routeLoadingRequestId === request.id ? 'Открываю маршрут' : 'Маршрут'}</span>
-                  </button>
-                ) : null}{onOpenFbsBoxSearch && isFbsRequest(request) ? (
+{onOpenOnlineExecution ? <button className="client-request-action-button" type="button" onClick={() => onOpenOnlineExecution(request)} title="Открыть сборку"><Activity size={15} aria-hidden="true" /><span>Онлайн</span></button> : null}{onOpenFbsBoxSearch && isFbsRequest(request) ? (
                          <button
                            className="client-request-action-button client-request-action-button--fbs-box-search"
                            type="button"
@@ -436,17 +416,29 @@ export function ClientRequestsTable({
                         </button>
                       ) : null}</> : null}
 <details className="request-action-menu__group"><summary>Документы</summary><div className="request-action-menu__items">
-{onOpenPickInstruction && request.type === 'OUTBOUND' ? (
-                        <button
-                          className="client-request-action-button client-request-action-button--instruction"
-                          type="button"
-                          onClick={() => onOpenPickInstruction(request)}
-                          title="Открыть складскую инструкцию"
-                        >
-                          <ClipboardList size={15} aria-hidden="true" />
-                          <span>Инструкция</span>
-                        </button>
-                      ) : null}{onDownloadPickInstruction && request.type === 'OUTBOUND' ? (
+{onDownloadRequestItems ? (
+                  <button
+                    className="document-open-button document-open-button--source"
+                    type="button"
+                    onClick={() => onDownloadRequestItems(request)}
+                    title="Скачать состав заявки в Excel"
+                  >
+                    <FileSpreadsheet size={15} aria-hidden="true" />
+                    <span>Состав XLSX</span>
+                  </button>
+                ) : null}
+                {onDownloadOriginalFile && originalFile ? (
+                  <button
+                    className="document-open-button document-open-button--source"
+                    type="button"
+                    onClick={() => onDownloadOriginalFile(request, originalFile)}
+                    title={`Скачать первоначальный файл клиента: ${originalFile.fileName}`}
+                  >
+                    <FileDown size={15} aria-hidden="true" />
+                    <span>Файл клиента</span>
+                  </button>
+                ) : null}
+{onDownloadPickInstruction && request.type === 'OUTBOUND' ? (
                         <button
                           className="client-request-action-button client-request-action-button--xlsx"
                           type="button"
@@ -456,7 +448,7 @@ export function ClientRequestsTable({
                             : 'Скачать Excel-инструкцию сборки'}
                         >
                           <FileDown size={15} aria-hidden="true" />
-                          <span>{isFbsRequest(request) ? 'Лист подбора' : 'Инструкция Excel'}</span>
+                          <span>{isFbsRequest(request) ? 'Лист подбора PDF' : 'Инструкция Excel'}</span>
                         </button>
                       ) : null}{canDownloadMarketplaceTemplates(request) ? (
                         <>
@@ -481,17 +473,7 @@ export function ClientRequestsTable({
                         </>
                       ) : null}</div></details>
 <details className="request-action-menu__group"><summary>Ещё</summary><div className="request-action-menu__items">
-{onSelectManualBoxes && canSelectManualBoxes(request) ? (
-                         <button
-                           className="client-request-action-button client-request-action-button--box-selection"
-                           type="button"
-                           onClick={() => onSelectManualBoxes(request)}
-                           title="Выбрать короба, из которых будет списан товар"
-                         >
-                           <Boxes size={15} aria-hidden="true" />
-                           <span>Источники товара</span>
-                         </button>
-                       ) : null}{onCheckSupplyConsistency && isFbsRequest(request) ? (
+{onCheckSupplyConsistency && isFbsRequest(request) ? (
                          <button
                            className="client-request-action-button client-request-action-button--supply-check"
                            type="button"
@@ -511,7 +493,7 @@ export function ClientRequestsTable({
                           title="Обновить заявку в очереди ТСД"
                         >
                           <RefreshCw size={15} aria-hidden="true" />
-                          <span>{syncingTsdRequestId === request.id ? 'Синхронизирую' : isFbsRequest(request) ? 'Синхронизировать задания' : 'Обновить очередь ТСД'}</span>
+                          <span>{syncingTsdRequestId === request.id ? 'Синхронизирую' : isFbsRequest(request) ? 'Обновить данные WB / ТСД' : 'Обновить очередь ТСД'}</span>
                         </button>
                       ) : null}{isFbsRequest(request) ? <>{onRefreshPickInstruction && canRefreshPickInstruction && canSyncTsdRequest(request) ? (
                         <button
@@ -529,35 +511,10 @@ export function ClientRequestsTable({
                               ? 'Проверяю паллет-сорты'
                               : 'Пересчитываю заявку'
                             : isFbsRequest(request)
-                              ? 'Проверить задания и маршруты'
+                              ? 'Пересчитать подбор и маршрут'
                               : 'Пересчитать заявку'}</span>
                         </button>
                       ) : null}</> : null}
-{canCancelRequests ? <>                  {!isSkuCollectionRequest(request) && canEditRequest(request, canEditAnyRequest) ? (
-                    <button
-                      className="client-request-action-button client-request-action-button--edit"
-                      type="button"
-                      onClick={() => onEditRequest(request)}
-                      title="Редактировать заявку"
-                    >
-                      <Edit3 size={15} aria-hidden="true" />
-                      <span>Редактировать заявку</span>
-                    </button>
-                  ) : null}
-                  {!isSkuCollectionRequest(request) && canCancelRequest(request) ? (
-                    <button
-                      className="client-request-action-button client-request-action-button--cancel"
-                      type="button"
-                      onClick={() => onCancelRequest(request)}
-                      title="Отменить заявку"
-                    >
-                      <XCircle size={15} aria-hidden="true" />
-                      <span>Отменить заявку</span>
-                    </button>
-                  ) : (
-                    canEditRequest(request, canEditAnyRequest) ? null : '-'
-                  )}
-</> : null}
 {/* FIX: obsolete manual stages and emergency actions removed from modern menu. */}
 </div></details></div> : <>                       {onOpenFbsBoxSearch && isFbsRequest(request) ? (
                          <button
@@ -646,7 +603,7 @@ export function ClientRequestsTable({
                             : 'Скачать Excel-инструкцию сборки'}
                         >
                           <FileDown size={15} aria-hidden="true" />
-                          <span>{isFbsRequest(request) ? 'Лист подбора' : 'Инструкция Excel'}</span>
+                          <span>{isFbsRequest(request) ? 'Лист подбора PDF' : 'Инструкция Excel'}</span>
                         </button>
                       ) : null}
                       {canPickRequest(request) ? (
@@ -850,7 +807,7 @@ function canSyncTsdRequest(request: ClientRequestSummary) {
   return request.type === 'OUTBOUND' && !['DONE', 'CANCELLED', 'REJECTED'].includes(request.status);
 }
 
-function canCancelRequest(request: ClientRequestSummary) {
+export function canCancelRequest(request: ClientRequestSummary) {
   return request.type === 'OUTBOUND' && ['SUBMITTED', 'IN_REVIEW', 'APPROVED'].includes(request.status);
 }
 
@@ -951,7 +908,7 @@ function canUploadManualInstruction(request: ClientRequestSummary) {
   return request.type === 'OUTBOUND' && !['DONE', 'CANCELLED', 'REJECTED'].includes(request.status);
 }
 
-function canEditRequest(request: ClientRequestSummary, canEditAnyRequest: boolean) {
+export function canEditRequest(request: ClientRequestSummary, canEditAnyRequest: boolean) {
   return canEditAnyRequest || ['SUBMITTED', 'IN_REVIEW', 'APPROVED'].includes(request.status);
 }
 

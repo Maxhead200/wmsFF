@@ -1,3 +1,12 @@
+# Published PR420 / 29.09.2026
+
+PR420: equal-height FBS navigation headers and aligned counters, with client list in a separate row. Shared marketplace UI across themes. CSS-only delta; all JS, API PR412, APK216, flags and sold WMS unchanged. Web351/2 skipped; 72 browser theme/viewport/client-list cases passed. Exact hashes/health verified; source parity false. Rollback logoff-web:before-fbs-equal-tiles.
+
+Web `sha256:bab947a845a51d3a02eef205658b2114474e9eef11bd725b754c58d0c533a438`; API `sha256:78c06803de1b44099824175217cceb2e6899066de9e485cc6954971b49691957`.
+Baseline `2026-09-29-fbs-equal-tiles`.
+
+## Previous release
+
 # Published PR418 / 29.09.2026
 
 PR418: four equal request menu rows, 56px high and full width, with centered labels/icons and identical theme-aware backgrounds. Native Documents/More disclosures retained. CSS-only delta; all JS, API PR412, APK216, flags and sold WMS unchanged. Web351/2 skipped; source and actual runtime checks across 11 themes plus Light, FBO/FBS, geometry, colours, centering, keyboard/callbacks passed. Exact hashes/health verified; source parity false. Rollback logoff-web:before-request-menu-four-rows.

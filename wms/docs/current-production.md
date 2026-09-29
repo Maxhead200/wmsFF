@@ -1,3 +1,12 @@
+# Published PR414 / 29.09.2026
+
+PR414: compact FBO/FBS request actions with Documents and More disclosures; unique route, explicit edit/cancel, manual stages and administrator recovery. Existing callbacks retained. Web347/API2929 passed, 2/115 skipped; dedicated KIZ DB suite excluded. TypeScript and actual runtime browser checks across 11 themes plus Light passed, including 13 callbacks, keyboard and permissions. API PR412/APK216/flags/schema/sold WMS unchanged. Full hashes/health verified; source parity false. Rollback logoff-web:before-request-action-menus.
+
+Web `sha256:fe944ebb4ba1486f1284e91a6dfae3f2aa529ece11e69943299bd413ef217a4e`; API `sha256:78c06803de1b44099824175217cceb2e6899066de9e485cc6954971b49691957`.
+Baseline `2026-09-29-request-action-menus`.
+
+## Previous release
+
 # Published PR412 / 29.09.2026
 
 PR412: explicit administrator/owner KIZ reuse with a later audited physical sorting return when historical WB status is unavailable. Two API modules only. WMS_KIZ_PHYSICAL_REVIEW_ENABLED=true only on our WMS. Runtime tests33, API2929/web343 passed;115/2 skipped; isolated PostgreSQL suite excluded. API TypeScript passed. Live physical proof verified read-only. Exact runtime hashes, health, flags and unchanged web/APK/other containers verified. No business records changed. Source parity false. Rollback logoff-api:before-kiz-physical-review.

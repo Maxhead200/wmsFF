@@ -5558,3 +5558,51 @@
   .fbs-allocation__api-create, .fbs-allocation__secret { align-items: stretch; flex-direction: column; }
   .fbs-allocation__api-create input { min-width: 0; width: 100%; }
 }
+/* FIX: navigation tile headers share a grid row; client lists occupy a separate row. */
+@media screen {
+  .app-layout .fbs-tiles { align-items: stretch; }
+  .app-layout .fbs-tiles > .fbs-tile {
+    display: grid;
+    grid-template-rows: subgrid;
+    grid-row: span 2;
+    gap: 8px;
+    min-width: 0;
+    min-height: 0;
+    overflow: visible;
+    border: 0 !important;
+    border-radius: 0;
+    background: none !important;
+    box-shadow: none !important;
+    transform: none !important;
+  }
+  .app-layout .fbs-tiles > .fbs-tile > .fbs-tile__open {
+    grid-row: 1;
+    align-self: stretch;
+    align-content: start;
+    min-width: 0;
+    width: 100%;
+    height: 100%;
+    padding-bottom: 48px;
+    border: 1px solid var(--line, #dce2e9);
+    border-radius: 18px;
+    background: var(--surface, #ffffff);
+  }
+  .app-layout .fbs-tiles > .fbs-tile > .fbs-tile__clients {
+    grid-row: 2;
+    align-self: start;
+    min-width: 0;
+    border: 1px solid var(--line, #dce2e9);
+    border-radius: 12px;
+  }
+  .app-layout .fbs-tile__content { align-content: start; min-width: 0; overflow-wrap: anywhere; }
+  .app-layout .fbs-tiles > .fbs-tile.is-active > .fbs-tile__open,
+  .app-layout .fbs-tiles > .fbs-tile > .fbs-tile__open:hover { border-color: var(--fbs-accent); }
+  :root[data-ui-variant='la_panthera'] .app-layout .fbs-tiles > .fbs-tile > .fbs-tile__open {
+    background: linear-gradient(115deg, #202127, var(--fbs-soft));
+    border-color: #50515e;
+  }
+  :root[data-ui-variant='la_panthera'][data-ui-style='light'] .app-layout .fbs-tiles > .fbs-tile > .fbs-tile__open {
+    background: linear-gradient(115deg, #ffffff, color-mix(in srgb, var(--fbs-accent) 7%, #ffffff));
+    border-color: #d6e2e2;
+  }
+}

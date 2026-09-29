@@ -68,3 +68,57 @@
 .request-online-menu > summary { padding: 10px 12px; cursor: pointer; font-weight: 600; overflow-wrap: anywhere; }
 .request-online-menu__items { display: grid; grid-template-columns: minmax(0,1fr); gap: 6px; padding: 6px; }
 .online-execution-modal__actions .request-online-menu button { width: 100%; min-width: 0; height: auto; white-space: normal; overflow-wrap: anywhere; }
+/* FIX: four equal full-width rows, with centered labels and one shared surface. */
+@media screen {
+  .client-request-actions > .request-action-menu {
+    grid-template-columns: minmax(0, 1fr);
+    --request-menu-surface: var(--accent-soft, #eef0f6);
+    --request-menu-ink: var(--ink, #334155);
+    --request-menu-border: var(--line, #cbd5e1);
+  }
+  :root[data-ui-variant='la_panthera'] .request-action-menu {
+    --request-menu-surface: linear-gradient(110deg, rgb(106 90 205 / 30%), rgb(193 84 193 / 26%)) #202127;
+    --request-menu-ink: #f3eefb;
+    --request-menu-border: #786593;
+  }
+  :root[data-ui-variant='la_panthera'][data-ui-style='light'] .request-action-menu {
+    --request-menu-surface: linear-gradient(115deg, #eeeafa, #f5eaf3);
+    --request-menu-ink: #493b5d;
+    --request-menu-border: #d8cee5;
+  }
+  .client-request-actions .request-action-menu > button,
+  .client-request-actions .request-action-menu > details > summary {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px;
+    grid-column: 1 / -1 !important;
+    box-sizing: border-box;
+    width: 100% !important;
+    max-width: none !important;
+    height: 56px !important;
+    min-height: 56px !important;
+    margin: 0 !important;
+    padding: 8px 12px !important;
+    border: 1px solid var(--request-menu-border) !important;
+    border-radius: 8px !important;
+    background: var(--request-menu-surface) !important;
+    color: var(--request-menu-ink) !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    line-height: 1.25 !important;
+    text-align: center !important;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+  }
+  .client-request-actions .request-action-menu > details {
+    border: 0;
+    background: transparent;
+  }
+  .request-action-menu > details > summary::-webkit-details-marker { display: none; }
+  .request-action-menu > details > summary::marker { content: ''; }
+  .request-action-menu > details > summary::before { content: '▸'; flex: none; }
+  .request-action-menu > details[open] > summary::before { content: '▾'; }
+  .request-action-menu > details[open] > .request-action-menu__items { margin-top: 6px; }
+}

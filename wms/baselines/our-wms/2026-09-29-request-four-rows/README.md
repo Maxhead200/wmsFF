@@ -1,0 +1,3 @@
+# Request action menus / PR418
+
+PR418: four equal request menu rows, 56px high and full width, with centered labels/icons and identical theme-aware backgrounds. Native Documents/More disclosures retained. CSS-only delta; all JS, API PR412, APK216, flags and sold WMS unchanged. Web351/2 skipped; source and actual runtime checks across 11 themes plus Light, FBO/FBS, geometry, colours, centering, keyboard/callbacks passed. Exact hashes/health verified; source parity false. Rollback logoff-web:before-request-menu-four-rows.

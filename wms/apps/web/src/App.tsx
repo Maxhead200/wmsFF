@@ -34,6 +34,7 @@ import { KizIssuesPanel } from './components/kiz/KizIssuesPanel';
 import { SpaceServiceShelf } from './components/layout/SpaceServiceShelf';
 import { SpaceTopNav } from './components/layout/SpaceTopNav';
 import { SoulWorkspace, soulEnabled } from './components/layout/SoulWorkspace';
+import { regroupWorkspaces } from './lib/workspace-groups';
 import { isThemeAvailable, resolveRetiredTheme } from './components/layout/themeAvailability';
 import './components/layout/soul-theme.css';
 import { installSpiritTileTilt } from './components/layout/spiritTileTilt';
@@ -1248,12 +1249,14 @@ function ModernWorkspaceOverview({
 }
 
 function groupWorkspaces(items: WorkspaceNavItem[]) {
-  return workspaceSections
+  const legacy = workspaceSections
     .map((section) => ({
       ...section,
       items: items.filter((item) => sectionForWorkspace(item.id) === section.id),
     }))
     .filter((section) => section.items.length > 0);
+  // FIX: retain legacy navigation outside our WMS, after existing permission filtering.
+  return regroupWorkspaces(legacy, window.location.hostname);
 }
 
 function sectionForWorkspace(id: WorkspaceId): WorkspaceSection {

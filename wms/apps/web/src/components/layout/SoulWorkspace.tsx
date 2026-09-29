@@ -12,7 +12,7 @@ export function SoulWorkspace({groups,activeId,onOpen,children,enabled=true,user
  useEffect(()=>{if(lastActive.current!==activeId){setBrowse(activeGroup);lastActive.current=activeId;}},[activeId,activeGroup]);
  if(!enabled)return <>{children}</>;
  const home=activeId==='overview',expanded=visible.find(g=>g.id===browse)||visible.find(g=>g.id===activeGroup)||visible[0];
- const symbols:Record<string,string>={client:'◈',operations:'▦',management:'◇',control:'◎'};
+ const symbols:Record<string,string>={client:'◈',marketplaces:'▤',operations:'▦',management:'◇',control:'◎',logistics:'⇄',finance:'₽'};
  const open=(id:string)=>{if(visible.some(g=>g.items.some(i=>i.id===id)))onOpen(id);};
  const card=(g:SoulGroup)=><section className={`soul-group soul-${g.id}`} key={g.id} aria-label={g.title}>
    <header><span className="soul-symbol" aria-hidden="true">{symbols[g.id]||'◇'}</span><div><h2>{g.title}</h2><small>{g.items.length} разделов</small></div></header>
@@ -20,7 +20,7 @@ export function SoulWorkspace({groups,activeId,onOpen,children,enabled=true,user
  </section>;
  return <div className="soul-workspace">
    {/* FIX: requested WMS LOGOff heading; theme selector remains Soul. */}
-   <div className="soul-toolbar">{!home?<button type="button" onClick={()=>{onOpen('overview');setBrowse(undefined);}}>← Все разделы</button>:<h1>WMS LOGOff</h1>}<SoulAppearance key={userId} userId={userId}/></div>
+   <div className="soul-toolbar">{!home?<button type="button" onClick={()=>{onOpen('overview');setBrowse(undefined);}}>← Все разделы</button>:<h1 className="soul-brand">WMS <u>LOGOff</u></h1>}<SoulAppearance key={userId} userId={userId}/></div>
    <nav ref={nav} className={home?'soul-home-grid':'soul-expanded'} aria-label="Разделы Soul">
     {!home&&<div className="soul-group-tabs">{visible.map(g=><button className={`soul-${g.id}`} type="button" key={g.id} data-soul-group={g.id} aria-expanded={expanded?.id===g.id} onClick={()=>setBrowse(g.id)}><span aria-hidden="true">{symbols[g.id]||'◇'}</span> {g.title}</button>)}</div>}
     {home?visible.map(card):expanded&&card(expanded)}

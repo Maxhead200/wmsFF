@@ -109,3 +109,6 @@ Latest verified PR412: baseline `2026-09-29-kiz-physical-review`; API `sha256:78
 
 
 Latest verified release PR414: baseline `2026-09-29-request-action-menus`. Web sha256:fe944ebb4ba1486f1284e91a6dfae3f2aa529ece11e69943299bd413ef217a4e; API sha256:78c06803de1b44099824175217cceb2e6899066de9e485cc6954971b49691957. Compact FBO/FBS action menus; API and previous behavior unchanged. APK216/sold WMS unchanged; source parity false.
+
+
+Latest verified release PR416: baseline `2026-09-29-request-wrap`. Web sha256:83443774025472e37c58d4ef7249bf7219088a84117f49d95b8310c7b3bbb227; API sha256:78c06803de1b44099824175217cceb2e6899066de9e485cc6954971b49691957. Approved simplified list/online menus and full label wrapping; API unchanged. APK216/sold WMS unchanged; source parity false.

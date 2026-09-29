@@ -1,0 +1,3 @@
+# Compact requests / PR408
+
+PR408: compact request table in all 11 themes. Two identity columns, client above composition, due date above status, actions above process. Existing actions and permissions retained. Web340 passed/2 skipped, API2929 passed/115 skipped (DB-dependent cases skipped, dedicated KIZ DB suite excluded), TypeScript and 11-theme actual-runtime mobile/desktop checks passed. Only request markup, CSS and versioned import paths changed. API, APK216, flags, schema and sold WMS unchanged. Full image/public hashes and health verified; source parity false. Rollback logoff-web:before-compact-request-columns.

@@ -97,3 +97,6 @@ Latest verified release PR404: baseline `2026-09-29-fbs-zone-colors`. Web sha256
 
 
 Latest verified release PR406: baseline `2026-09-29-ordinary-pick-reviews`. Web sha256:299f32d7fb3eb66ab08bc4bb22bb870226cf3d9250e628ba03090ad658ea7034; API sha256:aba843bb78a45c4a1f06a25315f53210b8eaad6992d44f1bc02dfff97a8208e5. Request archive/bulk actions in all themes; navigation/visual changes opt-in la_panthera. WMS_FBS_UNMARKED_PICK_CLOSE_ENABLED=true only on our WMS; APK216/sold WMS unchanged; source parity false.
+
+
+Latest verified release PR408: baseline `2026-09-29-compact-request-columns`. Web sha256:4d3bb184e13764d8bfbced614cb042986b24c4da16b1174e37889afc43c6f771; API sha256:aba843bb78a45c4a1f06a25315f53210b8eaad6992d44f1bc02dfff97a8208e5. Compact request columns in every theme; API and previous behavior unchanged. APK216/sold WMS unchanged; source parity false.

@@ -5,7 +5,8 @@ import './pallet-sorting.css';
 
 // ADDED: a single screen guides source verification, destinations and final shortage consent.
 export function PalletSortingPanel({ session }: { session: AuthSession }) {
-  if (!session.user.roleCodes.includes('ADMIN')) return <p>Раздел доступен только администратору.</p>;
+  // FIX: the screen follows the same OWNER/ADMIN authority as its menu and API.
+  if (!session.user.roleCodes.some(role => role === 'ADMIN' || role === 'OWNER')) return <p>Раздел доступен администратору и собственнику.</p>;
   return <SortingWorkspace key={`${session.user.id}:${session.user.activeWarehouseId}`} session={session} />;
 }
 

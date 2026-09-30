@@ -7,14 +7,28 @@ type WindowEntry = { element: HTMLElement; button: HTMLButtonElement; title: str
 
 // FIX: retain only pages with minimized windows. Their forms stay mounted in React.
 export function PantheraWorkspaces({ activeId, onOpen, render }: Props) {
-  const [retained, setRetained] = useState<string[]>([]);
+  const serial = useRef(0);
+  const [state, setState] = useState<{ selected: Record<string, string>; retained: Record<string, string> }>({ selected: {}, retained: {} });
   const [dock, setDock] = useState<HTMLElement | null>(null);
-  const retain = (id: string, needed: boolean) => setRetained(old => needed
-    ? old.includes(id) ? old : [...old, id]
-    : old.includes(id) ? old.filter(key => key !== id) : old);
-  return <>{Array.from(new Set([...retained, activeId])).map(id =>
-    <PantheraWindowSurface key={id} dock={dock} active={id === activeId} onOpen={() => onOpen(id)}
-      onRetain={needed => retain(id, needed)}>{render(id)}</PantheraWindowSurface>)}
+  const activeKey = state.selected[activeId] || `${activeId}:0`;
+  // FIX: each minimized page instance owns its own hooks, form state and callbacks.
+  const retain = (key: string, workspace: string, needed: boolean) => {
+    const nextKey = `${workspace}:${++serial.current}`;
+    setState(old => {
+      if (needed === Boolean(old.retained[key])) return old;
+      const retained = { ...old.retained };
+      if (needed) retained[key] = workspace; else delete retained[key];
+      const selected = { ...old.selected };
+      if (needed && (selected[workspace] || `${workspace}:0`) === key) selected[workspace] = nextKey;
+      return { selected, retained };
+    });
+  };
+  const pages = { ...state.retained, [activeKey]: activeId };
+  return <>{Object.entries(pages).map(([key, workspace]) =>
+    <PantheraWindowSurface key={key} dock={dock} active={key === activeKey} onOpen={() => {
+      setState(old => ({ ...old, selected: { ...old.selected, [workspace]: key } }));
+      onOpen(workspace);
+    }} onRetain={needed => retain(key, workspace, needed)}>{render(workspace)}</PantheraWindowSurface>)}
     {createPortal(<aside ref={setDock} className="panthera-window-dock" aria-label="Свёрнутые окна" />, document.body)}</>;
 }
 
@@ -44,14 +58,17 @@ function PantheraWindowSurface({ active, onOpen, onRetain, children, dock }: {
         if (!header) return;
         const title = header.querySelector('h2,h3')?.textContent?.trim() || element.getAttribute('aria-label') || 'Окно WMS';
         const button = document.createElement('button');
-        button.type = 'button'; button.className = 'panthera-window-minimize';
+        button.type = 'button'; button.className = 'icon-button panthera-window-minimize';
         button.textContent = '−'; button.title = 'Свернуть окно'; button.setAttribute('aria-label', 'Свернуть окно');
         const entry: WindowEntry = { element, button, title, minimized: false };
         button.onclick = () => {
           entry.minimized = true; element.classList.add('panthera-window-minimized');
           (document.activeElement as HTMLElement | null)?.blur(); publish();
         };
-        header.classList.add('panthera-window-header'); header.append(button);
+        // FIX: insert beside the existing close button, including nested action toolbars.
+        const close = header.querySelector<HTMLButtonElement>('button[title="Закрыть"], button[aria-label="Закрыть"]');
+        if (close?.parentElement) close.parentElement.insertBefore(button, close);
+        else header.append(button);
         entries.set(element, entry); changed = true;
       });
       if (changed) publish();

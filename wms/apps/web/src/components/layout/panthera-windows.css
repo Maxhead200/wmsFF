@@ -1,0 +1,27 @@
+/* FIX: operational window backdrops must not inherit the opaque dialog surface. */
+@media screen {
+  :root[data-ui-variant="la_panthera"] .app-layout .online-execution-modal,
+  :root[data-ui-variant="la_panthera"] .app-layout .fbs-assembly-dialog-backdrop {
+    background: rgb(15 23 42 / 28%) !important;
+    backdrop-filter: none !important;
+  }
+  .panthera-window-surface[hidden], .panthera-window-minimized { display: none !important; }
+  .panthera-window-header { position: relative; padding-right: 94px !important; }
+  .panthera-window-header > .icon-button { position: absolute; right: 20px; top: 20px; }
+  .panthera-window-minimize {
+    position: absolute; right: 62px; top: 20px; width: 34px; height: 34px;
+    display: grid; place-items: center; padding: 0; border: 1px solid var(--border, #ccd6e0);
+    border-radius: 8px; background: var(--surface, white); color: var(--ink, #172b3a); font-size: 23px;
+    cursor: pointer;
+  }
+  .panthera-window-dock {
+    position: fixed; right: 12px; bottom: 18px; z-index: 69; display: grid; gap: 8px;
+    width: min(260px, calc(100vw - 24px)); max-height: 40vh; overflow: auto;
+  }
+  .panthera-window-dock button {
+    display: grid; grid-template-columns: 20px 1fr 16px; gap: 8px; align-items: center;
+    text-align: left; padding: 12px; border: 1px solid #8bbdb6; border-radius: 12px;
+    background: #effcf9; color: #193c38; box-shadow: 0 4px 18px #0002; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 600; line-height: 1.4;
+  }
+  .panthera-window-dock button span:nth-child(2) { overflow-wrap: anywhere; }
+}

@@ -5606,3 +5606,31 @@
     border-color: #d6e2e2;
   }
 }
+
+/* FIX: la_panthera WB menu: one two-row client tile, fourteen square tiles. */
+@media screen {
+:root[data-ui-variant="la_panthera"] .app-layout .fbs-tiles[data-marketplace="WILDBERRIES"] { display:grid!important; grid-template-columns:minmax(180px,1.25fr) repeat(7,minmax(0,1fr))!important; gap:10px!important; align-items:stretch; background:var(--surface,transparent)!important; }
+:root[data-ui-variant="la_panthera"] .app-layout .fbs-tiles[data-marketplace="WILDBERRIES"] > .fbs-tile { display:block!important; grid-row:auto!important; aspect-ratio:1; min-width:0!important; height:auto!important; min-height:0!important; }
+:root[data-ui-variant="la_panthera"] .app-layout .fbs-tiles[data-marketplace="WILDBERRIES"] > .fbs-tile > .fbs-tile__open { display:flex!important; flex-direction:column; align-items:flex-start; gap:5px!important; padding:10px 10px 34px!important; height:100%!important; min-height:0!important; width:100%; position:relative; overflow:hidden; }
+:root[data-ui-variant="la_panthera"] .app-layout .fbs-tiles[data-marketplace="WILDBERRIES"] .fbs-tile__content { display:grid; gap:4px!important; min-width:0; }
+:root[data-ui-variant="la_panthera"] .app-layout .fbs-tiles[data-marketplace="WILDBERRIES"] .fbs-tile__content strong { font-size:clamp(11px,.8vw,14px)!important; line-height:1.2!important; overflow-wrap:anywhere; }
+:root[data-ui-variant="la_panthera"] .app-layout .fbs-tiles[data-marketplace="WILDBERRIES"] .fbs-tile__content small { display:none!important; }
+:root[data-ui-variant="la_panthera"] .app-layout .fbs-tiles[data-marketplace="WILDBERRIES"] .fbs-tile__icon { width:25px!important; height:25px!important; border-radius:7px; }
+:root[data-ui-variant="la_panthera"] .app-layout .fbs-tiles[data-marketplace="WILDBERRIES"] .fbs-tile__icon svg { width:18px; height:18px; }
+:root[data-ui-variant="la_panthera"] .app-layout .fbs-tiles[data-marketplace="WILDBERRIES"] .fbs-tile__number { position:absolute; top:12px; right:12px; font-size:11px!important; }
+:root[data-ui-variant="la_panthera"] .app-layout .fbs-tiles[data-marketplace="WILDBERRIES"] .fbs-tile__count { bottom:7px!important; right:8px!important; height:22px!important; min-height:0!important; font-size:11px!important; padding:0 5px!important; }
+:root[data-ui-variant="la_panthera"] .app-layout .fbs-tiles[data-marketplace="WILDBERRIES"] > .fbs-tile--has-clients { grid-column:1; grid-row:1 / span 2!important; aspect-ratio:auto; display:flex!important; flex-direction:column; border:1px solid var(--border,#d6e0e7)!important; border-radius:16px!important; overflow:hidden!important; }
+:root[data-ui-variant="la_panthera"] .app-layout .fbs-tiles[data-marketplace="WILDBERRIES"] > .fbs-tile--has-clients > .fbs-tile__open { flex:0 0 auto; height:auto!important; min-height:95px!important; border:0!important; border-radius:0!important; }
+:root[data-ui-variant="la_panthera"] .app-layout .fbs-tiles[data-marketplace="WILDBERRIES"] > .fbs-tile--has-clients > .fbs-tile__clients { flex:1 1 0; align-self:stretch; max-height:none; min-height:0; overflow:auto; border:0!important; border-radius:0!important; padding:8px!important; }
+:root[data-ui-variant="la_panthera"] .app-layout .fbs-tiles[data-marketplace="WILDBERRIES"] .fbs-tile__clients button { padding:7px!important; font-size:11px!important; }
+}
+@media screen and (max-width:1100px) {
+:root[data-ui-variant="la_panthera"] .app-layout .fbs-tiles[data-marketplace="WILDBERRIES"] { grid-template-columns:minmax(155px,1.15fr) repeat(4,minmax(0,1fr))!important; }
+:root[data-ui-variant="la_panthera"] .app-layout .fbs-tiles[data-marketplace="WILDBERRIES"] > .fbs-tile--has-clients { grid-row:1 / span 4!important; }
+}
+@media screen and (max-width:600px) {
+:root[data-ui-variant="la_panthera"] .app-layout .fbs-tiles[data-marketplace="WILDBERRIES"] { grid-template-columns:repeat(auto-fit,minmax(min(140px,100%),1fr))!important; }
+:root[data-ui-variant="la_panthera"] .app-layout .fbs-tiles[data-marketplace="WILDBERRIES"] > .fbs-tile--has-clients { grid-column:1 / -1; grid-row:auto!important; max-height:300px; }
+:root[data-ui-variant="la_panthera"] .app-layout .fbs-tiles[data-marketplace="WILDBERRIES"] > .fbs-tile--has-clients > .fbs-tile__clients { flex-basis:auto; max-height:170px; }
+:root[data-ui-variant="la_panthera"] .app-layout .fbs-tiles[data-marketplace="WILDBERRIES"] .fbs-tile__content strong { font-size:13px!important; }
+}

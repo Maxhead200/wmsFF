@@ -36,6 +36,7 @@ import { PalletSortingPanel } from './components/inventory/PalletSortingPanel';
 import { KizIssuesPanel } from './components/kiz/KizIssuesPanel';
 import { SpaceServiceShelf } from './components/layout/SpaceServiceShelf';
 import { SpaceTopNav } from './components/layout/SpaceTopNav';
+import { PantheraWorkspaces } from './components/layout/PantheraWorkspaces';
 import { SoulWorkspace, soulEnabled } from './components/layout/SoulWorkspace';
 import { regroupWorkspaces } from './lib/workspace-groups';
 import { isThemeAvailable, resolveRetiredTheme } from './components/layout/themeAvailability';
@@ -803,7 +804,22 @@ export function App() {
           aria-label={activeWorkspace.title}
         >
           <SoulWorkspace enabled={uiTheme === 'soul'} userId={session.user.id} groups={groupedWorkspaces} activeId={activeWorkspace.id} onOpen={(id) => setActiveWorkspaceId(id as WorkspaceId)}>
-          {renderWorkspace(
+          {uiTheme === 'la_panthera' ? <PantheraWorkspaces key={session.user.id + ":" + session.user.activeWarehouseId} activeId={activeWorkspace.id} onOpen={id => setActiveWorkspaceId(id as WorkspaceId)} render={id => renderWorkspace(
+            id as WorkspaceId,
+            session,
+            availableWorkspaces,
+            setActiveWorkspaceId,
+            uiTheme,
+            branches,
+            kizUnread,
+            focusedRequestId,
+            (requestId) => {
+              // FIX: carry the exact WMS request UUID from the FBS report into the request workspace.
+              setFocusedRequestId(requestId);
+              setActiveWorkspaceId('requests');
+            },
+            () => setFocusedRequestId(null),
+          )} /> : renderWorkspace(
             activeWorkspace.id,
             session,
             availableWorkspaces,

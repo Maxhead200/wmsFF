@@ -1687,7 +1687,7 @@ export function FbsPanel({ session, onOpenRequest }: FbsPanelProps) {
         </span>
       </header>
 
-      <div className="fbs-tiles" role="tablist" aria-label="Разделы FBS">
+      <div className="fbs-tiles" data-marketplace={marketplace} role="tablist" aria-label="Разделы FBS">
         {visibleViews.map((view, index) => {
           const Icon = view.icon;
           const isActive = activeView === view.id;

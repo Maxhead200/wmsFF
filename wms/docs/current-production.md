@@ -1,3 +1,7 @@
+# Published PR441 / 30.09.2026
+
+Receipt directions and FBO/FBS reservation protection. API `sha256:f21ecba233d3e5f6cf01de4594f906786e1456bf9bd0c8b4450852cfd7afa252`; web `sha256:fe8830d5764458a7e35cf722ec99f5d443fb98429805f7c9202cdf255a443abb`. Baseline `2026-09-30-receipt-channels`. API3007/83 skipped, web355/2 skipped, exact runtime8 and browser checks passed. Flag WMS_RECEIPT_CHANNELS_ENABLED=true only on our WMS. APK216 and sold WMS unchanged; source parity false. Business policies have not yet been applied at this snapshot.
+
 # Published PR439 / 30.09.2026
 
 PR439: la_panthera minimize control aligned in the existing action toolbar. Separate retained instances allow multiple independent request windows from one workspace. Browser tests reproduce old misalignment and verify separate drafts, restore/close and theme isolation. Web355/API2939 passed, 2/115 skipped; dedicated KIZ DB suite excluded. TypeScript, actual runtime and published section smoke passed. API/APK/flags/sold WMS unchanged; source parity false. Rollback logoff-web:before-panthera-multi.

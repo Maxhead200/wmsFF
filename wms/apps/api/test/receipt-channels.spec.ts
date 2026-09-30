@@ -2,12 +2,17 @@ import 'reflect-metadata';
 import { beforeEach, afterEach, it, expect, vi } from 'vitest';
 import { receiptAllows, receiptOrderKey, receiptRules, receiptPublicationPolicy, receiptChannelChange, assertReceiptFbsBox, requireReceiptChannelAdmin, type ReceiptRule } from '../src/modules/warehouse/receipt-channel-policy';
 import { FboFbsAvailability } from '../src/modules/tsd/fbo-fbs-reservations';
+import { receiptStockSyncEvent } from '../src/modules/warehouse/receipt-channel-policy';
 const old={marketplace:'WILDBERRIES',connectionId:'cabinet',orderId:'old'};
 const rule:ReceiptRule={id:'r',clientId:'c',warehouseId:'w',sourceDocument:'SERIES:2026:FFL_TEST',fbs:false,fbo:true,protectedOrders:[receiptOrderKey(old)],revision:1,changedAt:new Date().toISOString()};
 const task={...old,id:'t',requestId:'request',skuId:'sku',sourceSkuId:null,relabelConfirmedAt:null,boxId:null,reservedBoxId:null,itemCount:1};
 const stock=[{boxId:'restricted',skuId:'sku',quantity:25},{boxId:'normal',skuId:'sku',quantity:2}];
 function db(){return {box:{findMany:vi.fn(async()=>[{id:'restricted',code:'FFL_TEST_001',createdAt:new Date('2026-09-01')}])},systemSetting:{findMany:vi.fn(async()=>[{value:rule}]),findUnique:vi.fn(async()=>({value:rule})),upsert:vi.fn()},stockMovement:{findMany:vi.fn(async(args:any)=>args.where.status==='PACKING'?[]:args.select.sourceDocument?[{boxId:'restricted',sourceDocument:'SERIES:2026:FFL_TEST'}]:[{boxId:'restricted',createdAt:new Date('2026-09-01')}])},clientRequest:{findMany:vi.fn(async()=>[{id:'request'}])},fbsTsdAssembly:{findMany:vi.fn(async()=>[task])},stockBalance:{findMany:vi.fn(async()=>[{...stock[0]}])}} as any;}
 beforeEach(()=>vi.stubEnv('WMS_RECEIPT_CHANNELS_ENABLED','true'));afterEach(()=>vi.unstubAllEnvs());
+// TEST: both directions and membership saves await this durable invalidation.
+it('invalidates old stock plans with a committed all-SKU event',async()=>{vi.stubEnv('WMS_WB_URGENT_STOCK_SYNC','true');const p={$executeRaw:vi.fn(async()=>1)};await receiptStockSyncEvent(p as any,'client');expect(p.$executeRaw).toHaveBeenCalledOnce();expect(p.$executeRaw.mock.calls[0][0].join('')).toContain('"WbStockSyncEvent"');expect(p.$executeRaw.mock.calls[0][1]).toBe('client');});
+it('rolls back the caller if durable synchronization cannot be queued',async()=>{vi.stubEnv('WMS_WB_URGENT_STOCK_SYNC','true');await expect(receiptStockSyncEvent({$executeRaw:async()=>{throw Error('queue unavailable');}} as any,'client')).rejects.toThrow('queue unavailable');});
+it('does not require the queue in a disabled installation',async()=>{vi.stubEnv('WMS_RECEIPT_CHANNELS_ENABLED','false');vi.stubEnv('WMS_WB_URGENT_STOCK_SYNC','true');const p={$executeRaw:vi.fn()};await receiptStockSyncEvent(p as any,'client');expect(p.$executeRaw).not.toHaveBeenCalled();});
 // TEST: protected orders retain access; new demand cannot take FBO stock.
 it('keeps old orders but rejects new orders and other accounts',()=>{expect(receiptAllows(rule,'fbs',old)).toBe(true);expect(receiptAllows(rule,'fbs',{...old,orderId:'new'})).toBe(false);expect(receiptAllows(rule,'fbs',{...old,connectionId:'other'})).toBe(false);expect(receiptAllows(rule,'fbo')).toBe(true);});
 it('leaves sold WMS unchanged when disabled',async()=>{vi.stubEnv('WMS_RECEIPT_CHANNELS_ENABLED','false');const p=db();expect((await receiptRules(p,'c')).size).toBe(0);expect(p.systemSetting.findMany).not.toHaveBeenCalled();});

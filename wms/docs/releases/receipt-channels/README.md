@@ -19,3 +19,7 @@ Administration requires ADMIN/OWNER, warehouse permission and client scope. Prev
 Source parity remains false. Base: `2026-09-30-panthera-multi`, API `sha256:d976a490b412d33585d24a0eddb6392ea7304e5b50c2ae9699ffadd3f72327dc`. Materialize into `<release>/candidate-final`, apply `fbo-fbs-reservations-candidate.cjs`, generate scoped method deltas with `receipt-channels-methods.cjs <release>`, then `receipt-channels-patch.py <release>`. Web runtime script uses captured original web plus isolated component and versioned import graph. Check the exact nine-file API allow-list before staging. Do not deploy a whole source build.
 
 Nine changed API modules: administration registry; marketplace service; Ozon pick workflow; stock operations; FBO two-stage service and reserve helper; receipt policy/controller; warehouse module. Preserve all other hashes, APK216, existing flags and sold WMS. Rollback tags: `logoff-api:before-receipt-channels`, `logoff-web:before-receipt-channels`. Rollback makes stored direction settings dormant; do not continue FBO-only stock operations on the old version.
+
+## Durable WB invalidation
+
+Direction changes and manual receipt membership append an all-SKU event in the same transaction when WMS_WB_URGENT_STOCK_SYNC is enabled. This invalidates in-flight plans, survives restart and uses the existing queue retry/verification logic. Failure rolls back the policy save. Sold/default-disabled installations do not access the runtime-only queue.

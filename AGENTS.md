@@ -128,3 +128,5 @@ Latest verified release PR424: baseline `2026-09-29-payroll-compact`. Web sha256
 Latest API baseline PR431: 2026-09-30-kiz-released-review; sourceParityVerified=false. RELEASED physical-return review only, single API module; web and sold WMS unchanged.
 
 Latest API baseline PR433: 2026-09-30-fbs-active-bootstrap; sourceParityVerified=false. Active FBS bootstrap and canonical shipment identity; one-module exact delta, web/APK/sold WMS unchanged.
+
+Latest API baseline PR435: 2026-09-30-fbs-saved-names; sourceParityVerified=false. Saved warehouse names, exact single-module delta. Web/APK/sold WMS unchanged.

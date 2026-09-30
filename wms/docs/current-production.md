@@ -1,3 +1,9 @@
+# Published PR435 / 30.09.2026
+
+PR435: saved seller warehouse identity in FBS fallback display. Two fields in one API module. API2939/115 skipped, four runtime tests, TypeScript, baseline8 and live45-order read-only proof passed. Health/hashes/flags verified; web/APK/sold WMS unchanged. Source parity false. Rollback logoff-api:before-fbs-saved-names.
+
+Baseline: 2026-09-30-fbs-saved-names.
+
 # Published PR433 / 30.09.2026
 
 Fast active FBS display skips historical loading; historical shipment identity restored from durable columns. API-only exact delta. API2939 passed/115 skipped, three runtime regressions, TypeScript and live read-only checks passed. Published health/hashes/flags verified; web/APK/sold WMS unchanged; sourceParityVerified=false. Rollback logoff-api:before-fbs-active-fast.

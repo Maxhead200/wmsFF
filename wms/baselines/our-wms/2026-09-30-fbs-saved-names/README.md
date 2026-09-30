@@ -1,0 +1,1 @@
+PR435: saved seller warehouse identity in FBS fallback display. Two fields in one API module. API2939/115 skipped, four runtime tests, TypeScript, baseline8 and live45-order read-only proof passed. Health/hashes/flags verified; web/APK/sold WMS unchanged. Source parity false. Rollback logoff-api:before-fbs-saved-names.

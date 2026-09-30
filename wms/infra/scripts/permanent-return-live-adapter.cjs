@@ -17,8 +17,8 @@ const liveHashes = {
   [returnName]: 'b0ebd2c2db28f43151b343e59f88ecd29f65ab5caa022a5470777caa0581427b',
 };
 const desiredHashes = {
-  // FIX: reviewed exact-source KIZ guard; preserve the same five live adaptations.
-  [reserveName]: '314ef2a53599191683f876cc59ccbfa0f99d966b97615653e5656c1152c538d1',
+  // FIX: receipt guard precedes stock writes; the five storage adaptations remain unchanged.
+  [reserveName]: '7bf7ca04c5b7f1b9083b8e4b854025dfe4503f56cf45f47fbb715035bab73942',
   [returnName]: '832f9d256c1eba686a7534217a9baa7d30b960e1ed836dd141b1dcf0e73671eb',
 };
 function once(text, before, after) {

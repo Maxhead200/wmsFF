@@ -1,3 +1,4 @@
+import { receiptDocuments, receiptChannelChange, assertReceiptFbsBox, receiptRules, assignReceiptBox } from '../src/modules/warehouse/receipt-channel-policy';
 import 'reflect-metadata';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Prisma, PrismaClient } from '@prisma/client';
@@ -48,7 +49,8 @@ describe.skipIf(!url).sequential('FBO physical pick, pack and final box control'
     afterEach(async () => {
         vi.restoreAllMocks();
         await p.fbsTsdAssembly.deleteMany({ where: { clientId: client } });
-        await p.auditLog.deleteMany({ where: { entityId: request } });
+        await p.auditLog.deleteMany({ where: { OR:[{entityId:request},{userId:uid}] } });
+        await p.systemSetting.deleteMany({where:{updatedByUserId:uid}});
         await p.tsdOperation.deleteMany({ where: { payload: { path: ['requestId'], equals: request } } });
         await p.fboAssemblyAction.deleteMany({ where: { requestId: request } });
         await p.fboAssemblyUnit.deleteMany({ where: { requestId: request } });
@@ -70,6 +72,41 @@ describe.skipIf(!url).sequential('FBO physical pick, pack and final box control'
         vi.unstubAllEnvs();
     });
     afterAll(() => p.$disconnect());
+    async function receiptFixture(){
+      vi.stubEnv('WMS_RECEIPT_CHANNELS_ENABLED','true');
+      await p.stockMovement.create({data:{clientId:client,warehouseId:wh,boxId:whole,skuId:sku,type:'RECEIPT',status:'AVAILABLE',quantity:2,sourceDocument:'receipt-session'}});
+      return (await receiptDocuments(p,client,wh)).find(r=>r.boxes.some(b=>b.id===whole))!;
+    }
+    // TEST: full database queries, policy save/version and physical FBO write guard.
+    it('saves FBS-only receipt and rejects FBO picking without stock writes',async()=>{
+      const receipt=await receiptFixture();
+      await p.$transaction(tx=>receiptChannelChange(tx,client,wh,receipt.id,true,false,0,true,uid),{isolationLevel:'Serializable'});
+      expect((await receiptRules(p,client,wh)).get(whole)?.fbo).toBe(false);
+      await act('START');
+      await expect(act('PICK_UNIT',{sourceBoxCode:'FFL_'+whole,barcode:'2051234567890',kiz:marks[0].value})).rejects.toThrow();
+      expect(await p.fboAssemblyUnit.count({where:{requestId:request}})).toBe(0);
+      await expect(receiptChannelChange(p,client,wh,receipt.id,true,true,0,true,uid)).rejects.toThrow('уже изменены');
+    });
+    it('preserves existing FBS order while blocking a later order',async()=>{
+      const receipt=await receiptFixture();
+      const old=await p.fbsTsdAssembly.create({data:{clientId:client,connectionId:randomUUID(),orderId:randomUUID(),requestId:request,requestItemId:line,skuId:sku,productName:'reserved',barcodes:[],storageBoxes:[],deviceCode:'AUTO:FBS:PALLET_SORT',status:'RESERVED',reservedBoxId:whole,stockWarehouseId:wh}});
+      const preview=await receiptChannelChange(p,client,wh,receipt.id,false,true,0,false,uid);
+      expect(preview.protectedQuantity).toBe(1);expect(await p.systemSetting.count({where:{updatedByUserId:uid}})).toBe(0);
+      await p.$transaction(tx=>receiptChannelChange(tx,client,wh,receipt.id,false,true,0,true,uid),{isolationLevel:'Serializable'});
+      await expect(assertReceiptFbsBox(p,old,whole)).resolves.toBeUndefined();
+      await expect(assertReceiptFbsBox(p,{...old,orderId:'later'},whole)).rejects.toThrow('только для ФБО');
+      await act('START');await act('PICK_UNIT',{sourceBoxCode:'FFL_'+whole,barcode:'2051234567890',kiz:marks[0].value});
+      await expect(act('PICK_UNIT',{sourceBoxCode:'FFL_'+whole,barcode:'2051234567890',kiz:marks[1].value})).rejects.toThrow();
+      expect((await p.stockBalance.aggregate({where:{boxId:whole,status:'AVAILABLE'},_sum:{quantity:true}}))._sum.quantity).toBe(1);
+    });
+    it('binds a wrong box name without changing barcode or physical stock',async()=>{
+      const receipt=await receiptFixture();await receiptChannelChange(p,client,wh,receipt.id,false,true,0,true,uid);
+      const before=await p.stockBalance.findMany({where:{boxId:partial},orderBy:{id:'asc'}});
+      await assignReceiptBox(p,client,wh,receipt.id,'FFL_'+partial,uid,true);
+      expect((await receiptRules(p,client,wh)).get(partial)?.fbs).toBe(false);
+      expect((await p.box.findUniqueOrThrow({where:{id:partial}})).code).toBe('FFL_'+partial);
+      expect(await p.stockBalance.findMany({where:{boxId:partial},orderBy:{id:'asc'}})).toEqual(before);
+    });
     // TEST: live employee/KIZ details remain inside the existing feature flag and client access scope.
     it('does not expose online details without access or when FBO is disabled', async () => {
         await expect(svc.plan(request,{...user,id:randomUUID()})).rejects.toThrow('Client access denied');
@@ -113,7 +150,7 @@ describe.skipIf(!url).sequential('FBO physical pick, pack and final box control'
     // TEST: the route must apply the same live box reservations as the pick endpoint.
     it('routes around an FBS reservation and includes the box again once released', async () => {
         const reservation = await p.fbsTsdAssembly.create({ data: {
-            clientId: client, connectionId: randomUUID(), orderId: randomUUID(), requestId: randomUUID(), requestItemId: randomUUID(),
+            clientId: client, connectionId: randomUUID(), orderId: randomUUID(), requestId: request, requestItemId: randomUUID(),
             skuId: sku, productName: 'FBS reserved', barcodes: [], storageBoxes: [], deviceCode: 'AUTO:FBS:PALLET_SORT',
             status: 'IN_PROGRESS', reservedBoxId: whole, barcode: '2051234567890',
         } });
@@ -126,29 +163,31 @@ describe.skipIf(!url).sequential('FBO physical pick, pack and final box control'
         await p.fbsTsdAssembly.update({ where: { id: reservation.id }, data: { status: 'COMPLETED' } });
         expect((await svc.plan(request, user)).route.some(b => b.boxCode === 'FFL_' + whole)).toBe(true);
     });
-    // TEST: automatic and box-only routes yield to physical picking without clearing another SKU's route.
-    it.each(['RESERVED', 'IN_PROGRESS'])('releases an untouched %s route when FBO physically takes its stock', async (status) => {
+    // TEST: an untouched FBS reservation protects its quantity before physical picking starts.
+    it.each(['RESERVED', 'IN_PROGRESS'])('protects an untouched %s route from FBO picking', async (status) => {
         const reservation = await p.fbsTsdAssembly.create({ data: {
-            clientId: client, connectionId: randomUUID(), orderId: randomUUID(), requestId: randomUUID(), requestItemId: randomUUID(),
+            clientId: client, connectionId: randomUUID(), orderId: randomUUID(), requestId: request, requestItemId: randomUUID(),
             skuId: sku, productName: 'FBS reserved', barcodes: [], storageBoxes: [], deviceCode: status === 'RESERVED' ? 'AUTO:FBS:PALLET_SORT' : 'TSD',
             status, reservedBoxId: whole, boxId: status === 'IN_PROGRESS' ? whole : null,
         } });
         const plan = await act('START');
         expect(plan.route.some(b => b.boxCode === 'FFL_' + whole)).toBe(true);
         expect((await p.fbsTsdAssembly.findUniqueOrThrow({ where: { id: reservation.id } })).reservedBoxId).toBe(whole);
-        const dto = { action: 'PICK_BOX', operationId: randomUUID(), sourceBoxCode: 'FFL_' + whole };
-        const result = await svc.act(request, dto, user);
-        expect(result.picked).toBe(2);
+        await expect(act('PICK_BOX', { sourceBoxCode: 'FFL_' + whole })).rejects.toThrow();
+        expect(await p.stockMovement.count({where:{clientId:client}})).toBe(0);
+        const result = await act('PICK_UNIT', {sourceBoxCode:'FFL_'+whole,barcode:'2051234567890',kiz:marks[0].value});
+        expect(result.picked).toBe(1);
         expect(result.route.some(b => b.boxCode === 'FFL_' + whole)).toBe(false);
+        await expect(act('PICK_UNIT', {sourceBoxCode:'FFL_'+whole,barcode:'2051234567890',kiz:marks[1].value})).rejects.toThrow('зарезервирован');
         expect(await p.fbsTsdAssembly.findUniqueOrThrow({ where: { id: reservation.id } })).toMatchObject({
-            status: status === 'RESERVED' ? 'WAITING_STOCK' : 'IN_PROGRESS', boxId: null, reservedBoxId: null,
+            status, boxId: status === 'IN_PROGRESS' ? whole : null, reservedBoxId: whole,
         });
-        expect((await svc.act(request, dto, user)).picked).toBe(2);
+        expect((await p.stockBalance.aggregate({where:{boxId:whole,status:'AVAILABLE'},_sum:{quantity:true}}))._sum.quantity).toBe(1);
     });
     // TEST: partial picking keeps reservations covered by remaining stock and never releases another SKU.
-    it('releases only reservations displaced by the accepted quantity', async () => {
+    it('keeps all FBS reservations when the free quantity is exhausted', async () => {
         const reserve = async (skuId: string, itemCount: number) => p.fbsTsdAssembly.create({ data: {
-            clientId: client, connectionId: randomUUID(), orderId: randomUUID(), requestId: randomUUID(), requestItemId: randomUUID(),
+            clientId: client, connectionId: randomUUID(), orderId: randomUUID(), requestId: request, requestItemId: randomUUID(),
             skuId, itemCount, productName: 'FBS reserved', barcodes: [], storageBoxes: [], deviceCode: 'AUTO:FBS:PALLET_SORT',
             status: 'RESERVED', reservedBoxId: partial,
         } });
@@ -159,9 +198,70 @@ describe.skipIf(!url).sequential('FBO physical pick, pack and final box control'
         expect((await p.fbsTsdAssembly.findUniqueOrThrow({ where: { id: same.id } })).reservedBoxId).toBe(partial);
         await pick(marks[2].value);
         expect((await p.fbsTsdAssembly.findUniqueOrThrow({ where: { id: same.id } })).reservedBoxId).toBe(partial);
-        await pick(marks[3].value);
-        expect((await p.fbsTsdAssembly.findUniqueOrThrow({ where: { id: same.id } })).reservedBoxId).toBeNull();
+        await expect(pick(marks[3].value)).rejects.toThrow('зарезервирован');
+        expect((await p.fbsTsdAssembly.findUniqueOrThrow({ where: { id: same.id } })).reservedBoxId).toBe(partial);
         expect((await p.fbsTsdAssembly.findUniqueOrThrow({ where: { id: different.id } })).reservedBoxId).toBe(partial);
+    });
+    // TEST: simultaneous scans cannot both consume the single free unit.
+    it('serializes simultaneous picks while retaining two units for FBS', async () => {
+        const reservation = await p.fbsTsdAssembly.create({data:{
+            clientId:client,connectionId:randomUUID(),orderId:randomUUID(),requestId:request,requestItemId:randomUUID(),
+            skuId:sku,itemCount:2,productName:'Reserved',barcodes:[],storageBoxes:[],deviceCode:'AUTO:FBS:PALLET_SORT',
+            status:'RESERVED',reservedBoxId:partial,
+        }});
+        await act('START');
+        const results = await Promise.allSettled(marks.slice(2,4).map(m=>act('PICK_UNIT',{
+            sourceBoxCode:'FFL_'+partial,barcode:'2051234567890',kiz:m.value,
+        })));
+        expect(results.filter(r=>r.status==='fulfilled')).toHaveLength(1);
+        expect(results.filter(r=>r.status==='rejected')).toHaveLength(1);
+        expect(await p.fboAssemblyUnit.count({where:{requestId:request}})).toBe(1);
+        expect((await p.stockBalance.aggregate({where:{boxId:partial,skuId:sku,status:'AVAILABLE'},_sum:{quantity:true}}))._sum.quantity).toBe(2);
+        expect(await p.fbsTsdAssembly.findUniqueOrThrow({where:{id:reservation.id}})).toMatchObject({status:'RESERVED',reservedBoxId:partial});
+    });
+    // TEST: unbound demand protects stock in its own warehouse only.
+    it.each([true,false])('scopes an unbound FBS order to its warehouse: %s', async sameWarehouse => {
+        await p.fbsTsdAssembly.create({data:{
+            clientId:client,connectionId:randomUUID(),orderId:randomUUID(),requestId:request,requestItemId:randomUUID(),
+            skuId:sku,itemCount:3,productName:'Waiting',barcodes:[],storageBoxes:[],deviceCode:'AUTO:FBS:PALLET_SORT',
+            status:'WAITING_STOCK',stockWarehouseId:sameWarehouse?wh:randomUUID(),
+        }});
+        const plan = await act('START');
+        expect(plan.route.flatMap(b=>b.tasks).reduce((sum,t)=>sum+t.quantity,0)).toBe(sameWarehouse?2:4);
+        expect(plan.shortage).toBe(sameWarehouse?2:0);
+    });
+    // TEST: a physical FBS debit is not subtracted again as a virtual reservation.
+    it.each([1,3])('subtracts only the unpicked part of a three-unit FBS order: picked %s', async pickedQuantity => {
+        const task = await p.fbsTsdAssembly.create({data:{
+            clientId:client,connectionId:randomUUID(),orderId:randomUUID(),requestId:request,requestItemId:randomUUID(),
+            skuId:sku,itemCount:3,productName:'Picked',barcodes:[],storageBoxes:[],deviceCode:'TSD',
+            status:'RESCAN_REQUIRED',stockWarehouseId:wh,reservedBoxId:partial,
+        }});
+        await p.stockMovement.create({data:{clientId:client,warehouseId:wh,skuId:sku,boxId:partial,
+            type:'MOVE',status:'PACKING',quantity:pickedQuantity,sourceDocument:request,idempotencyKey:`fbs-sticker-pick:${task.id}:in`}});
+        const plan = await act('START');
+        expect(plan.shortage).toBe(pickedQuantity===1?1:0);
+        expect(plan.route.flatMap(b=>b.tasks).reduce((sum,t)=>sum+t.quantity,0)).toBe(pickedQuantity===1?3:4);
+    });
+    // TEST: an abandoned virtual route without a live request must not become phantom demand.
+    it.each(['RESERVED','IN_PROGRESS','COMPLETED'])('ignores an orphaned untouched %s assignment', async status => {
+        await p.fbsTsdAssembly.create({data:{
+            clientId:client,connectionId:randomUUID(),orderId:randomUUID(),requestId:randomUUID(),requestItemId:randomUUID(),
+            skuId:sku,itemCount:5,productName:'Old route',barcodes:[],storageBoxes:[],deviceCode:'AUTO:FBS:PALLET_SORT',
+            status,stockWarehouseId:wh,reservedBoxId:partial,
+        }});
+        expect((await act('START')).shortage).toBe(0);
+    });
+    // TEST: a relabel reservation is applied to its source SKU through the real database query.
+    it('protects the source stock of a relabel order', async () => {
+        await p.fbsTsdAssembly.create({data:{
+            clientId:client,connectionId:randomUUID(),orderId:randomUUID(),requestId:request,requestItemId:randomUUID(),
+            skuId:other,sourceSkuId:sku,itemCount:2,productName:'Relabel',barcodes:[],storageBoxes:[],deviceCode:'AUTO:FBS:PALLET_SORT',
+            status:'RESERVED',stockWarehouseId:wh,reservedBoxId:partial,
+        }});
+        const plan = await act('START');
+        expect(plan.shortage).toBe(1);
+        expect(plan.route.find(b=>b.boxCode==='FFL_'+partial)?.tasks[0].quantity).toBe(1);
     });
     // TEST: permanent failures and exhausted conflicts do not commit a partial debit or retry indefinitely.
     it.each(['P2034', 'P2028'])('rolls back and bounds retries for %s', async (code) => {

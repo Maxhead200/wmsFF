@@ -25,6 +25,14 @@ export type InternalApiDefinition = {
 // ADDED: Explicit registry documents every controller group loaded by AppModule.
 // Keeping it declarative avoids a global interceptor and therefore does not touch normal API traffic.
 export const INTERNAL_API_DEFINITIONS: readonly InternalApiDefinition[] = Object.freeze([
+  // FIX: branch-scoped receipt channel controls, disabled by default.
+  {
+    id: 'receipt-channels', name: 'Направления приёмок',
+    prefixes: ['/warehouse/receipt-channels'], routeCount: 4,
+    description: 'Направления ФБС/ФБО по серии коробов с сохранением ранее поступивших заказов.',
+    logic: ['Только ADMIN/OWNER своего филиала.', 'Предпросмотр, версия записи и аудит изменений.', 'Отдельный флаг нашей WMS.'],
+    dependencies: ['Основная БД', 'Права warehouse:write'],
+  },
   // FIX: attendance is independently gated and unrelated to TSD picking/printing.
   {
     id: 'attendance-device',

@@ -1,3 +1,4 @@
+import { receiptBlockedBoxes, assertReceiptFbsBox } from '../warehouse/receipt-channel-policy';
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { reconcileFbsRequestStatus } from '../../common/stock/fbs-request-auto-status';
 import {
@@ -118,9 +119,10 @@ async function locations(service: any, task: any, state: OzonPickState) {
   if (!line) return [];
   const warehouseId = await service.resolveFbsTsdExpectedWarehouseId(task);
   if (!warehouseId) throw new ConflictException('Не определён склад исполнения заявки.');
+  const excludedReceiptBoxes=await receiptBlockedBoxes(service.prisma,task.clientId,'fbs',task.id);
   const rows = await service.prisma.stockBalance.findMany({ where: {
     clientId: task.clientId, warehouseId, skuId: line.skuId, status: 'AVAILABLE', quantity: { gt: 0 },
-    boxId: { not: null }, box: { status: { notIn: ['archived', 'deleted'] } },
+    boxId: { not: null, ...(excludedReceiptBoxes.length?{notIn:excludedReceiptBoxes}:{}) }, box: { status: { notIn: ['archived', 'deleted'] } },
   }, select: { boxId: true, quantity: true, box: { select: { code: true, storagePlacement: { include: { pallet: { include: { zone: true } } } } } } } });
   const boxes = new Map<string, any>();
   for (const row of rows) {
@@ -256,6 +258,7 @@ export async function handleOzonPickLines(service: any, task: any, user: any, ac
       const code = String(payload.barcode ?? payload.boxCode ?? payload.code ?? '').trim();
       const line = ozonActiveLine(current);
       if (action === 'barcode' || (action === 'code' && /^\d{8,13}$/.test(code))) {
+        await assertReceiptFbsBox(tx,fresh,current.source?.boxId);
         current = recordOzonLineScan(current, code, payload.scannedItemCount, user.id);
       } else {
         if (!Number.isSafeInteger(payload.scannedItemCount) || Number(payload.scannedItemCount) > ozonPickCount(current)) throw new ConflictException('Обновите задание перед выбором короба.');

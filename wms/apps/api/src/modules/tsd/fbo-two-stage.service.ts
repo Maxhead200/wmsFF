@@ -13,13 +13,14 @@ import { StockOperationsService } from '../stock/stock-operations.service';
 import { fboTwoStageEnabled, hasLegacyFboProgress, isFboTwoStageRequest, remainingFboLines, wholeBoxDecision } from './fbo-two-stage-policy';
 import { FboActionDto } from './dto/fbo-action.dto';
 import { loadFboRoutePreference, orderFboRequestBoxes } from './fbo-request-route';
+import { loadFboFbsAvailability } from './fbo-fbs-reservations';
 const include = { items: { include: { sku: { include: { barcodes: true } } } }, client: true,
     _count: { select: { fbsOrderLinks: true, packages: true } }, pickWaveRequests: { include: { wave: true } } } satisfies Prisma.ClientRequestInclude;
 type Request = Prisma.ClientRequestGetPayload<{
     include: typeof include;
 }>;
 const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
-// FIX: use the FBS physical-claim rule: an untouched route is not physical stock ownership.
+// FIX: untouched routes allow partial FBO picking, but their quantity remains protected below.
 const untouchedFbsRoute = (task: FbsTsdAssembly) =>
     !task.sourceBarcode && !task.barcode && !task.kiz && !task.relabelConfirmedAt &&
     ((task.status === 'RESERVED' && task.deviceCode === 'AUTO:FBS:PALLET_SORT' && !task.boxId) || task.status === 'IN_PROGRESS');
@@ -81,6 +82,7 @@ export class FboTwoStageService {
                 storagePlacement: { include: { pallet: { include: { zone: true } } } }, pallet: true, zone: true }, orderBy: { code: 'asc' },
         });
         const route = [];
+        const availability = await loadFboFbsAvailability(tx, r, Object.keys(demand));
         const busyBoxes = await this.busyBoxes(tx, boxes.map(b => b.id), r.id, true);
         // FIX: historical stock may have real marks even when the SKU flag was never filled.
         for (const l of lines)
@@ -105,7 +107,9 @@ export class FboTwoStageService {
                 if (balance.status !== 'AVAILABLE' || balance.quantity <= 0 || (demand[balance.skuId] ?? 0) <= 0)
                     continue;
                 const l = lines.find(i => i.skuId === balance.skuId)!;
-                const quantity = Math.min(demand[l.skuId], balance.quantity);
+                const quantity = Math.min(demand[l.skuId], balance.quantity, availability.free(box.id, l.skuId));
+                if (!quantity) continue;
+                availability.take(box.id, l.skuId, quantity);
                 tasks.push({ skuId: l.skuId, barcode: l.barcode, name: `${l.name} · ${l.article || ''} · ${l.size || ''}`, quantity, requiresKiz: l.requiresKiz });
                 demand[l.skuId] -= quantity;
             }
@@ -206,6 +210,9 @@ export class FboTwoStageService {
                         throw new ConflictException('Этот КИЗ не доступен в указанном коробе для данного товара.');
                     chosen = [{ skuId: line.skuId!, mark }];
                 }
+                // FIX: a stale screen or whole-box scan must not consume another order's reserve.
+                const availability = await loadFboFbsAvailability(tx, r, [...new Set(chosen.map(p => p.skuId))]);
+                for (const pick of chosen) availability.take(source.id, pick.skuId, 1);
                 const holding = whole ? source : await tx.box.upsert({ where: { code: `FBO-PICK-${id}` }, create: { code: `FBO-PICK-${id}`, clientId: r.clientId, warehouseId: r.warehouseId, status: 'fbo-picking' }, update: {} });
                 for (const pick of chosen) {
                     const line = lines.find(l => l.skuId === pick.skuId && l.remaining > 0)!;
@@ -225,8 +232,7 @@ export class FboTwoStageService {
                     await tx.fboAssemblyUnit.create({ data: { id: unitId, requestId: id, requestItemId: line.id, skuId: pick.skuId, barcode: line.barcode!,
                             markId: pick.mark?.id, activeMarkId: pick.mark?.id, kiz: pick.mark?.value, sourceBoxId: source.id, sourceBoxCode: source.code, wholeBox: whole, pickedByUserId: user.id } });
                 }
-                await this.releaseDisplacedRoutes(tx, source.id, source.code, [...new Set(chosen.map(p => p.skuId))]);
-                // FIX: after marks and reservations move, archive the emptied source in this same transaction.
+                // FIX: FBS reservations stay intact; only genuinely empty sources may be archived.
                 if (process.env.WMS_FBO_EMPTY_BOX_ARCHIVE_ENABLED === 'true' && !whole)
                     await this.stock.archiveEmptyFboBoxes(tx, id, user, [source.id]);
             }
@@ -382,27 +388,6 @@ export class FboTwoStageService {
     private async requireIdleBox(tx: Prisma.TransactionClient, boxId: string, requestId: string, allowUntouchedRoutes = false) {
         if ((await this.busyBoxes(tx, [boxId], requestId, allowUntouchedRoutes)).has(boxId))
             throw new ConflictException('Короб участвует в актуализации или другой активной сборке.');
-    }
-    private async releaseDisplacedRoutes(tx: Prisma.TransactionClient, boxId: string, boxCode: string, skuIds: string[]) {
-        // FIX: release only excess untouched reservations, atomically with the successful physical pick.
-        const tasks = await tx.fbsTsdAssembly.findMany({ where: { OR: [{ boxId }, { boxId: null, reservedBoxId: boxId }], status: { in: ['RESERVED', 'IN_PROGRESS'] } }, orderBy: { createdAt: 'asc' } });
-        for (const skuId of skuIds) {
-            const rows = tasks.filter(t => (t.sourceSkuId && !t.relabelConfirmedAt ? t.sourceSkuId : t.skuId) === skuId);
-            const available = await tx.stockBalance.aggregate({ where: { boxId, skuId, status: 'AVAILABLE' }, _sum: { quantity: true } });
-            let excess = rows.reduce((s, t) => s + Math.max(1, t.itemCount), 0) - (available._sum.quantity ?? 0);
-            for (const task of [...rows].reverse()) {
-                if (excess <= 0) break;
-                if (!untouchedFbsRoute(task)) continue;
-                const changed = await tx.fbsTsdAssembly.updateMany({ where: { id: task.id, updatedAt: task.updatedAt, status: task.status,
-                    sourceBarcode: null, barcode: null, kiz: null, relabelConfirmedAt: null }, data: {
-                    ...(task.status === 'RESERVED' ? { status: 'WAITING_STOCK' } : {}),
-                    boxId: null, boxCode: null, reservedBoxId: null, reservedBoxCode: null, reservedAt: null,
-                    errorMessage: `Маршрут изменён: товар из короба ${boxCode} отобран в FBO. Используйте новый маршрут на экране.`,
-                } });
-                if (changed.count !== 1) throw new ConflictException('Маршрут изменился. Повторите сканирование.');
-                excess -= Math.max(1, task.itemCount);
-            }
-        }
     }
     private async exactMark(tx: Prisma.TransactionClient, kiz: string) {
         const key = identity(kiz);

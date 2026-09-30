@@ -1,3 +1,4 @@
+import { ReceiptDirectionsPanel } from './ReceiptDirectionsPanel';
 import { Download, RefreshCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import {
@@ -56,6 +57,7 @@ export function ReceiptBatchesPanel({ fixedClientId, session }: { fixedClientId?
 
   return (
     <div className="receipt-batches">
+      {clientId?<ReceiptDirectionsPanel key={clientId} session={session} fixedClientId={clientId}/>:null}
       <div className="warehouse-drafts__toolbar">
         {!fixedClientId ? (
           <label>

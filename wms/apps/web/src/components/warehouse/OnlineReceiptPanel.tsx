@@ -1,3 +1,4 @@
+import { ReceiptDirectionsPanel } from './ReceiptDirectionsPanel';
 import { CheckCircle2, Edit3, PackageOpen, RefreshCw, RotateCcw, Search, Trash2, Unlock } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -236,6 +237,7 @@ export function OnlineReceiptPanel({ fixedClientId, readOnly = false, session }:
 
   return (
     <div className={`online-receipts ${readOnly ? 'online-receipts--readonly' : ''}`}>
+      {canManage&&clientId?<details><summary>Направления приёмок ФБС / ФБО</summary><ReceiptDirectionsPanel key={clientId} session={session} fixedClientId={clientId}/></details>:null}
       <div className="online-receipts__toolbar">
         {!fixedClientId ? (
           <label>

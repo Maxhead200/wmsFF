@@ -1,3 +1,4 @@
+import { receiptDocuments, receiptChannelChange, assertReceiptFbsBox, receiptRules, assignReceiptBox } from '../src/modules/warehouse/receipt-channel-policy';
 import 'reflect-metadata';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Prisma, PrismaClient } from '@prisma/client';
@@ -48,7 +49,8 @@ describe.skipIf(!url).sequential('FBO physical pick, pack and final box control'
     afterEach(async () => {
         vi.restoreAllMocks();
         await p.fbsTsdAssembly.deleteMany({ where: { clientId: client } });
-        await p.auditLog.deleteMany({ where: { entityId: request } });
+        await p.auditLog.deleteMany({ where: { OR:[{entityId:request},{userId:uid}] } });
+        await p.systemSetting.deleteMany({where:{updatedByUserId:uid}});
         await p.tsdOperation.deleteMany({ where: { payload: { path: ['requestId'], equals: request } } });
         await p.fboAssemblyAction.deleteMany({ where: { requestId: request } });
         await p.fboAssemblyUnit.deleteMany({ where: { requestId: request } });
@@ -70,6 +72,41 @@ describe.skipIf(!url).sequential('FBO physical pick, pack and final box control'
         vi.unstubAllEnvs();
     });
     afterAll(() => p.$disconnect());
+    async function receiptFixture(){
+      vi.stubEnv('WMS_RECEIPT_CHANNELS_ENABLED','true');
+      await p.stockMovement.create({data:{clientId:client,warehouseId:wh,boxId:whole,skuId:sku,type:'RECEIPT',status:'AVAILABLE',quantity:2,sourceDocument:'receipt-session'}});
+      return (await receiptDocuments(p,client,wh)).find(r=>r.boxes.some(b=>b.id===whole))!;
+    }
+    // TEST: full database queries, policy save/version and physical FBO write guard.
+    it('saves FBS-only receipt and rejects FBO picking without stock writes',async()=>{
+      const receipt=await receiptFixture();
+      await p.$transaction(tx=>receiptChannelChange(tx,client,wh,receipt.id,true,false,0,true,uid),{isolationLevel:'Serializable'});
+      expect((await receiptRules(p,client,wh)).get(whole)?.fbo).toBe(false);
+      await act('START');
+      await expect(act('PICK_UNIT',{sourceBoxCode:'FFL_'+whole,barcode:'2051234567890',kiz:marks[0].value})).rejects.toThrow();
+      expect(await p.fboAssemblyUnit.count({where:{requestId:request}})).toBe(0);
+      await expect(receiptChannelChange(p,client,wh,receipt.id,true,true,0,true,uid)).rejects.toThrow('уже изменены');
+    });
+    it('preserves existing FBS order while blocking a later order',async()=>{
+      const receipt=await receiptFixture();
+      const old=await p.fbsTsdAssembly.create({data:{clientId:client,connectionId:randomUUID(),orderId:randomUUID(),requestId:request,requestItemId:line,skuId:sku,productName:'reserved',barcodes:[],storageBoxes:[],deviceCode:'AUTO:FBS:PALLET_SORT',status:'RESERVED',reservedBoxId:whole,stockWarehouseId:wh}});
+      const preview=await receiptChannelChange(p,client,wh,receipt.id,false,true,0,false,uid);
+      expect(preview.protectedQuantity).toBe(1);expect(await p.systemSetting.count({where:{updatedByUserId:uid}})).toBe(0);
+      await p.$transaction(tx=>receiptChannelChange(tx,client,wh,receipt.id,false,true,0,true,uid),{isolationLevel:'Serializable'});
+      await expect(assertReceiptFbsBox(p,old,whole)).resolves.toBeUndefined();
+      await expect(assertReceiptFbsBox(p,{...old,orderId:'later'},whole)).rejects.toThrow('только для ФБО');
+      await act('START');await act('PICK_UNIT',{sourceBoxCode:'FFL_'+whole,barcode:'2051234567890',kiz:marks[0].value});
+      await expect(act('PICK_UNIT',{sourceBoxCode:'FFL_'+whole,barcode:'2051234567890',kiz:marks[1].value})).rejects.toThrow();
+      expect((await p.stockBalance.aggregate({where:{boxId:whole,status:'AVAILABLE'},_sum:{quantity:true}}))._sum.quantity).toBe(1);
+    });
+    it('binds a wrong box name without changing barcode or physical stock',async()=>{
+      const receipt=await receiptFixture();await receiptChannelChange(p,client,wh,receipt.id,false,true,0,true,uid);
+      const before=await p.stockBalance.findMany({where:{boxId:partial},orderBy:{id:'asc'}});
+      await assignReceiptBox(p,client,wh,receipt.id,'FFL_'+partial,uid,true);
+      expect((await receiptRules(p,client,wh)).get(partial)?.fbs).toBe(false);
+      expect((await p.box.findUniqueOrThrow({where:{id:partial}})).code).toBe('FFL_'+partial);
+      expect(await p.stockBalance.findMany({where:{boxId:partial},orderBy:{id:'asc'}})).toEqual(before);
+    });
     // TEST: live employee/KIZ details remain inside the existing feature flag and client access scope.
     it('does not expose online details without access or when FBO is disabled', async () => {
         await expect(svc.plan(request,{...user,id:randomUUID()})).rejects.toThrow('Client access denied');

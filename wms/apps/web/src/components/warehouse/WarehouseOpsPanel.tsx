@@ -71,9 +71,9 @@ export function WarehouseOpsPanel({ onOpenCatalog, session }: WarehouseOpsPanelP
         <GoodsArrivalPanel session={session} />
       </section> : null}
 
-      {activeTopic === 'receipt-batches' ? <section className="warehouse-panel warehouse-panel--receipt-batches" aria-label="Файлы приемки">
+      {activeTopic === 'receipt-batches' ? <section className="warehouse-panel warehouse-panel--receipt-batches" aria-label="Приёмки">
         <div className="section-heading warehouse-panel__heading">
-          <div><p className="eyebrow">Документы приемки</p><h2>Файлы приемки</h2></div>
+          <div><p className="eyebrow">Документы приемки</p><h2>Приёмки</h2></div>
           <PackageCheck size={20} aria-hidden="true" />
         </div>
         <ReceiptBatchesPanel session={session} />
@@ -148,7 +148,7 @@ function WarehouseTopicPicker({ onOpen }: { onOpen: (topic: WarehouseTopic) => v
     { id: 'statistics', eyebrow: 'Сроки обработки', title: 'Статистика', description: 'От заказа до передачи в доставку WB/Ozon, по клиентам, филиалам и складам.', icon: <BarChart3 size={23} /> },
     { id: 'online-receipts', eyebrow: 'ТСД и приемка', title: 'Онлайн-приёмка', description: 'Проверяйте приёмку, которую ведут сотрудники на ТСД.', icon: <PackageCheck size={23} /> },
     { id: 'arrivals', eyebrow: 'Приход и ППР', title: 'Приход товара', description: 'Создайте и ведите приход товаров на склад.', icon: <Truck size={23} /> },
-    { id: 'receipt-batches', eyebrow: 'Документы', title: 'Файлы приёмки', description: 'Загрузки и документы, связанные с поставками.', icon: <PackagePlus size={23} /> },
+    { id: 'receipt-batches', eyebrow: 'Документы', title: 'Приёмки', description: 'Загрузки и документы, связанные с поставками.', icon: <PackagePlus size={23} /> },
     { id: 'boxes', eyebrow: 'Хранение', title: 'Короба', description: 'Найдите короб, его состав, ячейку и паллет-сорт.', icon: <PackageSearch size={23} /> },
     { id: 'integrity', eyebrow: 'Контроль остатков', title: 'Проверка коробов', description: 'Найдите фантомные остатки и исправьте расхождения.', icon: <ClipboardCheck size={23} /> },
     { id: 'shipment-history', eyebrow: 'История', title: 'Отгруженные КИЗ', description: 'Проверка отгруженных товаров, коробов и кодов маркировки.', icon: <History size={23} /> },

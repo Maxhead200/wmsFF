@@ -20,6 +20,8 @@ describe('our-VM release adaptation', () => {
   // TEST: disabling the new lifecycle must not remove pre-existing production safeguards.
   it('preserves unconditional deferred-source, detached KIZ and boxless outbound stock', () => {
     const adapted = checkedAdaptation(reserveName);
+    // TEST: the storage adapter must retain the new receipt authorization check.
+    expect(adapted).toContain('assertReceiptFbsBox(tx, task)');
     expect(adapted).toContain('task.completedAt ||\n        task.sourceBoxPending');
     expect(adapted).toContain('status: StockStatus.PACKING,\n          // FIX: source location');
     expect(adapted).not.toContain('boxId: permanentStorageBoxesEnabled() ? null : task.boxId');

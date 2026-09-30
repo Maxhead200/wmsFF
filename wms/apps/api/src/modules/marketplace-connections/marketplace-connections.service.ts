@@ -1,3 +1,4 @@
+import { filterReceiptOrderBoxes, receiptPublicationPolicy, receiptBlockedBoxes, receiptBlockedByTasks, assertReceiptFbsBox } from '../warehouse/receipt-channel-policy';
 import { boundedBoxScanEnabled, boxCandidateSkuIds, sharePendingBoxScan, boxReservationSnapshot } from './fbs-box-scan-search';
 import { handleOzonPickLines } from './ozon-fbs-pick-workflow';
 import { ozonPickLinesEnabled, readOzonPickState, requireOzonLineComposition, ozonPostingProducts } from './ozon-fbs-pick-lines';
@@ -1111,6 +1112,11 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
         all: orders.length,
       },
     };
+  }
+
+  async refreshReceiptChannelStocks(clientId:string){
+    this.fbsOrdersCache.delete(clientId);
+    await this.autoSyncFbsStocksForClient(clientId);
   }
 
   private async autoSyncFbsStocksForClient(clientId: string) {
@@ -4153,7 +4159,7 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
         availability.set(order.id, false);
         return;
       }
-      const source = await this.resolveFbsTsdStockSource(request.clientId, order.product, order.storageBoxes);
+      const source = await this.resolveFbsTsdStockSource(request.clientId, order.product, order.storageBoxes,undefined,true,{marketplace:order.marketplace,connectionId:order.connectionId,orderId:order.id});
       availability.set(
         order.id,
         fbsTsdStockSourceHasAvailableStock(source),
@@ -7682,6 +7688,7 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
     executionWarehouseId?: string | null,
     connectionId?: string,
   ) {
+    const receiptPolicy = await receiptPublicationPolicy(this.prisma, clientId, executionWarehouseId);
     const result = new Map<string, FbsStockQuantity>();
     if (skuIds.length === 0) return result;
     const [client, primaryWarehouse] = await Promise.all([
@@ -7709,6 +7716,7 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
         where: {
           clientId,
           skuId: { in: skuIds },
+          ...(receiptPolicy.blocked.length ? { NOT: { boxId: { in: receiptPolicy.blocked } } } : {}),
           status: StockStatus.AVAILABLE,
           quantity: { gt: 0 },
           ...(client?.storesWithoutBoxes
@@ -7865,6 +7873,7 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
       reservedBySku.clear();
       unified.forEach((quantity, skuId) => reservedBySku.set(skuId, quantity));
     }
+    for (const [sku, quantity] of receiptPolicy.credit) reservedBySku.set(sku, Math.max(0,(reservedBySku.get(sku)||0)-quantity));
     skus.forEach((sku) => {
       const ids = wildberriesStockIds(sku.marketplaceProductId);
       if (!ids) return;
@@ -9155,6 +9164,7 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
         ) return null;
         const freshTask = await tx.fbsTsdAssembly.findUnique({ where: { id: task.id } });
         this.requireCurrentFbsTsdLease(freshTask, user);
+        await assertReceiptFbsBox(tx, freshTask, box.id);
         if (!sameFbsBoxClaimInput(claimInput, fbsBoxClaimInput(freshTask))) {
           this.throwFbsTsdTaskStale(freshTask, user);
         }
@@ -14263,6 +14273,7 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
     if (task.marketplace !== MarketplaceType.WILDBERRIES || task.completedAt ||
         (permanentStorageBoxesEnabled() && task.sourceBoxPending)) return;
 
+    await assertReceiptFbsBox(tx, task);
     const quantity = Math.max(1, task.itemCount);
     const movementPrefix = `fbs-sticker-pick:${task.id}`;
     const previousPackingMovements = await tx.stockMovement.findMany({
@@ -15560,7 +15571,11 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
     directStorageBoxes: FbsOrderSummary['storageBoxes'],
     excludeTaskId?: string,
     allowDirect = true,
+    receiptIdentity?:{marketplace:string;connectionId:string;orderId:string},
   ): Promise<FbsTsdStockSource | null> {
+    const excludedReceiptBoxes = await receiptBlockedBoxes(this.prisma,clientId,'fbs',excludeTaskId,receiptIdentity);
+    if(excludedReceiptBoxes.length){const excluded=await this.prisma.box.findMany({where:{id:{in:excludedReceiptBoxes}},select:{code:true}});
+      const codes=new Set(excluded.map(b=>b.code));directStorageBoxes=directStorageBoxes.filter(b=>!codes.has(b.code));}
     const client = this.prisma.client?.findUnique
       ? await this.prisma.client.findUnique({
         where: { id: clientId },
@@ -15572,6 +15587,7 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
         where: {
           clientId,
           skuId: product.id,
+          ...(excludedReceiptBoxes.length?{NOT:{boxId:{in:excludedReceiptBoxes}}}:{}),
           status: StockStatus.AVAILABLE,
           OR: [
             { boxId: null },
@@ -15723,7 +15739,8 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
         barcodes: { select: { value: true }, orderBy: [{ isPrimary: 'desc' }, { value: 'asc' }] },
         balances: {
           where: {
-            status: StockStatus.AVAILABLE,
+            ...(excludedReceiptBoxes.length?{NOT:{boxId:{in:excludedReceiptBoxes}}}:{}),
+          status: StockStatus.AVAILABLE,
             quantity: { gt: 0 },
             ...(client.storesWithoutBoxes
               ? {
@@ -15849,6 +15866,7 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
   }
 
   private async formatFbsTsdAssembly(task: FbsTsdAssemblyRecord, user: AuthUser, message: string) {
+    const excludedReceiptBoxes=await receiptBlockedBoxes(this.prisma,task.clientId,'fbs',task.id);
     const multiline = await handleOzonPickLines(this, task, user, 'view', {}, message);
     if (multiline) return multiline;
     // FIX: covers assignment, source switching and resuming after a lost response.
@@ -15885,7 +15903,7 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
               skuId: stockSkuId,
               status: StockStatus.AVAILABLE,
               quantity: { gt: 0 },
-              boxId: { not: null },
+              boxId: { not: null, ...(excludedReceiptBoxes.length?{notIn:excludedReceiptBoxes}:{}) },
               box: {
                 status: { notIn: ['deleted', 'archived'] },
                 storagePlacement: { isNot: null },
@@ -16389,6 +16407,7 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
     });
     if (tasks.length === 0) return [];
 
+    const excludedByTask=await receiptBlockedByTasks(this.prisma,task.clientId,tasks.map(row=>row.id));
     const stockSkuIds = uniqueStrings(tasks.map((candidate) => candidate.sourceSkuId ?? candidate.skuId));
     const balances = await this.prisma.stockBalance.findMany({
       where: {
@@ -16468,6 +16487,7 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
       const stockSkuId = candidate.sourceSkuId ?? candidate.skuId;
       const candidateAssignedBoxId = candidate.boxId ?? candidate.reservedBoxId;
       const boxes = (boxesBySku.get(stockSkuId) ?? [])
+        .filter(box=>!excludedByTask.get(candidate.id)?.includes(box.id))
         .map((box) => {
           // FIX: Route display uses the exact same decision as the scanner.
           const availability = evaluateFbsBoxAvailability({
@@ -16710,6 +16730,7 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
     ];
     if (candidates.length === 0) return [];
 
+    const excludedByTask=await receiptBlockedByTasks(this.prisma,task.clientId,candidates.map(row=>row.id));
     const stockSkuIds = uniqueStrings(
       candidates.map((candidate) =>
         candidate.sourceSkuId && !candidate.relabelConfirmedAt
@@ -16769,6 +16790,7 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
             quantityByBoxAndSku.get(`${placement.boxId}:${stockSkuId}`) ?? 0;
           if (available <= 0) return false;
           return (candidatesBySku.get(stockSkuId) ?? []).some((candidate) => {
+            if(excludedByTask.get(candidate.id)?.includes(placement.boxId!))return false;
             const assignedBoxId = candidate.boxId ?? candidate.reservedBoxId;
             // FIX: Pallet contents and box scan share one availability rule.
             return evaluateFbsBoxAvailability({
@@ -26644,8 +26666,9 @@ export class MarketplaceConnectionsService implements OnModuleInit, OnModuleDest
     }));
     let ordersWithStockSources = await this.applyFbsRelabelingStockSources(
       clientId,
-      ordersWithShipmentPlans,
+      await filterReceiptOrderBoxes(this.prisma,clientId,ordersWithShipmentPlans),
     );
+    ordersWithStockSources=await filterReceiptOrderBoxes(this.prisma,clientId,ordersWithStockSources);
     // FIX: local shipment facts survive later cancellation/return/supply changes in WB.
     if (wbOrderStockLifecycleEnabled()) {
       ordersWithStockSources = await this.applyLocalWbShipments(clientId, ordersWithStockSources);

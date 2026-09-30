@@ -9,10 +9,11 @@ import { WarehouseShipmentHistoryService } from './warehouse-shipment-history.se
 import { WarehouseService } from './warehouse.service';
 import { StorageLocationsController } from './storage-locations.controller';
 import { StorageLocationsService } from './storage-locations.service';
+import { ReceiptChannelsController } from './receipt-channels.controller';
 
 @Module({
   imports: [AuthModule, BillingModule, ClientNotificationsModule, StockModule],
-  controllers: [WarehouseController, StorageLocationsController],
+  controllers: [WarehouseController, StorageLocationsController, ReceiptChannelsController],
   providers: [
     WarehouseService,
     StorageLocationsService,

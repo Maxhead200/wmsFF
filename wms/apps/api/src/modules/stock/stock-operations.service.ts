@@ -1,3 +1,4 @@
+import { assertReceiptTransfer } from '../warehouse/receipt-channel-policy';
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { wbOrderStockLifecycleEnabled } from '../../common/stock/wb-order-stock-lifecycle';
 import { createHash, randomUUID } from 'node:crypto';
@@ -1045,6 +1046,7 @@ export class StockOperationsService {
         toBoxCode,
         operationWarehouseId,
       );
+      await assertReceiptTransfer(tx,initialSourceBox.clientId,initialSourceBox.id,targetBox.id);
 
       for (const [index, scanCode] of scanCodes.entries()) {
         const sourceBox =
@@ -1207,6 +1209,7 @@ export class StockOperationsService {
           },
         }));
 
+      await assertReceiptTransfer(tx,dto.clientId,sourceBox.id,targetBox.id);
       const balanceKeys = new Set(sourceBox.balances.map((balance) => `${balance.skuId}:${balance.status}`));
       const orphanMarks = sourceBox.productMarks.filter((mark) => !balanceKeys.has(`${mark.skuId}:${mark.status}`));
       const autoApproveChecks = canAutoApproveStockChecks(user);
@@ -1553,6 +1556,7 @@ export class StockOperationsService {
       dto.toBoxCode,
       operationWarehouseId,
     );
+    await assertReceiptTransfer(tx,dto.clientId,fromBox.id,toBox.id);
     const status = dto.status ?? StockStatus.AVAILABLE;
 
     const sourceBalance = await tx.stockBalance.findFirst({

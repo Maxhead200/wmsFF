@@ -1,3 +1,10 @@
+# Published PR431 / 30.09.2026
+
+PR431: RELEASED historical KIZ bindings may be archived by authenticated physical review only with proven post-shipment return, closed historical request and shipment history. Active bindings and missing proof remain blocked. API-only one-module delta; web/APK/flags/sold WMS unchanged. API2933 passed/115 skipped, 12 runtime tests, TypeScript and live read-only return proof passed; dedicated KIZ database suite excluded. sourceParityVerified=false. Rollback logoff-api:before-kiz-released-review.
+
+API sha256:a27867a356fdfd534bd9a7c6e9fa70eacbecb7d4dcf2324f6c54a801861070d7; web sha256:3687e663dd006cd194de3f8a25c1d9ad56f7033481368250298086a37f32bfb0.
+Baseline: 2026-09-30-kiz-released-review (API).
+
 # Published PR424 / 29.09.2026
 
 PR424: compact attendance editor in opt-in la_panthera. Max width720, content height, two-column fields and inline actions; narrow-screen stacking. Save/delete/time calculation unchanged. Web351 passed/2 skipped, TypeScript, source and actual runtime browser checks passed. API PR422, APK216, flags and sold WMS unchanged. Exact hashes/health verified; source parity false. Rollback logoff-web:before-payroll-compact.

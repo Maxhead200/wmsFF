@@ -1,0 +1,3 @@
+# Published PR437 / 30.09.2026
+
+PR437: opt-in la_panthera operational windows retain the current page, minimize to one right-edge dock and preserve forms across navigation. WB tiles2-15 are square, tile1 spans two rows with clients; narrow screens reflow. Web355/API2939 passed, 2/115 skipped; dedicated KIZ DB suite excluded. TypeScript, before/after browser regression, actual runtime and published Requests/FBS/FBO smoke passed. API/APK/flags/sold WMS unchanged. Concurrent Soul card CSS retained. Source parity false. Rollback logoff-web:before-panthera-windows.

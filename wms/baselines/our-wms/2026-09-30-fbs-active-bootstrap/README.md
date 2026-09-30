@@ -1,0 +1,1 @@
+PR433: fast active FBS display, canonical shipment identity. API-only exact single-module delta; source parity false; web/APK/sold WMS unchanged. API2939/115 skipped; live WB read-only proof and production snapshot verified. Rollback logoff-api:before-fbs-active-fast.

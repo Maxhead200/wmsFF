@@ -1,3 +1,9 @@
+# Published PR433 / 30.09.2026
+
+Fast active FBS display skips historical loading; historical shipment identity restored from durable columns. API-only exact delta. API2939 passed/115 skipped, three runtime regressions, TypeScript and live read-only checks passed. Published health/hashes/flags verified; web/APK/sold WMS unchanged; sourceParityVerified=false. Rollback logoff-api:before-fbs-active-fast.
+
+Baseline: 2026-09-30-fbs-active-bootstrap.
+
 # Published PR431 / 30.09.2026
 
 PR431: RELEASED historical KIZ bindings may be archived by authenticated physical review only with proven post-shipment return, closed historical request and shipment history. Active bindings and missing proof remain blocked. API-only one-module delta; web/APK/flags/sold WMS unchanged. API2933 passed/115 skipped, 12 runtime tests, TypeScript and live read-only return proof passed; dedicated KIZ database suite excluded. sourceParityVerified=false. Rollback logoff-api:before-kiz-released-review.

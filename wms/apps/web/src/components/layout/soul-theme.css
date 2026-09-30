@@ -72,8 +72,19 @@
 /* FIX: card-mode cells must grow with content, unlike 38px desktop table cells. */
 @media(max-width:1280px){
  :root[data-ui-variant='soul'] .app-layout .client-request-table tbody td{height:auto;min-height:0;max-height:none;min-width:0;width:auto;overflow-wrap:anywhere;align-self:stretch}
+ /* FIX: table percentage widths must not shrink cells inside the card grid. */
+ :root[data-ui-variant='soul'] .app-layout .client-request-table :is(.client-request-table__request-cell,.client-request-table__composition-cell,.client-request-table__due-cell,.client-request-table__warehouse-cell,.client-request-table__actions-cell,.client-request-table__select-cell){width:100%;box-sizing:border-box}
  :root[data-ui-variant='soul'] .app-layout .client-request-table__select-cell{grid-column:1 / -1;text-align:left!important;display:flex;align-items:center;gap:10px;padding:4px 0!important}
  :root[data-ui-variant='soul'] .app-layout .client-request-table__select-cell::before{margin:0;white-space:nowrap}
+}
+@media(min-width:981px) and (max-width:1280px){
+ :root[data-ui-variant='soul'] .app-layout .client-request-table__request-cell{grid-column:span 4}
+ :root[data-ui-variant='soul'] .app-layout .client-request-table__composition-cell{grid-column:span 8}
+}
+@media(min-width:621px) and (max-width:980px){
+ :root[data-ui-variant='soul'] .app-layout .client-request-table__request-cell,
+ :root[data-ui-variant='soul'] .app-layout .client-request-table__composition-cell{grid-column:span 6}
+ :root[data-ui-variant='soul'] .app-layout .client-request-identity{grid-template-columns:1fr}
 }
 @media(max-width:900px){
  :root[data-ui-variant='soul'] .app-layout .workspace-shell{height:auto;min-height:100dvh;grid-template-rows:auto minmax(0,1fr) auto;overflow:visible}

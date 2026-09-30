@@ -137,6 +137,7 @@ export async function receiptChannelChange(db: Db, clientId:string,warehouseId:s
   if(!fbo&&await db.fboAssemblyUnit.count({where:{sourceBoxId:{in:doc.boxes.map(b=>b.id)},state:{not:'RETURNED'},assembly:{phase:{not:'COMPLETED'}}}}))
     throw new ConflictException('Часть приёмки уже отобрана в ФБО. Завершите её обработку перед отключением ФБО.');
   if(save){await db.systemSetting.upsert({where:{key},create:{key,value:rule as unknown as Prisma.InputJsonValue,updatedByUserId:userId},update:{value:rule as unknown as Prisma.InputJsonValue,updatedByUserId:userId}});
+    await receiptStockSyncEvent(db,clientId);
     await db.auditLog.create({data:{userId,action:'RECEIPT_CHANNELS_CHANGED',entity:'Receipt',entityId:id,payload:{clientId,warehouseId,sourceDocument:doc.sourceDocument,previous:previous as unknown as Prisma.InputJsonValue||null,next:rule as unknown as Prisma.InputJsonValue,protectedQuantity,excludedQuantity:fbs?0:available-protectedQuantity}}});}
   return {rule,available,protectedQuantity,excludedQuantity:fbs?0:available-protectedQuantity,protectedOrders:protectedOrders.length};
 }
@@ -192,6 +193,7 @@ export async function assignReceiptBox(db:Db,clientId:string,warehouseId:string,
       await db.systemSetting.update({where:{key:prefix(clientId)+receiptId},data:{value:updated as unknown as Prisma.InputJsonValue,updatedByUserId:userId}});}
     const value={clientId,warehouseId,boxId:box.id,series:receipt.sourceDocument};
     await db.systemSetting.upsert({where:{key},create:{key,value,updatedByUserId:userId},update:{value,updatedByUserId:userId}});
+    await receiptStockSyncEvent(db,clientId);
     await db.auditLog.create({data:{userId,action:'RECEIPT_BOX_ASSIGNED',entity:'Box',entityId:box.id,payload:{previous:previous?.value||null,next:value}}});}
   return {boxCode:box.code,series:receipt.sourceDocument,fbs:policy?.fbs??true,fbo:policy?.fbo??true};
 }
@@ -216,4 +218,11 @@ export async function receiptBlockedByTasks(db:Db,clientId:string,ids:string[]){
   const tasks=await db.fbsTsdAssembly.findMany({where:{clientId,id:{in:ids}},select:{id:true,marketplace:true,connectionId:true,orderId:true}});
   for(const task of tasks)result.set(task.id,[...rules].filter(([,rule])=>!receiptAllows(rule,'fbs',task)).map(([id])=>id));
   return result;
+}
+
+// FIX: durable event invalidates in-flight WB plans and survives an API restart.
+// The queue exists only in the explicitly enabled our-WMS stock-sync runtime.
+export async function receiptStockSyncEvent(db:Db,clientId:string){
+  if(!receiptChannelsEnabled()||process.env.WMS_WB_URGENT_STOCK_SYNC!=='true')return;
+  await db.$executeRaw`INSERT INTO "WbStockSyncEvent" ("clientId","skuIds","allSkus") VALUES (${clientId},ARRAY[]::text[],true)`;
 }

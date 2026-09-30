@@ -1,0 +1,3 @@
+# Published PR439 / 30.09.2026
+
+PR439: la_panthera minimize control aligned in the existing action toolbar. Separate retained instances allow multiple independent request windows from one workspace. Browser tests reproduce old misalignment and verify separate drafts, restore/close and theme isolation. Web355/API2939 passed, 2/115 skipped; dedicated KIZ DB suite excluded. TypeScript, actual runtime and published section smoke passed. API/APK/flags/sold WMS unchanged; source parity false. Rollback logoff-web:before-panthera-multi.

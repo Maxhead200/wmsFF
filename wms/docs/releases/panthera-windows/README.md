@@ -17,3 +17,10 @@ WB tiles 2–15 are square; the active-order/client tile spans two rows on wide 
 Source parity remains false. `scripts/panthera-windows-runtime.cjs <release-directory>` takes `before-web/`, writes `web/` and `delta.json`. Set ESBUILD_MODULE if esbuild is not on the default module path. It versions all 29 current JS modules together (27 change only import paths), adds scoped CSS and changes index.html. No existing assets are deleted. This preserves a single React instance, unlike replacing only the entry. Current Soul request-card CSS is retained.
 
 Stage from the freshly captured image, guard API/web IDs under release locks, verify all changed public asset hashes, preserve API/DB/APK/flags, roll back on failure. Sold WMS is not a deployment target.
+
+
+## Follow-up: independent windows in the same workspace
+
+Minimizing now retains a unique page instance, and opens a fresh instance of the same section for the next request. Restoring selects that exact instance, preserving its state and callbacks. The original workspace-level key allowed a second request to overwrite the first minimized dialog. Browser tests now use two dialogs from the same section plus a third from another section, verify independent drafts and closure, and compare control center lines in the real action-toolbar CSS.
+
+The minimize control uses the existing icon-button styling and is inserted immediately before Close in its action row. No absolute offsets or extra header padding. The runtime follow-up generator is `scripts/panthera-multiple-windows-runtime.cjs`; capture hashes are required and the entire module graph is versioned together. Business API behavior is unchanged.

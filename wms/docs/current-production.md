@@ -1,3 +1,9 @@
+# Published PR442 / 30.09.2026
+
+PR442: receipt channel/membership changes atomically invalidate WB stock plans through the durable existing queue. API3010 passed/83 skipped; TypeScript and exact one-module delta verified. Web/APK216/flags/sold WMS unchanged from PR441. Source parity false. User-authorized FBO-only directions applied to FFL_LKB2409 (with ten corrected memberships) and current FFL_LKB2709; no physical stock movements, nine archived boxes preserved. Old active FBS order access retained.
+
+API `sha256:c44796f1b9a7ce9ecbfba629c868e8195aa73da91f2e547f43b2e32a034db6a7`; web `sha256:fe8830d5764458a7e35cf722ec99f5d443fb98429805f7c9202cdf255a443abb`. Baseline `2026-09-30-receipt-channel-event`.
+
 # Published PR441 / 30.09.2026
 
 Receipt directions and FBO/FBS reservation protection. API `sha256:f21ecba233d3e5f6cf01de4594f906786e1456bf9bd0c8b4450852cfd7afa252`; web `sha256:fe8830d5764458a7e35cf722ec99f5d443fb98429805f7c9202cdf255a443abb`. Baseline `2026-09-30-receipt-channels`. API3007/83 skipped, web355/2 skipped, exact runtime8 and browser checks passed. Flag WMS_RECEIPT_CHANNELS_ENABLED=true only on our WMS. APK216 and sold WMS unchanged; source parity false. Business policies have not yet been applied at this snapshot.

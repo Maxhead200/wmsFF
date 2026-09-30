@@ -126,3 +126,5 @@ Latest verified release PR422: baseline `2026-09-29-fbo1550-route`. API sha256:f
 Latest verified release PR424: baseline `2026-09-29-payroll-compact`. Web sha256:0b41f6ce4ae558cee000289e724e41acfb3cb48f436fd9f94d3a43213fe8ecf0; API sha256:ff9265aa3b693bba2038053967ba690dcac36d325ec621eb7265a746e3fd348a. Compact attendance editor; handlers/API unchanged. APK216/sold WMS unchanged; source parity false.
 
 Latest API baseline PR431: 2026-09-30-kiz-released-review; sourceParityVerified=false. RELEASED physical-return review only, single API module; web and sold WMS unchanged.
+
+Latest API baseline PR433: 2026-09-30-fbs-active-bootstrap; sourceParityVerified=false. Active FBS bootstrap and canonical shipment identity; one-module exact delta, web/APK/sold WMS unchanged.

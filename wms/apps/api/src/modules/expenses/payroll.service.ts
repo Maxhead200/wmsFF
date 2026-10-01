@@ -1,3 +1,4 @@
+import { handlingQuantities, equivalentPallets, HANDLING_PALLET_RATE } from './handling-quantities';
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
@@ -211,8 +212,10 @@ export class PayrollService {
       const employee = await this.employee(id, user, true);
       if (employee.warehouseId !== dto.warehouseId) throw new BadRequestException('Участники должны относиться к выбранному филиалу.');
     }
+    let quantities;
+    try { quantities = handlingQuantities({ pallets: dto.palletCount, boxes: dto.boxCount, bags: dto.bagCount, rolls: dto.rollCount }); } catch (e) { throw new BadRequestException((e as Error).message); }
     return this.prisma.payrollHandling.create({ data: { warehouseId: dto.warehouseId, startsAt: this.timestamp(dto.startsAt), operation: dto.operation,
-      palletCount: dto.palletCount, reason: dto.reason, createdById: user.id, shares: { create: dto.employeeIds.map(employeeId => ({ employeeId })) } } });
+      ...quantities, unitRateKopecks: HANDLING_PALLET_RATE, reason: dto.reason, createdById: user.id, shares: { create: dto.employeeIds.map(employeeId => ({ employeeId })) } } });
   }
 
   // FIX: review operations can be corrected or cancelled, never silently removed from audit history.
@@ -233,7 +236,9 @@ export class PayrollService {
           const employee = await this.employee(employeeId, user, true);
           if (employee.warehouseId !== row.warehouseId) throw new BadRequestException('Участники должны относиться к выбранному филиалу.');
         }
-        data = { startsAt: this.timestamp(edit.startsAt), operation: edit.operation, palletCount: edit.palletCount,
+        let quantities;
+        try { quantities = handlingQuantities({ pallets: edit.palletCount, boxes: edit.boxCount ?? row.boxCount, bags: edit.bagCount ?? row.bagCount, rolls: edit.rollCount ?? row.rollCount }); } catch (e) { throw new BadRequestException((e as Error).message); }
+        data = { startsAt: this.timestamp(edit.startsAt), operation: edit.operation, ...quantities,
           reason: edit.reason, shares: { deleteMany: {}, create: edit.employeeIds.map(employeeId => ({ employeeId })) } };
       }
       const updated = await tx.payrollHandling.update({ where: { id }, data });
@@ -254,11 +259,13 @@ export class PayrollService {
       for (const share of row.shares) await this.employee(share.employeeId, user, true);
       if (row.status === 'CONFIRMED') return row;
       if (row.status !== 'REVIEW') throw new BadRequestException('Отменённую работу нельзя подтвердить.');
+      // FIX: new tablet work uses the agreed 500 RUB per pallet equivalent.
+      rateKopecks ??= row.unitRateKopecks ?? undefined;
       if (rateKopecks === undefined) for (const share of row.shares) {
         try { payrollRateAt(share.employee.rates.filter(r => r.kind === 'PALLET').map(r => ({ from: r.startsAt.toISOString(), to: r.endsAt?.toISOString(), kopecks: r.rateKopecks, temporary: r.temporary })), row.startsAt.toISOString()); }
         catch { throw new BadRequestException(`Нет действующего тарифа за паллету: ${share.employee.name}. Введите разовый тариф рядом с работой или настройте ставку сотрудника.`); }
       }
-      const result = calculateHandling(row.startsAt.toISOString(), Number(row.palletCount), row.shares.map(s => ({ employeeId: s.employeeId,
+      const result = calculateHandling(row.startsAt.toISOString(), equivalentPallets({ palletCount: Number(row.palletCount), boxCount: row.boxCount ?? 0, bagCount: row.bagCount ?? 0, rollCount: row.rollCount ?? 0 }), row.shares.map(s => ({ employeeId: s.employeeId,
         rates: rateKopecks !== undefined ? [{ from: row.startsAt.toISOString(), kopecks: rateKopecks }] : s.employee.rates.filter(r => r.kind === 'PALLET').map(r => ({ from: r.startsAt.toISOString(), to: r.endsAt?.toISOString(), kopecks: r.rateKopecks, temporary: r.temporary })) })));
       if (result.participants.some(p => p.amountKopecks > 2147483647)) throw new BadRequestException('Сумма слишком велика.');
       for (const p of result.participants) await tx.payrollHandlingShare.update({ where: { operationId_employeeId: { operationId: id, employeeId: p.employeeId } }, data: { amountKopecks: p.amountKopecks } });
@@ -281,7 +288,7 @@ export class PayrollService {
     const period = this.period(from, to);
     const [rates, shifts, shares, settlements, history, workDays] = await Promise.all([
       this.prisma.payrollCondition.findMany({ where: { employeeId } }),
-      this.prisma.payrollShift.findMany({ where: { employeeId, cancelledAt: null, workDate: { gte: from, lte: to } }, orderBy: { startsAt: 'asc' } }),
+      this.prisma.payrollShift.findMany({ where: { employeeId, cancelledAt: null, workDate: { gte: from, lte: to } }, include: { breaks: true }, orderBy: { startsAt: 'asc' } }),
       this.prisma.payrollHandlingShare.findMany({ where: { employeeId, operation: { startsAt: { gte: period.start, lt: period.end } } }, include: { operation: { include: { shares: { select: { employeeId: true } } } } } }),
       this.prisma.payrollSettlement.findMany({ where: { employeeId, workDate: { gte: from, lte: to } } }),
       this.prisma.payrollHistorical.findMany({ where: { employeeId, workDate: { gte: from, lte: to } } }),
@@ -300,7 +307,9 @@ export class PayrollService {
         if (rates.some(r => r.kind === 'PIECE' && day.some(s => r.startsAt < s.endsAt! && (!r.endsAt || r.endsAt > s.startsAt)))) {
           issues.push(`${date}: тип оплаты менялся внутри смены; требуется проверка`); continue;
         }
-        const calculated = calculateWorkDay(day.map(s => ({ start: s.startsAt.toISOString(), end: s.endsAt!.toISOString() })), schedule('HOURLY'), 'Europe/Moscow', workDays.find(d => d.workDate === date)?.lunchMinutes);
+        const lunches = day.flatMap(s => s.breaks ?? []);
+        if (lunches.some(b => !b.endsAt)) throw new Error('Lunch is still open');
+        const calculated = calculateWorkDay(day.map(s => ({ start: s.startsAt.toISOString(), end: s.endsAt!.toISOString() })), schedule('HOURLY'), 'Europe/Moscow', workDays.find(d => d.workDate === date)?.lunchMinutes, lunches.length ? lunches.map(b => ({ start: b.startsAt.toISOString(), end: b.endsAt!.toISOString() })) : undefined);
         rows.push({ key: `WORK:${employeeId}:${date}`, employeeId, date, kind: 'HOURLY', amountKopecks: calculated.amountKopecks,
           workedMs: calculated.workedMs, lunchMs: calculated.lunchMs, status: 'UNPAID', detail: { ...calculated, lunchOverride: workDays.find(d => d.workDate === date)?.lunchMinutes ?? null, shifts: day.map(s => ({ id: s.id, start: s.startsAt.toISOString(), end: s.endsAt!.toISOString() })) } });
       } catch (e) { issues.push(`${date}: проверьте ставки и интервалы смены`); }

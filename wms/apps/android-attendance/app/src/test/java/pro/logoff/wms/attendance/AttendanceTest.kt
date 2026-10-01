@@ -38,6 +38,31 @@ class AttendanceTest {
     private suspend fun mark(id: String = "event-in", clockIn: Boolean = true, time: Long = 1_790_000_000_000): Event =
         repo.mark(device, employee.id, clockIn, photo(), time, 123456, 25, time - 10_000, id)
 
+    // TEST: lunch and mixed cargo survive offline retries and do not duplicate.
+    @Test fun `offline lunch transitions preserve shift and block double taps`() = runBlocking {
+        mark()
+        val at = 1_790_001_000_000L
+        repo.mark(device, employee.id, false, photo(), at, 1, 0, at-1000, "lunch", "BREAK_START")
+        assertEquals(at, projectedBreak(employee, db.dao().pending()))
+        assertNotNull(projectedOpen(employee, db.dao().pending()))
+        assertTrue(runCatching { repo.mark(device, employee.id, false, photo(), at+1, 1, 0, at, "duplicate", "BREAK_START") }.isFailure)
+        repo.mark(device, employee.id, true, photo(), at+60000, 1, 0, at, "return", "BREAK_END")
+        assertNull(projectedBreak(employee, db.dao().pending()))
+        assertNotNull(projectedOpen(employee, db.dao().pending()))
+    }
+    @Test fun `mixed handling retains all four counts and direction`() = runBlocking {
+        val at = System.currentTimeMillis()-1000
+        val event = repo.handling(device, employee.id, listOf(employee.id), "1.5", at, "LOADING", "", 0, at, "mixed", "16", "5", "30")
+        val payload = org.json.JSONObject(event.payload)
+        assertEquals("1.5",payload.getString("pallets")); assertEquals("16",payload.getString("boxes"))
+        assertEquals("5",payload.getString("bags")); assertEquals("30",payload.getString("rolls"))
+        assertEquals("LOADING",payload.getString("type"))
+    }
+    @Test fun `rolls only accepted but fractional boxes rejected`() = runBlocking {
+        val at = System.currentTimeMillis()-1000
+        repo.handling(device, employee.id, listOf(employee.id), "", at, "UNLOADING", "", 0, at, "rolls", rolls="30")
+        assertTrue(runCatching { repo.handling(device, employee.id, listOf(employee.id), "", at, "LOADING", "", 0, at, "fraction", boxes="0.5") }.isFailure)
+    }
     @Test fun `capture timestamp and photo survive new repository instance`() = runBlocking {
         val event = mark()
         val reloaded = AttendanceRepository(db, File(root, "photos")).dao.pending().single()

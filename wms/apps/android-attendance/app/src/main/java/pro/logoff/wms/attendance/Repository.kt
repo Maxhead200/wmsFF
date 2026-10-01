@@ -32,7 +32,7 @@ class AttendanceRepository(val db: AttendanceDb, private val photos: File) {
     private val lock = Mutex()
 
     suspend fun mark(device: Device, employeeId: String, clockIn: Boolean, photo: File, captureTime: Long,
-        elapsed: Long, offset: Long?, lastSync: Long?, eventId: String = UUID.randomUUID().toString()): Event = lock.withLock {
+        elapsed: Long, offset: Long?, lastSync: Long?, eventId: String = UUID.randomUUID().toString(), kind: String = if (clockIn) "CLOCK_IN" else "CLOCK_OUT"): Event = lock.withLock {
         dao.event(eventId)?.let { return@withLock it }
         require(photo.isFile && photo.length() in 1..(4 * 1024 * 1024)) { "Не удалось сохранить фото (максимум 4 МБ)" }
         require(captureTime > 0) { "Неверное время съёмки" }
@@ -46,20 +46,28 @@ class AttendanceRepository(val db: AttendanceDb, private val photos: File) {
                 val employee = dao.employee(employeeId) ?: error("Обновите список сотрудников")
                 require(employee.active && employee.warehouseId == device.warehouseId) { "Сотрудник недоступен" }
                 val open = projectedOpen(employee, dao.pending())
-                require(clockIn == (open == null)) { "Состояние смены изменилось. Вернитесь к списку" }
-                if (!clockIn) require(captureTime > open!!) { "Время ухода раньше прихода. Обратитесь к администратору" }
-                Event(eventId, employeeId, device.id, device.warehouseId, if (clockIn) "CLOCK_IN" else "CLOCK_OUT",
+                val pause = projectedBreak(employee, dao.pending())
+                require(kind in listOf("CLOCK_IN", "CLOCK_OUT", "BREAK_START", "BREAK_END"))
+                if (kind.startsWith("BREAK_")) {
+                    require(open != null && captureTime > open) { "Для обеда нужна открытая смена" }
+                    require((kind == "BREAK_START") == (pause == null)) { "Состояние обеда изменилось" }
+                    if (pause != null) require(captureTime > pause) { "Время возвращения раньше начала обеда" }
+                } else require(clockIn == (open == null)) { "Состояние смены изменилось. Вернитесь к списку" }
+                if (kind == "CLOCK_OUT") require(captureTime > (pause ?: open!!)) { "Время ухода раньше прихода. Обратитесь к администратору" }
+                Event(eventId, employeeId, device.id, device.warehouseId, kind,
                     captureTime, elapsed, offset, lastSync, destination.path, sha256(destination)).also { dao.insert(it) }
             }
         } catch (e: Exception) { if (dao.event(eventId) == null) destination.delete(); throw e }
     }
 
     suspend fun handling(device: Device, creator: String, participants: List<String>, pallets: String, start: Long,
-        type: String, comment: String, offset: Long?, lastSync: Long?, eventId: String): Event = lock.withLock {
+        type: String, comment: String, offset: Long?, lastSync: Long?, eventId: String, boxes: String = "", bags: String = "", rolls: String = ""): Event = lock.withLock {
         dao.event(eventId)?.let { return@withLock it }
         require(type in listOf("LOADING", "UNLOADING"))
-        val quantity = pallets.replace(',', '.').toBigDecimalOrNull()
-        require(quantity != null && quantity.signum() > 0 && quantity <= "10000".toBigDecimal() && quantity.scale() <= 4) { "Проверьте количество паллет" }
+        val quantity = pallets.ifBlank { "0" }.replace(',', '.').toBigDecimalOrNull()
+        val counts = listOf(boxes, bags, rolls).map { it.ifBlank { "0" }.toIntOrNull() }
+        require(counts.all { it != null && it in 0..999999 }) { "Короба, мешки и рулоны указываются целыми числами" }
+        require(quantity != null && quantity.signum() >= 0 && (quantity.signum() > 0 || counts.any { it!! > 0 }) && quantity <= "10000".toBigDecimal() && quantity.scale() <= 4) { "Проверьте количество паллет" }
         require(start > 0 && start <= System.currentTimeMillis() + 5 * 60_000) { "Проверьте дату и время начала" }
         require(comment.length <= 1000 && participants.isNotEmpty() && creator in participants && participants.distinct().size == participants.size)
         db.withTransaction {
@@ -70,6 +78,7 @@ class AttendanceRepository(val db: AttendanceDb, private val photos: File) {
                 require(member?.active == true && member.warehouseId == device.warehouseId) { "Участник недоступен" }
             }
             val payload = JSONObject().put("type", type).put("startsAtMs", start).put("pallets", quantity!!.toPlainString())
+                .put("boxes", counts[0].toString()).put("bags", counts[1].toString()).put("rolls", counts[2].toString())
                 .put("participantIds", JSONArray(participants)).put("comment", comment).toString()
             Event(eventId, creator, device.id, device.warehouseId, "HANDLING", System.currentTimeMillis(), SystemClock.elapsedRealtime(),
                 offset, lastSync, payload = payload).also { dao.insert(it) }
@@ -106,7 +115,7 @@ class AttendanceRepository(val db: AttendanceDb, private val photos: File) {
     suspend fun answerPhoto(device: Device, request: PhotoRequest, api: AttendanceApi, serverNow: Long) = lock.withLock {
         val event = dao.event(request.eventId) ?: return@withLock
         require(event.deviceId == device.id && event.warehouseId == device.warehouseId) { "Запрос фото другого устройства" }
-        require(event.kind in listOf("CLOCK_IN", "CLOCK_OUT"))
+        require(event.kind in listOf("CLOCK_IN", "CLOCK_OUT", "BREAK_START", "BREAK_END"))
         val file = privatePhoto(event)
         val expired = photoExpired(event, serverNow, event.offsetMs ?: 0L)
         val status = when {

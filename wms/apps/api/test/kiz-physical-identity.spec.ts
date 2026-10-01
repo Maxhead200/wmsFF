@@ -24,3 +24,34 @@ it('keeps the sold VM on its existing lookup and rejects malformed suffixes', as
   expect(db.productMark.findMany).not.toHaveBeenCalled();
   expect(physicalKizIdentity(full.slice(0, 31) + 'extra')).toBe('');
 });
+
+// TEST: feed labels already stored by WMS use a six-character serial and the same 91/92 tail.
+const feed = '0104610460840533215rQSl4\u001d91EE12\u001d92P/bB4gja7P2f5eGm9g9HM6nCHagaCaJArfrxCiu2FFM=';
+it('recognizes six-character feed serials with intact and omitted GS separators', () => {
+  const identity = '0104610460840533215rQSl4';
+  for (const code of [feed, feed.replaceAll('\u001d', ''), ']d2' + feed, feed.replaceAll('\u001d', '<GS>'), identity]) {
+    expect(physicalKizIdentity(code)).toBe(identity);
+  }
+  expect(physicalKizIdentity(feed.toLowerCase())).not.toBe(identity);
+  expect(feed).toContain('\u001d91EE12\u001d92');
+});
+it('finds the saved short identity and rejects duplicate aliases', async () => {
+  vi.stubEnv('WMS_KIZ_IDENTITY_TRANSFER_ENABLED', 'true');
+  const db: any = { productMark: { findMany: vi.fn(async () => [{ id: 'feed', value: feed }]) } };
+  await expect(findPhysicalKizId(db, feed.replaceAll('\u001d', ''))).resolves.toBe('feed');
+  db.productMark.findMany.mockResolvedValue([{ id: 'a', value: feed }, { id: 'b', value: ']d2' + feed }]);
+  await expect(findPhysicalKizId(db, feed)).rejects.toThrow('несколько');
+});
+it('does not truncate arbitrary serials or accept unsupported short lengths', () => {
+  for (const serial of ['abcde', 'abcdefg', 'abcdefgh', 'abcdefghijklmn']) {
+    expect(physicalKizIdentity('010461046084053321' + serial)).toBe('');
+    expect(physicalKizIdentity('010461046084053321' + serial + '\u001d91EE12\u001d92proof')).toBe('');
+  }
+  expect(physicalKizIdentity('010461046084053321abcdefBADTAILX')).toBe('');
+});
+it('keeps short-code legacy lookup unchanged with our-WMS feature disabled', async () => {
+  vi.stubEnv('WMS_KIZ_IDENTITY_TRANSFER_ENABLED', 'false');
+  const db: any = { productMark: { findMany: vi.fn() } };
+  await expect(findPhysicalKizId(db, feed)).resolves.toBeUndefined();
+  expect(db.productMark.findMany).not.toHaveBeenCalled();
+});

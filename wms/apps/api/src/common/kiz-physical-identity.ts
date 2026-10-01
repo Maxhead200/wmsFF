@@ -3,11 +3,11 @@ import { Prisma } from '@prisma/client';
 
 export const kizIdentityTransferEnabled = () => process.env.WMS_KIZ_IDENTITY_TRANSFER_ENABLED === 'true';
 
-// FIX: apparel identity is GTIN + the case-sensitive 13-character serial.
+// FIX: identity is GTIN + a case-sensitive serial: 13 characters for apparel, 6 for feed.
 // Only the known 91/92 suffix may omit GS; arbitrary longer serials are not truncated.
 export function physicalKizIdentity(value: string): string {
   const normalized = value.trim().replace(/^\]d2/i, '').replace(/<GS>/gi, '\u001d');
-  return /^(01\d{14}21[^\u0000-\u001f]{13})(?=$|\u001d|91[^\u0000-\u001f]{4}(?:\u001d)?92)/.exec(normalized)?.[1] ?? '';
+  return /^(01\d{14}21(?:[^\u0000-\u001f]{13}|[^\u0000-\u001f]{6}))(?=$|\u001d|91[^\u0000-\u001f]{4}(?:\u001d)?92)/.exec(normalized)?.[1] ?? '';
 }
 
 export async function findPhysicalKizId(db: Prisma.TransactionClient, value: string): Promise<string | null | undefined> {

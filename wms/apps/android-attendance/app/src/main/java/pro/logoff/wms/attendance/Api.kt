@@ -98,5 +98,5 @@ class HttpAttendanceApi(private val url: String = BuildConfig.API_URL) : Attenda
     }
     private fun employee(j: JSONObject) = Employee(j.getString("id"), j.getString("name"), j.getString("warehouseId"),
         j.optBoolean("loader"), j.optBoolean("active", true), if (j.isNull("openSinceMs")) null else j.getLong("openSinceMs"),
-        j.getLong("revision"), j.optString("distinguishing"))
+        j.getLong("revision"), j.optString("distinguishing"), if (j.isNull("breakSinceMs")) null else j.getLong("breakSinceMs"))
 }

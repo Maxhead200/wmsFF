@@ -3,7 +3,7 @@ import { AuthSession, BranchSummary, fetchBranches, payrollDownload, payrollImpo
 import './payroll.css';
 
 type Employee = { id: string; name: string; warehouseId: string; userId?: string | null; picker: boolean; loader: boolean; isActive: boolean; paymentMethod: string; paymentPhone?: string | null; paymentBank?: string | null; rates: Array<{ id: string; kind: string; rateKopecks: number; startsAt: string; endsAt?: string; temporary: boolean }> };
-type Row = { key: string; employeeId: string; date: string; kind: string; amountKopecks: number; status: string; units?: number; workedMs?: number; lunchMs?: number; detail: { lunchOverride?: number | null; id?: string; status?: string; warehouseId?: string; startsAt?: string; operation?: string; shares?: Array<{ employeeId: string }>; palletCount?: number; start?: number; end?: number; rate?: number; shifts?: Array<{ id: string; start: string; end: string }>; segments?: Array<{ start: string; end: string; rateKopecks: number }> } };
+type Row = { key: string; employeeId: string; date: string; kind: string; amountKopecks: number; status: string; units?: number; workedMs?: number; lunchMs?: number; detail: { lunchOverride?: number | null; id?: string; status?: string; warehouseId?: string; startsAt?: string; operation?: string; shares?: Array<{ employeeId: string }>; palletCount?: number; boxCount?: number; bagCount?: number; rollCount?: number; unitRateKopecks?: number; start?: number; end?: number; rate?: number; shifts?: Array<{ id: string; start: string; end: string }>; segments?: Array<{ start: string; end: string; rateKopecks: number }> } };
 type Report = { rows: Row[]; issues: string[]; totals: { amountKopecks: number; paidKopecks: number } };
 const money = (n: number) => (n / 100).toLocaleString('ru-RU', { style: 'currency', currency: 'RUB' });
 const statuses: Record<string, string> = { UNPAID: 'Не оплачено', REVIEW: 'На проверке', PAID: 'Оплачено' };
@@ -276,11 +276,11 @@ export function PayrollManagement({ session, legacy, onBack }: { session: AuthSe
         <label>Причина исправления<input name="reason" required /></label></div><button disabled={busy}>Сохранить исправление</button><button type="button" onClick={() => setHistoryEdit(null)}>Отмена</button></form>}
       {employee && manualOpen && <form className={tab === 'work' ? 'payroll-shift-dialog' : undefined} role="dialog" aria-modal="true" aria-label="Редактирование записи" style={{ position: 'fixed', inset: '10% 5%', zIndex: 1000, background: 'white', padding: 24, overflowY: 'auto', boxShadow: '0 0 0 100vmax #0008', borderRadius: 16 }} key={`${selected}:${tab}:${shiftEdit}`} onSubmit={(e: FormEvent<HTMLFormElement>) => { e.preventDefault(); const f = new FormData(e.currentTarget); void run(async () => {
         if (tab === 'work') await api(`/employees/${selected}/shifts${shiftEdit ? '/' + shiftEdit : ''}`, shiftEdit ? 'PUT' : 'POST', { startsAt: payrollEditedTime(String(f.get('start')), shiftDraft.originalStart), endsAt: f.get('end') ? payrollEditedTime(String(f.get('end')), shiftDraft.originalEnd) : undefined, lunchMinutes: f.get('lunch') === '' ? null : Number(f.get('lunch')), reason: f.get('reason') });
-        else await api('/handling', 'POST', { warehouseId: employee.warehouseId, startsAt: iso(String(f.get('start'))), operation: f.get('operation'), palletCount: Number(f.get('pallets')) / (f.get('unit') === 'BOX' ? 16 : f.get('unit') === 'BAG' ? 5 : 1), employeeIds: f.getAll('participant'), reason: f.get('reason') });
+        else await api('/handling', 'POST', { warehouseId: employee.warehouseId, startsAt: iso(String(f.get('start'))), operation: f.get('operation'), palletCount: Number(f.get('pallets')), boxCount: Number(f.get('boxes')), bagCount: Number(f.get('bags')), rollCount: Number(f.get('rolls')), employeeIds: f.getAll('participant'), reason: f.get('reason') });
         await reloadReport(); setManualOpen(false); return 'Запись сохранена';
       }); }}><h3>{tab === 'work' ? shiftEdit ? 'Редактировать приход и уход' : 'Добавить приход и уход' : 'Добавить работу'}</h3><div className="payroll-fields">
         <label>Начало, МСК<input type="datetime-local" step="1" autoFocus name="start" required defaultValue={shiftDraft.start} /></label>
-        {tab === 'work' ? <label>Уход, МСК<input type="datetime-local" step="1" name="end" defaultValue={shiftDraft.end} /></label> : <><label>Работа<select name="operation"><option value="UNLOAD">Разгрузка</option><option value="LOAD">Погрузка</option></select></label><label>Количество<input type="number" min="0.0001" step="0.0001" name="pallets" required /></label><label>Единица<select name="unit"><option value="PALLET">Паллеты</option><option value="BOX">Коробки (16 = паллета)</option><option value="BAG">Мешки (5 = паллета)</option></select></label></>}
+        {tab === 'work' ? <label>Уход, МСК<input type="datetime-local" step="1" name="end" defaultValue={shiftDraft.end} /></label> : <><label>Работа<select name="operation"><option value="UNLOAD">Разгрузка</option><option value="LOAD">Погрузка</option></select></label><label>Палеты<input type="number" min="0" step="0.0001" name="pallets" /></label><label>Короба<input type="number" min="0" step="1" name="boxes" /></label><label>Мешки<input type="number" min="0" step="1" name="bags" /></label><label>Рулоны<input type="number" min="0" step="1" name="rolls" /></label></>}
         <label>Комментарий / основание<input name="reason" required /></label>{tab === 'work' && <label>Обед за весь день, минут<input type="number" min="0" step="1" name="lunch" defaultValue={shiftDraft.lunch} placeholder="Автоматически" /><small>Пусто — автоматически; 0 — без обеда. Вычет один на все выходы за день.</small></label>}</div>
         {tab === 'handling' && <fieldset><legend>Все участники работы</legend>{employees.filter(e => e.warehouseId === employee.warehouseId && e.isActive).map(e => <label key={e.id}><input type="checkbox" name="participant" value={e.id} />{e.name}</label>)}</fieldset>}
         <button disabled={busy}>Сохранить</button>
@@ -311,7 +311,7 @@ export function PayrollManagement({ session, legacy, onBack }: { session: AuthSe
           <td><input type="checkbox" checked={checked.includes(r.key)} aria-label={`Выбрать ${payrollDate(r.date)}`} onChange={e => setChecked(e.target.checked ? [...checked, r.key] : checked.filter(k => k !== r.key))} /></td>
           <td>{payrollDate(r.date)}</td><td>{employees.find(e => e.id === r.employeeId)?.name}</td><td>{employees.find(e => e.id === r.employeeId)?.paymentMethod === 'CASH' ? 'Наличные' : employees.find(e => e.id === r.employeeId)?.paymentBank || 'Не указан'}</td>
           <td className="payroll-time">{payrollIntervalCells(r)[0]}</td><td className="payroll-time">{payrollIntervalCells(r)[1]}</td>
-          <td>{payrollTimeCells(r)[1]}</td><td>{['HOURLY', 'HISTORY'].includes(r.kind) ? hours((r.workedMs ?? 0) - (r.lunchMs ?? 0)) : r.units ?? r.detail.palletCount}</td>
+          <td>{payrollTimeCells(r)[1]}</td><td>{['HOURLY', 'HISTORY'].includes(r.kind) ? hours((r.workedMs ?? 0) - (r.lunchMs ?? 0)) : r.units ?? payrollCargoText(r.detail)}</td>
           <td>{r.kind === 'HISTORY' && r.detail.rate !== undefined ? money(r.detail.rate * 100) : r.kind === 'HOURLY' ? [...new Set((r.detail.segments ?? []).map(s => s.rateKopecks))].map(money).join(' / ') : '—'}</td>
           <td>{money(r.amountKopecks)}</td><td>{statuses[r.status]}</td>
           <td>{r.kind === 'HISTORY' && <button type="button" disabled={busy} onClick={() => editRow(r)}>Редактировать</button>}
@@ -347,8 +347,8 @@ function HandlingReview({ row, employees, busy, api, run, reload }: { row: Row; 
   }, success);
   const localStart = detail.startsAt ? new Date(Date.parse(detail.startsAt) + 3 * 3600000).toISOString().slice(0, 16) : '';
   return <div>
-    <label>Разовый тариф, ₽ за паллету<input aria-label="Разовый тариф за паллету" inputMode="decimal" disabled={busy} value={tariff} placeholder="По ставкам участников" onChange={e => setTariff(e.target.value)} /></label>
-    <p>Тариф на всю работу делится поровну между {members.length} участниками. Пусто — ставки участников на начало работы.</p>
+    <label>Разовый тариф, ₽ за паллету<input aria-label="Разовый тариф за паллету" inputMode="decimal" disabled={busy} value={tariff} placeholder={detail.unitRateKopecks != null ? String(detail.unitRateKopecks / 100) : "По ставкам участников"} onChange={e => setTariff(e.target.value)} /></label>
+    <p>Тариф на всю работу делится поровну между {members.length} участниками. {detail.unitRateKopecks != null ? `Пусто — ${detail.unitRateKopecks / 100} ₽ за палету. 16 коробов / 5 мешков / 30 рулонов = 1 палета.` : 'Пусто — ставки участников на начало работы.'}</p>
     <button disabled={busy} onClick={() => act(async () => { const rateKopecks = payrollOperationTariff(tariff); await api(`/handling/${detail.id}/confirm`, 'POST', rateKopecks === undefined ? {} : { rateKopecks }); }, 'Работа подтверждена')}>Подтвердить работу</button>
     <button disabled={busy} onClick={() => setMode('edit')}>Редактировать</button>
     <button disabled={busy} onClick={() => setMode('cancel')}>Отменить запись</button>
@@ -360,13 +360,13 @@ function HandlingReview({ row, employees, busy, api, run, reload }: { row: Row; 
         if (!reason) throw new Error('Укажите причину.');
         if (mode === 'cancel') await api(`/handling/${detail.id}/cancel`, 'POST', { reason });
         else await api(`/handling/${detail.id}`, 'PUT', { warehouseId: detail.warehouseId, startsAt: iso(String(f.get('start'))),
-          operation: f.get('operation'), palletCount: Number(f.get('pallets')), employeeIds: f.getAll('member'), reason });
+          operation: f.get('operation'), palletCount: Number(f.get('pallets')), boxCount: Number(f.get('boxes')), bagCount: Number(f.get('bags')), rollCount: Number(f.get('rolls')), employeeIds: f.getAll('member'), reason });
       }, mode === 'cancel' ? 'Запись отменена, история сохранена' : 'Работа изменена');
     }}>
       {mode === 'edit' && <>
         <label>Начало, МСК<input name="start" type="datetime-local" defaultValue={localStart} required /></label>
         <label>Работа<select name="operation" defaultValue={detail.operation}><option value="LOAD">Погрузка</option><option value="UNLOAD">Разгрузка</option></select></label>
-        <label>Паллет<input name="pallets" type="number" min="0.0001" step="0.0001" defaultValue={detail.palletCount} required /></label>
+        <label>Палеты<input name="pallets" type="number" min="0" step="0.0001" defaultValue={detail.palletCount} /></label><label>Короба<input name="boxes" type="number" min="0" step="1" defaultValue={detail.boxCount ?? 0} /></label><label>Мешки<input name="bags" type="number" min="0" step="1" defaultValue={detail.bagCount ?? 0} /></label><label>Рулоны<input name="rolls" type="number" min="0" step="1" defaultValue={detail.rollCount ?? 0} /></label>
         <fieldset><legend>Участники</legend>{employees.filter(p => p.warehouseId === detail.warehouseId && (p.isActive || members.includes(p.id))).map(p => <label key={p.id}><input type="checkbox" name="member" value={p.id} defaultChecked={members.includes(p.id)} />{p.name}</label>)}</fieldset>
       </>}
       <label>Причина<input name="reason" required maxLength={1000} /></label>
@@ -378,6 +378,8 @@ function HandlingReview({ row, employees, busy, api, run, reload }: { row: Row; 
 
 type Tablet = { id: string; name: string; warehouseId: string; lastSeenAt: string | null; revokedAt: string | null };
 type TabletEvent = { id: string; employeeId: string; name: string; kind: string; effectiveAt: string; status: string; reason: string; photoStatus: string };
+// FIX: physical quantities remain legible instead of a rounded pallet equivalent.
+export const payrollCargoText = (q: Row['detail']) => `${q.palletCount ?? 0} пал. · ${q.boxCount ?? 0} кор. · ${q.bagCount ?? 0} меш. · ${q.rollCount ?? 0} рул.`;
 export const attendancePhotoStatus = (status: string) => ({ NOT_REQUESTED: 'На планшете', PENDING: 'Ожидаем планшет', STORED: 'Фото доступно', EXPIRED: 'Срок хранения истёк', UNAVAILABLE: 'Фото недоступно' }[status] ?? status);
 
 // FIX: separate device administration; no financial data or WMS administrator credentials reach the tablet.
@@ -425,12 +427,12 @@ function PayrollTablets({ session, branches, employees }: { session: AuthSession
       <p>Показано до 500 последних отметок выбранного периода. Для более ранних выберите меньший период.</p>
       <table><thead><tr><th>Сотрудник</th><th>Дата и время</th><th>Действие</th><th>Состояние</th><th>Фото</th></tr></thead><tbody>{events.map(e => <tr key={e.id}>
         <td>{e.name}</td><td>{new Date(e.effectiveAt).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })}</td>
-        <td>{({ CLOCK_IN: 'Приход', CLOCK_OUT: 'Уход', HANDLING: 'Погрузка / разгрузка' } as Record<string, string>)[e.kind]}</td>
+        <td>{({ CLOCK_IN: 'Приход', CLOCK_OUT: 'Уход', BREAK_START: 'Обед', BREAK_END: 'Вернулся', HANDLING: 'Погрузка / разгрузка' } as Record<string, string>)[e.kind]}</td>
         <td>{e.status === 'REVIEW' ? 'На проверке' : 'Обработано'} {e.reason}{e.status === 'REVIEW' && <button disabled={busy} onClick={() => { setReview(e); setReason(''); setCorrected(''); }}>Разобрать отметку</button>}</td>
         <td>{e.kind !== 'HANDLING' && <>{attendancePhotoStatus(e.photoStatus)}
           {e.photoStatus === 'NOT_REQUESTED' && <button disabled={busy} onClick={() => void run(async () => { await api(`/events/${e.id}/photo`, 'POST'); await load(); }, 'Запрос фото зарегистрирован. Обновите список после подключения планшета.')}>Запросить фото {e.name}</button>}
           {/* FIX: never leave the previous photograph visible while another mark is loading. */}
-          {e.photoStatus === 'STORED' && <button disabled={busy} onClick={() => void run(async () => { setPhoto(''); setPhotoCaption(`${e.name} · ${e.kind === 'CLOCK_IN' ? 'Приход' : 'Уход'} · ${new Date(e.effectiveAt).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })}`); const blob = await payrollAttendancePhoto(session.accessToken, e.id); setPhoto(URL.createObjectURL(blob)); })}>Посмотреть фото {e.name}</button>}
+          {e.photoStatus === 'STORED' && <button disabled={busy} onClick={() => void run(async () => { setPhoto(''); setPhotoCaption(`${e.name} · ${({ CLOCK_IN: 'Приход', CLOCK_OUT: 'Уход', BREAK_START: 'Обед', BREAK_END: 'Вернулся' } as Record<string,string>)[e.kind]} · ${new Date(e.effectiveAt).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })}`); const blob = await payrollAttendancePhoto(session.accessToken, e.id); setPhoto(URL.createObjectURL(blob)); })}>Посмотреть фото {e.name}</button>}
         </>}</td></tr>)}</tbody></table>
       {photo && <div><p>{photoCaption}</p><button onClick={() => setPhoto('')}>Закрыть фото</button><img src={photo} alt="Фото отметки сотрудника" onError={() => { setPhoto(''); setError('Не удалось показать фото. Повторите загрузку этой отметки.'); }} style={{ maxWidth: '100%', maxHeight: 480 }} /></div>}
       {review && <form onSubmit={e => e.preventDefault()}><h4>Проверка отметки · {review.name}</h4>

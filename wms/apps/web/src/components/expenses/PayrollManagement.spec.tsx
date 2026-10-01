@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { PayrollManagement, payrollTimeCells, payrollIntervalCells, payrollPaymentSummary, payrollDate, payrollSortRows, payrollCurrentRates, attendancePhotoStatus, payrollFilterEmployees, payrollOperationTariff, payrollLocalTime, payrollEditedTime, payrollInitialConditions } from './PayrollManagement';
+import { PayrollManagement, payrollCargoText, payrollTimeCells, payrollIntervalCells, payrollPaymentSummary, payrollDate, payrollSortRows, payrollCurrentRates, attendancePhotoStatus, payrollFilterEmployees, payrollOperationTariff, payrollLocalTime, payrollEditedTime, payrollInitialConditions } from './PayrollManagement';
 import type { AuthSession } from '../../lib/api';
 // TEST: no new payroll form is visible before the server explicitly enables it.
 describe('payroll feature isolation', () => {
+  // TEST: physical cargo counts must remain distinct, including old pallet-only records.
+  it('shows all four cargo quantities without replacing them with pallet equivalents', () => {
+    expect(payrollCargoText({ palletCount: 1, boxCount: 16, bagCount: 5, rollCount: 30 })).toBe('1 пал. · 16 кор. · 5 меш. · 30 рул.');
+    expect(payrollCargoText({ palletCount: 2 })).toBe('2 пал. · 0 кор. · 0 меш. · 0 рул.');
+    expect(payrollCargoText({ rollCount: 1 })).toBe('0 пал. · 0 кор. · 0 меш. · 1 рул.');
+  });
   // TEST: the new card handles zero, hourly/piecework and optional loader tariffs independently.
   it('builds initial tariffs without inheriting another employee or a hidden loader rate', () => {
     const f = new FormData(); f.set('initialKind', 'PIECE'); f.set('initialRate', '12.50'); f.set('initialPalletRate', '500'); f.set('initialStart', '2026-09-28T00:00');

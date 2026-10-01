@@ -51,7 +51,18 @@ model PayrollShift {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   employee     PayrollEmployee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  breaks       PayrollBreak[]
   @@index([employeeId, workDate])
+}
+
+// FIX: actual tablet lunch intervals, retained with their shift.
+model PayrollBreak {
+  id String @id
+  shiftId String
+  startsAt DateTime
+  endsAt DateTime?
+  shift PayrollShift @relation(fields: [shiftId], references: [id], onDelete: Restrict)
+  @@index([shiftId, startsAt])
 }
 
 // FIX: lunch belongs to the whole start-date group, not to an individual visit.
@@ -69,6 +80,10 @@ model PayrollHandling {
   startsAt     DateTime
   operation    String
   palletCount  Decimal @db.Decimal(12, 4)
+  boxCount     Int @default(0)
+  bagCount     Int @default(0)
+  rollCount    Int @default(0)
+  unitRateKopecks Int?
   status       String @default("REVIEW")
   createdById  String
   confirmedById String?

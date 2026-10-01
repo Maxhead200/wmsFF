@@ -125,6 +125,31 @@ describe.skipIf(!url).sequential('tablet attendance PostgreSQL', () => {
     const row = await db.payrollHandling.findUniqueOrThrow({ where: { id: m.eventId }, include: { shares: true } });
     expect(row.status).toBe('REVIEW'); expect(row.shares[0].amountKopecks).toBeNull(); expect(row.palletCount.toString()).toBe('1.25');
   });
+  // TEST: actual PostgreSQL lunch state, replay protection and departure during lunch.
+  it('records lunch once and closes an unpaid pause on departure', async () => {
+    const person = randomUUID(); await db.payrollEmployee.create({ data: { id: person, name: 'Lunch', warehouseId } });
+    const t = Date.now()-3600000;
+    expect((await send(mark('CLOCK_IN',t,first,person))).status).toBe('ACCEPTED');
+    const lunch=mark('BREAK_START',t+600000,first,person);
+    expect((await send(lunch)).status).toBe('ACCEPTED'); await send(lunch);
+    expect((await service.state(auth())).employees.find(e=>e.id===person)?.breakSinceMs).toBe(t+600000);
+    expect((await send(mark('BREAK_START',t+610000,first,person))).status).toBe('REVIEW');
+    expect((await send(mark('BREAK_END',t+1800000,first,person))).status).toBe('ACCEPTED');
+    expect((await send(mark('BREAK_START',t+2000000,first,person))).status).toBe('ACCEPTED');
+    expect((await send(mark('CLOCK_OUT',t+3000000,first,person))).status).toBe('ACCEPTED');
+    const shifts=await db.payrollShift.findMany({where:{employeeId:person},include:{breaks:true}});
+    expect(shifts).toHaveLength(1);expect(shifts[0].breaks).toHaveLength(2);
+    expect(shifts[0].breaks.every(b=>b.endsAt)).toBe(true);
+    expect((await service.state(auth())).employees.find(e=>e.id===person)?.breakSinceMs).toBeNull();
+  });
+  it('persists four handling counts and confirms the agreed tariff without personal rates', async()=>{
+    const m={...mark('HANDLING'),photoSha256:'',payload:{type:'LOADING',startsAtMs:Date.now()-60000,pallets:'1',boxes:'16',bags:'5',rolls:'30',participantIds:[employeeId],comment:'mixed'}};
+    expect((await send(m)).status).toBe('ACCEPTED');await send(m);
+    const row=await db.payrollHandling.findUniqueOrThrow({where:{id:m.eventId}});
+    expect(row).toMatchObject({boxCount:16,bagCount:5,rollCount:30,unitRateKopecks:50000});
+    await new PayrollService(db as never).confirmHandling(row.id,user);
+    expect((await db.payrollHandlingShare.findFirstOrThrow({where:{operationId:row.id}})).amountKopecks).toBe(200000);
+  });
   it('expires photo requests without blocking an old offline mark', async () => {
     const person = randomUUID(); await db.payrollEmployee.create({ data: { id: person, name: 'Offline', warehouseId } });
     const m = mark('CLOCK_IN', Date.now() - ATTENDANCE_RETENTION - 1000, first, person);

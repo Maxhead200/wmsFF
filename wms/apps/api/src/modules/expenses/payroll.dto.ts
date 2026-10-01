@@ -52,7 +52,10 @@ export class PayrollHandlingDto {
   @IsString() warehouseId!: string;
   @IsISO8601() startsAt!: string;
   @IsIn(['LOAD', 'UNLOAD']) operation!: string;
-  @IsNumber({ maxDecimalPlaces: 4 }) @Min(0.0001) palletCount!: number;
+  @IsNumber({ maxDecimalPlaces: 4 }) @Min(0) palletCount!: number;
+  @IsOptional() @IsInt() @Min(0) boxCount?: number;
+  @IsOptional() @IsInt() @Min(0) bagCount?: number;
+  @IsOptional() @IsInt() @Min(0) rollCount?: number;
   @IsArray() @ArrayMinSize(1) @ArrayUnique() @IsString({ each: true }) employeeIds!: string[];
   @IsString() @MaxLength(1000) reason!: string;
 }

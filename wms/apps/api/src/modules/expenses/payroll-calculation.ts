@@ -42,7 +42,7 @@ export function workDate(start: string, timezone = 'Europe/Moscow'): string {
 }
 
 // FIX: aggregate a complete start-date group before applying lunch once.
-export function calculateWorkDay(intervals: WorkInterval[], rates: PayrollRate[], timezone = 'Europe/Moscow', lunchMinutes?: number | null) {
+export function calculateWorkDay(intervals: WorkInterval[], rates: PayrollRate[], timezone = 'Europe/Moscow', lunchMinutes?: number | null, actualBreaks?: WorkInterval[]) {
   if (!intervals.length) throw new Error('Work intervals required');
   const date = workDate(intervals[0].start, timezone);
   const rows = intervals.map(i => ({ start: instant(i.start), end: instant(i.end), date: workDate(i.start, timezone) }))
@@ -50,6 +50,12 @@ export function calculateWorkDay(intervals: WorkInterval[], rates: PayrollRate[]
   for (let i = 0; i < rows.length; i++) {
     if (rows[i].date !== date || rows[i].end <= rows[i].start) throw new Error('Invalid work day');
     if (i && rows[i].start < rows[i - 1].end) throw new Error('Overlapping work intervals');
+  }
+  // FIX: actual lunch replaces the automatic allowance; reject corrupted intervals.
+  const breaks = actualBreaks?.map(b => ({ start: instant(b.start), end: instant(b.end) })).sort((a,b) => a.start-b.start);
+  if (breaks) for (let i=0;i<breaks.length;i++) {
+    const b=breaks[i];
+    if (b.end <= b.start || !rows.some(r => r.start <= b.start && b.end <= r.end) || (i>0 && b.start < breaks[i-1].end)) throw new Error('Invalid lunch intervals');
   }
   const schedule = checkedRates(rates);
   const segments: { start: string; end: string; workedMs: number; rateKopecks: number }[] = [];
@@ -64,10 +70,10 @@ export function calculateWorkDay(intervals: WorkInterval[], rates: PayrollRate[]
   const workedMs = segments.reduce((sum, s) => sum + s.workedMs, 0);
   // FIX: null restores the automatic rule; explicit zero is a valid exception.
   if (lunchMinutes != null && (!Number.isSafeInteger(lunchMinutes) || lunchMinutes < 0 || lunchMinutes * 60000 > workedMs)) throw new Error('Invalid lunch');
-  const lunchMs = lunchMinutes == null ? (workedMs > 6 * HOUR ? HOUR : 0) : lunchMinutes * 60000;
+  const lunchMs = breaks ? breaks.reduce((sum,b) => sum+b.end-b.start,0) : lunchMinutes == null ? (workedMs > 6 * HOUR ? HOUR : 0) : lunchMinutes * 60000;
   const paidMs = workedMs - lunchMs;
   // Proportional lunch; keep precision until the final monetary total.
-  const detail = segments.map(s => ({ ...s, paidMs: s.workedMs * paidMs / workedMs }));
+  const detail = segments.map(s => ({ ...s, paidMs: breaks ? s.workedMs - breaks.reduce((sum,b) => sum + Math.max(0, Math.min(Date.parse(s.end),b.end)-Math.max(Date.parse(s.start),b.start)),0) : s.workedMs * paidMs / workedMs }));
   const amountKopecks = Math.round(detail.reduce((sum, s) => sum + s.paidMs * s.rateKopecks / HOUR, 0));
   if (!Number.isSafeInteger(amountKopecks)) throw new Error('Amount exceeds safe range');
   return { date, workedMs, lunchMs, paidMs, amountKopecks, segments: detail };

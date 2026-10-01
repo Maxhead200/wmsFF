@@ -22,6 +22,7 @@ data class Employee(
     val openSince: Long? = null,
     val revision: Long = 0,
     val distinguishing: String = "",
+    val breakSince: Long? = null,
 )
 
 @Entity(tableName = "events", indices = [Index("employeeId")])
@@ -60,11 +61,15 @@ interface AttendanceDao {
 }
 
 // FIX: durable outbox, no destructive migrations and no automatic deletion of unsent photos.
-@Database(entities = [Employee::class, Event::class], version = 1, exportSchema = true)
+@Database(entities = [Employee::class, Event::class], version = 2, exportSchema = true)
 abstract class AttendanceDb : RoomDatabase() {
     abstract fun dao(): AttendanceDao
     companion object {
-        fun open(context: Context) = Room.databaseBuilder(context, AttendanceDb::class.java, "attendance.db").build()
+        fun open(context: Context) = Room.databaseBuilder(context, AttendanceDb::class.java, "attendance.db").addMigrations(object : androidx.room.migration.Migration(1, 2) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE employees ADD COLUMN breakSince INTEGER")
+            }
+        }).build()
     }
 }
 
@@ -114,3 +119,12 @@ fun projectedOpen(employee: Employee, events: List<Event>): Long? {
 }
 
 fun retryableHttp(code: Int) = code == 408 || code == 425 || code == 429 || code in 500..599
+
+// FIX: project unpaid lunch locally while preserving the ordered offline queue.
+fun projectedBreak(employee: Employee, events: List<Event>): Long? {
+    var pause = employee.breakSince
+    events.filter { it.employeeId == employee.id && it.status == "PENDING" }.sortedBy { it.capturedAt }.forEach {
+        when(it.kind) { "BREAK_START" -> pause = it.capturedAt; "BREAK_END", "CLOCK_OUT", "CLOCK_IN" -> pause = null }
+    }
+    return pause
+}

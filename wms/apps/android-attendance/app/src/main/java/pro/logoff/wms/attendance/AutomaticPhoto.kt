@@ -43,7 +43,7 @@ class AutomaticPhotoOperation {
 }
 
 @Composable
-fun AutomaticPhotoMark(employee: Employee, clockIn: Boolean, onCancel: () -> Unit,
+fun AutomaticPhotoMark(employee: Employee, clockIn: Boolean, onCancel: () -> Unit, label: String = if (clockIn) "Начало смены" else "Окончание смены",
     onSave: suspend (File, Long, Long, String) -> Unit) {
     val context = LocalContext.current
     val displayView = LocalView.current
@@ -121,7 +121,7 @@ fun AutomaticPhotoMark(employee: Employee, clockIn: Boolean, onCancel: () -> Uni
         }
     }
     Column {
-        Text("${employee.name} · ${if (clockIn) "Начало" else "Окончание"} смены")
+        Text("${employee.name} · $label")
         if (working) { LinearProgressIndicator(); Text("Сохраняем отметку…") }
         if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
         if (!granted) TextButton(onClick = { permission.launch(Manifest.permission.CAMERA) }) { Text("Разрешить камеру") }

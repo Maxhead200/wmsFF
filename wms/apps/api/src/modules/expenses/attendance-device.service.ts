@@ -1,3 +1,4 @@
+import { handlingQuantities, HANDLING_PALLET_RATE } from './handling-quantities';
 import { BadRequestException, ConflictException, ForbiddenException, HttpException, Injectable, NotFoundException, OnModuleDestroy, OnModuleInit, UnauthorizedException } from '@nestjs/common';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { Prisma, PayrollEmployee } from '@prisma/client';
@@ -26,7 +27,7 @@ const canonical = (v: unknown): string => Array.isArray(v) ? '[' + v.map(canonic
 export function attendanceMark(input: Record<string, unknown>, key: string | undefined): Mark {
   if (!input || JSON.stringify(input).length > 12000 || input.protocolVersion !== 2 || input.photoPolicy !== 'LOCAL_35_DAYS') fail('Требуется протокол планшета v2.');
   const id = uuid(input.eventId);
-  if (key !== id || !['CLOCK_IN', 'CLOCK_OUT', 'HANDLING'].includes(String(input.kind))) fail();
+  if (key !== id || !['CLOCK_IN', 'CLOCK_OUT', 'BREAK_START', 'BREAK_END', 'HANDLING'].includes(String(input.kind))) fail();
   const photo = input.photoSha256;
   if (input.kind !== 'HANDLING' && (typeof photo !== 'string' || !/^[a-f0-9]{64}$/.test(photo))) fail('Не указан хеш локального фото.');
   if (!Number.isSafeInteger(input.elapsedAtMs) || Number(input.elapsedAtMs) < 0) fail();
@@ -103,9 +104,10 @@ export class AttendanceDeviceService implements OnModuleInit, OnModuleDestroy {
   }
   private async employeeState(tx: Tx, e: PayrollEmployee) {
     const shift = await tx.payrollShift.findFirst({ where: { employeeId: e.id, cancelledAt: null, endsAt: null }, orderBy: { startsAt: 'desc' } });
+    const lunch = shift ? await tx.payrollBreak.findFirst({ where: { shiftId: shift.id, endsAt: null } }) : null;
     const seq = await tx.$queryRaw<Array<{ revision: bigint }>>`SELECT nextval('"AttendanceRevision"') AS revision`;
     return { id: e.id, name: e.name, warehouseId: e.warehouseId, loader: e.loader, active: e.isActive, distinguishing: '',
-      openSinceMs: shift?.startsAt.getTime() ?? null, revision: Number(seq[0].revision) };
+      openSinceMs: shift?.startsAt.getTime() ?? null, breakSinceMs: lunch?.startsAt.getTime() ?? null, revision: Number(seq[0].revision) };
   }
   async state(auth: string | undefined) {
     return this.prisma.$transaction(async tx => {
@@ -161,24 +163,42 @@ export class AttendanceDeviceService implements OnModuleInit, OnModuleDestroy {
   private async apply(tx: Tx, d: Pick<Device, 'id' | 'warehouseId' | 'isDemo'>, e: PayrollEmployee, m: Mark, at: Date): Promise<string> {
     if (m.kind === 'HANDLING') {
       const p = m.payload, ids = p.participantIds;
-      if (!e.loader || !['LOADING', 'UNLOADING'].includes(String(p.type)) || typeof p.pallets !== 'string' || !/^\d{1,5}(\.\d{1,4})?$/.test(p.pallets)
-        || Number(p.pallets) <= 0 || Number(p.pallets) > 10000 || !Array.isArray(ids) || ids.length > 100 || !ids.includes(e.id)
+      let quantities;
+      try { quantities = handlingQuantities(p); } catch { return 'Проверьте количество груза.'; }
+      if (!e.loader || !['LOADING', 'UNLOADING'].includes(String(p.type)) || !Array.isArray(ids) || ids.length > 100 || !ids.includes(e.id)
         || new Set(ids).size !== ids.length || typeof p.comment !== 'string' || p.comment.length > 1000) return 'Проверьте данные погрузки.';
       const start = new Date(millis(p.startsAtMs)); if (start.getTime() > Date.now() + 300000) return 'Проверьте время погрузки.';
       const members = await tx.payrollEmployee.findMany({ where: { id: { in: ids.map(uuid) }, warehouseId: d.warehouseId, isDemo: d.isDemo, isActive: true } });
       if (members.length !== ids.length) return 'Участник недоступен.';
-      await tx.payrollHandling.create({ data: { id: m.eventId, warehouseId: d.warehouseId, startsAt: start, operation: p.type === 'LOADING' ? 'LOAD' : 'UNLOAD', palletCount: new Prisma.Decimal(p.pallets), status: 'REVIEW', createdById: `device:${d.id}`, reason: p.comment,
+      await tx.payrollHandling.create({ data: { id: m.eventId, warehouseId: d.warehouseId, startsAt: start, operation: p.type === 'LOADING' ? 'LOAD' : 'UNLOAD', ...quantities, unitRateKopecks: HANDLING_PALLET_RATE, status: 'REVIEW', createdById: `device:${d.id}`, reason: p.comment,
         shares: { create: members.map(member => ({ employeeId: member.id })) } } });
       return '';
     }
     const open = await tx.payrollShift.findFirst({ where: { employeeId: e.id, cancelledAt: null, endsAt: null } });
     if (m.kind === 'CLOCK_IN' && open) return 'Смена уже открыта.';
     if (m.kind === 'CLOCK_OUT' && (!open || at <= open.startsAt)) return 'Нет подходящего открытого прихода.';
+    // FIX: employee row lock serializes lunch transitions and offline replays.
+    const pause = open ? await tx.payrollBreak.findFirst({ where: { shiftId: open.id, endsAt: null } }) : null;
+    if (m.kind.startsWith('BREAK_') && (!open || at <= open.startsAt)) return 'Для обеда нужна открытая смена.';
+    if (m.kind === 'BREAK_START' && pause) return 'Обед уже начат.';
+    if (m.kind === 'BREAK_END' && (!pause || at <= pause.startsAt)) return 'Нет подходящего начала обеда.';
+    if (open && m.kind !== 'CLOCK_IN') {
+      const last = await tx.payrollBreak.findFirst({ where: { shiftId: open.id }, orderBy: { startsAt: 'desc' } });
+      if (last && at <= (last.endsAt ?? last.startsAt)) return 'Отметка раньше предыдущего обеда.';
+    }
     const day = open?.workDate ?? workDate(at.toISOString());
     if (await tx.payrollHistorical.findFirst({ where: { employeeId: e.id, workDate: day } })) return 'День уже импортирован из табеля.';
     if (await tx.payrollSettlement.findFirst({ where: { employeeId: e.id, workDate: day, status: 'PAID', key: { startsWith: 'WORK:' } } })) return 'День уже оплачен.';
     const start = open?.startsAt ?? at;
-    if (await tx.payrollShift.findFirst({ where: { employeeId: e.id, cancelledAt: null, ...(open ? { id: { not: open.id } } : {}), startsAt: { lt: m.kind === 'CLOCK_OUT' ? at : new Date('9999-01-01') }, OR: [{ endsAt: null }, { endsAt: { gt: start } }] } })) return 'Пересечение с существующей сменой.';
+    if (await tx.payrollShift.findFirst({ where: { employeeId: e.id, cancelledAt: null, ...(open ? { id: { not: open.id } } : {}), startsAt: { lt: m.kind !== 'CLOCK_IN' ? at : new Date('9999-01-01') }, OR: [{ endsAt: null }, { endsAt: { gt: start } }] } })) return 'Пересечение с существующей сменой.';
+    if (m.kind === 'BREAK_START') {
+      await tx.payrollBreak.create({ data: { id: m.eventId, shiftId: open!.id, startsAt: at } }); return '';
+    }
+    if (m.kind === 'BREAK_END') {
+      await tx.payrollBreak.update({ where: { id: pause!.id }, data: { endsAt: at } }); return '';
+    }
+    // Ending a shift during lunch closes the unpaid interval at the departure time.
+    if (pause) await tx.payrollBreak.update({ where: { id: pause.id }, data: { endsAt: at } });
     if (open) await tx.payrollShift.update({ where: { id: open.id }, data: { endsAt: at, endPhoto: m.eventId, version: { increment: 1 } } });
     else await tx.payrollShift.create({ data: { id: m.eventId, employeeId: e.id, startsAt: at, workDate: day, source: 'TABLET', startPhoto: m.eventId, createdById: `device:${d.id}` } });
     return '';

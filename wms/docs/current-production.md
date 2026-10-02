@@ -1,3 +1,11 @@
+# Published PR453 / 02.10.2026
+
+Follow-up to PR451: real recovery still exhausted serialization retries. recoverInTransaction now uses executeAction without unused route calculation. apply keeps3fresh transactions, waits50/100ms between retries, and reports409with repeat-preview guidance on exhaustion. All permissions, revision checks, inventory validators and receipts preserved.
+
+API `sha256:3278a1e6c2f0f959324f5f0000c546b960927ef96793ad49663171c88807cfe7`; baseline `2026-10-02-fbo-recovery-route`; rollback `logoff-api:before-fbo-recovery-route`. Only2runtime modules changed. Source parity false; web/APK/flags/sold WMS unchanged.
+
+2989 local API tests passed,129skipped; dedicated KIZ DB integration excluded.4new runtime regressions and5prior retry tests passed. Actual preview/apply for1568 intoFFL_LKBFBO0110_013 succeeded on published image in1346ms with mandatory outer rollback; persisted unit remainsPICKED. Before-fix smoke also passed during a quiet interval: contention is intermittent, not claimed impossible. Health and560file hashes verified.
+
 # Published PR451 / 02.10.2026
 
 Administrative FBO recovery no longer retries within an aborted transaction. The recovery-scoped service propagates P2034 to FboProblemsService.apply, which rolls back and retries the whole operation using the same preview receipt. Ordinary actions retain three attempts. Request1568 business data unchanged.

@@ -1,3 +1,40 @@
+# Published PR455 / 02.10.2026
+
+«Биллинг → Клиенты и расчёты»: суммы по клиенту/активному филиалу, расшифровки
+до начисления/заявки/заказа/тарифа/счёта и очередь проверок. Новый GET
+`/billing/settlements` читает PostgreSQL в RepeatableRead READ ONLY. Флаг
+`WMS_BILLING_SETTLEMENTS_ENABLED=true` включён только в нашей WMS.
+Миграций, корректировок начислений и изменений остатков нет. Проданная WMS
+не затрагивалась. Поиск выполненной работы без начисления покрывает подтверждённую
+FBS-обработку WB/Ozon; это не полный контроль FBO/хранения/доставки.
+
+API `sha256:1b186bf6e015f0144c973bff8b67b1825739b2774d7556666bab53d8a8157764`;
+web `sha256:347633f1079ad90a969e216911a1a83b59ea1acec2e19e4bada36fd0b061db2d`.
+Точный delta: три новых billing-settlements модуля, подключение BillingModule,
+запись каталога API; существующие расчётные сервисы не заменялись. Сайт сохраняет
+1537 прежних assets, добавляет новый граф и CSS. Остальные контейнеры и APK
+сохранены. Откат: `logoff-api:before-billing-settlements-20261002`,
+`logoff-web:before-billing-settlements-20261002`; compose-before.yml в каталоге выпуска.
+
+API 2956 / web 360 passed, 115 / 2 skipped; отдельная KIZ DB integration исключена.
+После объединения повторно проверена актуальная интеграционная версия:
+API 3006 / web 361 passed, 129 / 2 skipped; отдельная KIZ DB suite исключена.
+TypeScript API/web, 6 тестов выпуска, offline runtime smoke, actual runtime browser,
+полные опубликованные хеши и health 200 прошли. GET без входа возвращает 401.
+Read-only проверка в опубликованном API: 44 строки, 52 проверки, 23 случая
+WORK_WITHOUT_CHARGE за 1–2 октября на активном складе владельца.
+Исправленный тест воспроизводит прежний отказ реестра на 42 144 начислениях.
+
+Свежий локальный runtime API/web:
+`C:/WMSFF2207/baselines/our-wms-runtime-billing-settlements-20261002`.
+Архивы и каждый файл проверены `release_baseline.py verify`; эталон 01.10 не менялся.
+[Машинная запись выпуска](releases/billing-settlements-20261002.json),
+[описание и ограничения](billing-settlements.md). `sourceParityVerified=false`.
+Перед следующим выпуском читать свежие image ID; полный source build по-прежнему
+не заменяет опубликованный runtime.
+
+## Previous release
+
 # Published PR453 / 02.10.2026
 
 Follow-up to PR451: real recovery still exhausted serialization retries. recoverInTransaction now uses executeAction without unused route calculation. apply keeps3fresh transactions, waits50/100ms between retries, and reports409with repeat-preview guidance on exhaustion. All permissions, revision checks, inventory validators and receipts preserved.

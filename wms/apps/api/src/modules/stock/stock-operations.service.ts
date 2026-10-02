@@ -4414,7 +4414,17 @@ export class StockOperationsService {
     row: FulfillmentBillingRow,
     userId: string,
   ) {
-    const service = await tx.billingService.upsert({
+    // FIX: avoid serializing every FBO completion on an unchanged shared catalog row.
+    // Opt-in keeps the sold WMS on its existing behavior.
+    const readFirst = process.env.WMS_FULFILLMENT_CATALOG_READ_FIRST === 'true';
+    const existing = readFirst
+      ? await tx.billingService.findUnique({ where: { code: row.code } })
+      : null;
+    const unchanged = existing && existing.name === row.name && existing.unit === row.unit &&
+      existing.isActive && (row.defaultPriceRub == null
+        ? existing.defaultPriceRub == null
+        : existing.defaultPriceRub != null && Number(existing.defaultPriceRub) === row.defaultPriceRub);
+    const service = unchanged ? existing : await tx.billingService.upsert({
       where: { code: row.code },
       update: {
         name: row.name,
@@ -4430,7 +4440,12 @@ export class StockOperationsService {
         isActive: true,
       },
     });
-    const clientPrice = await tx.clientBillingService.upsert({
+    const existingPrice = readFirst
+      ? await tx.clientBillingService.findUnique({
+        where: { clientId_serviceId: { clientId, serviceId: service.id } },
+      })
+      : null;
+    const clientPrice = existingPrice ?? await tx.clientBillingService.upsert({
       where: {
         clientId_serviceId: {
           clientId,

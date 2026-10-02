@@ -28,6 +28,8 @@ const identity = (value: string) => physicalKizIdentity(value) || value.trim();
 const composition = (r: Request) => hash(r.items.map(i => [i.id, i.skuId, i.barcode, i.quantity]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))));
 @Injectable()
 export class FboTwoStageService {
+    // FIX: an administrative transaction owner retries the whole recovery after rollback.
+    private recoveryTransaction = false;
     constructor(private readonly prisma: PrismaService, private readonly scopes: ClientScopeService, private readonly balances: StockBalancesService, private readonly stock: StockOperationsService, private readonly lock: InventoryLockService, private readonly files: ClientRequestMarketplaceFilesService) { }
     async eligible(requestId: string, user: AuthUser) {
         if (!fboTwoStageEnabled())
@@ -365,7 +367,7 @@ export class FboTwoStageService {
         for (let attempt = 0; ; attempt++) {
             try { await execute(); break; }
             catch (error) {
-                if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2034' || attempt >= 2)
+                if (this.recoveryTransaction || !(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2034' || attempt >= 2)
                     throw error;
                 await new Promise(resolve => setTimeout(resolve, 25 * (attempt + 1)));
             }

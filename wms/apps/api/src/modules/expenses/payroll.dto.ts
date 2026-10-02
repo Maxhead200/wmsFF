@@ -76,3 +76,20 @@ export class PayrollStatusDto {
   @IsIn(['UNPAID', 'REVIEW', 'PAID']) status!: string;
   @IsString() @MaxLength(1000) comment!: string;
 }
+
+// FIX: bounded explicit selections; the server rechecks amounts before paying.
+export class PayrollIdentityDto {
+  @IsArray() @ArrayMaxSize(100) @ArrayUnique() @IsString({ each: true }) memberIds!: string[];
+}
+export class PayrollBatchEntryDto {
+  @IsString() employeeId!: string;
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(2000) @ArrayUnique() @IsString({ each: true }) keys!: string[];
+}
+export class PayrollStatusBatchDto {
+  @IsString() dateFrom!: string;
+  @IsString() dateTo!: string;
+  @IsIn(['UNPAID', 'REVIEW', 'PAID']) status!: string;
+  @IsString() @MaxLength(1000) comment!: string;
+  @IsInt() @Min(0) expectedAmountKopecks!: number;
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(100) @ValidateNested({ each: true }) @Type(() => PayrollBatchEntryDto) entries!: PayrollBatchEntryDto[];
+}

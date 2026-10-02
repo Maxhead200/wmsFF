@@ -2,7 +2,7 @@ import { handlingQuantities, equivalentPallets, HANDLING_PALLET_RATE } from './h
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.types';
-import { PayrollConditionDto, PayrollEmployeeDto, PayrollHandlingDto, PayrollShiftDto, PayrollStatusDto, PayrollHistoryEditDto } from './payroll.dto';
+import { PayrollIdentityDto, PayrollStatusBatchDto, PayrollConditionDto, PayrollEmployeeDto, PayrollHandlingDto, PayrollShiftDto, PayrollStatusDto, PayrollHistoryEditDto } from './payroll.dto';
 import { calculateHandling, calculateWorkDay, payrollRateAt, workDate } from './payroll-calculation';
 import { appendFbsAttemptHistory } from '../../common/shipment-history/fbs-attempt-history';
 import { Prisma } from '@prisma/client';
@@ -36,6 +36,60 @@ export class PayrollService {
     const row = await this.prisma.payrollEmployee.findFirst({ where: { id, ...this.scope(user, write) } });
     if (!row) throw new NotFoundException('Сотрудник не найден.');
     return row;
+  }
+
+  // FIX: keep source identities, rates and paid snapshots intact; only link their presentation.
+  async setIdentity(id: string, dto: PayrollIdentityDto, user: AuthUser) {
+    const primary = await this.employee(id, user, true);
+    const ids = [...new Set(dto.memberIds)];
+    if (ids.length !== dto.memberIds.length || ids.includes(id) || ids.length > 100) throw new BadRequestException('Проверьте список карточек.');
+    return this.prisma.$transaction(async tx => {
+      // Lock the branch in stable order so concurrent links cannot create chains/cycles.
+      await tx.$queryRaw`SELECT id FROM "PayrollEmployee" WHERE "warehouseId" = ${primary.warehouseId} AND "isDemo" = ${primary.isDemo} ORDER BY id FOR UPDATE`;
+      const people = await tx.payrollEmployee.findMany({ where: { warehouseId: primary.warehouseId, isDemo: primary.isDemo } });
+      const root = people.find(p => p.id === id);
+      if (!root || root.payrollPrimaryId) throw new BadRequestException('Откройте основную карточку сотрудника.');
+      for (const memberId of ids) {
+        const member = people.find(p => p.id === memberId);
+        if (!member || (member.payrollPrimaryId && member.payrollPrimaryId !== id) || people.some(p => p.payrollPrimaryId === memberId)) throw new BadRequestException('Карточка недоступна или уже связана с другим сотрудником.');
+      }
+      const previous = people.filter(p => p.payrollPrimaryId === id).map(p => p.id);
+      await tx.payrollEmployee.updateMany({ where: { payrollPrimaryId: id }, data: { payrollPrimaryId: null } });
+      await tx.payrollEmployee.updateMany({ where: { id: { in: ids } }, data: { payrollPrimaryId: id } });
+      await tx.payrollAudit.create({ data: { warehouseId: primary.warehouseId, actorId: user.id, entityId: id, action: 'EMPLOYEE_IDENTITY_LINKED', details: { previous, memberIds: ids } } });
+      return { primaryId: id, memberIds: ids };
+    });
+  }
+
+  // FIX: all selected people are validated and paid within one transaction, never partially.
+  async setStatusBatch(dto: PayrollStatusBatchDto, user: AuthUser) {
+    this.scope(user, true); this.period(dto.dateFrom, dto.dateTo);
+    const ids = dto.entries.map(e => e.employeeId);
+    if (!ids.length || ids.length > 100 || new Set(ids).size !== ids.length || dto.entries.some(e => !e.keys.length || e.keys.length > 2000 || new Set(e.keys).size !== e.keys.length)) throw new BadRequestException('Проверьте выбранные начисления.');
+    return this.prisma.$transaction(async tx => {
+      for (const id of [...ids].sort()) await tx.$queryRaw`SELECT id FROM "PayrollEmployee" WHERE id = ${id} FOR UPDATE`;
+      const scoped = new PayrollService(tx as unknown as PrismaService);
+      const selected: Array<{ row: PayrollRow; warehouseId: string }> = [];
+      for (const entry of dto.entries) {
+        const employee = await scoped.employee(entry.employeeId, user, true);
+        const report = await scoped.report(entry.employeeId, dto.dateFrom, dto.dateTo, user);
+        if (dto.status === 'PAID' && report.issues.length) throw new BadRequestException('Сначала исправьте ошибки расчёта за период.');
+        for (const key of entry.keys) {
+          const row = report.rows.find(r => r.key === key);
+          if (!row) throw new BadRequestException('Начисление не найдено. Обновите отчёт.');
+          if (dto.status === 'PAID' && (row.status !== 'UNPAID' || (row.kind === 'PALLET' && (row.detail as {status:string}).status !== 'CONFIRMED'))) throw new BadRequestException('Выберите только неоплаченные подтверждённые начисления. Обновите отчёт.');
+          selected.push({ row, warehouseId: employee.warehouseId });
+        }
+      }
+      const amountKopecks = selected.reduce((sum, s) => sum + s.row.amountKopecks, 0);
+      if (!Number.isSafeInteger(amountKopecks) || amountKopecks !== dto.expectedAmountKopecks) throw new BadRequestException('Сумма изменилась. Обновите отчёт и проверьте выбор.');
+      for (const { row, warehouseId } of selected) {
+        const data = { employeeId: row.employeeId, warehouseId, workDate: row.date, status: dto.status, snapshot: JSON.parse(JSON.stringify(row)) as Prisma.InputJsonValue, comment: dto.comment, updatedById: user.id, paidAt: dto.status === 'PAID' ? new Date() : null };
+        await tx.payrollSettlement.upsert({ where: { key: row.key }, create: { key: row.key, ...data }, update: data });
+        await tx.payrollAudit.create({ data: { warehouseId, actorId: user.id, entityId: row.key, action: 'PAYMENT_STATUS', details: { from: row.status, to: dto.status, comment: dto.comment, amountKopecks: row.amountKopecks, batch: true } } });
+      }
+      return { updated: selected.length, amountKopecks };
+    }, { timeout: 60000 });
   }
 
   async saveEmployee(id: string | undefined, dto: PayrollEmployeeDto, user: AuthUser) {

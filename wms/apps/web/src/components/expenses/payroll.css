@@ -46,3 +46,6 @@
 .payroll-payment-summary { margin: 16px 0; padding: 16px; border: 1px solid #dce3ef; border-radius: 12px; background: #f8faff; }
 .payroll-payment-summary h3 { margin-top: 0; }
 .payroll-payment-detail { margin-top: 6px; font-size: 0.86em; color: #5d687e; white-space: nowrap; }
+
+/* FIX: long identity lists remain bounded and readable in all themes. */
+.payroll-identity-list{display:grid;gap:.5rem;max-height:18rem;overflow:auto;padding:.5rem}.payroll-identity-list label{display:flex;align-items:center;gap:.5rem}

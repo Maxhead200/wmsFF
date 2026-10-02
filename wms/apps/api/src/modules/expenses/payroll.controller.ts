@@ -5,7 +5,7 @@ import { payrollPdf, payrollXlsx } from './payroll-export';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import type { AuthUser } from '../auth/auth.types';
-import { PayrollConditionDto, PayrollEmployeeDto, PayrollHandlingDto, PayrollShiftDto, PayrollStatusDto, PayrollHistoryEditDto, PayrollHandlingConfirmDto, PayrollHandlingCancelDto } from './payroll.dto';
+import { PayrollIdentityDto, PayrollStatusBatchDto, PayrollConditionDto, PayrollEmployeeDto, PayrollHandlingDto, PayrollShiftDto, PayrollStatusDto, PayrollHistoryEditDto, PayrollHandlingConfirmDto, PayrollHandlingCancelDto } from './payroll.dto';
 import { PayrollService } from './payroll.service';
 
 @Controller('expenses/workforce')
@@ -47,6 +47,10 @@ export class PayrollController {
   updateHandling(@Param('id') id: string, @Body() dto: PayrollHandlingDto, @CurrentUser() user: AuthUser) { return this.payroll.changeHandling(id, dto, user); }
   @Post('handling/:id/cancel') @RequirePermissions('expenses:write')
   cancelHandling(@Param('id') id: string, @Body() dto: PayrollHandlingCancelDto, @CurrentUser() user: AuthUser) { return this.payroll.changeHandling(id, dto, user, true); }
+  @Put('employees/:id/identity') @RequirePermissions('expenses:write')
+  identity(@Param('id') id: string, @Body() dto: PayrollIdentityDto, @CurrentUser() user: AuthUser) { return this.payroll.setIdentity(id, dto, user); }
+  @Post('statuses/batch') @RequirePermissions('expenses:write')
+  statusBatch(@Body() dto: PayrollStatusBatchDto, @CurrentUser() user: AuthUser) { return this.payroll.setStatusBatch(dto, user); }
   @Post('statuses') @RequirePermissions('expenses:write')
   status(@Body() dto: PayrollStatusDto, @CurrentUser() user: AuthUser) { return this.payroll.setStatus(dto, user); }
   @Get('employees/:id/export')

@@ -2,7 +2,7 @@ import { FormEvent, ReactNode, useEffect, useState } from 'react';
 import { AuthSession, BranchSummary, fetchBranches, payrollDownload, payrollImport, payrollRequest, payrollAttendancePhoto } from '../../lib/api';
 import './payroll.css';
 
-type Employee = { id: string; name: string; warehouseId: string; userId?: string | null; picker: boolean; loader: boolean; isActive: boolean; paymentMethod: string; paymentPhone?: string | null; paymentBank?: string | null; rates: Array<{ id: string; kind: string; rateKopecks: number; startsAt: string; endsAt?: string; temporary: boolean }> };
+type Employee = { id: string; payrollPrimaryId?: string | null; name: string; warehouseId: string; userId?: string | null; picker: boolean; loader: boolean; isActive: boolean; paymentMethod: string; paymentPhone?: string | null; paymentBank?: string | null; rates: Array<{ id: string; kind: string; rateKopecks: number; startsAt: string; endsAt?: string; temporary: boolean }> };
 type Row = { key: string; employeeId: string; date: string; kind: string; amountKopecks: number; status: string; units?: number; workedMs?: number; lunchMs?: number; detail: { lunchOverride?: number | null; id?: string; status?: string; warehouseId?: string; startsAt?: string; operation?: string; shares?: Array<{ employeeId: string }>; palletCount?: number; boxCount?: number; bagCount?: number; rollCount?: number; unitRateKopecks?: number; start?: number; end?: number; rate?: number; shifts?: Array<{ id: string; start: string; end: string }>; segments?: Array<{ start: string; end: string; rateKopecks: number }> } };
 type Report = { rows: Row[]; issues: string[]; totals: { amountKopecks: number; paidKopecks: number } };
 const money = (n: number) => (n / 100).toLocaleString('ru-RU', { style: 'currency', currency: 'RUB' });
@@ -33,19 +33,19 @@ export function payrollInitialConditions(form: FormData, loader: boolean) {
 }
 // FIX: format only for display; preserve ISO values for API filters and chronological sorting.
 export const payrollDate = (value: string) => value.replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$3.$2.$1');
-type SortKey = 'date' | 'name' | 'bank';
+type SortKey = 'date' | 'name' | 'bank' | 'status';
 type SortDirection = 'asc' | 'desc';
 type EmployeeStatusFilter = 'all' | 'active' | 'inactive';
 // FIX: filter current staff status without deleting access to archived timesheets.
 export function payrollFilterEmployees<T extends { isActive: boolean }>(people: T[], status: EmployeeStatusFilter): T[] {
   return people.filter(p => status === 'all' || p.isActive === (status === 'active'));
 }
-export function payrollSortRows<T extends { employeeId: string; date: string; key: string }>(rows: T[],
+export function payrollSortRows<T extends { employeeId: string; date: string; key: string; status?: string }>(rows: T[],
   people: Array<Pick<Employee, 'id' | 'name' | 'paymentMethod' | 'paymentBank'>>, key: SortKey, direction: SortDirection) {
   const lookup = new Map(people.map(p => [p.id, p]));
   const value = (r: T, field: SortKey) => {
     const p = lookup.get(r.employeeId);
-    return field === 'date' ? r.date : field === 'name' ? p?.name ?? '' : p?.paymentMethod === 'CASH' ? 'Наличные' : p?.paymentBank ?? '';
+    return field === 'status' ? r.status ?? '' : field === 'date' ? r.date : field === 'name' ? p?.name ?? '' : p?.paymentMethod === 'CASH' ? 'Наличные' : p?.paymentBank ?? '';
   };
   return [...rows].sort((a, b) => (direction === 'asc' ? 1 : -1) * value(a, key).localeCompare(value(b, key), 'ru')
     || value(a, 'name').localeCompare(value(b, 'name'), 'ru') || a.date.localeCompare(b.date) || a.key.localeCompare(b.key));
@@ -72,10 +72,19 @@ const employeeDraft = (employee: Employee) => ({ name: employee.name, warehouseI
   paymentPhone: employee.paymentMethod === 'TRANSFER' ? employee.paymentPhone ?? '' : '', paymentBank: employee.paymentMethod === 'TRANSFER' ? employee.paymentBank ?? '' : '' });
 
 // FIX: display payout contacts next to totals for the selected period and visible kind of work.
-export function payrollPaymentSummary(people: Array<Pick<Employee, 'id' | 'name' | 'paymentMethod' | 'paymentPhone' | 'paymentBank'>>,
+export const payrollIdentityId = (p: {id: string; payrollPrimaryId?: string | null}) => p.payrollPrimaryId || p.id;
+// FIX: status filtering and totals use the same visible selection; hidden rows never enter a payment.
+export function payrollFilterRows<T extends {status:string}>(rows:T[],status:string):T[] { return rows.filter(r=>status==='all'||r.status===status); }
+export function payrollSelectedTotal(rows:Array<Pick<Row,'key'|'status'|'amountKopecks'>>,keys:string[]) {
+  const selected=new Set(keys);return rows.filter(r=>selected.has(r.key)&&r.status==='UNPAID').reduce((sum,r)=>sum+r.amountKopecks,0);
+}
+export function payrollPaymentSummary(people: Array<Pick<Employee, 'id' | 'name' | 'paymentMethod' | 'paymentPhone' | 'paymentBank' | 'payrollPrimaryId'>>,
   rows: Array<Pick<Row, 'employeeId' | 'amountKopecks' | 'status'>>, selected: string) {
-  return people.filter(p => selected === '__all' || p.id === selected).map(p => {
-    const own = rows.filter(r => r.employeeId === p.id);
+  const selectedPerson=people.find(p=>p.id===selected);
+  const roots=people.filter(p=>!p.payrollPrimaryId);
+  return roots.filter(p => selected === '__all' || p.id === (selectedPerson ? payrollIdentityId(selectedPerson) : selected)).map(p => {
+    const ids=new Set(people.filter(member=>payrollIdentityId(member)===p.id).map(member=>member.id));
+    const own = rows.filter(r => ids.has(r.employeeId));
     const sum = (status?: string) => own.filter(r => !status || r.status === status).reduce((total, r) => total + r.amountKopecks, 0);
     return { id: p.id, name: p.name, amountKopecks: sum(), unpaidKopecks: sum('UNPAID'), paidKopecks: sum('PAID'), reviewKopecks: sum('REVIEW'),
       payment: p.paymentMethod === 'CASH' ? 'Наличные' : p.paymentMethod === 'TRANSFER' ? 'Перевод' : 'Способ выплаты не указан',
@@ -101,6 +110,7 @@ export function PayrollManagement({ session, legacy, onBack }: { session: AuthSe
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [branches, setBranches] = useState<BranchSummary[]>([]);
   const [selected, setSelected] = useState('');
+  const [paymentStatus, setPaymentStatus] = useState('all');
   const [employeeStatus, setEmployeeStatus] = useState<EmployeeStatusFilter>('all');
   const [tab, setTab] = useState('work');
   const [settingsSelected, setSettingsSelected] = useState('');
@@ -124,7 +134,9 @@ export function PayrollManagement({ session, legacy, onBack }: { session: AuthSe
   const [manualOpen, setManualOpen] = useState(false);
   const [historyEdit, setHistoryEdit] = useState<Row | null>(null);
   const [shiftDraft, setShiftDraft] = useState({ start: '', end: '', originalStart: '', originalEnd: '', lunch: '' });
-  const reportEmployees = payrollFilterEmployees(employees, employeeStatus);
+  const activeRoots = new Set(payrollFilterEmployees(employees.filter(p=>!p.payrollPrimaryId), employeeStatus).map(p=>p.id));
+  const reportEmployees = employees.filter(p=>activeRoots.has(payrollIdentityId(p)));
+  const selectedReportPeople = reportEmployees.filter(p=>selected==='__all'||p.id===selected||payrollIdentityId(p)===selected);
   useEffect(() => { setManualOpen(false); setHistoryEdit(null); }, [tab]);
   const employee = employees.find(e => e.id === (tab === 'settings' ? settingsSelected : selected));
   useEffect(() => {
@@ -162,15 +174,10 @@ export function PayrollManagement({ session, legacy, onBack }: { session: AuthSe
       return;
     }
     let live = true;
-    if (selected === '__all') {
-      Promise.all(reportEmployees.map(p => api<Report>(`/employees/${encodeURIComponent(p.id)}/report?from=${from}&to=${to}`))).then(reports => {
-        if (live) setReport({ rows: reports.flatMap(r => r.rows), issues: reports.flatMap((r, i) => r.issues.map(s => `${reportEmployees[i].name}: ${s}`)), totals: { amountKopecks: reports.reduce((s, r) => s + r.totals.amountKopecks, 0), paidKopecks: reports.reduce((s, r) => s + r.totals.paidKopecks, 0) } });
-      }).catch(e => { if (live) setError(e.message); });
-      return () => { live = false; };
-    }
-    api<Report>(`/employees/${encodeURIComponent(selected)}/report?from=${from}&to=${to}`)
-      .then(r => { if (live) setReport(r); }).catch(e => { if (live) setError(e.message); });
-    api<typeof shifts>(`/employees/${encodeURIComponent(selected)}/shifts`).then(r => { if (live) setShifts(r); }).catch(e => { if (live) setError(e.message); });
+    Promise.all(selectedReportPeople.map(p => api<Report>(`/employees/${encodeURIComponent(p.id)}/report?from=${from}&to=${to}`))).then(reports => {
+      if (live) setReport({ rows: reports.flatMap(r => r.rows), issues: reports.flatMap((r, i) => r.issues.map(s => `${selectedReportPeople[i].name}: ${s}`)), totals: { amountKopecks: reports.reduce((s,r)=>s+r.totals.amountKopecks,0), paidKopecks: reports.reduce((s,r)=>s+r.totals.paidKopecks,0) } });
+    }).catch(e => { if(live)setError(e.message); });
+    if(selected!=='__all')api<typeof shifts>(`/employees/${encodeURIComponent(selected)}/shifts`).then(r=>{if(live)setShifts(r);}).catch(e=>{if(live)setError(e.message);});
     return () => { live = false; };
   }, [selected, from, to, enabled, employees, tab, employeeStatus]);
   // FIX: clear old report/actions immediately, including an employee hidden by the new filter.
@@ -187,10 +194,9 @@ export function PayrollManagement({ session, legacy, onBack }: { session: AuthSe
     setDraft(next ? employeeDraft(next) : { ...blank, warehouseId: session.user.activeWarehouseId ?? '' });
   }
   async function reloadReport() {
-    if (selected === '__all') {
-      const reports = await Promise.all(reportEmployees.map(p => api<Report>(`/employees/${encodeURIComponent(p.id)}/report?from=${from}&to=${to}`)));
-      setReport({ rows: reports.flatMap(r => r.rows), issues: reports.flatMap((r, i) => r.issues.map(s => `${reportEmployees[i].name}: ${s}`)), totals: { amountKopecks: reports.reduce((s, r) => s + r.totals.amountKopecks, 0), paidKopecks: reports.reduce((s, r) => s + r.totals.paidKopecks, 0) } });
-    } else if (selected) { setReport(await api<Report>(`/employees/${encodeURIComponent(selected)}/report?from=${from}&to=${to}`)); setShifts(await api<typeof shifts>(`/employees/${selected}/shifts`)); }
+    const reports=await Promise.all(selectedReportPeople.map(p=>api<Report>(`/employees/${encodeURIComponent(p.id)}/report?from=${from}&to=${to}`)));
+    setReport({rows:reports.flatMap(r=>r.rows),issues:reports.flatMap((r,i)=>r.issues.map(s=>`${selectedReportPeople[i].name}: ${s}`)),totals:{amountKopecks:reports.reduce((n,r)=>n+r.totals.amountKopecks,0),paidKopecks:reports.reduce((n,r)=>n+r.totals.paidKopecks,0)}});
+    if(selected&&selected!=='__all')setShifts(await api<typeof shifts>(`/employees/${selected}/shifts`));
     setChecked([]);
   }
   function editRow(row: Row, shift?: { id: string; start: string; end: string }) {
@@ -202,7 +208,10 @@ export function PayrollManagement({ session, legacy, onBack }: { session: AuthSe
     }
   }
   if (!enabled) return <>{error && <p role="alert">{error}</p>}{legacy}</>;
-  const visibleRows = payrollSortRows(report?.rows.filter(r => tab === 'handling' ? r.kind === 'PALLET' : r.kind !== 'PALLET') ?? [], employees, sortKey, sortDirection);
+  const visibleRows = payrollSortRows(payrollFilterRows(report?.rows.filter(r => tab === 'handling' ? r.kind === 'PALLET' : r.kind !== 'PALLET') ?? [], paymentStatus), employees, sortKey, sortDirection);
+  const selectedRows=visibleRows.filter(r=>checked.includes(r.key));
+  const payableTotal=payrollSelectedTotal(visibleRows,checked);
+  const personKeys=(id:string)=>visibleRows.filter(r=>r.status==='UNPAID'&&payrollIdentityId(employees.find(p=>p.id===r.employeeId)!)===id).map(r=>r.key);
   const paymentSummary = payrollSortRows(payrollPaymentSummary(reportEmployees, visibleRows, selected).map(p => ({ ...p, employeeId: p.id, key: p.id,
     date: visibleRows.filter(r => r.employeeId === p.id).map(r => r.date).sort()[0] ?? '9999-12-31' })), employees, sortKey, sortDirection);
   return <section className="payroll-management">
@@ -212,14 +221,16 @@ export function PayrollManagement({ session, legacy, onBack }: { session: AuthSe
     {error && <p role="alert" className="panel-message panel-message--error">{error}</p>}{message && <p role="status">{message}</p>}
     <div className="payroll-fields">
       {tab !== 'settings' && <label>Статус сотрудников<select disabled={busy} value={employeeStatus} onChange={e => changeEmployeeStatus(e.target.value as EmployeeStatusFilter)}><option value="all">Все</option><option value="active">Активные</option><option value="inactive">Неактивные</option></select></label>}
-      <label>Сотрудник<select disabled={busy} value={tab === 'settings' ? settingsSelected : selected} onChange={e => selectEmployee(e.target.value)}><option value="">Выберите сотрудника</option>{tab !== 'settings' && <option value="__all">Все сотрудники по фильтру</option>}{(tab === 'settings' ? employees : reportEmployees).map(e => <option key={e.id} value={e.id}>{e.name}{e.isActive ? '' : ' · архив'}</option>)}</select></label>
+      <label>Сотрудник<select aria-label="Сотрудник" disabled={busy} value={tab === 'settings' ? settingsSelected : selected} onChange={e => selectEmployee(e.target.value)}><option value="">Выберите сотрудника</option>{tab !== 'settings' && <option value="__all">Все сотрудники по фильтру</option>}{(tab === 'settings' ? employees : reportEmployees).map(e => <option key={e.id} value={e.id}>{e.name}{e.isActive ? '' : ' · архив'}</option>)}</select></label>
+      {tab !== 'settings' && <label>Статус оплаты<select aria-label="Статус оплаты" value={paymentStatus} onChange={e=>{setPaymentStatus(e.target.value);setChecked([]);}}><option value="all">Все</option>{Object.entries(statuses).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label>}
       {tab !== 'settings' && <><label>С даты<input type="date" value={from} onChange={e => setFrom(e.target.value)} /></label>
       <label>По дату<input type="date" value={to} onChange={e => setTo(e.target.value)} /></label></>}
-      {tab !== 'settings' && <><label>Сортировать по<select aria-label="Сортировать по" value={sortKey} onChange={e => setSortKey(e.target.value as SortKey)}><option value="date">Дате</option><option value="name">Имени</option><option value="bank">Банку</option></select></label>
+      {tab !== 'settings' && <><label>Сортировать по<select aria-label="Сортировать по" value={sortKey} onChange={e => setSortKey(e.target.value as SortKey)}><option value="date">Дате</option><option value="name">Имени</option><option value="bank">Банку</option><option value="status">Статусу оплаты</option></select></label>
         <label>Порядок<select aria-label="Порядок" value={sortDirection} onChange={e => setSortDirection(e.target.value as SortDirection)}><option value="asc">По возрастанию</option><option value="desc">По убыванию</option></select></label></>}
     </div>
     {tab === 'settings' ? <>
       <PayrollTablets session={session} branches={branches} employees={employees} />
+      {employee && <PayrollIdentitySettings key={employee.id} employee={employee} employees={employees} busy={busy} save={(id,memberIds)=>run(async()=>{await api(`/employees/${id}/identity`,'PUT',{memberIds});await loadEmployees();},'Карточки сотрудника связаны')} />}
       <details><summary>Перенос исторического табеля</summary><p>Старые часы, суммы и статусы сохраняются без перерасчёта по новым правилам. Сначала проверьте соответствие сотрудников.</p>
         <input type="file" accept=".xlsx" aria-label="Исторический табель" onChange={e => { const file = e.target.files?.[0]; setImportFile(file ?? null); setPreview(null); setMapping({}); if (file) void run(async () => { setPreview(await payrollImport(session.accessToken, file)); return 'Предпросмотр импорта готов'; }); }} />
         {preview && <><p>Строк: {preview.rows.length}. Сумма: {money(preview.totalKopecks)}.</p>{preview.issues.map((s, i) => <p role="alert" key={i}>{s}</p>)}
@@ -295,10 +306,11 @@ export function PayrollManagement({ session, legacy, onBack }: { session: AuthSe
       {report && <><section aria-label="Суммы и реквизиты за период" className="payroll-payment-summary">
         <h3>Суммы и реквизиты · {from.split('-').reverse().join('.')} — {to.split('-').reverse().join('.')}</h3>
         <div className="payroll-table"><table><thead><tr><th>Сотрудник</th><th>Начислено за период</th><th>Куда выплатить</th><th>Телефон для перевода</th><th>Банк</th></tr></thead>
-          <tbody>{paymentSummary.map(p => <tr key={p.id}><td><strong>{p.name}</strong></td><td><strong>{money(p.amountKopecks)}</strong>
+          <tbody>{paymentSummary.map(p => <tr key={p.id}><td><label><input type="checkbox" aria-label={`Выбрать для оплаты: ${p.name}`} disabled={busy||!personKeys(p.id).length} checked={personKeys(p.id).length>0&&personKeys(p.id).every(k=>checked.includes(k))} onChange={e=>{const keys=personKeys(p.id);setChecked(e.target.checked?[...new Set([...checked,...keys])]:checked.filter(k=>!keys.includes(k)));}}/><strong>{p.name}</strong></label>{employees.filter(member=>member.payrollPrimaryId===p.id).map(member=><small key={member.id}> · {member.name}</small>)}</td><td><strong>{money(p.amountKopecks)}</strong>
             <div className="payroll-payment-detail">Не оплачено: {money(p.unpaidKopecks)}<br />Оплачено: {money(p.paidKopecks)}<br />На проверке: {money(p.reviewKopecks)}</div></td>
             <td>{p.payment}</td><td>{p.phone}</td><td>{p.bank}</td></tr>)}</tbody></table></div>
         {!paymentSummary.length && <p>За выбранный период записей нет.</p>}
+        <p role="status">Выбрано людей: <strong>{new Set(selectedRows.map(r=>payrollIdentityId(employees.find(p=>p.id===r.employeeId)!))).size}</strong>. К оплате: <strong>{money(payableTotal)}</strong>. На проверке и уже оплаченные строки в эту сумму не входят.</p>
         <p>Начислено по разделу: <strong>{money(paymentSummary.reduce((s, p) => s + p.amountKopecks, 0))}</strong>. Реквизиты — из текущей карточки сотрудника. Суммы на проверке показаны отдельно.</p>
       </section>
         <div>{['xlsx', 'pdf'].map(format => <button key={format} disabled={busy || !employee} onClick={() => void run(async () => {
@@ -318,7 +330,12 @@ export function PayrollManagement({ session, legacy, onBack }: { session: AuthSe
             {r.detail.shifts?.map((s, i) => <button key={s.id} type="button" disabled={busy} onClick={() => editRow(r, s)}>Редактировать{r.detail.shifts!.length > 1 ? ` ${i + 1}` : ''}</button>)}
             {r.kind === 'PALLET' && r.detail.status === 'REVIEW' && <HandlingReview row={r} employees={employees} busy={busy} api={api} run={run} reload={reloadReport} />}
           </td></tr>)}</tbody></table></div>
-        {employee ? <form onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget); void run(async () => { await api('/statuses', 'POST', { employeeId: selected, dateFrom: from, dateTo: to, keys: checked, status: f.get('status'), comment: f.get('comment') }); await reloadReport(); }); }}><div className="payroll-fields"><label>Статус выбранных<select name="status">{Object.entries(statuses).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label><label>Комментарий<input name="comment" /></label></div><button disabled={busy || !checked.length}>Применить к {checked.length} строкам</button></form> : <p>Для изменения статуса и личной выгрузки выберите сотрудника.</p>}
+        <form onSubmit={e => { e.preventDefault(); const f=new FormData(e.currentTarget); const status=String(f.get('status')); void run(async()=>{
+          const rows=status==='PAID'?selectedRows.filter(r=>r.status==='UNPAID'):selectedRows;
+          if(!rows.length)throw new Error('Выберите начисления.');
+          const entries=[...new Set(rows.map(r=>r.employeeId))].map(employeeId=>({employeeId,keys:rows.filter(r=>r.employeeId===employeeId).map(r=>r.key)}));
+          await api('/statuses/batch','POST',{entries,dateFrom:from,dateTo:to,status,comment:String(f.get('comment')??''),expectedAmountKopecks:rows.reduce((sum,r)=>sum+r.amountKopecks,0)});await reloadReport();
+        },'Статус выбранных начислений сохранён'); }}><div className="payroll-fields"><label>Статус выбранных<select name="status" defaultValue="PAID">{Object.entries(statuses).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label><label>Комментарий<input name="comment" /></label></div><button disabled={busy||!selectedRows.length}>Применить к выбранным начислениям ({selectedRows.length})</button></form>
       </>}
     </>}
   </section>;
@@ -445,4 +462,17 @@ function PayrollTablets({ session, branches, employees }: { session: AuthSession
       </form>}
     </>}
   </section>;
+}
+
+// FIX: reversible links preserve every source card and paid history.
+function PayrollIdentitySettings({employee,employees,busy,save}:{employee:Employee;employees:Employee[];busy:boolean;save:(id:string,ids:string[])=>Promise<void>}) {
+  const primary=employees.find(p=>p.id===payrollIdentityId(employee))!;
+  const [ids,setIds]=useState<string[]>([]);
+  useEffect(()=>{setIds(employees.filter(p=>p.payrollPrimaryId===primary.id).map(p=>p.id));},[employees,primary.id]);
+  const candidates=employees.filter(p=>p.warehouseId===primary.warehouseId&&p.id!==primary.id&&(!p.payrollPrimaryId||p.payrollPrimaryId===primary.id)&&!employees.some(other=>other.payrollPrimaryId===p.id));
+  return <details className="payroll-identity"><summary>Несколько записей — один сотрудник</summary><p>Основная карточка: <strong>{primary.name}</strong>. Её имя и реквизиты используются для общей суммы. Ставки, отметки и выплаченные суммы исходных записей сохраняются.</p>
+    <div className="payroll-identity-list">{candidates.map(p=><label key={p.id}><input type="checkbox" disabled={busy} checked={ids.includes(p.id)} onChange={e=>setIds(e.target.checked?[...ids,p.id]:ids.filter(id=>id!==p.id))}/>{p.name}{p.isActive?'':' · архив'}</label>)}</div>
+    <p>Снимите отметку, чтобы снова учитывать карточку отдельно. Связь не удаляет возможные повторные начисления — их нужно сверить по исходным строкам.</p>
+    <button type="button" disabled={busy} onClick={()=>void save(primary.id,ids)}>Сохранить связь карточек</button>
+  </details>;
 }

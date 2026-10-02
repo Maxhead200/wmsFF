@@ -47,3 +47,18 @@ export function orderFboRequestBoxes<T extends RouteBox>(
   }
   return [...result, ...pending];
 }
+// FIX: reuse a pure box decision only inside one route calculation.
+export function cacheFboBoxDecision<B extends { balances: Array<{ skuId: string }> }, D>(
+  decide: (box: B, remaining: Record<string, number>) => D,
+): (box: B, remaining: Record<string, number>) => D {
+  if (process.env.WMS_FBO_PLAN_COALESCE_ENABLED !== 'true') return decide;
+  const cache = new WeakMap<B, { keys: string[]; values: Array<number | undefined>; result: D }>();
+  return (box, remaining) => {
+    const previous = cache.get(box);
+    const keys = previous?.keys ?? [...new Set(box.balances.map(b => b.skuId))];
+    if (previous && keys.every((key, i) => Object.is(remaining[key], previous.values[i]))) return previous.result;
+    const result = decide(box, remaining);
+    cache.set(box, { keys, values: keys.map(key => remaining[key]), result });
+    return result;
+  };
+}

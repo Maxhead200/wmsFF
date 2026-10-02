@@ -12,7 +12,7 @@ import { StockBalancesService } from '../stock/stock-balances.service';
 import { StockOperationsService } from '../stock/stock-operations.service';
 import { fboTwoStageEnabled, hasLegacyFboProgress, isFboTwoStageRequest, remainingFboLines, wholeBoxDecision } from './fbo-two-stage-policy';
 import { FboActionDto } from './dto/fbo-action.dto';
-import { loadFboRoutePreference, orderFboRequestBoxes } from './fbo-request-route';
+import { cacheFboBoxDecision, loadFboRoutePreference, orderFboRequestBoxes } from './fbo-request-route';
 import { loadFboFbsAvailability } from './fbo-fbs-reservations';
 const include = { items: { include: { sku: { include: { barcodes: true } } } }, client: true,
     _count: { select: { fbsOrderLinks: true, packages: true } }, pickWaveRequests: { include: { wave: true } } } satisfies Prisma.ClientRequestInclude;
@@ -106,8 +106,8 @@ export class FboTwoStageService {
         // FIX: request-specific remainder preference never modifies confirmed assembly units.
         const preference = await loadFboRoutePreference(tx, r, composition(r));
         const ordered = preference ? orderFboRequestBoxes(boxes.filter(b => !busyBoxes.has(b.id)), demand,
-            (box, remaining) => wholeBoxDecision(box.balances, remaining, box.productMarks.map(m => ({ ...m, identity: identity(m.value) })),
-                box.productMarks.length > 0 || lines.some(l => l.requiresKiz && box.balances.some(b => b.quantity > 0 && b.skuId === l.skuId))), preference) : boxes;
+            cacheFboBoxDecision((box: (typeof boxes)[number], remaining) => wholeBoxDecision(box.balances, remaining, box.productMarks.map(m => ({ ...m, identity: identity(m.value) })),
+                box.productMarks.length > 0 || lines.some(l => l.requiresKiz && box.balances.some(b => b.quantity > 0 && b.skuId === l.skuId)))), preference) : boxes;
         for (const box of ordered) {
             if (busyBoxes.has(box.id)) continue;
             const tasks: Array<{

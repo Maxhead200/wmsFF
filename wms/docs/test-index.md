@@ -136,3 +136,5 @@ PR447: `fbo-plan-timeout.spec.ts` and `fbo-plan-timeout.runtime.cjs` cover concu
 PR449: `fbo-route-decision-cache.spec.ts` / `.runtime.cjs`: snapshot-local decisions, all contained SKU demands, flag isolation and12 compiled ordering comparisons.
 
 PR451: fbo-recovery-transaction-retry.spec.ts / .runtime.cjs cover external transaction ownership, unchanged ordinary retry and single outer receipt.
+
+PR453: fbo-recovery-route.runtime.cjs verifies no route within recovery, unchanged ordinary route and409after bounded retries; real1568rollback smoke passed after publication.

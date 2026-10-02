@@ -1,3 +1,11 @@
+# Published PR449 / 02.10.2026
+
+Follow-up to PR447: live terminal requests still required8–11seconds. CPU profiling isolated repeated per-box marking/composition decisions. Cache only within one snapshot, keyed by box object and every contained SKU demand. Recalculate when demand changes; no cross-request cache. Same our-WMS-only flag, sold unchanged.
+
+API `sha256:7713bd2033c56cb079b9ee2c1147be454cb3f87b177dca573cefb62c0b0388fb`. API-only baseline `2026-10-02-fbo-cache`; sourceParityVerified=false; rollback `logoff-api:before-fbo-cache`. Web/APK/other containers unchanged.
+
+2987 API tests passed,129 skipped; dedicated KIZ database integration excluded. TypeScript limitation from pre-existing local payroll Prisma types remains. New regression failed before/pass after; compiled route comparison passed12fixtures. Same-transaction comparison №1626 matched496boxes;5.14→1.42seconds. Full getDeviceRequestPlan with actual Konstantin permissions succeeded after publication in2247ms,301505-byte response. This is server-handler verification, not a physical-device UI test. No business writes. Published hashes/health/flag verified.
+
 # Published PR447 / 02.10.2026
 
 FBO route timeout: bounded shipped-order lookups and in-flight plan coalescing with independent caller authorization. Same request/context shares only an unfinished calculation; no settled cache. Flag WMS_FBO_PLAN_COALESCE_ENABLED=true only on our WMS; sold WMS unchanged.

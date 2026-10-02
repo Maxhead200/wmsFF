@@ -1,3 +1,11 @@
+# Published PR451 / 02.10.2026
+
+Administrative FBO recovery no longer retries within an aborted transaction. The recovery-scoped service propagates P2034 to FboProblemsService.apply, which rolls back and retries the whole operation using the same preview receipt. Ordinary actions retain three attempts. Request1568 business data unchanged.
+
+API `sha256:b5241036c24526715e4d880950f98f3ecf18fda00e6fea16be1ad390afc94209`; API-only baseline `2026-10-02-fbo-recovery-retry`; rollback `logoff-api:before-fbo-recovery-retry`. Web/APK/flags/other containers unchanged. Sold WMS not deployed. sourceParityVerified=false; only modules/tsd/fbo-two-stage.service.js changed, not a full source rebuild.
+
+2989 local API tests passed,129 skipped; dedicated KIZ database integration excluded. Five compiled runtime checks passed: PACK_UNITS, CLOSE_PICK, ordinary retry bounds, non-conflict propagation and outer retry with a single receipt. Regression reproduced25P02 before correction. Runtime checks simulate transactions without business writes; real user operation still requires retry after publication. Published health and all560runtime hashes verified.
+
 # Published PR449 / 02.10.2026
 
 Follow-up to PR447: live terminal requests still required8–11seconds. CPU profiling isolated repeated per-box marking/composition decisions. Cache only within one snapshot, keyed by box object and every contained SKU demand. Recalculate when demand changes; no cross-request cache. Same our-WMS-only flag, sold unchanged.

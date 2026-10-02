@@ -10,6 +10,9 @@ import { BillingPdfService } from './billing-pdf.service';
 import { BillingController } from './billing.controller';
 import { BillingService } from './billing.service';
 import { BillingPeriodService } from './billing-period.service';
+// FIX: opt-in, read-only settlements workspace.
+import { BillingSettlementsController } from './billing-settlements.controller';
+import { BillingSettlementsService } from './billing-settlements.service';
 
 @Module({
   imports: [
@@ -20,8 +23,8 @@ import { BillingPeriodService } from './billing-period.service';
     MarketplaceConnectionsModule,
     OwnCompaniesModule,
   ],
-  controllers: [BillingController],
-  providers: [BillingService, BillingDocumentService, BillingPdfService, BillingPeriodService],
+  controllers: [BillingController, BillingSettlementsController],
+  providers: [BillingService, BillingDocumentService, BillingPdfService, BillingPeriodService, BillingSettlementsService],
   exports: [BillingService],
 })
 export class BillingModule {}

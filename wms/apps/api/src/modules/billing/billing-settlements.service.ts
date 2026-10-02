@@ -1,0 +1,92 @@
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import { PrismaService } from '../../common/prisma/prisma.service';
+import { ClientScopeService } from '../auth/client-scope.service';
+import type { AuthUser } from '../auth/auth.types';
+import { buildSettlements, record, type SettlementWork } from './billing-settlements.policy';
+
+export function settlementDates(from: string, to: string) {
+  const parse = (s: string, end = false) => {
+    const d = new Date(`${s}T${end ? '23:59:59.999' : '00:00:00.000'}Z`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s) || !Number.isFinite(d.getTime()) || d.toISOString().slice(0, 10) !== s)
+      throw new BadRequestException('Укажите существующие даты.');
+    return d;
+  };
+  const start = parse(from), end = parse(to, true);
+  if (start > end || end.getTime() - start.getTime() > 366 * 86400000) throw new BadRequestException('Выберите период от одного дня до года.');
+  return { from: start, to: end };
+}
+
+// FIX: independent read-only service; no calls to recovery, billing mutation or marketplace sync.
+@Injectable()
+export class BillingSettlementsService {
+  constructor(private readonly prisma: PrismaService, private readonly scopes: ClientScopeService) {}
+  async list(dto: { periodFrom: string; periodTo: string; clientId?: string }, user: AuthUser) {
+    if (process.env.WMS_BILLING_SETTLEMENTS_ENABLED !== 'true') return { enabled: false as const };
+    if (!user.permissionCodes.some(p => p === 'billing:read' || p === 'system:admin')) throw new ForbiddenException('Нет доступа к биллингу.');
+    const warehouseId = user.activeWarehouseId;
+    if (!warehouseId) throw new BadRequestException('Выберите филиал.');
+    if (!user.permissionCodes.includes('system:admin') && !user.warehouseIds?.includes(warehouseId)) throw new ForbiddenException('Нет доступа к филиалу.');
+    const clientId = this.scopes.resolveClientFilter(user, dto.clientId);
+    const { from, to } = settlementDates(dto.periodFrom, dto.periodTo);
+    const take = 20001, limit = 20000;
+    const clientFilter = { id: clientId, isDemo: user.isDemo === true };
+    return this.prisma.$transaction(async tx => {
+      // Enforce read-only at PostgreSQL level as well as in the application.
+      await tx.$executeRaw`SET TRANSACTION READ ONLY`;
+      const clients = await tx.client.findMany({ where: clientFilter, select: { id: true, code: true, name: true }, take });
+      const warehouse = await tx.warehouse.findUnique({ where: { id: warehouseId }, select: { name: true } });
+      if (!warehouse) throw new BadRequestException('Выбранный филиал не найден.');
+      const ids = clients.map(c => c.id);
+      const [charges, invoices, advances, shipments, current, history] = await Promise.all([
+        // Coverage includes historical/other-branch charges; projection never exposes those branch amounts.
+        tx.billingCharge.findMany({ where: { clientId: { in: ids }, status: { not: 'CANCELLED' } }, take, orderBy: { id: 'asc' },
+          select: { id: true, clientId: true, client: { select: { id: true, code: true, name: true } }, requestId: true,
+            request: { select: { id: true, number: true, warehouseId: true } }, status: true, description: true,
+            quantity: true, unitPriceRub: true, totalRub: true, serviceDate: true, metadata: true,
+            service: { select: { code: true } }, invoiceItems: { select: { invoice: { select: { id: true, status: true } } } } } }),
+        tx.billingInvoice.findMany({ where: { clientId: { in: ids }, status: { not: 'CANCELLED' },
+          OR: [{ warehouseId }, { warehouseId: null, request: { warehouseId } }, { warehouseId: null, requestId: null }] },
+          take, orderBy: { id: 'asc' }, select: { id: true, clientId: true, client: { select: { id: true, code: true, name: true } },
+            number: true, warehouseId: true, request: { select: { warehouseId: true, number: true } }, status: true,
+            totalRub: true, paidRub: true, dueDate: true,
+            payments: { where: { status: 'RECORDED' }, select: { id: true, paidAt: true, amountRub: true } }, items: { select: { chargeId: true, description: true,
+              quantity: true, unitPriceRub: true, totalRub: true, serviceDate: true } } } }),
+        tx.billingPayment.findMany({ where: { clientId: { in: ids }, invoiceId: null, status: 'RECORDED' },
+          select: { id: true, clientId: true, amountRub: true, paidAt: true }, take }),
+        tx.wbOrderShipment.findMany({ where: { clientId: { in: ids }, warehouseId, source: { not: 'LEGACY_WMS_SHIPMENT' }, shippedAt: { gte: from, lte: to } },
+          select: { assemblyId: true, clientId: true, requestId: true, connectionId: true, orderId: true, quantity: true,
+            shippedAt: true, assemblySnapshot: true }, take }),
+        tx.fbsTsdAssembly.findMany({ where: { clientId: { in: ids }, marketplace: 'OZON', completedAt: { gte: from, lte: to },
+          barcode: { not: null }, boxCode: { not: null }, itemCount: { gt: 0 } },
+          select: { id: true, clientId: true, requestId: true, marketplace: true, connectionId: true, orderId: true,
+            itemCount: true, completedAt: true }, take }),
+        tx.fbsAssemblyAttemptHistory.findMany({ where: { clientId: { in: ids }, completedAt: { gte: from, lte: to } },
+          select: { id: true, clientId: true, requestId: true, orderId: true, completedAt: true, taskSnapshot: true }, take }),
+      ]);
+      if ([clients, charges, invoices, advances, shipments, current, history].some(a => a.length > limit))
+        throw new BadRequestException('Объём превышает лимит расчёта. Выберите одного клиента или меньший период; неполные суммы не показываются.');
+      const work: SettlementWork[] = current.filter(w => w.completedAt).map(w => ({ ...w, completedAt: w.completedAt! }));
+      for (const fact of shipments) {
+        const m = record(fact.assemblySnapshot);
+        work.push({ id: fact.assemblyId, clientId: fact.clientId, requestId: fact.requestId, marketplace: 'WILDBERRIES',
+          connectionId: fact.connectionId, orderId: fact.orderId, itemCount: fact.quantity, completedAt: fact.shippedAt,
+          ...(typeof m.billingAttemptId === 'string' ? { billingAttemptId: m.billingAttemptId } : {}) });
+      }
+      for (const fact of history) {
+        const m = record(fact.taskSnapshot);
+        if (typeof m.marketplace !== 'string' || typeof m.connectionId !== 'string' ||
+          typeof m.barcode !== 'string' || !m.barcode || typeof m.boxCode !== 'string' || !m.boxCode ||
+          !Number.isSafeInteger(Number(m.itemCount)) || Number(m.itemCount) < 1) continue;
+        work.push({ id: fact.id, clientId: fact.clientId, requestId: fact.requestId, marketplace: m.marketplace,
+          connectionId: m.connectionId, orderId: fact.orderId, itemCount: Number(m.itemCount), completedAt: fact.completedAt,
+          ...(typeof m.billingAttemptId === 'string' ? { billingAttemptId: m.billingAttemptId } : {}) });
+      }
+      const requestIds = [...new Set(work.map(w => w.requestId))];
+      const requests = await tx.clientRequest.findMany({ where: { id: { in: requestIds }, clientId: { in: ids }, warehouseId },
+        select: { id: true, number: true, warehouseId: true } });
+      return buildSettlements({ warehouseId, warehouseName: warehouse.name, from, to,
+        now: new Date(), clients, charges, invoices, advances, work, requests });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, timeout: 30000 });
+  }
+}

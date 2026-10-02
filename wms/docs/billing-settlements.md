@@ -99,3 +99,10 @@ offline smoke на реальном Nest/Prisma runtime и браузерный 
 начислений — 42 144; отдельный тест воспроизводит и устраняет прежний лимит 20 000.
 Кандидатные API/web образы и теги отката подготовлены; публикация выполняется
 `scripts/deploy-billing-settlements.py` под release lock с повторной сверкой базы.
+
+Опубликовано 02.10.2026 после объединения PR455 (`85eefb08`). Рабочий API подтвердил
+тот же read-only отчёт; health 200, вход обязателен (401 без токена), флаг включён.
+Полные хеши runtime и публичных assets подтверждены, 1537 старых assets сохранены,
+другие контейнеры не менялись. Свежие API/web архивы:
+`C:/WMSFF2207/baselines/our-wms-runtime-billing-settlements-20261002`.
+См. [паспорт](current-production.md) и [запись выпуска](releases/billing-settlements-20261002.json).

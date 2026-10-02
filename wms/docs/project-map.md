@@ -1,5 +1,16 @@
 # Карта проекта
 
+## Биллинг: клиенты, суммы и проверки — PR455
+
+`apps/web/src/components/billing/BillingPanel.tsx` → `BillingSettlementsPanel.tsx` →
+`apps/web/src/lib/billing-settlements-api.ts` → GET `/billing/settlements` →
+`apps/api/src/modules/billing/billing-settlements.controller.ts` →
+`billing-settlements.service.ts` (права, клиент/склад, READ ONLY) →
+`billing-settlements.policy.ts` (копейки, покрытие FBS, расшифровка и проверки).
+Существующие начисления/счета/оплаты сохраняют прежние обработчики.
+Флаг включать только в нашей WMS; отсутствие начислений проверяется для
+подтверждённой FBS-обработки WB/Ozon. [Подробности](billing-settlements.md).
+
 Пути относительны `wms/`. Сначала прочитать [паспорт](current-production.md):
 исходники в этой ветке ещё не полностью соответствуют runtime.
 Исполняемый путь соответствует `apps/api/src/X.ts` → `X.js` в `api-runtime.tar.gz`.

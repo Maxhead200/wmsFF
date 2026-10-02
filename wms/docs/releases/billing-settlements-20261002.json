@@ -1,0 +1,46 @@
+{
+  "release": "PR455",
+  "pullRequest": "https://github.com/Maxhead2011/wmsFF/pull/455",
+  "mergeCommit": "85eefb08bac462936cc4ab57a176189790b17b47",
+  "publishedAt": "2026-10-02",
+  "sourceParityVerified": false,
+  "containers": {
+    "infra-api-1": {
+      "image": "sha256:1b186bf6e015f0144c973bff8b67b1825739b2774d7556666bab53d8a8157764"
+    },
+    "infra-web-1": {
+      "image": "sha256:347633f1079ad90a969e216911a1a83b59ea1acec2e19e4bada36fd0b061db2d"
+    }
+  },
+  "runtimeBaseline": "C:\\WMSFF2207\\baselines\\our-wms-runtime-billing-settlements-20261002",
+  "runtimeFileCounts": {
+    "api-runtime.tar.gz": 563,
+    "web-runtime.tar.gz": 1568
+  },
+  "checks": {
+    "apiPassed": 2956,
+    "apiSkipped": 115,
+    "webPassed": 360,
+    "webSkipped": 2,
+    "releaseTests": 6,
+    "runtimeBrowser": true,
+    "runtimeReadOnlyReport": true,
+    "healthStatus": 200,
+    "anonymousReportStatus": 401,
+    "clientRows": 44,
+    "issues": 52,
+    "missingFbsCharge": 23,
+    "mergedSourceApiPassed": 3006,
+    "mergedSourceApiSkipped": 129,
+    "mergedSourceWebPassed": 361,
+    "mergedSourceWebSkipped": 2
+  },
+  "flags": {
+    "WMS_BILLING_SETTLEMENTS_ENABLED": true
+  },
+  "rollback": [
+    "logoff-api:before-billing-settlements-20261002",
+    "logoff-web:before-billing-settlements-20261002"
+  ],
+  "soldWmsChanged": false
+}

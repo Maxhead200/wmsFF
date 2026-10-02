@@ -1,3 +1,11 @@
+# Published PR447 / 02.10.2026
+
+FBO route timeout: bounded shipped-order lookups and in-flight plan coalescing with independent caller authorization. Same request/context shares only an unfinished calculation; no settled cache. Flag WMS_FBO_PLAN_COALESCE_ENABLED=true only on our WMS; sold WMS unchanged.
+
+API `sha256:8243c12ea763172e91c493b5142b0b7bc82948e1ee8cb221abb84feb02b322df`. Baseline `2026-10-02-fbo-plan` contains API only. Web/APK and other running containers unchanged by PR447. Source parity remains false. Rollback `logoff-api:before-fbo-plan`.
+
+Validation: 2985 API tests passed across full run and two environment-corrected reruns;129 skipped; dedicated KIZ database integration excluded. Six new source tests (two reproduced the old failure) and three compiled-runtime tests passed. TypeScript check blocked by stale local Prisma types for pre-existing payrollBreak/handling fields; no errors reported in changed modules. Read-only same-transaction route comparison for1626 matched exactly:496 boxes;shipped links32727→7215. Published read-only calculation5366ms. Health, all560 runtime file hashes and flag verified. No business data changed.
+
 # Published PR442 / 30.09.2026
 
 PR442: receipt channel/membership changes atomically invalidate WB stock plans through the durable existing queue. API3010 passed/83 skipped; TypeScript and exact one-module delta verified. Web/APK216/flags/sold WMS unchanged from PR441. Source parity false. User-authorized FBO-only directions applied to FFL_LKB2409 (with ten corrected memberships) and current FFL_LKB2709; no physical stock movements, nine archived boxes preserved. Old active FBS order access retained.

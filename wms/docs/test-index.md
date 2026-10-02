@@ -130,3 +130,5 @@ PR404: `apps/web/test/fbs-zone-colors.browser.cjs` — реальные CSS, т�
 
 - Browser regression checks four vertically sequential controls, equal width/56px height, identical background/text colour, horizontal and vertical centering for FBS/FBO and all themes. Failed against PR416 before CSS fix. Existing keyboard and callback tests retained.
 - CSS-only release; JavaScript/API/APK unchanged.
+
+PR447: `fbo-plan-timeout.spec.ts` and `fbo-plan-timeout.runtime.cjs` cover concurrent plan reads, caller denial, retry/freshness, context isolation and bounded shipped-order lookup.

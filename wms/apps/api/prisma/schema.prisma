@@ -11,6 +11,9 @@ model PayrollEmployee {
   paymentMethod  String   @default("CASH")
   paymentPhone   String?
   paymentBank    String?
+  payrollPrimaryId String?
+  payrollPrimary PayrollEmployee? @relation("PayrollIdentity", fields: [payrollPrimaryId], references: [id], onDelete: Restrict)
+  payrollAliases PayrollEmployee[] @relation("PayrollIdentity")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   rates          PayrollCondition[]
@@ -18,6 +21,7 @@ model PayrollEmployee {
   workDays       PayrollWorkDay[]
   handlingShares PayrollHandlingShare[]
   @@index([warehouseId, isDemo, isActive])
+  @@index([payrollPrimaryId])
 }
 
 model PayrollCondition {

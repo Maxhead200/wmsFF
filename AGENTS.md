@@ -143,3 +143,5 @@ Latest verified release PR442: baseline `2026-09-30-receipt-channel-event`. PR44
 Latest API release PR447: baseline2026-10-02-fbo-plan (API only), sourceParityVerified=false. Bounded WB links and coalesced FBO reads; flagWMS_FBO_PLAN_COALESCE_ENABLED=true only on our WMS. Web/APK/sold unchanged. See current-production.md for test limitations and verification.
 
 Latest API PR449 baseline2026-10-02-fbo-cache: snapshot-local box-decision reuse. Full request1626 handler with Konstantin permissions2247ms after deployment;496boxes unchanged. Source parity false; see current-production.md.
+
+Latest API PR451 baseline2026-10-02-fbo-recovery-retry: administrative retry after rollback, ordinary actions unchanged. Source parity false; see current-production.md.

@@ -134,3 +134,5 @@ PR404: `apps/web/test/fbs-zone-colors.browser.cjs` — реальные CSS, т�
 PR447: `fbo-plan-timeout.spec.ts` and `fbo-plan-timeout.runtime.cjs` cover concurrent plan reads, caller denial, retry/freshness, context isolation and bounded shipped-order lookup.
 
 PR449: `fbo-route-decision-cache.spec.ts` / `.runtime.cjs`: snapshot-local decisions, all contained SKU demands, flag isolation and12 compiled ordering comparisons.
+
+PR451: fbo-recovery-transaction-retry.spec.ts / .runtime.cjs cover external transaction ownership, unchanged ordinary retry and single outer receipt.

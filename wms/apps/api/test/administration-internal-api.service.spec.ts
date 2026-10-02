@@ -18,6 +18,12 @@ afterEach(() => {
 });
 
 describe('AdministrationInternalApiService', () => {
+  // TEST: a read-only settlements controller is discoverable without adding mutation routes.
+  it('регистрирует реестр расчётов в существующей группе биллинга', () => {
+    expect(INTERNAL_API_DEFINITIONS.find(d => d.id === 'billing')?.prefixes).toContain('/billing/settlements');
+    const source = readFileSync(join(__dirname, '../src/modules/billing/billing-settlements.controller.ts'), 'utf8');
+    expect([...source.matchAll(/@(Get|Post|Patch|Put|Delete)\s*\(/g)].map(m => m[1])).toEqual(['Get']);
+  });
   // TEST: reshipment belongs to FBS; both controller aliases describe the same five handlers.
   it('регистрирует переотгрузку WB без дублирования алиаса и объясняет подтверждённую запись', () => {
     const definition = INTERNAL_API_DEFINITIONS.find((item) => item.id === 'marketplace-connections')!;

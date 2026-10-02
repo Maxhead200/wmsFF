@@ -45,6 +45,8 @@ import { BillingReconciliationPanel } from './BillingReconciliationPanel';
 import { BillingServiceForm } from './BillingServiceForm';
 import { BillingPaymentForm } from './BillingPaymentForm';
 import { BillingPeriodGenerationDialog } from './BillingPeriodGenerationDialog';
+// FIX: additive workspace; existing financial actions remain on their original tabs.
+import { BillingSettlementsPanel } from './BillingSettlementsPanel';
 import { billingInvoiceStatusLabel, billingInvoiceStatusOptions } from './billingMeta';
 
 type LoadState<T> = {
@@ -71,7 +73,7 @@ const billingTabs = [
   { id: 'create', label: 'Создать счет' },
 ] as const;
 
-type BillingTab = 'home' | (typeof billingTabs)[number]['id'];
+type BillingTab = 'home' | 'settlements' | (typeof billingTabs)[number]['id'];
 type InvoiceKindFilter = 'ALL' | 'FBS' | 'PRIMARY_PROCESSING' | 'PROCESSING' | 'PRR' | 'STORAGE' | 'OTHER';
 type InvoiceView = 'topics' | 'list';
 
@@ -638,6 +640,8 @@ export function BillingPanel({ session }: BillingPanelProps) {
           <ArrowLeft size={16} aria-hidden="true" />
           <span>Разделы</span>
         </button>
+        {fastOpening ? <button role="tab" type="button" aria-selected={activeTab === 'settlements'}
+          onClick={() => setActiveTab('settlements')}>Клиенты и расчёты</button> : null}
         {billingTabs.map((tab) => (
           <button
             aria-selected={activeTab === tab.id}
@@ -653,6 +657,8 @@ export function BillingPanel({ session }: BillingPanelProps) {
       </div> : null}
 
       {error ? <p className="form-error">{error}</p> : null}
+      {activeTab === 'settlements' && fastOpening ? <BillingSettlementsPanel session={session} clients={clients.data} revision={registerRevision}
+        onReview={(clientId, section) => { setSelectedClientId(clientId); setInvoiceClientId(clientId); setActiveTab(section); }} /> : null}
 
       {activeTab === 'home' ? (
         <section className="billing-topic-grid" aria-label="Разделы биллинга">

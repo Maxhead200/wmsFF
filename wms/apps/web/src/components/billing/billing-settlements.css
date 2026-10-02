@@ -1,0 +1,18 @@
+/* FIX: scoped layout keeps long labels readable in all existing themes. */
+.billing-settlements { display: grid; gap: 18px; min-width: 0; }
+.billing-settlements header, .billing-settlements__filters { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; justify-content: space-between; }
+.billing-settlements label { display: grid; gap: 6px; min-width: 0; }
+.billing-settlements p { line-height: 1.5; }
+.billing-settlements__scroll { overflow-x: auto; }
+.billing-settlements table { width: 100%; border-collapse: collapse; }
+.billing-settlements th, .billing-settlements td { padding: 12px; vertical-align: top; text-align: left; border-bottom: 1px solid var(--border-color, #8895a555); }
+.billing-settlements th { overflow-wrap: anywhere; min-width: 120px; }
+.billing-settlements small { display: block; margin-top: 6px; }
+.billing-settlements button { cursor: pointer; white-space: normal; }
+.billing-settlements__details, .billing-settlements__issue { padding: 16px; border: 1px solid var(--border-color, #8895a555); border-radius: 12px; }
+.billing-settlements__issue { margin-top: 12px; }
+.billing-settlements__line { margin-top: 10px; overflow-wrap: anywhere; }
+.billing-settlements summary { cursor: pointer; padding: 8px 0; }
+.billing-settlements dl { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(0, 3fr); gap: 8px 12px; }
+.billing-settlements dd { margin: 0; }
+@media (max-width: 600px) { .billing-settlements__filters { align-items: stretch; flex-direction: column; } .billing-settlements dl { grid-template-columns: 1fr; } }

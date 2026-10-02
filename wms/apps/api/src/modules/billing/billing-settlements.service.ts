@@ -29,7 +29,8 @@ export class BillingSettlementsService {
     if (!user.permissionCodes.includes('system:admin') && !user.warehouseIds?.includes(warehouseId)) throw new ForbiddenException('Нет доступа к филиалу.');
     const clientId = this.scopes.resolveClientFilter(user, dto.clientId);
     const { from, to } = settlementDates(dto.periodFrom, dto.periodTo);
-    const take = 20001, limit = 20000;
+    // FIX: coverage reads historical charges; production already exceeds 20,000.
+    const take = 20001, limit = 20000, chargeLimit = 100000;
     const clientFilter = { id: clientId, isDemo: user.isDemo === true };
     return this.prisma.$transaction(async tx => {
       // Enforce read-only at PostgreSQL level as well as in the application.
@@ -40,7 +41,7 @@ export class BillingSettlementsService {
       const ids = clients.map(c => c.id);
       const [charges, invoices, advances, shipments, current, history] = await Promise.all([
         // Coverage includes historical/other-branch charges; projection never exposes those branch amounts.
-        tx.billingCharge.findMany({ where: { clientId: { in: ids }, status: { not: 'CANCELLED' } }, take, orderBy: { id: 'asc' },
+        tx.billingCharge.findMany({ where: { clientId: { in: ids }, status: { not: 'CANCELLED' } }, take: chargeLimit + 1, orderBy: { id: 'asc' },
           select: { id: true, clientId: true, client: { select: { id: true, code: true, name: true } }, requestId: true,
             request: { select: { id: true, number: true, warehouseId: true } }, status: true, description: true,
             quantity: true, unitPriceRub: true, totalRub: true, serviceDate: true, metadata: true,
@@ -64,7 +65,7 @@ export class BillingSettlementsService {
         tx.fbsAssemblyAttemptHistory.findMany({ where: { clientId: { in: ids }, completedAt: { gte: from, lte: to } },
           select: { id: true, clientId: true, requestId: true, orderId: true, completedAt: true, taskSnapshot: true }, take }),
       ]);
-      if ([clients, charges, invoices, advances, shipments, current, history].some(a => a.length > limit))
+      if (charges.length > chargeLimit || [clients, invoices, advances, shipments, current, history].some(a => a.length > limit))
         throw new BadRequestException('Объём превышает лимит расчёта. Выберите одного клиента или меньший период; неполные суммы не показываются.');
       const work: SettlementWork[] = current.filter(w => w.completedAt).map(w => ({ ...w, completedAt: w.completedAt! }));
       for (const fact of shipments) {

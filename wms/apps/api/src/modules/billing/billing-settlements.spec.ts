@@ -120,7 +120,16 @@ describe('settlements access', () => {
   });
   it('refuses a truncated ledger rather than displaying incorrect totals', async () => {
     process.env.WMS_BILLING_SETTLEMENTS_ENABLED = 'true'; const { tx, s } = setup();
-    tx.billingCharge.findMany.mockResolvedValue(Array(20001).fill(charge()));
+    tx.billingCharge.findMany.mockResolvedValue(Array(100001).fill(charge()));
     await expect(s.list({ periodFrom: '2026-10-01', periodTo: '2026-10-02' }, user)).rejects.toThrow('неполные суммы');
+  });
+  // TEST: production has 42,144 charges; the previous 20,000 cap blocked the default register.
+  it('returns the complete register above the former 20000 historical charge cap', async () => {
+    process.env.WMS_BILLING_SETTLEMENTS_ENABLED = 'true'; const { tx, s } = setup();
+    tx.billingCharge.findMany.mockResolvedValue(Array.from({ length: 42144 }, (_, i) => charge({ id: `charge-${i}` })));
+    const result = await s.list({ periodFrom: '2026-10-01', periodTo: '2026-10-02' }, user);
+    expect(result.enabled).toBe(true);
+    if (result.enabled) expect(result.rows[0].unbilledRub).toBe(4214400);
+    expect(tx.billingCharge.findMany.mock.calls[0][0].take).toBe(100001);
   });
 });

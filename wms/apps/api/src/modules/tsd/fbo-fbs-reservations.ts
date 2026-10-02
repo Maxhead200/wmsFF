@@ -87,7 +87,12 @@ export async function loadFboFbsAvailability(tx: Prisma.TransactionClient,
   const openRequests = tasks.length ? await tx.clientRequest.findMany({where:{id:{in:taskRequestIds},
     status:{notIn:['DONE','CANCELLED','REJECTED']}},select:{id:true}}) : [];
   const open = new Set(openRequests.map(r=>r.id));
-  const shipped = tasks.length ? await tx.fbsOrderRequestLink.findMany({where:{requestId:{in:taskRequestIds},
+  // FIX: only links capable of matching this reservation set are needed.
+  const narrowedLinks = process.env.WMS_FBO_PLAN_COALESCE_ENABLED === 'true' ? {
+    connectionId: { in: [...new Set(tasks.map(t => t.connectionId))] },
+    orderId: { in: [...new Set(tasks.map(t => t.orderId))] },
+  } : {};
+  const shipped = tasks.length ? await tx.fbsOrderRequestLink.findMany({where:{requestId:{in:taskRequestIds},...narrowedLinks,
     lastCategory:{in:['shipped','archive']},lastSupplierStatus:'complete',request:{fbsEmergencyAssemblyAt:null}},
     select:{connectionId:true,orderId:true}}) : [];
   const shippedOrders = new Set(shipped.map(l=>`${l.connectionId}:${l.orderId}`));

@@ -43,7 +43,21 @@ export class FboTwoStageService {
         assertWarehouseAccess(user, r, mode);
         return r;
     }
-    async plan(id: string, user: AuthUser) {
+    // FIX: share only in-flight read calculations; authorize every caller before joining.
+    private readonly pendingPlans = new Map<string, ReturnType<FboTwoStageService['calculatePlan']>>();
+    async plan(id: string, user: AuthUser, context: Record<string, unknown> = {}) {
+        if (process.env.WMS_FBO_PLAN_COALESCE_ENABLED !== 'true') return this.calculatePlan(id, user);
+        if (!fboTwoStageEnabled()) throw new NotFoundException('Двухэтапная сборка ФБО выключена.');
+        await this.load(this.prisma, id, user, 'read');
+        const key = JSON.stringify([id, context]);
+        const existing = this.pendingPlans.get(key);
+        if (existing) return existing;
+        const calculation = this.calculatePlan(id, user);
+        this.pendingPlans.set(key, calculation);
+        try { return await calculation; }
+        finally { if (this.pendingPlans.get(key) === calculation) this.pendingPlans.delete(key); }
+    }
+    private async calculatePlan(id: string, user: AuthUser) {
         if (!fboTwoStageEnabled())
             throw new NotFoundException('Двухэтапная сборка ФБО выключена.');
         return this.prisma.$transaction(async (tx) => {

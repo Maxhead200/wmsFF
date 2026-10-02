@@ -40,7 +40,8 @@ local test database. Environment-gated integration skips are not claimed verifie
 Final API run: 3,014 passed, 129 skipped; 271 suites passed, 7 skipped.
 Both compiled-method runtime tests passed; TypeScript and diff whitespace checks passed.
 
-No deployment or production business-data changes performed. Before publishing,
-recheck live image and candidate hashes, enable the flag only on our WMS, and verify
-the complete FBO action. Do not deploy a full source build: source/runtime parity
+Published as PR457. Both complete FINISH paths on request1568 passed on the
+published API with mandatory rollback (4.2s / 3.8s); both exports contain585units,
+and repeat requests create no new charges. Business data remains unchanged.
+The flag is enabled only on our WMS. All563runtime hashes and health verified. Do not deploy a full source build: source/runtime parity
 is still false. Target PR: `feature/wb-print-check`.

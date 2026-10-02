@@ -147,3 +147,5 @@ Latest API PR449 baseline2026-10-02-fbo-cache: snapshot-local box-decision reuse
 Latest API PR451 baseline2026-10-02-fbo-recovery-retry: administrative retry after rollback, ordinary actions unchanged. Source parity false; see current-production.md.
 
 Latest API PR453 baseline2026-10-02-fbo-recovery-route: omit discarded routes during recovery, bounded retry with409. Actual1568preview/apply rolled back successfully after publication; source parity false.
+
+Latest API PR457: baseline `2026-10-02-fbo-finish-catalog`; opt-in unchanged billing catalog reads during FBO FINISH. Both request1568 completion paths and exports verified with mandatory rollback. Source parity false; web/APK/sold WMS unchanged. See current-production.md.

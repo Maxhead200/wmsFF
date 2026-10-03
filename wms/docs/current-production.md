@@ -1,3 +1,30 @@
+# Published PR467 / 03.10.2026
+
+Исправлены ошибка 500 «Клиенты и расчёты» и подстановка полной оплаты вместо
+введённого поступления в «Приход ДС». Подробности начислений ограничены датами
+услуг, историческая FBS-проверка сохранена в лёгкой проекции. READ ONLY/RepeatableRead,
+timeout30s, долг по всем выставленным счетам филиала и отдельный аванс сохранены.
+Галочка распределяет только введённую сумму; история поступлений включает оплаченные
+счета и отменённые записи. Прежние фильтр статуса и кнопка по сданным заявкам сохранены.
+API `sha256:6c7be0f55b5334f80d8d78880beead3b19967b2018d5dba13ec633f00b2ecbf2`;
+web `sha256:30fbd82b11b051a579f2b00b2f4bef1170570b6ba035297a66b85cdbaeab49cb`.
+Два API-файла, 29 новых JS chunks, 1656 прежних assets сохранены. Compose не менялся.
+Другие сервисы/sold WMS/FFULHAB/APK не затрагивались. Source parity false.
+Коррекция по подтверждению владельца: INV-202609-0007, проведено 450000 ₽,
+остаток 100535,37 ₽, ISSUED; первоначальный ошибочный платёж отменён и сохранён.
+Есть before/after audit; dry run с rollback и проверка после commit прошли.
+Published GET settlements и invoices вернули 200; запись оплаты/история/остаток проверены.
+Повторная проверка под рабочей нагрузкой: settlements 22304 мс, оба GET вместе
+63124 мс. Это HTTP-время; 2853 мс ниже относится к отдельному READ ONLY кандидату.
+API3034/web367 passed, TypeScript, Vite, 5Node+1Python, browser, offline candidate,
+полные хеши runtime/public assets/health прошли. READ ONLY кандидат2853ms.
+Локальная копия: `C:/WMSFF2207/baselines/our-wms-runtime-partial-receipt-20261003`
+(API564/web1686); указатель `baselines/OUR_WMS_CURRENT_RUNTIME.json` обновлён.
+Полный эталон 01.10 не менялся. Runtime rollback отдельно от денежной коррекции:
+`logoff-api:before-billing-settlements-timeout-20261003`,
+`logoff-web:before-billing-settlements-timeout-20261003`.
+[Описание](billing-partial-receipt-fix.md), [запись](releases/billing-partial-receipt-20261003.json).
+
 # Published PR465 / 03.10.2026
 
 «Биллинг → Счета → Статус счёта»: Все статусы / Черновик / Выставлен / Оплачен /

@@ -1477,6 +1477,7 @@ export class BillingService {
   async writePeriodDraft(tx: Prisma.TransactionClient, input: {
     clientId: string; warehouseId: string; category: BillingServiceCategory; periodFrom: string; periodTo: string;
     sourceKey: string; charges: PeriodCharge[]; invoices: PeriodInvoice[];
+    requestNumbers?: number[];
   }, user: AuthUser) {
     this.requireInvoiceWrite({ clientId: input.clientId, warehouseId: input.warehouseId }, user);
     for (const invoice of input.invoices) this.requireInvoiceWrite(invoice, user);
@@ -1505,7 +1506,8 @@ export class BillingService {
     const invoice = await tx.billingInvoice.create({ data: { clientId: input.clientId, warehouseId: input.warehouseId,
       number, periodFrom: from, periodTo: to, status: 'DRAFT', source: 'MANUAL', sourceKey: input.sourceKey,
       totalRub, ...paymentAccount, createdByUserId: user.id,
-      comment: `Счёт за период ${input.periodFrom} — ${input.periodTo}; ${input.category}. Исходные счета: ${input.invoices.map(i => i.number).join(', ') || 'нет'}.`,
+      comment: input.requestNumbers ? `Единый счёт по сданным заявкам за ${input.periodFrom} — ${input.periodTo}. Заявки: ${input.requestNumbers.join(', ')}. Исходные счета: ${input.invoices.map(i => i.number).join(', ') || 'нет'}.` :
+        `Счёт за период ${input.periodFrom} — ${input.periodTo}; ${input.category}. Исходные счета: ${input.invoices.map(i => i.number).join(', ') || 'нет'}.`,
       items: { create: rows.map(r => ({ ...r })) } }, include: billingInvoiceInclude });
     if (ids.length) {
       const changed = await tx.billingInvoice.updateMany({ where: { id: { in: ids }, status: 'DRAFT', paidRub: 0, payments: { none: {} } },

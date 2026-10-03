@@ -871,6 +871,11 @@ export type BillingPaymentSummary = {
 };
 
 export type BillingInvoiceSummary = {
+  originalTotalRub?: number;
+  correctionRub?: number;
+  effectiveTotalRub?: number;
+  remainingRub?: number;
+  overpaymentRub?: number;
   // ADDED: category/branch in the period register; older endpoints remain compatible.
   serviceCategory?: BillingServiceCategory;
   warehouse?: { id: string; name: string } | null;

@@ -20,6 +20,16 @@ function report(extra: any = {}) { return buildSettlements({ warehouseId: 'w1', 
 
 // TEST: money categories remain disjoint; a draft is not a receivable or a second unbilled charge.
 describe('settlements accounting', () => {
+  // TEST: signed notes preserve invoice details and actual receipts, exposing overpayment separately from advances.
+  it('projects reductions, overpayment and new debt without changing the original invoice amount', () => {
+    const note = { id: 'credit', invoiceId: 'i1', amountRub: '-90', reason: 'Ошибочная услуга', createdAt: new Date('2026-10-03') };
+    const reduced = report({ invoices: [invoice()], corrections: [note] });
+    expect(reduced.rows[0]).toMatchObject({ debtRub: 0, clientCreditRub: 15, clientAdvanceRub: 0 });
+    expect(reduced.issues).toEqual([]);
+    expect(reduced.rows[0].lines.find(l => l.kind === 'CORRECTION')?.totalRub).toBe(-90);
+    const increased = report({ invoices: [invoice({ status: 'PAID', paidRub: 100 })], corrections: [{ ...note, amountRub: '20' }] });
+    expect(increased.rows[0]).toMatchObject({ debtRub: 20, clientCreditRub: 0 });
+  });
   // TEST: active and archived clients with only settled documents/advances must not inflate the register.
   it('omits settled and advance-only clients, including archived clients', () => {
     const archived = { ...client, id: 'archived', name: 'Архивный', status: 'ARCHIVED' };

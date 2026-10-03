@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import type { AuthSession, ClientSummary } from '../../lib/api';
 import { fetchSettlements, type SettlementReport, type SettlementRow, type SettlementLine } from '../../lib/billing-settlements-api';
 import './billing-settlements.css';
+import { BillingPeriodClosingPanel } from './BillingPeriodClosingPanel';
 
 const metrics = [
   ['unbilledRub', 'Не выставлено', 'unbilled'], ['draftRub', 'В черновиках', 'draft'],
   ['reviewRub', 'На проверке', 'review'], ['debtRub', 'Выставлено, не оплачено', 'debt'],
   ['overdueRub', 'Из этого просрочено', 'overdue'], ['clientAdvanceRub', 'Аванс клиента · все филиалы', 'advance'],
+  ['clientCreditRub', 'Переплата по счетам', 'credit'],
 ] as const;
 const money = (value: number) => new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB' }).format(value);
 const date = (value: string) => value.slice(0, 10).split('-').reverse().join('.');
@@ -57,7 +59,7 @@ export function BillingSettlementsPanel({ session, clients, revision = 0, onRevi
         <tbody>{report.rows.map(row => <tr key={`${row.client.id}:${row.warehouseId}`}>
           <th scope="row">{row.client.name}<small>{row.client.code} · {row.warehouseName}</small></th>
           {metrics.map(([field, label, bucket]) => <td key={field}><button type="button"
-            aria-label={`${label}: ${row.client.name}, ${money(row[field])}`} onClick={() => setSelection({ row, bucket, label })}>{money(row[field])}</button></td>)}
+            aria-label={`${label}: ${row.client.name}, ${money(row[field] ?? 0)}`} onClick={() => setSelection({ row, bucket, label })}>{money(row[field] ?? 0)}</button></td>)}
           <td>{row.missingWorkCount} обработок · сумма требует проверки</td>
         </tr>)}</tbody></table></div>
       {/* // FIX: settled records can exist even when no client needs further calculations. */}
@@ -84,6 +86,7 @@ export function BillingSettlementsPanel({ session, clients, revision = 0, onRevi
         {!report.issues.length ? <p>В проверенных данных исключений не найдено.</p> : null}
       </section>
     </> : null}
+    <BillingPeriodClosingPanel session={session} clientId={clientId} periodFrom={from} periodTo={to} onChanged={() => setReload(n => n + 1)} />
   </section>;
 }
 function Line({ line }: { line: SettlementLine }) {

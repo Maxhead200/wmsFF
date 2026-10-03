@@ -156,6 +156,7 @@ export function BillingPanel({ session }: BillingPanelProps) {
       const items = invoiceRegisterSourceInvoices.filter(
         (invoice) =>
           matchesInvoiceKind(invoice, kind) &&
+          (!invoiceStatusFilter || invoice.status === invoiceStatusFilter) &&
           matchesInvoicePeriod(invoice, invoicePeriodFrom, invoicePeriodTo),
       );
       return {
@@ -164,7 +165,7 @@ export function BillingPanel({ session }: BillingPanelProps) {
         totalRub: items.reduce((sum, invoice) => sum + Number(invoice.totalRub), 0),
       };
     }),
-    [invoicePeriodFrom, invoicePeriodTo, invoiceRegisterSourceInvoices],
+    [invoicePeriodFrom, invoicePeriodTo, invoiceStatusFilter, invoiceRegisterSourceInvoices],
   );
   const unpaidIssuedInvoices = useMemo(
     () => selectedClientInvoices.filter(
@@ -724,6 +725,10 @@ export function BillingPanel({ session }: BillingPanelProps) {
               </div>
 
               <div className="billing-invoice-period" aria-label="Период счетов">
+                {/* // FIX: keep the same status selection accessible before choosing a service topic. */}
+                <label><span>Статус счёта</span><select aria-label="Статус счёта" value={invoiceStatusFilter} onChange={event => setInvoiceStatusFilter(event.target.value as BillingInvoiceStatus | '')}>
+                  <option value="">Все статусы</option>{billingInvoiceStatusOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select></label>
                 <div className="billing-invoice-period__presets">
                   <button type="button" onClick={() => { setInvoicePeriodFrom(''); setInvoicePeriodTo(''); }}>Весь период</button>
                   <button type="button" onClick={() => { setInvoicePeriodFrom(currentMonthStart()); setInvoicePeriodTo(todayDate()); }}>Текущий месяц</button>
@@ -776,7 +781,7 @@ export function BillingPanel({ session }: BillingPanelProps) {
               <label><span>Вид услуг</span><select value={invoiceKindFilter} onChange={event => setInvoiceKindFilter(event.target.value as InvoiceKindFilter)}>
                 <option value="ALL">Все виды услуг</option><option value="FBS">FBS</option><option value="PROCESSING">Первичная обработка</option><option value="PRR">ПРР</option><option value="STORAGE">Хранение</option><option value="OTHER">Другие услуги</option>
               </select></label>
-              <label><span>Статус</span><select value={invoiceStatusFilter} onChange={event => setInvoiceStatusFilter(event.target.value as BillingInvoiceStatus | '')}>
+              <label><span>Статус счёта</span><select aria-label="Статус счёта" value={invoiceStatusFilter} onChange={event => setInvoiceStatusFilter(event.target.value as BillingInvoiceStatus | '')}>
                 <option value="">Все статусы</option>{billingInvoiceStatusOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select></label>
             </div>

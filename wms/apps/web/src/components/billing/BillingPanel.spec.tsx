@@ -44,6 +44,30 @@ const invoice: any = {
   status: 'ISSUED', serviceCategory: 'STORAGE', totalRub: 100, paidRub: 25, payments: [], items: [], comment: '',
 };
 describe('billing register filters and invoice card', () => {
+  // TEST: status remains available on topics and survives returning to the invoice list.
+  it('filters every invoice status from topics and preserves the choice in the list', () => {
+    hooks.values = []; hooks.cursor = 0;
+    const render = () => { hooks.cursor = 0; return BillingPanel({ session: { accessToken: 'token', user: { id: 'user', permissionCodes: ['billing:read'] } } as any }); };
+    const rows = ['DRAFT', 'ISSUED', 'PAID', 'CANCELLED'].map(status => ({ ...invoice, id: status, status }));
+    render(); hooks.values[2] = { status: 'ready', data: rows };
+    elements(render()).find(node => node.type === 'button' && node.props.children === 'Весь период').props.onClick();
+    elements(render()).find(node => node.type === 'button' && elements(node.props.children).some(child => child.type === 'span' && child.props.children === 'Темы счетов')).props.onClick();
+    const statusSelect = () => {
+      const label = elements(render()).find(node => node.type === 'label' && elements(node.props.children).some(child => child.type === 'span' && child.props.children === 'Статус счёта'));
+      expect(label).toBeDefined();
+      return elements(label).find(node => node.type === 'select');
+    };
+    expect(elements(statusSelect()).filter(node => node.type === 'option').map(node => node.props.value)).toEqual(['', 'DRAFT', 'ISSUED', 'PAID', 'CANCELLED']);
+    statusSelect().props.onChange({ target: { value: 'PAID' } });
+    const allTile = elements(render()).find(node => node.type === 'button' && node.props.className?.includes('kind-tile--all'));
+    expect(elements(allTile).find(node => node.type === 'b').props.children).toBe(1);
+    allTile.props.onClick();
+    expect(statusSelect().props.value).toBe('PAID');
+    for (const status of ['DRAFT', 'ISSUED', 'PAID', 'CANCELLED', '']) {
+      statusSelect().props.onChange({ target: { value: status } });
+      expect(elements(render()).find(node => node.type === BillingInvoicesTable).props.invoices.map((row: any) => row.id)).toEqual(status ? [status] : rows.map(row => row.id));
+    }
+  });
   // TEST: recovered mixed invoices use the server's FBS label without losing period/client/status filters.
   it('includes mixed recovered FBS invoices once in the FBS register', () => {
     const recovery = { ...invoice, id: 'recovery', status: 'DRAFT', serviceCategory: 'FBS',

@@ -1,3 +1,26 @@
+# Published PR469 / 03.10.2026
+
+<!-- FIX: register hides settled clients while preserving unfinished calculations. -->
+«Клиенты и расчёты» скрывает полностью рассчитавшихся клиентов, включая архивных.
+Долг, невыставленные услуги, черновики, работа без начисления и нерешённые проверки
+сохраняют строку. Один аванс строку не удерживает и не вычитается из долга.
+Документы и деньги не менялись. Фильтр относится к реестру, не к удалению клиентов.
+API `sha256:e7aa81ff68a153426ea7fdd4efc8a994f3119f107ee8b4b2d58ce4bdefd6a67b`;
+web `sha256:7fab10dcd44ce9813cd63689ea03fbc7ad4e5b461c57950ceec8e59bd8200532`.
+Один API-модуль, сообщение пустого списка, 29 новых JS chunks; 1685 старых assets сохранены.
+Полные runtime/public hashes, offline candidate, browser и health прошли.
+READ ONLY сравнение: 44 → 8 строк, скрыты 36 рассчитавшихся, из них 9 архивных;
+суммы оставшихся и issues идентичны. Published GET settlements200, 5644ms;
+invoices200, прежняя оплата INV-202609-0007 450000 и остаток100535,37 сохранены.
+API3036/web368 passed, API132/web2 skipped; KIZ DB-suite требует отдельной БД.
+TypeScript API/web прошёл. Проданная WMS/FFULHAB/APK/compose и другие сервисы не затронуты.
+Source parity false; опубликован только проверенный overlay актуального runtime.
+Локальный runtime: `C:/WMSFF2207/baselines/our-wms-runtime-settlements-visible-20261003`
+(API564/web1715); current pointer обновлён, полный эталон 01.10 сохранён.
+Rollback: `logoff-api:before-billing-settlements-visible-20261003`,
+`logoff-web:before-billing-settlements-visible-20261003`.
+[Запись выпуска](releases/billing-settlements-visible-20261003.json).
+
 # Published PR467 / 03.10.2026
 
 Исправлены ошибка 500 «Клиенты и расчёты» и подстановка полной оплаты вместо

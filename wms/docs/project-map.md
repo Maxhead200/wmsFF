@@ -1,5 +1,11 @@
 # Карта проекта
 
+Опубликовано PR469: `buildSettlements` → `visibleRows` после расчёта денежных сумм.
+Строки без долга и незавершённых расчётов скрыты, независимо от архивности клиента.
+`BillingSettlementsPanel` объясняет пустой отфильтрованный реестр.
+Текущий runtime: `C:/WMSFF2207/baselines/our-wms-runtime-settlements-visible-20261003`.
+[Запись выпуска](releases/billing-settlements-visible-20261003.json).
+
 Опубликовано PR467: [частичный приход и загрузка расчётов](billing-partial-receipt-fix.md).
 `BillingSettlementsService.list` → отдельные `charges` за период и исторические
 `coverageCharges` → `buildSettlements`. `BillingCashReceiptPanel.toggleInvoice`

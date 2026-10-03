@@ -1,3 +1,20 @@
+# Published PR465 / 03.10.2026
+
+«Биллинг → Счета → Статус счёта»: Все статусы / Черновик / Выставлен / Оплачен /
+Отменён. Доступен в списке и темах, выбор сохраняется, метрики тем учитывают статус.
+API и документы не изменялись; прежняя кнопка счёта по сданным заявкам сохранена.
+Web `sha256:019e9c307cb64eb4da299c8643f1b59607416ca257e6aeb363682720ecfa6587`;
+API остаётся `sha256:f541c929317c030370f40d360c25bc19f0cf69ea568762b8f18fbdd64cfbcf3a`.
+1627 прежних assets сохранены, новый граф 29 JS-файлов. Пересоздан только web.
+Локальный runtime: `C:/WMSFF2207/baselines/our-wms-runtime-invoice-status-20261003`
+(API564/web1657), указатель `baselines/OUR_WMS_CURRENT_RUNTIME.json` обновлён.
+Source parity false: только точечные изменения поверх свежего runtime.
+Полный эталон 01.10 не менялся; sold WMS/FFULHAB не затрагивались.
+Web365/API3033 passed, TypeScript/Vite, Node/Python guards, browser actual graph,
+server candidate/full hash verification/public graph/health прошли.
+Откат: `logoff-web:before-billing-invoice-status-20261003`.
+[Описание](billing-invoice-status-filter.md), [запись выпуска](releases/billing-invoice-status-20261003.json).
+
 # Published PR463 / 03.10.2026
 
 «Биллинг → Счета → Создать счёт по сданным заявкам»: обе даты выбирает оператор,

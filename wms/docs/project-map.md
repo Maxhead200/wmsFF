@@ -1,5 +1,11 @@
 # Карта проекта
 
+Опубликовано PR467: [частичный приход и загрузка расчётов](billing-partial-receipt-fix.md).
+`BillingSettlementsService.list` → отдельные `charges` за период и исторические
+`coverageCharges` → `buildSettlements`. `BillingCashReceiptPanel.toggleInvoice`
+сохраняет введённую сумму; `receiptHistory` читает оплаты всех счетов клиента.
+Текущий runtime: `C:/WMSFF2207/baselines/our-wms-runtime-partial-receipt-20261003`.
+
 Опубликовано PR465: [фильтр статуса счетов](billing-invoice-status-filter.md).
 `BillingPanel.invoiceStatusFilter` → server register query + `filterBillingRegisterInvoices`
 и `invoiceKindTiles`. Оба представления используют один выбор статуса; API не менялся.

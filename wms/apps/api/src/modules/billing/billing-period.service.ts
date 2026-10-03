@@ -121,6 +121,7 @@ export class BillingPeriodService {
   }
 
   private async loadDoneRequests(tx: Prisma.TransactionClient, dto: PreviewBillingPeriodDto, user: AuthUser, warehouseId: string) {
+    const calendar = parseBillingPeriod(dto.periodFrom, dto.periodTo);
     const clientId = this.scopes.resolveClientFilter(user, dto.clientId);
     const client = { isDemo: user.isDemo === true };
     const writable = (id: string) => { try { this.scopes.requireClientAccess(user, id, 'write'); return true; } catch { return false; } };
@@ -140,7 +141,9 @@ export class BillingPeriodService {
           service: { select: { code: true } }, invoiceItems: { select: { invoice: { select: { id: true, status: true } } } } } }),
       // Read whole snapshots, including mixed drafts, to reject splitting or duplicate billing.
       tx.billingInvoice.findMany({ where: { clientId, client, status: { not: 'CANCELLED' },
-        OR: [{ requestId: { in: ids } }, { items: { some: { charge: { requestId: { in: ids } } } } }] },
+        OR: [{ requestId: { in: ids } }, { items: { some: { charge: { requestId: { in: ids } } } } },
+          { AND: [{ periodFrom: { lte: calendar.to }, periodTo: { gte: calendar.from } },
+            { OR: [{ warehouseId }, { warehouseId: null, request: { warehouseId } }, { warehouseId: null, requestId: null }] }] }] },
         take: 20001, orderBy: { id: 'asc' }, include: { client: { select: { id: true, code: true, name: true } },
           request: { select: { warehouseId: true } }, payments: true,
           items: { include: { charge: { include: { service: { select: { code: true } } } } }, orderBy: { id: 'asc' } } } }),

@@ -97,10 +97,12 @@ describe('drafts by surrendered requests', () => {
     expect(plan([request({ events: [{ id: 'last', createdAt: new Date('2026-10-02T20:59:59.999Z') }] })]).groups).toHaveLength(1);
     expect(plan([request({ events: [{ id: 'last', createdAt: new Date('2026-10-02T21:00:00Z') }, ...request().events] })]).groups).toHaveLength(0);
   });
-  it('reuses one existing whole draft after a new preview without adding its charges again', () => {
+  it('leaves every existing draft untouched and excludes its already covered period', () => {
     const i = invoice({ periodFrom: new Date('2026-10-01'), periodTo: new Date('2026-10-02T23:59:59.999Z') });
     const result = plan([request()], [charge({ invoiceItems: [{ invoice: { id: 'i', status: 'DRAFT' } }] })], [i]);
-    expect(result.groups[0]).toMatchObject({ action: 'EXISTING', existingInvoiceId: 'i', chargeIds: [], requestIds: ['r'] });
+    expect(result.groups).toHaveLength(0);
+    expect(result.alreadyBilledCount).toBe(1);
+    expect(result.issues[0].message).toContain('INV');
   });
   it('does not list missing or already billed requests as contributing to the created draft', () => {
     const result = plan([request(), request({ id: 'missing', number: 1245 })]);
@@ -112,11 +114,21 @@ describe('drafts by surrendered requests', () => {
     const result = plan([request(), r2], [charge(), charge({ id: 'ch2', description: 'Хранение' }), charge({ id: 'ch3', requestId: 'r2', clientId: 'c2', client: r2.client })]);
     expect(result.groups.map(g => g.totalRub)).toEqual([200, 100]);
   });
-  it('excludes billed sources and combines whole unpaid attributable draft', () => {
+  it('excludes every existing invoice even if its original service dates predate surrender', () => {
     const result = plan([request()], [charge({ invoiceItems: [{ invoice: { id: 'i', status: 'DRAFT' } }] })], [invoice()]);
-    expect(result.groups[0].chargeIds).toEqual([]);
-    expect(result.groups[0].invoiceIds).toEqual(['i']);
-    expect(result.groups[0].totalRub).toBe(100);
+    expect(result.groups).toHaveLength(0);
+    expect(result.alreadyBilledCount).toBe(1);
+  });
+  // TEST: selecting a larger/overlapping period never recreates already invoiced work.
+  it('blocks overlapping billed client periods including unlinked manual drafts', () => {
+    for (const status of ['DRAFT', 'ISSUED', 'PAID']) {
+      const i = invoice({ requestId: null, items: [], status, periodFrom: new Date('2026-10-02'), periodTo: new Date('2026-10-31') });
+      expect(plan([request()], [charge()], [i]).groups).toHaveLength(0);
+    }
+  });
+  it('does not block another client or warehouse or a cancelled invoice', () => {
+    for (const patch of [{ clientId: 'other' }, { warehouseId: 'other', requestId: null, items: [] }, { status: 'CANCELLED' }])
+      expect(plan([request()], [charge()], [invoice(patch)]).groups).toHaveLength(1);
   });
   it('never cancels an issued or paid invoice, nor splits a mixed request draft', () => {
     for (const patch of [{ status: 'ISSUED' }, { paidRub: '1' }, { payments: [{}] },

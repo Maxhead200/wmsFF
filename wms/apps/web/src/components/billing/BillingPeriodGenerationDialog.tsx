@@ -42,8 +42,9 @@ export function billingPeriodPreset(start: string, preset: 'week' | 'fortnight' 
 // ADDED: preview/confirmation uses existing server billing rules, never a local tariff calculation.
 export function BillingPeriodGenerationDialog(props: Props) {
   const [clientId, setClientId] = useState(props.clientId ?? '');
-  const [periodFrom, setPeriodFrom] = useState(props.periodFrom);
-  const [periodTo, setPeriodTo] = useState(props.periodTo);
+  // FIX: surrender mode requires explicit dates chosen by the operator.
+  const [periodFrom, setPeriodFrom] = useState(props.doneRequests ? '' : props.periodFrom);
+  const [periodTo, setPeriodTo] = useState(props.doneRequests ? '' : props.periodTo);
   const [categories, setCategories] = useState<BillingServiceCategory[]>(['FBS', 'PROCESSING', 'PRR', 'STORAGE']);
   const [excludeLukin, setExcludeLukin] = useState(true);
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -136,7 +137,7 @@ export function BillingPeriodGenerationDialog(props: Props) {
           <button type="button" className="secondary-button" disabled={busy} onClick={props.onClose}>Закрыть</button>
         </header>
         <div className="billing-invoice-edit-modal__body billing-form" aria-busy={busy}>
-          <p>{props.doneRequests ? 'Один общий черновик для каждого клиента выбранного филиала. Заявки отбираются по последней дате перехода в «Сдано», по московскому времени; обе границы включены. Суммируются сохранённые начисления и подходящие неоплаченные черновики со всеми видами услуг. Исходные даты услуг и тарифы сохраняются.' : 'Отдельный счёт для каждого контрагента, филиала и вида услуг. Действует текущая филиальная область доступа. Календарные даты услуг соответствуют датам в существующем биллинге, обе границы включены.'}</p>
+          <p>{props.doneRequests ? 'Один общий черновик для каждого клиента выбранного филиала. Заявки отбираются по последней дате перехода в «Сдано», по московскому времени; обе границы включены. Суммируются утверждённые начисления всех видов услуг. Существующие счета, включая черновики, не меняются; уже охваченные счётом заявки и периоды исключаются. Исходные даты услуг и тарифы сохраняются.' : 'Отдельный счёт для каждого контрагента, филиала и вида услуг. Действует текущая филиальная область доступа. Календарные даты услуг соответствуют датам в существующем биллинге, обе границы включены.'}</p>
           <fieldset disabled={busy}>
             <legend>Период и услуги</legend>
             <div className="billing-fields">
@@ -174,7 +175,7 @@ export function BillingPeriodGenerationDialog(props: Props) {
             <h4>Расчёт: {preview.periodFrom} — {preview.periodTo}</h4>
             {props.doneRequests && preview.requests ? <details open><summary>Сданные заявки: {preview.requests.length}</summary>
               <ul>{preview.requests.map(r => <li key={r.id}>№{r.number} · {r.clientName} · Сдано {new Date(r.surrenderedAt).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })}</li>)}</ul></details> : null}
-            <p>Уже выставлено позиций: {preview.alreadyBilledCount}. Нулевых позиций исключено: {preview.zeroCount}.</p>
+            <p>{props.doneRequests ? 'Уже сформировано счетов' : 'Уже выставлено позиций'}: {preview.alreadyBilledCount}. Нулевых позиций исключено: {preview.zeroCount}.</p>
             <p>Создать новых: {preview.groups.filter(group => group.action !== 'EXISTING').length}. Существующих за весь период: {preview.groups.filter(group => group.action === 'EXISTING').length}. Итого: {money(preview.groups.reduce((sum, group) => sum + group.totalRub, 0))}. Нерешённые суммы в итог не входят.</p>
             {preview.groups.length ? <div className="billing-table-wrap"><table className="billing-table">
               <thead><tr><th>Контрагент</th><th>Филиал (ID)</th><th>Услуги</th><th>Действие</th><th>Позиций</th><th>Начисления / черновики</th><th>Сумма</th></tr></thead>
@@ -193,7 +194,7 @@ export function BillingPeriodGenerationDialog(props: Props) {
               </table></div>
             </details>)}
             {preview.issues.length ? <div role="status"><h4>Не включено — требуется проверка</h4><ul>{preview.issues.map((issue, index) => <li key={`${issue.id}-${index}`}>{issue.clientName}: {issue.message}</li>)}</ul></div> : null}
-            {preview.groups.length ? <><p>Подтверждение создаст документы с действием «Создать черновик». Подходящие существующие счета будут сохранены. Уже выставленные и оплаченные счета не переписываются. Сервер повторно проверит исходные данные.</p><button className="primary-button" type="button" disabled={busy} onClick={confirm}>Подтвердить создание черновиков</button></> : null}
+            {preview.groups.length ? <><p>{props.doneRequests ? 'Подтверждение создаст только новые черновики. Все существующие счета сохраняются без изменений. Периоды, уже охваченные счётом, исключены. Сервер повторно проверит исходные данные.' : 'Подтверждение создаст документы с действием «Создать черновик». Подходящие существующие счета будут сохранены. Уже выставленные и оплаченные счета не переписываются. Сервер повторно проверит исходные данные.'}</p><button className="primary-button" type="button" disabled={busy} onClick={confirm}>Подтвердить создание черновиков</button></> : null}
           </section> : null}
           {created ? <div role="status"><h4>{created.replayed ? 'Результат ранее выполненного формирования' : 'Результат формирования'}</h4><ul>{created.invoices.map(invoice => <li key={invoice.id}>{invoice.number} · {invoice.disposition === 'EXISTING' ? 'Существующий счёт' : 'Создан черновик'}</li>)}</ul><p>Откройте счёт в реестре для проверки и последующих действий.</p></div> : null}
         </div>

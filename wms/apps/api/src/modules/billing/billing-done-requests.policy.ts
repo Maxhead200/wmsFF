@@ -44,48 +44,42 @@ export function buildDoneRequestsPlan(input: Input, requests: DoneRequest[], cha
     description: row.description, serviceDate: row.serviceDate.toISOString().slice(0, 10), unit: row.unit,
     quantity: row.quantity.toString(), unitPriceRub: row.unitPriceRub.toString(), totalRub: row.totalRub.toString(),
   });
+  // FIX: existing invoices, including DRAFT, are immutable in this workflow.
+  // Any overlap closes the selected client period; linked requests are protected across periods.
+  const calendar = parseBillingPeriod(input.periodFrom, input.periodTo);
+  const selectedClients = new Set(selected.map(r => r.clientId));
+  const blockedClients = new Set<string>(), blockedRequests = new Set<string>();
+  let alreadyBilledCount = 0;
+  for (const i of invoices) {
+    if (i.status === 'CANCELLED' || !selectedClients.has(i.clientId)) continue;
+    const linked = new Set(i.items.flatMap(row => row.chargeId && chargeMap.get(row.chargeId)?.clientId === i.clientId
+      ? [chargeMap.get(row.chargeId)!.requestId!] : []));
+    if (i.requestId && requestMap.get(i.requestId)?.clientId === i.clientId) linked.add(i.requestId);
+    const branch = i.warehouseId ?? i.request?.warehouseId;
+    const overlap = (!branch || branch === warehouseId) && i.periodFrom <= calendar.to && i.periodTo >= calendar.from;
+    if (!overlap && !linked.size) continue;
+    alreadyBilledCount++;
+    if (overlap) blockedClients.add(i.clientId);
+    for (const id of linked) blockedRequests.add(id);
+    issue(i.id, i.client.name, `Счёт ${i.number} уже сформирован (${i.periodFrom.toISOString().slice(0, 10)} — ${i.periodTo.toISOString().slice(0, 10)}). ${overlap ? 'Период этого клиента исключён из нового расчёта.' : 'Охваченные заявки исключены из нового расчёта.'} Существующий счёт не изменяется.`);
+  }
+  const chargedRequests = new Set(eligibleCharges.map(c => c.requestId));
+  // A link can protect a request even if an inaccessible/inconsistent invoice was not loaded.
+  for (const c of eligibleCharges) if (c.invoiceItems.some(link => link.invoice.status !== 'CANCELLED')) blockedRequests.add(c.requestId!);
   for (const r of selected) {
-    if (!eligibleCharges.some(c => c.requestId === r.id) && !invoices.some(i => i.requestId === r.id && i.status !== 'CANCELLED'))
+    if (!blockedClients.has(r.clientId) && !blockedRequests.has(r.id) && !chargedRequests.has(r.id))
       issue(r.id, r.client.name, `Заявка №${r.number}: нет начислений или сохранённого расчёта. Нужна проверка выполненных услуг и тарифов.`);
   }
   for (const c of eligibleCharges) {
-    if (c.invoiceItems.some(link => link.invoice.status !== 'CANCELLED')) continue;
+    if (blockedClients.has(c.clientId) || blockedRequests.has(c.requestId!)) continue;
     if (c.status !== 'APPROVED' || !valid(c)) {
       issue(c.id, c.client.name, `Заявка №${requestMap.get(c.requestId!)!.number}: проверьте утверждение и тариф услуги «${c.description}».`); continue;
     }
     add(c.client, c.id, [{ ...line(c), sourceType: 'CHARGE', sourceId: c.id, chargeId: c.id }], [c.requestId!]);
   }
-  let alreadyBilledCount = 0;
-  const sourceCounts = new Map<string, number>();
-  for (const i of invoices.filter(i => i.status !== 'CANCELLED')) for (const row of i.items)
-    if (row.chargeId) sourceCounts.set(row.chargeId, (sourceCounts.get(row.chargeId) ?? 0) + 1);
-  for (const i of invoices) {
-    if (i.status === 'CANCELLED') continue;
-    const requestOwned = i.requestId && requestMap.get(i.requestId)?.clientId === i.clientId;
-    const touches = requestOwned || i.items.some(row => row.chargeId && chargeMap.has(row.chargeId));
-    if (!touches) continue;
-    if (i.status !== 'DRAFT' || Number(i.paidRub) !== 0 || i.payments.length) { alreadyBilledCount++; continue; }
-    const owned = i.items.length && i.items.every(row => row.chargeId ? chargeMap.get(row.chargeId)?.clientId === i.clientId : requestOwned);
-    const branch = i.warehouseId ?? i.request?.warehouseId;
-    if (!owned || branch !== warehouseId || i.items.some(row => row.chargeId && (sourceCounts.get(row.chargeId) ?? 0) > 1)) {
-      issue(i.id, i.client.name, `Счёт ${i.number}: смешанные заявки, другой филиал или повторяющийся источник. Автоматическое разделение запрещено.`); continue;
-    }
-    const rowTotal = Math.round(i.items.reduce((n, row) => n + Number(row.totalRub), 0) * 100) / 100;
-    if (i.items.some(row => !valid({ ...row, metadata: row.chargeId ? chargeMap.get(row.chargeId)?.metadata : undefined })) ||
-      !Number.isFinite(Number(i.totalRub)) || Math.abs(rowTotal - Number(i.totalRub)) > .005) {
-      issue(i.id, i.client.name, `Счёт ${i.number}: требуется проверка строк, суммы или тарифа.`); continue;
-    }
-    add(i.client, i.id, i.items.map(row => ({ ...line(row), sourceType: 'INVOICE', sourceId: i.id, sourceNumber: i.number,
-      invoiceItemId: row.id, chargeId: row.chargeId ?? undefined })),
-      [...new Set(i.items.map(row => row.chargeId ? chargeMap.get(row.chargeId)!.requestId! : i.requestId!))], true);
-  }
   const result = [...groups.values()].sort((a, b) => a.key.localeCompare(b.key));
   for (const g of result) {
     g.chargeIds.sort(); g.invoiceIds.sort(); g.lines.sort((a, b) => `${a.sourceId}:${a.invoiceItemId ?? ''}`.localeCompare(`${b.sourceId}:${b.invoiceItemId ?? ''}`));
-    const i = !g.chargeIds.length && g.invoiceIds.length === 1 ? invoices.find(i => i.id === g.invoiceIds[0]) : undefined;
-    if (i && i.periodFrom.toISOString().slice(0, 10) === input.periodFrom && i.periodTo.toISOString().slice(0, 10) === input.periodTo) {
-      g.action = 'EXISTING'; g.existingInvoiceId = i.id;
-    }
   }
   return { periodFrom: input.periodFrom, periodTo: input.periodTo, groups: result, issues, alreadyBilledCount, zeroCount: 0,
     requests: selected.map(r => ({ id: r.id, number: r.number, clientName: r.client.name,

@@ -49,8 +49,14 @@ describe('billing period generation', () => {
     expect(text(tree)).toContain('Дата сдачи с');
     expect(text(tree)).not.toContain('Исключить ИП Лукин');
     expect(text(tree)).toContain('не восстанавливает пропущенные услуги');
-    vi.mocked(previewBillingPeriod).mockResolvedValue({ ...preview, requests: [{ id: 'r', number: 1244, clientName: 'Клиент', surrenderedAt: '2026-08-10T21:00:00Z' }] });
+    expect(elements(tree).find(n => n.props?.name === 'periodFrom').props.value).toBe('');
+    expect(elements(tree).find(n => n.props?.name === 'periodTo').props.value).toBe('');
     await button(tree, 'Предварительный расчёт').props.onClick();
+    expect(previewBillingPeriod).not.toHaveBeenCalled();
+    elements(tree).find(n => n.props?.name === 'periodFrom').props.onChange({ target: { value: '2026-08-01' } });
+    elements(render(undefined, true)).find(n => n.props?.name === 'periodTo').props.onChange({ target: { value: '2026-08-31' } });
+    vi.mocked(previewBillingPeriod).mockResolvedValue({ ...preview, requests: [{ id: 'r', number: 1244, clientName: 'Клиент', surrenderedAt: '2026-08-10T21:00:00Z' }] });
+    await button(render(undefined, true), 'Предварительный расчёт').props.onClick();
     expect(previewBillingPeriod).toHaveBeenCalledWith('token', expect.objectContaining({ doneRequests: true, excludeLukin: false }));
     const calculated = render(undefined, true);
     expect(text(calculated)).toContain('№1244');

@@ -29,7 +29,8 @@ public class SettlementsFragment extends Fragment {
         start.setOnClickListener(v->pick(true,start));end.setOnClickListener(v->pick(false,end));
         content.addView(start);content.addView(end);
         MaterialButton reload=button("Обновить расчёты");reload.setOnClickListener(v->refresh());content.addView(reload);
-        MaterialButton history=button("Закрытые периоды");history.setOnClickListener(v->history());content.addView(history);
+        MaterialButton history=button("Закрытые периоды");history.setOnClickListener(v->history(false));content.addView(history);
+        MaterialButton corrections=button("История корректировок счетов");corrections.setOnClickListener(v->history(true));content.addView(corrections);
         status=text("",15);status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);content.addView(status);
         results=column();content.addView(results);refresh();return scroll;
     }
@@ -56,21 +57,43 @@ public class SettlementsFragment extends Fragment {
             @Override public void onFailure(Call<Map<String,Object>> c,Throwable error){if(results!=null&&request==generation&&!c.isCanceled())status.setText("Нет связи с сервером. Нажмите «Обновить расчёты».");}
         });
     }
-    private void history(){
+    private void history(boolean corrections){
         LogoffApplication app=(LogoffApplication)requireActivity().getApplication();
         String client=app.state().selectedClientId();
         if(!app.state().can("billing:read")||client==null||client.isEmpty()||!SettlementPresentation.validPeriod(from,to)){status.setText("Выберите клиента, доступный период и проверьте права");return;}
-        int current=++generation;if(pending!=null)pending.cancel();if(historyCall!=null)historyCall.cancel();results.removeAllViews();status.setText("Загружаю историю закрытия периодов…");
-        historyCall=app.repository().api().closedPeriods(client,from,to);
+        int current=++generation;if(pending!=null)pending.cancel();if(historyCall!=null)historyCall.cancel();results.removeAllViews();status.setText(corrections?"Загружаю корректировки счетов…":"Загружаю историю закрытия периодов…");
+        historyCall=corrections?app.repository().api().invoiceCorrections(client,from,to):app.repository().api().closedPeriods(client,from,to);
         historyCall.enqueue(new Callback<List<Map<String,Object>>>(){
             public void onResponse(Call<List<Map<String,Object>>> c,Response<List<Map<String,Object>>> response){
                 if(results==null||current!=generation||!isAdded())return;
                 if(!response.isSuccessful()||response.body()==null){status.setText("История не загружена ("+response.code()+"). Проверьте доступ и филиал.");return;}
+                if(corrections){
+                    // FIX: endpoint returns latest 2000 rows across all dates, not the selected report period.
+                    status.setText("Последние корректировки за все даты · выбранный клиент и филиал\n"+
+                        (response.body().isEmpty()?"Корректировок нет.":"Получено: "+response.body().size())+
+                        "\nСервер возвращает до 2000 последних записей. Фильтр дат расчётов здесь не применяется.");
+                    correctionPage(response.body(),0,current);return;
+                }
                 status.setText("Закрытые периоды: "+response.body().size()+"\n"+from+" — "+to);
                 for(Map<String,Object> row:response.body())results.addView(text(AppState.string(row.get("periodFrom"))+" — "+AppState.string(row.get("periodTo"))+"\nПричина: "+AppState.string(row.get("reason"))+"\nЗакрыт: "+AppState.string(row.get("createdAt"))+"\nСчетов: "+list(row.get("invoiceIds")).size(),16));
             }
             public void onFailure(Call<List<Map<String,Object>>> c,Throwable e){if(results!=null&&current==generation&&!c.isCanceled())status.setText("Нет связи с сервером. История не загружена.");}
         });
+    }
+    private void correctionPage(List<Map<String,Object>> rows,int offset,int current){
+        if(results==null||current!=generation||!isAdded())return;
+        List<Map<String,Object>> page=CorrectionHistoryPresentation.page(rows,offset);
+        for(Map<String,Object> row:page){
+            MaterialCardView card=new MaterialCardView(requireContext());card.setRadius(dp(14));
+            card.setCardBackgroundColor(color(R.color.logoff_card));card.setStrokeWidth(dp(1));card.setStrokeColor(color(R.color.logoff_border));
+            LinearLayout body=column();TextView description=text(CorrectionHistoryPresentation.describe(row),16);description.setTextIsSelectable(true);body.addView(description);card.addView(body);
+            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.bottomMargin=dp(12);results.addView(card,p);
+        }
+        int next=offset+page.size();
+        if(next<rows.size()){
+            MaterialButton more=button("Показать ещё · "+next+" из "+rows.size());results.addView(more);
+            more.setOnClickListener(v->{if(results==null||current!=generation)return;results.removeView(more);correctionPage(rows,next,current);});
+        }
     }
     private void render(Map<String,Object> report){
         if(!Boolean.TRUE.equals(report.get("enabled"))){status.setText("Расчёты недоступны на сервере");return;}

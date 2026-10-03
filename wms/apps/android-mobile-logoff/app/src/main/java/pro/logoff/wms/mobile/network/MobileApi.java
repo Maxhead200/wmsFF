@@ -23,6 +23,8 @@ public interface MobileApi {
     // FIX: read-only server projections, with existing authenticated Retrofit transport.
     @GET("billing/settlements") Call<Map<String,Object>> settlements(@Query("periodFrom") String from, @Query("periodTo") String to, @Query("clientId") String clientId);
     @GET("billing/period-close") Call<List<Map<String,Object>>> closedPeriods(@Query("clientId") String clientId, @Query("periodFrom") String from, @Query("periodTo") String to);
+    // FIX: server-scoped read-only correction ledger, not a new financial mutation.
+    @GET("billing/period-close/corrections") Call<List<Map<String,Object>>> invoiceCorrections(@Query("clientId") String clientId, @Query("periodFrom") String from, @Query("periodTo") String to);
     @GET("wms-ai/openclaw/status") Call<Map<String,Object>> openClawStatus();
     @GET("wms-ai/openclaw/jobs") Call<Map<String,Object>> openClawHistory(@Query("cursor") String cursor);
     @POST("wms-ai/openclaw/jobs") Call<Map<String,Object>> submitOpenClaw(@Body Map<String,Object> body);

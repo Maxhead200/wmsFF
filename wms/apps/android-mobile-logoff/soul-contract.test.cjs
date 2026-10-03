@@ -3,6 +3,16 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const read=p=>fs.readFileSync(path.join(__dirname,p),'utf8');
+// TEST: correction history is read-only and must not claim a date-filtered server result.
+test('native correction history uses GET and bounded rendering',()=>{
+ const api=read('app/src/main/java/pro/logoff/wms/mobile/network/MobileApi.java');
+ assert.match(api,/@GET\("billing\/period-close\/corrections"\)/);
+ assert.match(api,/Call<List<Map<String,Object>>> invoiceCorrections/);
+ const ui=read('app/src/main/java/pro/logoff/wms/mobile/ui/SettlementsFragment.java');
+ assert.match(ui,/invoiceCorrections\(client,from,to\)/);
+ assert.match(ui,/Последние корректировки за все даты/);
+ assert.match(ui,/CorrectionHistoryPresentation.page/);
+});
 // TEST: the isolated application cannot produce a sold tenant release.
 test('LOGOFF-only build preserves application identity',()=>{
  const text=read('app/build.gradle.kts');

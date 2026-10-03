@@ -18,6 +18,10 @@ Source version matches; byte-for-byte APK reproduction is NOT established.
   Cambria is not bundled: no licensed font asset was supplied.
 - Server-calculated client settlements, date/client filters, debt/advance/draft/unbilled
   values, line details, verification queue and read-only closed-period history.
+- Native invoice correction history: server amount/sign, invoice number, reason,
+  author and date; 25 entries revealed per tap. The server returns up to 2000 latest
+  corrections for the selected client/branch across ALL dates, clearly labelled.
+  Date/client changes cancel stale responses; this screen cannot write corrections.
 - Native OpenClaw status, paginated history, submission and explicit result check.
   Pending request IDs are persisted per user BEFORE submission. Uncertain commands
   are never automatically resubmitted, including after screen recreation.

@@ -27,6 +27,7 @@ function identity(clientId: string, marketplace: string, connectionId: string, o
 }
 export function buildSettlements(input: { warehouseId: string; warehouseName: string; from: Date; to: Date; now: Date;
   clients: Client[]; charges: Charge[]; invoices: Invoice[];
+  coverageCharges?: Array<Pick<Charge, 'id' | 'clientId' | 'metadata' | 'service' | 'status'>>;
   advances: Array<{ id: string; clientId: string; amountRub: Money; paidAt: Date }>;
   work: SettlementWork[]; requests: Array<Request & { id: string }> }) {
   const rows = new Map<string, Row>(), issues: Issue[] = [];
@@ -45,7 +46,8 @@ export function buildSettlements(input: { warehouseId: string; warehouseName: st
     if (!line.buckets.includes('review')) line.buckets.push('review');
   };
   for (const client of input.clients) row(client, input.warehouseId);
-  for (const c of input.charges) {
+  // FIX: historical FBS coverage needs identity only, not financial relations or period amounts.
+  for (const c of input.coverageCharges ?? input.charges) {
     if (c.status === 'CANCELLED') continue;
     const m = record(c.metadata), ids = strings(Object.hasOwn(m, 'processingOrderIds') ? m.processingOrderIds : m.orderIds);
     const legacyIdentity = typeof m.shipmentKey === 'string' ? /^(WILDBERRIES|OZON):([^:]+):/.exec(m.shipmentKey) : null;
@@ -58,6 +60,13 @@ export function buildSettlements(input: { warehouseId: string; warehouseName: st
         const values = coverage.get(key) ?? new Set<string>(); values.add(c.id); coverage.set(key, values);
       } else ambiguous.add(JSON.stringify([c.clientId, orderId]));
     }
+  }
+  for (const c of input.charges) {
+    if (c.status === 'CANCELLED') continue;
+    const m = record(c.metadata);
+    const legacyIdentity = typeof m.shipmentKey === 'string' ? /^(WILDBERRIES|OZON):([^:]+):/.exec(m.shipmentKey) : null;
+    const marketplace = typeof m.marketplace === 'string' ? m.marketplace : legacyIdentity?.[1];
+    const connectionId = typeof m.connectionId === 'string' ? m.connectionId : legacyIdentity?.[2];
     const branch = c.request?.warehouseId ?? (typeof m.warehouseId === 'string' ? m.warehouseId : null);
     if (branch && branch !== input.warehouseId) continue;
     if (c.serviceDate < input.from || c.serviceDate > input.to) continue;

@@ -106,6 +106,28 @@ describe('settlements access', () => {
     const db: any = { $transaction: vi.fn((fn: any) => fn(tx)) };
     return { tx, db, s: new BillingSettlementsService(db, new ClientScopeService()) };
   }
+  // TEST: reading historical financial relations expires the transaction; lightweight coverage must still suppress false missing work.
+  it('reads period financial details separately from historical FBS coverage without losing debt or advances', async () => {
+    process.env.WMS_BILLING_SETTLEMENTS_ENABLED = 'true';
+    const { tx, s } = setup();
+    tx.billingCharge.findMany.mockImplementation(async (query: any) => {
+      if (query.select.invoiceItems && !query.where.serviceDate) throw new Error('Historical financial query exceeded transaction timeout');
+      if (query.select.invoiceItems) return [charge({ service: { code: 'PACKING' }, metadata: {} })];
+      return [charge({ serviceDate: new Date('2026-09-01') })];
+    });
+    tx.billingInvoice.findMany.mockResolvedValue([invoice({ items: [{ ...invoice().items[0], serviceDate: new Date('2026-09-01') }] })]);
+    tx.billingPayment.findMany.mockResolvedValue([{ id: 'advance', clientId: 'c1', amountRub: '90', paidAt: new Date() }]);
+    tx.wbOrderShipment.findMany.mockResolvedValue([{ ...work(), assemblyId: 'a1', quantity: 2, shippedAt: work().completedAt, assemblySnapshot: {} }]);
+    const result = await s.list({ periodFrom: '2026-10-01', periodTo: '2026-10-02' }, user);
+    if (!result.enabled) throw new Error('Expected enabled register');
+    expect(result.rows[0]).toMatchObject({ unbilledRub: 100, debtRub: 75, overdueRub: 75, clientAdvanceRub: 90, missingWorkCount: 0 });
+    expect(result.issues.filter(i => i.code === 'WORK_WITHOUT_CHARGE')).toHaveLength(0);
+    const queries = tx.billingCharge.findMany.mock.calls.map((call: any[]) => call[0]);
+    const historical = queries.find((q: any) => !q.where.serviceDate);
+    expect(historical.select.request).toBeUndefined();
+    expect(historical.select.invoiceItems).toBeUndefined();
+    expect(historical.where.OR).toEqual([{ metadata: { path: ['kind'], equals: 'FBS' } }, { service: { code: 'FBS_PROCESSING' } }]);
+  });
   it('uses repeatable-read, read-only SQL and authorized client scope for every source', async () => {
     process.env.WMS_BILLING_SETTLEMENTS_ENABLED = 'true';
     const { tx, db, s } = setup();

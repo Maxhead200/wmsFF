@@ -1,5 +1,11 @@
 # Карта проекта
 
+Подготовлено, не опубликовано: [черновик по сданным заявкам](billing-done-requests.md).
+`BillingPanel` → `BillingPeriodGenerationDialog(doneRequests)` → прежние period
+preview/generate routes → `BillingPeriodService.loadDoneRequests` →
+`billing-done-requests.policy.ts` → существующий `writePeriodDraft`.
+Отбор по событиям сдачи; отдельный флаг нашей WMS, без складских изменений.
+
 ## Биллинг: клиенты, суммы и проверки — PR455
 
 `apps/web/src/components/billing/BillingPanel.tsx` → `BillingSettlementsPanel.tsx` →

@@ -1,5 +1,8 @@
 # Индекс нашей WMS
 
+Подготовлено, ещё не опубликовано: [единый черновик по сданным заявкам](billing-done-requests.md),
+отбор по дате сдачи, отдельный флаг нашей WMS.
+
 Текущий API выпуск PR461: [паспорт](current-production.md), проверенный API baseline
 [baselines/our-wms/2026-10-03-kiz-unfinished-release](../baselines/our-wms/2026-10-03-kiz-unfinished-release/manifest.json). Предыдущая запись PR455 ниже
 сохраняет сведения о неизменившемся web.

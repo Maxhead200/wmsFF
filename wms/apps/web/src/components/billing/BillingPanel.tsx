@@ -5,6 +5,7 @@ import {
   downloadBillingInvoiceActPdf,
   downloadBillingInvoicePdf,
   fetchBillingCharges,
+  fetchBillingDoneRequestsCapabilities,
   fetchBillingInvoiceActDocument,
   fetchBillingInvoiceDocument,
   fetchBillingInvoices,
@@ -112,6 +113,17 @@ export function BillingPanel({ session }: BillingPanelProps) {
   const [invoiceView, setInvoiceView] = useState<InvoiceView>('list');
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<BillingInvoiceStatus | ''>('');
   const [showPeriodGeneration, setShowPeriodGeneration] = useState(false);
+  // FIX: new button is server-gated; sold WMS and unavailable endpoints remain unchanged.
+  const [doneRequestsEnabled, setDoneRequestsEnabled] = useState(false);
+  const [showDoneRequests, setShowDoneRequests] = useState(false);
+  useEffect(() => {
+    let active = true;
+    setDoneRequestsEnabled(false);
+    if (canWrite) void fetchBillingDoneRequestsCapabilities(session.accessToken).then(result => {
+      if (active) setDoneRequestsEnabled(result.enabled);
+    }).catch(() => { if (active) setDoneRequestsEnabled(false); });
+    return () => { active = false; };
+  }, [session.accessToken, canWrite]);
   const [invoicePeriodFrom, setInvoicePeriodFrom] = useState(currentMonthStart());
   const [invoicePeriodTo, setInvoicePeriodTo] = useState(todayDate());
 
@@ -788,6 +800,8 @@ export function BillingPanel({ session }: BillingPanelProps) {
                 </span>
               </div>
             <div className="billing-panel__actions">
+              {canWrite && doneRequestsEnabled ? <button className="primary-button" type="button"
+                onClick={() => setShowDoneRequests(true)} disabled={clients.status !== 'ready'}>Создать счёт по сданным заявкам</button> : null}
               {canWrite ? (
                 <button className="primary-button" type="button" onClick={() => setShowPeriodGeneration(true)} disabled={clients.status !== 'ready'}>
                   Сформировать за период
@@ -1147,10 +1161,11 @@ export function BillingPanel({ session }: BillingPanelProps) {
         </div>
       ) : null}
 
-      {showPeriodGeneration ? <BillingPeriodGenerationDialog
+      {showPeriodGeneration || showDoneRequests ? <BillingPeriodGenerationDialog
+        doneRequests={showDoneRequests}
         session={session} clients={clients.data} clientId={invoiceClientId || undefined}
         periodFrom={invoicePeriodFrom || currentMonthStart()} periodTo={invoicePeriodTo || todayDate()}
-        onClose={() => setShowPeriodGeneration(false)} onCreated={() => { void loadData(); }}
+        onClose={() => { setShowPeriodGeneration(false); setShowDoneRequests(false); }} onCreated={() => { void loadData(); }}
       /> : null}
       {editingInvoice && clients.status === 'ready' ? (
         <div ref={invoiceCardRef} className="billing-invoice-edit-modal" role="dialog" aria-modal="true" aria-label="Карточка счёта"

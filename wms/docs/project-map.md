@@ -1,10 +1,11 @@
 # Карта проекта
 
-Подготовлено, ещё не опубликовано: [закрытие расчётных периодов](billing-period-close.md).
+Опубликовано PR472 04.10.2026: [закрытие расчётных периодов](billing-period-close.md).
 `BillingPeriodClosingPanel` → `/billing/period-close` → `BillingPeriodCloseService` →
 отдельные `BillingPeriodClose` и `BillingInvoiceCorrection`; `billing-correction-balance.ts`
 рассчитывает итоговый долг без изменения исходной суммы/приходов.
-Отдельный флаг только нашей WMS. Текущий runtime ниже не изменён.
+Отдельный флаг только нашей WMS. Runtime `baselines/our-wms-runtime-period-close-20261004`;
+API569/web1744. Исходные счета/строки/приходы/начисления сохранены, новых бизнес-документов0.
 
 Опубликовано PR469: `buildSettlements` → `visibleRows` после расчёта денежных сумм.
 Строки без долга и незавершённых расчётов скрыты, независимо от архивности клиента.

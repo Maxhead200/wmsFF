@@ -1,3 +1,35 @@
+# Published PR463 / 03.10.2026
+
+«Биллинг → Счета → Создать счёт по сданным заявкам»: обе даты выбирает оператор,
+отбор по последнему переходу в «Сдано» (МСК), единый новый черновик на клиента/филиал
+из утверждённых начислений всех услуг. Все существующие счета, включая черновики,
+сохраняются: охваченные заявки и пересекающиеся периоды исключаются с номером счёта.
+Пропущенные начисления не восстанавливаются автоматически; исключения видны в расчёте.
+Флаг `WMS_BILLING_DONE_REQUESTS_ENABLED=true` включён только в нашей WMS.
+
+API `sha256:f541c929317c030370f40d360c25bc19f0cf69ea568762b8f18fbdd64cfbcf3a`;
+web `sha256:28b7131de8ddd6bd02b2062a58872f1eb98ad57e95e7e3784143769c31291007`.
+Точный delta: шесть API-файлов из свежего runtime, новый граф из 29 JS-файлов.
+1598 прежних web assets сохранены; остальные контейнеры/APK/sold WMS/FFULHAB не менялись.
+Откат: `logoff-api:before-billing-done-requests-20261003`,
+`logoff-web:before-billing-done-requests-20261003`; compose-before.yml в каталоге выпуска.
+
+API 3033 passed / 132 skipped, web 364 passed / 2 skipped; отдельная KIZ DB suite
+исключена. TypeScript, Vite, 3 Node + 3 Python release tests, browser actual graph,
+offline candidate smoke и published HTTP read-only preview прошли. Реальный расчёт
+01–02.10: 60 сданных заявок, 72 существующих счета, 87 исключений, новых документов 0.
+Сверка до/после: финансовые поля всех 5458 счетов и все 51375 строк неизменны.
+Health, все API-хеши/прежние web assets/новый public graph и флаг проверены.
+
+Проверенная локальная копия runtime:
+`C:/WMSFF2207/baselines/our-wms-runtime-done-requests-20261003`
+(API564/web1628 файлов), указатель `baselines/OUR_WMS_CURRENT_RUNTIME.json`.
+Исходный полный серверный эталон 01.10 сохранён без изменений. Source parity false:
+полную локальную сборку публиковать нельзя; перед следующей правкой сверить сервер.
+[Описание](billing-done-requests.md), [запись выпуска](releases/billing-done-requests-20261003.json).
+
+## Предыдущие выпуски
+
 # Published PR461 / 03.10.2026
 
 Cancelled unfinished KIZ reuse: physical admin confirmation, RELEASED/non-completed tasks in closed requests, no shipment history, exact saved WB cancellation and later per-mark sorting/movement proof. Fresh contradictory WB evidence rejects. Full task/evidence saved before conditional removal of old KIZ binding. Current review still needs manager approval. Sold WMS unchanged; existing flags only.

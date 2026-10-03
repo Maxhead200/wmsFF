@@ -1,5 +1,10 @@
 # Карта проекта
 
+Опубликовано PR465: [фильтр статуса счетов](billing-invoice-status-filter.md).
+`BillingPanel.invoiceStatusFilter` → server register query + `filterBillingRegisterInvoices`
+и `invoiceKindTiles`. Оба представления используют один выбор статуса; API не менялся.
+Текущий runtime: `C:/WMSFF2207/baselines/our-wms-runtime-invoice-status-20261003`.
+
 Опубликовано PR463: [черновик по сданным заявкам](billing-done-requests.md).
 `BillingPanel` → `BillingPeriodGenerationDialog(doneRequests)` → прежние period
 preview/generate routes → `BillingPeriodService.loadDoneRequests` →

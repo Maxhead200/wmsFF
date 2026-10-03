@@ -36,6 +36,10 @@ export function BillingCashReceiptPanel({ clients, invoices, session, onPaid }: 
   const [message, setMessage] = useState('');
 
   const selectedClient = clients.find((client) => client.id === clientId) ?? null;
+  // FIX: receipt history includes paid documents, independently of allocation filters.
+  const receiptHistory = useMemo(() => invoices.filter(invoice => invoice.clientId === clientId)
+    .flatMap(invoice => invoice.payments.map(payment => ({ invoiceNumber: invoice.number, payment })))
+    .sort((a, b) => new Date(b.payment.paidAt).getTime() - new Date(a.payment.paidAt).getTime()), [clientId, invoices]);
   const clientPayableInvoices = useMemo(
     () =>
       invoices
@@ -110,18 +114,16 @@ export function BillingCashReceiptPanel({ clients, invoices, session, onPaid }: 
 
   function toggleInvoice(invoice: BillingInvoiceSummary) {
     clearFeedback();
-    setAllocations((current) => {
-      const next = { ...current };
-      if (next[invoice.id] !== undefined) {
-        delete next[invoice.id];
-      } else {
-        next[invoice.id] = remainingRub(invoice).toFixed(2);
-      }
-      setTotalRub(
-        roundMoney(Object.values(next).reduce((sum, value) => sum + positiveNumber(value), 0)).toFixed(2),
-      );
-      return next;
-    });
+    // FIX: selecting an invoice allocates the entered receipt; it must never change that amount.
+    const next = { ...allocations };
+    if (next[invoice.id] !== undefined) delete next[invoice.id];
+    else {
+      if (incomingRub <= 0) { setError('Сначала укажите сумму поступления.'); return; }
+      const left = roundMoney(incomingRub - allocatedRub);
+      if (left <= 0) { setError('Сумма поступления уже распределена. Измените распределение по счетам.'); return; }
+      next[invoice.id] = Math.min(left, remainingRub(invoice)).toFixed(2);
+    }
+    setAllocations(next);
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -308,6 +310,18 @@ export function BillingCashReceiptPanel({ clients, invoices, session, onPaid }: 
         <ArrowDownToLine size={17} />
         <span>{isSubmitting ? 'Провожу…' : `Провести приход ${incomingRub > 0 ? money(incomingRub) : ''}`}</span>
       </button>
+      {selectedClient ? <section aria-label="История поступлений">
+        <h3>История поступлений</h3>
+        <div className="billing-cash-receipt__table-wrap"><table className="billing-cash-receipt__table">
+          <thead><tr><th>Дата поступления</th><th>Счёт</th><th>Сумма</th><th>Способ</th><th>Номер платежа</th><th>Статус</th></tr></thead>
+          <tbody>{receiptHistory.map(({ invoiceNumber, payment }) => <tr key={payment.id}>
+            <td>{formatDate(payment.paidAt)}</td><td>{invoiceNumber}</td><td>{money(Number(payment.amountRub))}</td>
+            <td>{payment.method || '—'}</td><td>{payment.reference || '—'}</td>
+            <td>{payment.status === 'CANCELLED' ? 'Отменён' : 'Проведён'}</td>
+          </tr>)}</tbody>
+        </table></div>
+        {receiptHistory.length === 0 ? <p>Поступлений по счетам этого клиента пока нет.</p> : null}
+      </section> : null}
     </form>
   );
 }

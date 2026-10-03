@@ -327,7 +327,8 @@ export function BillingCashReceiptPanel({ clients, invoices, session, onPaid }: 
 }
 
 function remainingRub(invoice: BillingInvoiceSummary) {
-  return roundMoney(Math.max(0, Number(invoice.totalRub) - Number(invoice.paidRub)));
+  // FIX: signed amendments change the payable balance, never the original cost or receipt history.
+  return roundMoney(Math.max(0, Number(invoice.effectiveTotalRub ?? invoice.totalRub) - Number(invoice.paidRub)));
 }
 
 function isMergedSourceInvoice(invoice: BillingInvoiceSummary) {

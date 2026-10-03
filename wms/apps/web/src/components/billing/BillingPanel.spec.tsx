@@ -1,4 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
+// TEST: amended balances affect payment eligibility; the original amount remains visible and immutable.
+it('uses effective totals and protects issued snapshots when corrections are enabled', () => {
+  const invoice: any = { status: 'ISSUED', totalRub: 100, paidRub: 45, effectiveTotalRub: 50, comment: '', issuedAt: '2026-09-01' };
+  expect(billingInvoiceCardPermissions(invoice, true)).toEqual({ canEdit: false, canPay: true, remainingRub: 5 });
+  expect(billingInvoiceCardPermissions({ ...invoice, paidRub: 55 }, true)).toEqual({ canEdit: false, canPay: false, remainingRub: 0 });
+});
 import { BillingPanel, filterBillingRegisterInvoices, billingInvoiceCardPermissions } from './BillingPanel';
 import { BillingPeriodGenerationDialog } from './BillingPeriodGenerationDialog';
 import { BillingCashReceiptPanel } from './BillingCashReceiptPanel';

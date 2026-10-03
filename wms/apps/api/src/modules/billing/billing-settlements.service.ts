@@ -4,6 +4,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { ClientScopeService } from '../auth/client-scope.service';
 import type { AuthUser } from '../auth/auth.types';
 import { buildSettlements, record, type SettlementWork } from './billing-settlements.policy';
+import { invoiceCorrections } from './billing-correction-balance';
 
 export function settlementDates(from: string, to: string) {
   const parse = (s: string, end = false) => {
@@ -21,7 +22,7 @@ export function settlementDates(from: string, to: string) {
 @Injectable()
 export class BillingSettlementsService {
   constructor(private readonly prisma: PrismaService, private readonly scopes: ClientScopeService) {}
-  async list(dto: { periodFrom: string; periodTo: string; clientId?: string }, user: AuthUser) {
+  async list(dto: { periodFrom: string; periodTo: string; clientId?: string }, user: AuthUser, transaction?: Prisma.TransactionClient) {
     if (process.env.WMS_BILLING_SETTLEMENTS_ENABLED !== 'true') return { enabled: false as const };
     if (!user.permissionCodes.some(p => p === 'billing:read' || p === 'system:admin')) throw new ForbiddenException('Нет доступа к биллингу.');
     const warehouseId = user.activeWarehouseId;
@@ -32,9 +33,8 @@ export class BillingSettlementsService {
     // FIX: coverage reads historical charges; production already exceeds 20,000.
     const take = 20001, limit = 20000, chargeLimit = 100000;
     const clientFilter = { id: clientId, isDemo: user.isDemo === true };
-    return this.prisma.$transaction(async tx => {
-      // Enforce read-only at PostgreSQL level as well as in the application.
-      await tx.$executeRaw`SET TRANSACTION READ ONLY`;
+    // FIX: close reuses the same scoped projection inside its financial transaction.
+    const load = async (tx: Prisma.TransactionClient) => {
       const clients = await tx.client.findMany({ where: clientFilter, select: { id: true, code: true, name: true }, take });
       const warehouse = await tx.warehouse.findUnique({ where: { id: warehouseId }, select: { name: true } });
       if (!warehouse) throw new BadRequestException('Выбранный филиал не найден.');
@@ -92,7 +92,13 @@ export class BillingSettlementsService {
       const requests = await tx.clientRequest.findMany({ where: { id: { in: requestIds }, clientId: { in: ids }, warehouseId },
         select: { id: true, number: true, warehouseId: true } });
       return buildSettlements({ warehouseId, warehouseName: warehouse.name, from, to,
-        now: new Date(), clients, charges, coverageCharges, invoices, advances, work, requests });
+        now: new Date(), clients, charges, coverageCharges, invoices, advances, work, requests,
+        corrections: await invoiceCorrections(tx, invoices.map(i => i.id)) });
+    };
+    if (transaction) return load(transaction);
+    return this.prisma.$transaction(async tx => {
+      await tx.$executeRaw`SET TRANSACTION READ ONLY`;
+      return load(tx);
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, timeout: 30000 });
   }
 }

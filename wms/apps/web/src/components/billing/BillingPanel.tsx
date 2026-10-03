@@ -171,7 +171,7 @@ export function BillingPanel({ session }: BillingPanelProps) {
     () => selectedClientInvoices.filter(
       (invoice) =>
         invoice.status === 'ISSUED' &&
-        Number(invoice.totalRub) - Number(invoice.paidRub) > 0.005,
+        Number(invoice.effectiveTotalRub ?? invoice.totalRub) - Number(invoice.paidRub) > 0.005,
     ),
     [selectedClientInvoices],
   );
@@ -882,7 +882,7 @@ export function BillingPanel({ session }: BillingPanelProps) {
             <div className="billing-register-totals" aria-label="Итого по реестру">
               <span>Сумма: <strong>{formatMoney(invoiceRegisterInvoices.reduce((sum, invoice) => sum + Number(invoice.totalRub), 0))} ₽</strong></span>
               <span>Оплачено: <strong>{formatMoney(invoiceRegisterInvoices.reduce((sum, invoice) => sum + Number(invoice.paidRub), 0))} ₽</strong></span>
-              <span>Долг: <strong>{formatMoney(invoiceRegisterInvoices.filter(invoice => invoice.status === 'ISSUED').reduce((sum, invoice) => sum + Math.max(0, Number(invoice.totalRub) - Number(invoice.paidRub)), 0))} ₽</strong></span>
+              <span>Долг: <strong>{formatMoney(invoiceRegisterInvoices.filter(invoice => invoice.status === 'ISSUED').reduce((sum, invoice) => sum + Math.max(0, Number(invoice.effectiveTotalRub ?? invoice.totalRub) - Number(invoice.paidRub)), 0))} ₽</strong></span>
             </div>
           </section>
           )}
@@ -1522,8 +1522,8 @@ export function billingInvoiceCardPermissions(invoice: BillingInvoiceSummary, ca
   const comment = invoice.comment?.trim() ?? '';
   const merged = comment.startsWith('Объединено в FBS-счёт') || comment.startsWith('Объединено в счёт');
   const active = invoice.status === 'DRAFT' || invoice.status === 'ISSUED';
-  const remainingRub = Math.max(0, Number(invoice.totalRub) - Number(invoice.paidRub));
-  return { canEdit: canWrite && active && !merged, canPay: canWrite && active && !merged && remainingRub > 0, remainingRub };
+  const remainingRub = Math.max(0, Number(invoice.effectiveTotalRub ?? invoice.totalRub) - Number(invoice.paidRub));
+  return { canEdit: canWrite && active && !merged && (invoice.effectiveTotalRub === undefined || (invoice.status === 'DRAFT' && !invoice.issuedAt)), canPay: canWrite && active && !merged && remainingRub > 0, remainingRub };
 }
 
 function dateKey(value: Date) {

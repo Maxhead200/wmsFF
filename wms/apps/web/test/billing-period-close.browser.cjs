@@ -2,12 +2,15 @@
 const fs = require('node:fs'), path = require('node:path'), http = require('node:http'), assert = require('node:assert/strict');
 const { chromium } = require(process.env.WMS_PLAYWRIGHT_MODULE || 'playwright');
 const root = path.resolve(process.argv[2]);
+const overlay = process.argv[3] ? path.resolve(process.argv[3]) : root;
 const user = { id: 'fixture', name: 'Константин', email: 'fixture@example.invalid', roleCodes: ['OWNER'], permissionCodes: ['system:admin','billing:read','billing:write'], clientScopeMode:'ALL',clientIds:[],writableClientIds:[],activeWarehouseId:'w',warehouseIds:['w'],writableWarehouseIds:['w'] };
 const client = { id: 'c', code: 'CL-TEST', name: 'Тестовый клиент' };
 const invoice = { id:'i',number:'INV-TEST',clientId:'c',client,status:'ISSUED',serviceCategory:'STORAGE',periodFrom:'2026-09-01',periodTo:'2026-09-30',totalRub:100,paidRub:45,issuedAt:'2026-09-30',items:[],payments:[],comment:'' };
 const server = http.createServer((req,res) => {
-  const name = new URL(req.url,'http://local').pathname, file = path.resolve(root, '.'+(name === '/' ? '/index.html' : name));
-  if (!file.startsWith(root+path.sep) || !fs.existsSync(file)) return res.writeHead(404).end();
+  const name = new URL(req.url,'http://local').pathname;
+  const changed = path.resolve(overlay, '.'+(name === '/' ? '/index.html' : name.replace(/^\/assets\//,'/')));
+  const file = changed.startsWith(overlay+path.sep) && fs.existsSync(changed) ? changed : path.resolve(root, '.'+(name === '/' ? '/index.html' : name));
+  if ((!file.startsWith(root+path.sep) && !file.startsWith(overlay+path.sep)) || !fs.existsSync(file)) return res.writeHead(404).end();
   res.setHeader('Content-Type',file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':file.endsWith('.html')?'text/html':'application/octet-stream');res.end(fs.readFileSync(file));
 });
 (async () => {

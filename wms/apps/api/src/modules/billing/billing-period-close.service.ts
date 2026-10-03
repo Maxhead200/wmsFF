@@ -82,7 +82,7 @@ export class BillingPeriodCloseService {
       const initial = await this.plan(db, dto, warehouseId, user), ids = initial.snapshots.map(i => i.id).sort();
       if (ids.length) {
         await db.$queryRaw`SELECT id FROM "BillingInvoice" WHERE id IN (${Prisma.join(ids)}) ORDER BY id FOR UPDATE`;
-        await db.$queryRaw`SELECT id FROM "BillingInvoiceItem" WHERE "invoiceId" IN (${Prisma.join(ids)}) ORDER BY id FOR UPDATE`;
+        // FIX: parent locks serialize line triggers; locking child rows here would invert an in-flight UPDATE lock order.
       }
       const current = await this.plan(db, dto, warehouseId, user);
       if (!current.canClose) throw new ConflictException('Есть незавершённые расчёты. Сначала устраните причины в предварительной проверке.');

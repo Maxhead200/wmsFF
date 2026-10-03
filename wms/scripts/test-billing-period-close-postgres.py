@@ -16,7 +16,8 @@ try:
     # Two independent connections: line mutation cannot cross an in-flight close snapshot.
     sql('INSERT INTO "BillingInvoice" VALUES (\'race\',\'c\',\'w\',100,0,\'ISSUED\',NOW(),NULL,NOW()); INSERT INTO "BillingInvoiceItem" VALUES (\'race-item\',\'race\',100);')
     a=subprocess.Popen(['docker','exec','-i',cid,'psql','-X','-v','ON_ERROR_STOP=1','-U','postgres'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
-    a.stdin.write("BEGIN; SELECT id FROM \"BillingInvoice\" WHERE id='race' FOR UPDATE; INSERT INTO \"BillingPeriodClose\" VALUES ('race-close','c','w','2026-10-01','2026-10-03',ARRAY['race'],'[]','hash','Reviewed','u',NOW()); SELECT pg_sleep(2); COMMIT;\n");a.stdin.close();time.sleep(.5)
+    # TEST: let UPDATE acquire the child row first; closure must never wait for that child while holding its parent.
+    a.stdin.write("BEGIN; SELECT id FROM \"BillingInvoice\" WHERE id='race' FOR UPDATE; SELECT pg_sleep(1); INSERT INTO \"BillingPeriodClose\" VALUES ('race-close','c','w','2026-10-01','2026-10-03',ARRAY['race'],'[]','hash','Reviewed','u',NOW()); SELECT pg_sleep(2); COMMIT;\n");a.stdin.close();time.sleep(.5)
     b=subprocess.run(['docker','exec','-i',cid,'psql','-X','-v','ON_ERROR_STOP=1','-U','postgres'],input="UPDATE \"BillingInvoiceItem\" SET \"totalRub\"=200 WHERE id='race-item';",text=True,capture_output=True)
     a.wait(timeout=15);assert a.returncode==0;assert b.returncode!=0 and 'WMS_BILLING_PERIOD_CLOSED' in b.stderr
     assert sql("SELECT \"totalRub\" FROM \"BillingInvoiceItem\" WHERE id='race-item';").find('100.00')!=-1

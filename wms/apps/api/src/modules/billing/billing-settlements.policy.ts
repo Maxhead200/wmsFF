@@ -161,7 +161,11 @@ export function buildSettlements(input: { warehouseId: string; warehouseName: st
     if (!Number.isSafeInteger(r[field])) throw new Error('Сумма превышает безопасный предел расчёта. Выберите одного клиента.');
     r[field] /= 100;
   }
+  // FIX: settled clients, including archived ones, do not inflate the register; advances alone are not client debt.
+  const reviewRows = new Set(issues.map(i => JSON.stringify([i.clientId, i.warehouseId])));
+  const visibleRows = [...rows.values()].filter(r => r.debtRub > 0 || r.unbilledRub > 0 || r.draftRub > 0 ||
+    r.reviewRub > 0 || r.missingWorkCount > 0 || reviewRows.has(JSON.stringify([r.client.id, r.warehouseId])));
   return { enabled: true as const, periodFrom: input.from.toISOString().slice(0, 10), periodTo: input.to.toISOString().slice(0, 10),
     warehouseId: input.warehouseId, warehouseName: input.warehouseName, calculatedAt: input.now.toISOString(),
-    workCoverage: 'FBS_CONFIRMED_OPERATIONS' as const, rows: [...rows.values()].sort((a, b) => a.client.name.localeCompare(b.client.name, 'ru')), issues };
+    workCoverage: 'FBS_CONFIRMED_OPERATIONS' as const, rows: visibleRows.sort((a, b) => a.client.name.localeCompare(b.client.name, 'ru')), issues };
 }

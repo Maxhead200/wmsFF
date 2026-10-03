@@ -20,6 +20,31 @@ function report(extra: any = {}) { return buildSettlements({ warehouseId: 'w1', 
 
 // TEST: money categories remain disjoint; a draft is not a receivable or a second unbilled charge.
 describe('settlements accounting', () => {
+  // TEST: active and archived clients with only settled documents/advances must not inflate the register.
+  it('omits settled and advance-only clients, including archived clients', () => {
+    const archived = { ...client, id: 'archived', name: 'Архивный', status: 'ARCHIVED' };
+    const payments = [{ id: 'paid', amountRub: 100, paidAt: new Date() }];
+    const result = report({ clients: [client, archived], invoices: [invoice({ status: 'ISSUED', paidRub: 100, payments }),
+      invoice({ id: 'archived-invoice', clientId: archived.id, client: archived, status: 'PAID', paidRub: 100, payments })],
+      advances: [{ id: 'a', clientId: client.id, amountRub: 500, paidAt: new Date() }, { id: 'b', clientId: archived.id, amountRub: 500, paidAt: new Date() }] });
+    expect(result.rows).toEqual([]);
+    expect(result.issues).toEqual([]);
+  });
+  // TEST: zero issued debt does not hide unbilled services, drafts, missing work or unresolved calculations.
+  it('retains unfinished calculations and archived debt without subtracting advances', () => {
+    const archived = { ...client, status: 'ARCHIVED' };
+    const cases = [
+      { charges: [charge()] },
+      { invoices: [invoice({ status: 'DRAFT', paidRub: 0 })] },
+      { work: [work()] },
+      { charges: [charge({ totalRub: 0, unitPriceRub: 0 })] },
+      { clients: [archived], invoices: [invoice({ client: archived })], advances: [{ id: 'a', clientId: client.id, amountRub: 1000, paidAt: new Date() }] },
+    ];
+    for (const scenario of cases) expect(report(scenario).rows).toHaveLength(1);
+    const debt = report(cases[4]).rows[0];
+    expect(debt).toMatchObject({ debtRub: 75, overdueRub: 75, clientAdvanceRub: 1000 });
+    expect(report().rows).toEqual([]);
+  });
   it('excludes issued charges from unbilled and exposes remaining debt and overdue', () => {
     const r = report({ charges: [charge({ invoiceItems: [{ invoice: { id: 'i1', status: 'ISSUED' } }] })], invoices: [invoice()] });
     expect(r.rows[0]).toMatchObject({ unbilledRub: 0, draftRub: 0, debtRub: 75, overdueRub: 75 });

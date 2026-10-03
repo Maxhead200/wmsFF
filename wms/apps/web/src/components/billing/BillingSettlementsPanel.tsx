@@ -60,7 +60,8 @@ export function BillingSettlementsPanel({ session, clients, revision = 0, onRevi
             aria-label={`${label}: ${row.client.name}, ${money(row[field])}`} onClick={() => setSelection({ row, bucket, label })}>{money(row[field])}</button></td>)}
           <td>{row.missingWorkCount} обработок · сумма требует проверки</td>
         </tr>)}</tbody></table></div>
-      {report.rows.length === 0 ? <p>Нет начислений, счетов или подтверждённой FBS-работы по выбранным условиям.</p> : null}
+      {/* // FIX: settled records can exist even when no client needs further calculations. */}
+      {report.rows.length === 0 ? <p>Нет клиентов с задолженностью или незавершёнными расчётами по выбранным условиям.</p> : null}
       {selection ? <section aria-label="Расшифровка суммы" className="billing-settlements__details">
         <header><h4>{selection.label} · {selection.row.client.name}</h4><button type="button" onClick={() => setSelection(null)}>Закрыть расшифровку</button></header>
         {settlementLines(selection.row, selection.bucket).map(line => <Line key={line.id} line={line} />)}

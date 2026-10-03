@@ -1,3 +1,31 @@
+# Published PR472 / 04.10.2026
+
+<!-- FIX: permanent client/branch closure and signed documents preserve original finances. -->
+«Биллинг → Клиенты и расчёты»: выбрать клиента, даты и активный филиал.
+Закрытие требует предварительной проверки и основания; неоплаченные счета сохраняют долг.
+Доначисление/уменьшение — отдельный документ с причиной и автором; поздняя работа — отдельный счёт.
+Флаг `WMS_BILLING_PERIOD_CLOSE_ENABLED=true` только в нашей WMS.
+Миграция `20261003220000_billing_period_close` применена атомарно и записана в Prisma history;
+хеши исходных BillingInvoice/Item/Payment/Charge в транзакции не изменились.
+Первый запуск остановлен lock timeout и полностью откатился; повтор после проверки блокировок успешен.
+API `sha256:7ff2c21d01327774b1ff328cc9c842ec25b02eef031dbda79753050676dbbd3e`;
+web `sha256:9af39b73ad64bb3930496e46f4ff3b47c6d28d2adfaf25238c6eb5a173f910ce`.
+10 API-файлов, 29 новых JS chunks, 1714 старых assets сохранены. API569/web1744.
+Перед выпуском сохранён новый live FBO TSD runtime из API `3ef0489614fe...`; он не изменён overlay.
+Полные runtime/public hashes, offline candidate, два браузерных сценария и health прошли.
+GET history/invoices/settlements200; гипотетические signed previews201; запись документов не выполнялась.
+INV-202609-0007: оплата450000 и долг100535,37 сохранены. Новых closes/corrections0.
+API3059/web372 passed, API132/web2 skipped; отдельная KIZ DB suite исключена.
+TypeScript/Prisma validate/Vite прошли. Изолированный PostgreSQL проверил защиту, конкурентные строки,
+взаимную блокировку до исправления и exact publication SQL с откатом финансового вмешательства.
+Проданная WMS/FFULHAB/APK/compose и прочие контейнеры не менялись. Source parity false.
+Локальная копия `C:/WMSFF2207/baselines/our-wms-runtime-period-close-20261004`;
+current pointer обновлён; полный эталон01.10 неизменён.
+До появления новых документов rollback images `logoff-api:before-billing-period-close-20261004`
+и `logoff-web:before-billing-period-close-20261004`. После использования корректировок нельзя выключать
+их учёт старым runtime: нужен совместимый расчёт и восстановление вперёд.
+[Запись выпуска](releases/billing-period-close-20261004.json).
+
 # Published PR469 / 03.10.2026
 
 <!-- FIX: register hides settled clients while preserving unfinished calculations. -->

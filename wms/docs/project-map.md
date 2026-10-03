@@ -1,6 +1,6 @@
 # Карта проекта
 
-Подготовлено, не опубликовано: [черновик по сданным заявкам](billing-done-requests.md).
+Опубликовано PR463: [черновик по сданным заявкам](billing-done-requests.md).
 `BillingPanel` → `BillingPeriodGenerationDialog(doneRequests)` → прежние period
 preview/generate routes → `BillingPeriodService.loadDoneRequests` →
 `billing-done-requests.policy.ts` → существующий `writePeriodDraft`.

@@ -1,3 +1,11 @@
+# Published PR461 / 03.10.2026
+
+Cancelled unfinished KIZ reuse: physical admin confirmation, RELEASED/non-completed tasks in closed requests, no shipment history, exact saved WB cancellation and later per-mark sorting/movement proof. Fresh contradictory WB evidence rejects. Full task/evidence saved before conditional removal of old KIZ binding. Current review still needs manager approval. Sold WMS unchanged; existing flags only.
+
+API `sha256:2638fbfc2e62e83d75bcd6ddbaf5bf7b1c3fc781f36a9b1f9a1dc757ad4aa8cc`. Baseline `2026-10-03-kiz-unfinished-release`; rollback `logoff-api:before-kiz-unfinished-release`. One module changed from fresh563-file runtime containing parallel payroll releases. Web/APK/other containers unchanged. Source parity false; do not replace with historical TypeScript build.
+
+11new compiled tests and12previous returned-KIZ regressions passed. Regression failed before patch. Real request1676 KIZ validated with mandatory transaction rollback; binding unchanged afterwards. Local API2989passed/129skipped; separate KIZ database integration excluded. Health and runtime hashes checked after publication.
+
 # Published PR457 / 02.10.2026
 
 Завершение упаковки FBO: существующий неизменившийся справочник услуг и тариф

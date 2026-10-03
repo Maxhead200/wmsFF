@@ -1,7 +1,7 @@
 # Индекс нашей WMS
 
-Текущий выпуск PR457: [паспорт](current-production.md), проверенный API baseline
-`baselines/our-wms/2026-10-02-fbo-finish-catalog`. Предыдущая запись PR455 ниже
+Текущий API выпуск PR461: [паспорт](current-production.md), проверенный API baseline
+[baselines/our-wms/2026-10-03-kiz-unfinished-release](../baselines/our-wms/2026-10-03-kiz-unfinished-release/manifest.json). Предыдущая запись PR455 ниже
 сохраняет сведения о неизменившемся web.
 
 Актуализировано 25.09.2026 после PR #300. Отсчёт — фактический опубликованный

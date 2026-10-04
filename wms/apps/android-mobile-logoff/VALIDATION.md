@@ -1,5 +1,19 @@
 # Local validation — 2026-10-04
 
+## 0.6.3-soul (26) release
+
+- Signed release assembly and Android Lint succeeded (6m04s): 0 errors, 109 warnings.
+
+- 33 JUnit, 12 Node contracts, 2 release guard tests and 3 emulator instrumentation
+  tests passed. Metadata/build-version regression failed before the release update.
+- Signed APK SHA-256: `2edea8d0893e909ec5af28821604bf27c296f7e3d3f5d08fb52344a7cadd8e34`.
+- Signature matches published 0.6.2 and original 0.5.3.
+- On isolated Android 15 emulator: removed our disposable debug install, installed
+  published signed 0.6.2, then `adb install -r` signed 0.6.3 successfully. Package
+  reports versionCode 26; LoginActivity cold launch succeeded. No user credentials.
+- Authenticated business workflows and full feature parity remain unverified.
+- Release changes only APK and metadata; rollback retains published 0.6.2.
+
 ## Local client-settings / catalog increment (not published)
 
 - Added nine typed client settings and eleven SKU metadata/dimension fields.

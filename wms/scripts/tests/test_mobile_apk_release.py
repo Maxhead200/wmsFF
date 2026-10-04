@@ -1,9 +1,19 @@
 import importlib.util
 import pathlib
+import re
 import unittest
 
 # TEST: a download-only release must reject any unrelated file drift.
 class ReleaseTest(unittest.TestCase):
+    # TEST: public metadata must describe the version actually built into the APK.
+    def test_release_version_matches_android(self):
+        root = pathlib.Path(__file__).parents[2]
+        script = (root / 'scripts/mobile-apk-release.py').read_text(encoding='utf-8')
+        gradle = (root / 'apps/android-mobile-logoff/app/build.gradle.kts').read_text(encoding='utf-8')
+        version = re.search(r'versionName = "([^"]+)"', gradle).group(1)
+        code = re.search(r'versionCode = (\d+)', gradle).group(1)
+        self.assertIn('metadata.update(versionCode=' + code + ",versionName='" + version + "'", script)
+
     def test_delta_is_exact(self):
         path = pathlib.Path(__file__).parents[1] / 'mobile-apk-release.py'
         spec = importlib.util.spec_from_file_location('release', path)

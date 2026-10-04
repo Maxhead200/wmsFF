@@ -44,12 +44,12 @@ Preflight checks edited fields for changes, but is not server-side compare-and-s
 After an uncertain save, only rereading is offered; no automatic PATCH replay.
 Creation, deletion and imports are still unported.
 
-Next local increment (not published): nine typed client settings for kind,
+Release 0.6.3: nine typed client settings for kind,
 receiving, stock visibility, storage/logistics billing and FBS/relabeling visibility.
 Unknown/missing server settings are not defaulted or overwritten. Confirmation
 shows old → new values. Numeric tariffs and role/company assignments are untouched.
 
-Catalog details → **Редактировать** now has a native local editor for eleven
+Catalog details → **Редактировать** has a native 0.6.3 editor for eleven
 description/weight/dimension fields. It checks `skus:write`, user/client/branch scope,
 fresh SKU identity and edited fields before PATCH. Decimal commas are supported;
 server-normalized empty/zero weight is acknowledged. No stock, barcode or KIZ edits.

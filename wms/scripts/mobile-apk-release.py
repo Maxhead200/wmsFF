@@ -1,13 +1,13 @@
 """FIX: pinned download-only LOGOFF release; no API, database or TSD changes."""
 import hashlib, json, pathlib, subprocess, urllib.request
 
-ROOT = pathlib.Path('/opt/logoff-wms-releases/mobile-soul-061-20261004')
-BASE = 'sha256:9af39b73ad64bb3930496e46f4ff3b47c6d28d2adfaf25238c6eb5a173f910ce'
+ROOT = pathlib.Path('/opt/logoff-wms-releases/mobile-soul-062-20261004')
+BASE = 'sha256:8d7bad7bd1c77ee018ba3c0fa67e4b62e9563a9fa0752e71cd9a7cc852b18ca4'
 API = 'sha256:7ff2c21d01327774b1ff328cc9c842ec25b02eef031dbda79753050676dbbd3e'
-APK = '64da5179dea15e760efdf7431a40eccb93e3d6052c5e265c812bfb2a320ccdeb'
-OLD = '186a50bd744701acd5d06ce7426aed88adf67a53214b98295b6d33763ff1a2ea'
-TAG = 'logoff-web:mobile-soul-061-20261004'
-ROLLBACK = 'logoff-web:before-mobile-soul-061-20261004'
+APK = '2b667f5409b9062cdc1948ab1ad8a20222f7375a84292e1b2b9915a94de899f6'
+OLD = '64da5179dea15e760efdf7431a40eccb93e3d6052c5e265c812bfb2a320ccdeb'
+TAG = 'logoff-web:mobile-soul-062-20261004'
+ROLLBACK = 'logoff-web:before-mobile-soul-062-20261004'
 HTML = '/usr/share/nginx/html/'
 COMPOSE = ['docker','compose','--project-name','infra','--env-file','/opt/logoff-wms/wms/.env','-f','/opt/logoff-wms/wms/infra/docker-compose.yml']
 
@@ -31,9 +31,9 @@ def main():
         if before[apk_path] != OLD: raise RuntimeError('Published APK drift')
         if sha((ROOT/'logoff-wms-mobile.apk').read_bytes()) != APK: raise RuntimeError('Candidate mismatch')
         metadata = json.loads(run('docker','exec','infra-web-1','cat',json_path))
-        if metadata['versionCode'] != 22: raise RuntimeError('Published version drift')
-        metadata.update(versionCode=24,versionName='0.6.1-soul',mandatory=False,
-            releaseNotes='Soul: нативная главная, расчёты клиентов, история закрытия периодов и корректировок счетов, OpenClaw. Промежуточная версия: перенос всех функций ещё продолжается.')
+        if metadata['versionCode'] != 24: raise RuntimeError('Published version drift')
+        metadata.update(versionCode=25,versionName='0.6.2-soul',mandatory=False,
+            releaseNotes='Soul: нативные корректировки счетов, закрытие периодов и редактирование реквизитов клиентов с проверкой прав и подтверждением. Промежуточная версия: перенос всех функций продолжается.')
         (ROOT/'logoff-wms-mobile.json').write_text(json.dumps(metadata,ensure_ascii=False,indent=2)+'\n')
         expected = {apk_path: APK,json_path: sha((ROOT/'logoff-wms-mobile.json').read_bytes())}
         before_ids = {name: run('docker','inspect','--format','{{.Id}}',name) for name in run('docker','ps','--format','{{.Names}}').splitlines() if name != 'infra-web-1'}
@@ -54,13 +54,13 @@ def main():
             for name, cid in before_ids.items():
                 if run('docker','inspect','--format','{{.Id}}',name)!=cid: raise RuntimeError('Other container changed: '+name)
             for name,digest in expected.items():
-                with urllib.request.urlopen('https://wms.logoff.pro/'+name.removeprefix(HTML)+'?release=061',timeout=30) as response:
+                with urllib.request.urlopen('https://wms.logoff.pro/'+name.removeprefix(HTML)+'?release=062',timeout=30) as response:
                     if sha(response.read())!=digest: raise RuntimeError('Public digest mismatch')
         except Exception:
             run('docker','tag',BASE,'infra-web')
             subprocess.run(COMPOSE+['up','-d','--no-deps','--no-build','--pull','never','--force-recreate','web'],check=True)
             raise
-        result={'version':'0.6.1-soul','web':run('docker','inspect','--format','{{.Image}}','infra-web-1'),'api':API,'apkSha256':APK,'rollback':ROLLBACK,'unchangedFiles':len(before)-2,'otherContainersUnchanged':len(before_ids),'physicalDeviceVerified':False}
+        result={'version':'0.6.2-soul','web':run('docker','inspect','--format','{{.Image}}','infra-web-1'),'api':API,'apkSha256':APK,'rollback':ROLLBACK,'unchangedFiles':len(before)-2,'otherContainersUnchanged':len(before_ids),'physicalDeviceVerified':False}
         (ROOT/'published.json').write_text(json.dumps(result,indent=2))
         print(json.dumps(result))
 if __name__=='__main__': main()

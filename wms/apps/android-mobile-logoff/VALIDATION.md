@@ -1,5 +1,15 @@
 # Local validation — 2026-10-04
 
+## 0.6.2-soul (25) release
+
+- Signed release assembly, all 17 JUnit tests and Android Lint passed (5m14s).
+- 10 Node contracts and the download-only release guard test passed.
+- Lint: 0 errors, 106 warnings. Physical-device and authenticated E2E pending.
+- Certificate matches existing APK; SHA-256:
+  `2b667f5409b9062cdc1948ab1ad8a20222f7375a84292e1b2b9915a94de899f6`.
+- Includes the two increments below; full native function parity is NOT complete.
+- Deployment replaces only APK and version metadata over the pinned web image.
+
 ## Unpublished client editor increment
 
 - Client API contract failed before implementation; final Node contracts: 10 passed.

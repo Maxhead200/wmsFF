@@ -35,9 +35,9 @@ required for signed invoice adjustments, late-work draft issuance and period clo
 Pending request body/operation identity is saved privately per user before sending;
 uncertain outcomes block new documents and allow only explicit same-request replay.
 Client/branch/permission changes invalidate the screen. Server remains authoritative.
-This increment is not included in published 0.6.1; device validation is pending.
+This increment is included in release 0.6.2; device validation is pending.
 
-Additional unpublished increment: client details → **Редактировать** for
+Additional 0.6.2 increment: client details → **Редактировать** for
 `clients:write` users. Native form edits 14 contact/requisite fields through a
 fresh GET and allowlisted minimal PATCH. Other client settings are never sent.
 Preflight checks edited fields for changes, but is not server-side compare-and-swap.

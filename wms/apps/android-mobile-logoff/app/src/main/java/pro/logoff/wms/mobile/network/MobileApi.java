@@ -20,6 +20,16 @@ import retrofit2.http.Streaming;
 import retrofit2.http.PUT;
 
 public interface MobileApi {
+    // FIX: existing client management routes retain server-side access checks.
+    @GET("clients/{id}") Call<Map<String,Object>> clientDetails(@Path("id") String id);
+    @PATCH("clients/{id}") Call<Map<String,Object>> updateClientDetails(@Path("id") String id,@Body Map<String,Object> changes);
+    // FIX: existing permission-checked, preview-validated financial operations.
+    @GET("billing/period-close/capabilities") Call<Map<String,Object>> financialCapabilities();
+    @GET("billing/invoices") Call<List<Map<String,Object>>> correctionInvoices(@Query("clientId") String clientId);
+    @POST("billing/period-close/preview") Call<Map<String,Object>> previewPeriodClose(@Body Map<String,Object> body);
+    @POST("billing/period-close") Call<Map<String,Object>> closePeriod(@Body Map<String,Object> body);
+    @POST("billing/period-close/corrections/preview") Call<Map<String,Object>> previewInvoiceCorrection(@Body Map<String,Object> body);
+    @POST("billing/period-close/corrections") Call<Map<String,Object>> correctInvoice(@Body Map<String,Object> body);
     // FIX: read-only server projections, with existing authenticated Retrofit transport.
     @GET("billing/settlements") Call<Map<String,Object>> settlements(@Query("periodFrom") String from, @Query("periodTo") String to, @Query("clientId") String clientId);
     @GET("billing/period-close") Call<List<Map<String,Object>>> closedPeriods(@Query("clientId") String clientId, @Query("periodFrom") String from, @Query("periodTo") String to);

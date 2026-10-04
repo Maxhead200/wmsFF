@@ -1,5 +1,35 @@
 # Local validation — 2026-10-04
 
+## 0.6.2-soul (25) release
+
+- Signed release assembly, all 17 JUnit tests and Android Lint passed (5m14s).
+- 10 Node contracts and the download-only release guard test passed.
+- Lint: 0 errors, 106 warnings. Physical-device and authenticated E2E pending.
+- Certificate matches existing APK; SHA-256:
+  `2b667f5409b9062cdc1948ab1ad8a20222f7375a84292e1b2b9915a94de899f6`.
+- Includes the two increments below; full native function parity is NOT complete.
+- Deployment replaces only APK and version metadata over the pinned web image.
+
+## Unpublished client editor increment
+
+- Client API contract failed before implementation; final Node contracts: 10 passed.
+- All 17 JUnit tests passed, including allowlist/minimal PATCH, null/empty values,
+  validation and preflight conflict detection.
+- `testLogoffDebugUnitTest assembleLogoffDebug lintLogoffDebug`: successful (4m44s).
+- No live customer record was edited. Physical-device verification pending.
+- Partial implementation: 14 contact/requisite fields, not full client administration.
+
+## Unpublished financial actions increment
+
+- New API contract test failed before implementation, then passed.
+- 12 JUnit tests and 9 Node contracts passed; debug assembly successful.
+- Android Lint successful; no production financial mutation performed.
+- Native period close, adjustment and late-work preview/confirmation added.
+- Pending body/identity persisted before POST; uncertain result blocks fresh actions.
+- Screen generation and user/client/branch checks guard stale callbacks/confirmation.
+- Physical-device and authenticated end-to-end validation remain pending.
+- Not included in published APK 0.6.1; debug APK is not for distribution.
+
 ## 0.6.1-soul (24): correction history
 
 - New correction-history contract failed before implementation, then passed.

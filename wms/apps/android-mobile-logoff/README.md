@@ -29,11 +29,26 @@ Source version matches; byte-for-byte APK reproduction is NOT established.
 
 ## Not yet complete / not a published release
 
+Next local increment: native financial actions from **Клиенты и расчёты →
+Исправить счёт / закрыть период**. Server preview and explicit confirmation are
+required for signed invoice adjustments, late-work draft issuance and period close.
+Pending request body/operation identity is saved privately per user before sending;
+uncertain outcomes block new documents and allow only explicit same-request replay.
+Client/branch/permission changes invalidate the screen. Server remains authoritative.
+This increment is included in release 0.6.2; device validation is pending.
+
+Additional 0.6.2 increment: client details → **Редактировать** for
+`clients:write` users. Native form edits 14 contact/requisite fields through a
+fresh GET and allowlisted minimal PATCH. Other client settings are never sent.
+Preflight checks edited fields for changes, but is not server-side compare-and-swap.
+After an uncertain save, only rereading is offered; no automatic PATCH replay.
+Creation, deletion, imports and client operational settings are still unported.
+
 This is NOT full parity with the current web WMS. Still requires an endpoint/action
 inventory for waves, statistics, FBO/DBS, KIZ workflows, printing, monitoring,
 configuration, and other current server modules. Legacy module lists are not proof
-of full action coverage. Financial period closing/corrections are read-only here;
-their mutation preview/confirmation/idempotency flows are not yet implemented.
+of full action coverage. Financial mutation workflows are now implemented locally,
+but not yet validated on a physical device or published.
 Soul wallpaper/custom gradients and exact desktop navigation animation are not ported.
 
 No production commands or financial mutations were executed during development.

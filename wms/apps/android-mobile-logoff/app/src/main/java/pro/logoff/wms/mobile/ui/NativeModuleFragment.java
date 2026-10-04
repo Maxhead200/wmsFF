@@ -139,11 +139,14 @@ public class NativeModuleFragment extends Fragment {
                 ? (Map<String, Object>) source.get("details")
                 : Collections.emptyMap();
         String message = detailText(module, row, details);
-        new MaterialAlertDialogBuilder(requireContext())
+        MaterialAlertDialogBuilder dialog = new MaterialAlertDialogBuilder(requireContext())
                 .setTitle(row.title())
                 .setMessage(message)
-                .setPositiveButton("Закрыть", null)
-                .show();
+                .setPositiveButton("Закрыть", null);
+        // FIX: do not edit cached summary rows; editor fetches the full current client first.
+        if("clients".equals(module)&&app.state().can("clients:write"))dialog.setNeutralButton("Редактировать",(d,w)->
+            ((pro.logoff.wms.mobile.MainActivity)requireActivity()).showNative(ClientEditorFragment.create(row.id()),"Редактирование клиента"));
+        dialog.show();
     }
 
     private String detailText(String module, JsonRowAdapter.Row row, Map<String, Object> details) {

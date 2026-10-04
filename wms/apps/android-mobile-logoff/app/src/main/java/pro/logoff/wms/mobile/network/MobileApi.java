@@ -20,6 +20,9 @@ import retrofit2.http.Streaming;
 import retrofit2.http.PUT;
 
 public interface MobileApi {
+    // FIX: existing client management routes retain server-side access checks.
+    @GET("clients/{id}") Call<Map<String,Object>> clientDetails(@Path("id") String id);
+    @PATCH("clients/{id}") Call<Map<String,Object>> updateClientDetails(@Path("id") String id,@Body Map<String,Object> changes);
     // FIX: existing permission-checked, preview-validated financial operations.
     @GET("billing/period-close/capabilities") Call<Map<String,Object>> financialCapabilities();
     @GET("billing/invoices") Call<List<Map<String,Object>>> correctionInvoices(@Query("clientId") String clientId);

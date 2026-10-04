@@ -3,6 +3,13 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const read=p=>fs.readFileSync(path.join(__dirname,p),'utf8');
+// TEST: editing client details requires a fresh authenticated read and server write permission.
+test('client editor uses scoped existing client API',()=>{
+ const api=read('app/src/main/java/pro/logoff/wms/mobile/network/MobileApi.java');
+ assert.ok(api.includes('@PATCH("clients/{id}")'));
+ const ui=read('app/src/main/java/pro/logoff/wms/mobile/ui/ClientEditorFragment.java');
+ assert.ok(ui.includes('clients:write'));assert.ok(ui.includes('ClientEditPolicy.delta'));assert.ok(ui.includes('ClientEditPolicy.matches'));assert.ok(ui.includes('epoch==generation'));
+});
 // TEST: financial writes require server preview and durable identity before sending.
 test('financial actions use existing guarded server mutations',()=>{
  const api=read('app/src/main/java/pro/logoff/wms/mobile/network/MobileApi.java');

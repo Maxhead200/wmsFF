@@ -1,5 +1,14 @@
 # Local validation — 2026-10-04
 
+## Unpublished client editor increment
+
+- Client API contract failed before implementation; final Node contracts: 10 passed.
+- All 17 JUnit tests passed, including allowlist/minimal PATCH, null/empty values,
+  validation and preflight conflict detection.
+- `testLogoffDebugUnitTest assembleLogoffDebug lintLogoffDebug`: successful (4m44s).
+- No live customer record was edited. Physical-device verification pending.
+- Partial implementation: 14 contact/requisite fields, not full client administration.
+
 ## Unpublished financial actions increment
 
 - New API contract test failed before implementation, then passed.

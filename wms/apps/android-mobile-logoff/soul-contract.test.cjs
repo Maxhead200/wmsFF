@@ -3,6 +3,25 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const read=p=>fs.readFileSync(path.join(__dirname,p),'utf8');
+// TEST: unknown server settings cannot silently be converted into defaults by the UI.
+test('client settings use typed controls and verified DTO fields',()=>{
+ const policy=read('app/src/main/java/pro/logoff/wms/mobile/ui/ClientSettingsPolicy.java');
+ const ui=read('app/src/main/java/pro/logoff/wms/mobile/ui/ClientEditorFragment.java');
+ const dto=read('../api/src/modules/clients/dto/create-client.dto.ts');
+ for(const field of ['storageAccountingEnabled','storesWithoutBoxes','onlineReceiptVisibleToClient','fbsCalculatorEnabled','relabelingEnabled','clientKind','stockBalanceMode','logisticsInvoiceMode','storageBillingMode']){
+  assert.ok(policy.includes(`"${field}"`));assert.match(dto,new RegExp(`\\b${field}[?!]:`));
+ }
+ assert.ok(ui.includes('ClientSettingsPolicy.supported'));assert.ok(ui.includes('settingsInput()'));
+ assert.ok(ui.includes('flags.clear()'));assert.ok(ui.includes('choices.clear()'));
+});
+// TEST: catalogue editing must use native UI, fresh reads and existing protected endpoints.
+test('catalog editor is native and scoped',()=>{
+ const api=read('app/src/main/java/pro/logoff/wms/mobile/network/MobileApi.java');
+ assert.ok(api.includes('@PATCH("skus/{id}")'));
+ const ui=read('app/src/main/java/pro/logoff/wms/mobile/ui/SkuEditorFragment.java');
+ for(const guard of ['skus:write','currentScope','generation','SkuEditPolicy.matches','skuDetails(id)'])assert.ok(ui.includes(guard));
+ assert.ok(read('app/src/main/java/pro/logoff/wms/mobile/ui/NativeModuleFragment.java').includes('SkuEditorFragment.create'));
+});
 // TEST: editing client details requires a fresh authenticated read and server write permission.
 test('client editor uses scoped existing client API',()=>{
  const api=read('app/src/main/java/pro/logoff/wms/mobile/network/MobileApi.java');

@@ -146,6 +146,9 @@ public class NativeModuleFragment extends Fragment {
         // FIX: do not edit cached summary rows; editor fetches the full current client first.
         if("clients".equals(module)&&app.state().can("clients:write"))dialog.setNeutralButton("Редактировать",(d,w)->
             ((pro.logoff.wms.mobile.MainActivity)requireActivity()).showNative(ClientEditorFragment.create(row.id()),"Редактирование клиента"));
+        // FIX: catalog editing fetches live SKU, not cached list details.
+        if("catalog".equals(module)&&app.state().can("skus:write"))dialog.setNeutralButton("Редактировать",(d,w)->
+            ((pro.logoff.wms.mobile.MainActivity)requireActivity()).showNative(SkuEditorFragment.create(row.id()),"Редактирование товара"));
         dialog.show();
     }
 

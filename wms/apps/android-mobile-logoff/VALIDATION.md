@@ -1,5 +1,24 @@
 # Local validation — 2026-10-04
 
+## Local client-settings / catalog increment (not published)
+
+- Added nine typed client settings and eleven SKU metadata/dimension fields.
+- RED: missing settings policy failed compilation; missing catalog API failed the
+  Node contract; zero-weight normalization regression failed JUnit before its fix.
+- Final: 33 JUnit tests, 12 Node contracts passed; debug assembly and Lint passed
+  (0 errors, 109 warnings). No production data was changed.
+- Installed Android Emulator + Android 15 Google APIs image in the existing SDK;
+  isolated AVD `logoff_wms_native_test`, WHPX, 1080x2340 at 420dpi, serial emulator-5556.
+- App and instrumentation APK installed successfully. `adb shell am instrument -w
+  pro.logoff.wms.mobile.test/androidx.test.runner.AndroidJUnitRunner`: OK (3 tests).
+- Empty login rejected locally, default permissions denied, native policies run
+  on Android. Login screenshot inspected. No authenticated business workflow tested.
+- Gradle connected-test task could not resolve an uncached UTP plugin offline;
+  the compiled instrumentation suite was instead executed directly through ADB.
+- Device still needs authenticated read/write scenarios with test fixtures, rotation,
+  accessibility/font scaling, client/branch switching and connection interruption.
+- Original mobile module, API, TSD, sold WMS and published 0.6.2 are unchanged.
+
 ## 0.6.2-soul (25) release
 
 - Signed release assembly, all 17 JUnit tests and Android Lint passed (5m14s).

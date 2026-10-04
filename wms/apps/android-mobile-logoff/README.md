@@ -29,7 +29,7 @@ Source version matches; byte-for-byte APK reproduction is NOT established.
 
 ## Not yet complete / not a published release
 
-Next local increment: native financial actions from **Клиенты и расчёты →
+Published 0.6.2: native financial actions from **Клиенты и расчёты →
 Исправить счёт / закрыть период**. Server preview and explicit confirmation are
 required for signed invoice adjustments, late-work draft issuance and period close.
 Pending request body/operation identity is saved privately per user before sending;
@@ -42,13 +42,25 @@ Additional 0.6.2 increment: client details → **Редактировать** fo
 fresh GET and allowlisted minimal PATCH. Other client settings are never sent.
 Preflight checks edited fields for changes, but is not server-side compare-and-swap.
 After an uncertain save, only rereading is offered; no automatic PATCH replay.
-Creation, deletion, imports and client operational settings are still unported.
+Creation, deletion and imports are still unported.
+
+Release 0.6.3: nine typed client settings for kind,
+receiving, stock visibility, storage/logistics billing and FBS/relabeling visibility.
+Unknown/missing server settings are not defaulted or overwritten. Confirmation
+shows old → new values. Numeric tariffs and role/company assignments are untouched.
+
+Catalog details → **Редактировать** has a native 0.6.3 editor for eleven
+description/weight/dimension fields. It checks `skus:write`, user/client/branch scope,
+fresh SKU identity and edited fields before PATCH. Decimal commas are supported;
+server-normalized empty/zero weight is acknowledged. No stock, barcode or KIZ edits.
+The existing API has no atomic compare-and-swap, so concurrent writes after the
+preflight remain possible. Unknown outcomes require rereading, not automatic retry.
 
 This is NOT full parity with the current web WMS. Still requires an endpoint/action
 inventory for waves, statistics, FBO/DBS, KIZ workflows, printing, monitoring,
 configuration, and other current server modules. Legacy module lists are not proof
-of full action coverage. Financial mutation workflows are now implemented locally,
-but not yet validated on a physical device or published.
+of full action coverage. Financial mutation workflows are published in 0.6.2,
+but authenticated device workflows remain unverified.
 Soul wallpaper/custom gradients and exact desktop navigation animation are not ported.
 
 No production commands or financial mutations were executed during development.

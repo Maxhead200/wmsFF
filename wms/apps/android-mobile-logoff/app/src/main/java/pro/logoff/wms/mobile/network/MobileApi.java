@@ -21,6 +21,9 @@ import retrofit2.http.PUT;
 
 public interface MobileApi {
     // FIX: existing client management routes retain server-side access checks.
+    // FIX: existing scoped SKU endpoints; client ownership/stock are excluded by the native form.
+    @GET("skus/{id}") Call<Map<String,Object>> skuDetails(@Path("id") String id);
+    @PATCH("skus/{id}") Call<Map<String,Object>> updateSkuDetails(@Path("id") String id,@Body Map<String,Object> changes);
     @GET("clients/{id}") Call<Map<String,Object>> clientDetails(@Path("id") String id);
     @PATCH("clients/{id}") Call<Map<String,Object>> updateClientDetails(@Path("id") String id,@Body Map<String,Object> changes);
     // FIX: existing permission-checked, preview-validated financial operations.

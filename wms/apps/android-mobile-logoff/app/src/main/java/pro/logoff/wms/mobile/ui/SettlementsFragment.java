@@ -31,6 +31,10 @@ public class SettlementsFragment extends Fragment {
         MaterialButton reload=button("Обновить расчёты");reload.setOnClickListener(v->refresh());content.addView(reload);
         MaterialButton history=button("Закрытые периоды");history.setOnClickListener(v->history(false));content.addView(history);
         MaterialButton corrections=button("История корректировок счетов");corrections.setOnClickListener(v->history(true));content.addView(corrections);
+        if(((LogoffApplication)requireActivity().getApplication()).state().can("billing:write")){
+            MaterialButton actions=button("Исправить счёт / закрыть период");
+            actions.setOnClickListener(v->((MainActivity)requireActivity()).showNative(FinancialActionsFragment.create(from,to),"Финансовые операции"));content.addView(actions);
+        }
         status=text("",15);status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);content.addView(status);
         results=column();content.addView(results);refresh();return scroll;
     }

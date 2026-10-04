@@ -1,5 +1,16 @@
 # Local validation — 2026-10-04
 
+## Unpublished financial actions increment
+
+- New API contract test failed before implementation, then passed.
+- 12 JUnit tests and 9 Node contracts passed; debug assembly successful.
+- Android Lint successful; no production financial mutation performed.
+- Native period close, adjustment and late-work preview/confirmation added.
+- Pending body/identity persisted before POST; uncertain result blocks fresh actions.
+- Screen generation and user/client/branch checks guard stale callbacks/confirmation.
+- Physical-device and authenticated end-to-end validation remain pending.
+- Not included in published APK 0.6.1; debug APK is not for distribution.
+
 ## 0.6.1-soul (24): correction history
 
 - New correction-history contract failed before implementation, then passed.

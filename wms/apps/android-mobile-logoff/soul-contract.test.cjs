@@ -3,6 +3,18 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const read=p=>fs.readFileSync(path.join(__dirname,p),'utf8');
+// TEST: financial writes require server preview and durable identity before sending.
+test('financial actions use existing guarded server mutations',()=>{
+ const api=read('app/src/main/java/pro/logoff/wms/mobile/network/MobileApi.java');
+ for(const route of ['period-close/preview','period-close','period-close/corrections/preview','period-close/corrections'])assert.ok(api.includes(`@POST("billing/${route}")`));
+ const ui=read('app/src/main/java/pro/logoff/wms/mobile/ui/FinancialActionsFragment.java');
+ const persist=ui.slice(ui.indexOf('private void persist('),ui.indexOf('@SuppressWarnings("unchecked") private void sendSaved'));
+ assert.ok(persist.indexOf('prefs.edit().putString')<persist.indexOf('sendSaved()'));
+ assert.ok(ui.includes('previewHash'));assert.ok(ui.includes('operationKey'));assert.ok(ui.includes('sameScope'));
+ assert.ok(ui.includes('epoch!=generation'));
+ assert.ok(ui.includes('busy||pending()||!enabled||!validScope()'));
+ assert.ok(ui.includes('prefs.edit().remove(user).commit()'));
+});
 // TEST: correction history is read-only and must not claim a date-filtered server result.
 test('native correction history uses GET and bounded rendering',()=>{
  const api=read('app/src/main/java/pro/logoff/wms/mobile/network/MobileApi.java');

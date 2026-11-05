@@ -576,12 +576,15 @@ export class WarehouseService {
         status: 'PAID',
         items: { some: { charge: { service: { code: { in: ['PPR_BAGS', 'PPR_BOXES'] } } } } },
       },
-      orderBy: [{ paidAt: 'desc' }, { updatedAt: 'desc' }],
-      select: { paidAt: true, periodTo: true },
+      orderBy: { periodTo: 'desc' },
+      select: { periodTo: true },
     });
     const monthStart = new Date();
     monthStart.setDate(1);
-    const periodFrom = toIsoDate(latestPaid?.paidAt ?? latestPaid?.periodTo ?? monthStart);
+    // FIX: the invoice covers arrivals through periodTo, regardless of payment date.
+    const firstUncoveredDay = new Date(latestPaid?.periodTo ?? monthStart);
+    if (latestPaid?.periodTo) firstUncoveredDay.setUTCDate(firstUncoveredDay.getUTCDate() + 1);
+    const periodFrom = toIsoDate(firstUncoveredDay);
     const periodTo = toIsoDate(new Date());
     const arrivals = await this.listGoodsArrivals({ clientId, periodFrom, periodTo }, user);
     const bagCount = arrivals.reduce((sum, row) => sum + row.bagCount, 0);
